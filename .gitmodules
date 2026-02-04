@@ -1,0 +1,9 @@
+[submodule "vendor/alto"]
+	path = vendor/alto
+	url = https://github.com/SeaSailors/alto
+[submodule "vendor/reth"]
+	path = vendor/reth
+	url = https://github.com/SeaSailors/reth
+[submodule "vendor/commonware"]
+	path = vendor/commonware
+	url = https://github.com/SeaSailors/monorepo
