@@ -13,4 +13,4 @@ Depends on: `types`, `core` (traits), `storage`.
 ## Sub-pages
 
 - [`types`](./types.md) — public config + event shapes
-- [`simplex`](./simplex.md) — how to wire `vendor/commonware/consensus` (Simplex)
+- [`simplex`](./simplex/index.md) — how to wire `vendor/commonware/consensus` (Simplex)
