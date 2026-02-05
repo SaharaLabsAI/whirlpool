@@ -21,4 +21,6 @@ Not a spec.
 
 RPC: `get_head`, `get_block`, `submit_tx`, `get_tx`, `subscribe_heads`.
 
+Consensus (internal): emits [`ConsensusEvent`](./crates/consensus/types.md) such as `Finalized(types::FinalizedBlock)`.
+
 P2P: announce/request for tx, block, vote.

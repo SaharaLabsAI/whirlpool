@@ -1,4 +1,4 @@
-# `core`
+# `core` — consensus interfaces (shape)
 
 **Purpose**: component *interfaces* expressed as Rust traits.
 
@@ -11,8 +11,6 @@ Inputs/outputs: trait methods use `types` as the shared data model.
 Depends on: `types` (and minimal `async`/error plumbing if needed).
 
 Not in scope: concrete implementations, networking transports, wire formats.
-
-## Consensus interfaces (shape)
 
 Extracted from Alto’s pattern: consensus owns the algorithm; the chain-specific “application” provides `genesis`, `propose`, and `verify` over an ancestry stream, and receives activity notifications.
 
@@ -82,3 +80,5 @@ Where this usually lands:
 ```
 
 Design rule: `core` depends only on `types` (no dependency on concrete crates like `consensus`/`network`).
+
+For the concrete consensus driver/config shapes, see [`consensus/types`](../consensus/types.md).

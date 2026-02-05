@@ -1,16 +1,6 @@
-# `consensus`
+# `consensus` — types (shape)
 
-**Purpose**: decide canonical/finalized blocks.
-
-Owns: vote/finality rules, consensus state machine/driver, fork choice (if any).
-
-Inputs: candidate blocks (headers + execution results) + peer votes/messages.
-
-Outputs: finalized head + consensus events.
-
-Depends on: `types`, `core` (traits), `storage`.
-
-## Key structs (shape)
+Not a spec. These are the minimal public shapes the rest of the chain cares about.
 
 ```rust
 // NOTE: high-level shapes, not a spec.

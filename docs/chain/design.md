@@ -25,7 +25,8 @@ Not a spec. Just the smallest shared mental model.
 
 ## Config surface
 
-- `chain_id`, genesis (validator set + initial state), consensus params, execution limits.
+- `chain_id`, genesis (validator set + initial state), execution limits.
+- Consensus config + events: see [`consensus/types`](./crates/consensus/types.md).
 
 ## Trust boundary
 
