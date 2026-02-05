@@ -27,7 +27,7 @@ pub struct Timeouts {
 }
 
 pub enum ConsensusEvent {
-  Finalized(types::Finalization),
+  Finalized(types::FinalizedBlock),
   // e.g. view/round advanced, peer needed, etc.
 }
 

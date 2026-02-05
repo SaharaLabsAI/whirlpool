@@ -59,13 +59,13 @@ pub trait VerifyingApplication {
   ) -> Result<bool, Self::Error>;
 }
 
-pub trait Reporter<Activity> {
-  async fn report(&mut self, activity: Activity);
+pub trait Reporter<A> {
+  async fn report(&mut self, activity: A);
 }
 
-// Example “activity” payload: finalized blocks.
-pub enum Activity<Block> {
-  Finalized(Block),
+// Example “activity” payload.
+pub enum Activity {
+  Finalized(types::FinalizedBlock),
 }
 
 // Optional: a higher-level driver boundary used by the node.
