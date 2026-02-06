@@ -12,7 +12,7 @@ driver/backend boundary and algorithm-specific implementations live under `backe
 ```rust
 // NOTE: high-level shapes, not compile-ready.
 
-/// Returned by `ConsensusBackend::start`.
+/// Returned by `ConsensusEngine::start`.
 ///
 /// Must support graceful shutdown (signal stop + await completion).
 pub trait ConsensusHandle {
@@ -28,7 +28,7 @@ pub trait ConsensusHandle {
 ///
 /// IMPORTANT: backends have different build-time needs (message types, payload handling), so
 /// construction is backend-defined and is intentionally *not* part of this trait.
-pub trait ConsensusBackend {
+pub trait ConsensusEngine {
   type Error;
 
   /// Runtime handle returned by `start`.
@@ -44,20 +44,20 @@ pub trait ConsensusBackend {
 ///
 /// The caller is responsible for constructing the backend from its direct dependencies
 /// (e.g. `app`, `network`, backend-specific config).
-pub struct ConsensusDriver<Backend> {
-  backend: Backend,
+pub struct ConsensusDriver<Engine> {
+  engine: Engine,
 }
 
-impl<Backend> ConsensusDriver<Backend>
+impl<Engine> ConsensusDriver<Engine>
 where
-  Backend: ConsensusBackend,
+  Engine: ConsensusEngine,
 {
-  pub fn new(backend: Backend) -> Self {
-    Self { backend }
+  pub fn new(engine: Engine) -> Self {
+    Self { engine }
   }
 
-  pub async fn start(self) -> Result<Backend::Handle, Backend::Error> {
-    self.backend.start().await
+  pub async fn start(self) -> Result<Engine::Handle, Engine::Error> {
+    self.engine.start().await
   }
 }
 ```
@@ -79,7 +79,7 @@ We select the backend at **compile time** (different binaries / feature flags) f
 
 So the intended pattern is:
 
-- `ConsensusDriver<Backend>` holds a concrete `Backend: ConsensusBackend`.
+- `ConsensusDriver<Engine>` holds a concrete `Engine: ConsensusEngine`.
 - The caller constructs `Backend` explicitly (from `app`, `network`, and backend-specific config).
 - No trait objects (`Box<dyn ...>`) and no runtime selection.
 
