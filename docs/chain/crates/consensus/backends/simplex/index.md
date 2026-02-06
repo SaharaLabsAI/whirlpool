@@ -39,54 +39,60 @@ The intent is:
 ```rust
 // Pseudocode — not compile-ready.
 
-pub struct SimplexBackend<E, App> {
-  // The algorithm engine.
+pub struct SimplexBackend<E, App, Net> {
+  // Internal backend state (for now): simplex engine + 3 consensus planes.
   engine: commonware_consensus::simplex::Engine<E, /* ... */>,
+  planes: Planes,
 
-  // Backend does not own `App`, but we carry it at the type level so our
-  // `Context<'a>` can borrow `&'a App`.
   _app: std::marker::PhantomData<App>,
+  _net: std::marker::PhantomData<Net>,
 }
 
-pub struct SimplexContext<'a, E, App> {
-  // Chain-specific logic (wrapped/ adapted as needed).
-  pub app: &'a App,
+pub struct SimplexContext<'a, E, App, Net> {
+  // App is consumed during build and wrapped by Marshaled.
+  pub app: App,
 
-  // Wiring owned by the driver.
-  pub network: &'a SimplexNetwork<E>,
-  pub planes: &'a Planes,
+  // Caller-owned dependencies injected into build.
+  pub network: &'a Net,
+  pub options: &'a SimplexOptions,
 
-  // The adapter that implements the traits Simplex expects.
-  // In Alto this is `commonware_consensus::application::marshaled::Marshaled<...>`.
-  pub marshaled_app: commonware_consensus::application::marshaled::Marshaled<E, /* ... */>,
+  _env: std::marker::PhantomData<E>,
 }
 
-impl<E, App> consensus::ConsensusBackend for SimplexBackend<E, App> {
+impl<E, App, Net> consensus::ConsensusBackend for SimplexBackend<E, App, Net> {
   type Error = anyhow::Error;
-  type Context<'a> = SimplexContext<'a, E, App>
+  type Context<'a> = SimplexContext<'a, E, App, Net>
   where
     Self: 'a,
-    App: 'a;
+    App: 'a,
+    Net: 'a;
 
-  async fn start(&mut self, ctx: Self::Context<'_>) -> Result<(), Self::Error> {
-    // The driver starts payload tasks (buffer + marshal) first.
-    // Then the backend starts simplex with the 3 simplex planes.
-    // ctx.planes -> (vote/cert/resolver)
+  async fn build(ctx: Self::Context<'_>) -> Result<Self, Self::Error> {
+    // Backend derives Planes from network implementation.
+    // Backend consumes `ctx.app` to construct Marshaled.
+    // Backend consumes Marshaled into simplex::Config (automaton + relay).
+    // Backend constructs simplex::Engine::new(...).
+    Ok(Self { /* engine, planes */ })
+  }
+
+  async fn start(self) -> Result<(), Self::Error> {
+    // Consumes backend state and starts simplex with owned planes.
     Ok(())
   }
 }
 ```
 
-The driver (`ConsensusDriver<App, SimplexBackend<E>, SimplexNetwork<E>>`) is responsible for:
+The driver (`ConsensusDriver<App, SimplexBackend<...>, Net>`) should only be responsible for:
 
-- registering channels (votes/certs/resolver/broadcast/marshal)
-- starting payload tasks (buffer + marshal)
-- building the `Marshaled` app adapter (needs `network.marshal_mailbox.clone()`)
-- then calling `backend.start(ctx)`
+- providing caller-owned dependencies (`app`, `network`, `SimplexOptions`)
+- invoking backend lifecycle (`build` then `start`)
+- supervising task lifetime and shutdown propagation
 
-This is the same ownership/composition pattern as Alto:
+`Marshaled` and `Planes` are backend internals and must not be required from callers.
+Current backend state is intentionally minimal: only `engine` + `planes` before `start()`.
 
-- `vendor/alto/chain/src/engine.rs`: `Engine<E, B, S, I>` owns buffer + marshal + marshaled app + simplex engine.
+Alto remains the behavioral reference for startup order and component composition,
+but this adapter boundary keeps Alto-style internals encapsulated inside the backend.
 
 ### 2) Backend is “Simplex” (not a trait object)
 
@@ -195,16 +201,17 @@ Alto shows both styles:
 - separate indexer/pusher reporter that fetches blocks via marshal subscription before uploading
   notarized/finalized artifacts (`vendor/alto/chain/src/indexer.rs`)
 
-## Startup sequence (Alto pattern)
+## Startup sequence (encapsulated Simplex backend)
 
-The typical task start order is:
+The typical start order should be:
 
-1. register P2P channels (votes/certs/resolver/broadcast/marshal)
-2. start buffered broadcast engine
-3. start marshal actor (with resolver/backfill wiring)
-4. wrap application in `application::marshaled::Marshaled`
-5. construct `simplex::Engine::new(context, cfg)`
-6. start simplex engine with the 3 simplex channels
-7. keep all tasks alive; propagate shutdown on any fatal error
+1. caller/driver prepares caller-owned dependencies (`app`, `network`, `SimplexOptions`)
+2. backend `build(ctx)` derives consensus planes from `network`
+3. backend `build(ctx)` consumes `app` to construct `application::marshaled::Marshaled`
+4. backend `build(ctx)` consumes `Marshaled` into `simplex::Config` and constructs `simplex::Engine::new(...)`
+5. backend now holds minimal pre-start state: `engine` + `planes`
+6. backend `start(self)` consumes that state and starts simplex with owned planes
+7. driver supervises all tasks and propagates shutdown on fatal error
 
-See: `vendor/alto/chain/src/engine.rs` (`Engine::new`, then `Engine::start`).
+Behavioral reference for ordering and components remains Alto (`vendor/alto/chain/src/engine.rs`),
+while this doc keeps those details behind the backend API.

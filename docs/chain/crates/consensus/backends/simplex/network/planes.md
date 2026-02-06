@@ -5,11 +5,11 @@ channels (they may share an underlying transport implementation).
 
 These are the three channels passed into `commonware_consensus::simplex::Engine::start(...)`.
 
-In our implementation sketch (see `../index.md`), these are acquired by the driver and passed into
-the backend engine during `ConsensusDriver::start()`.
+In our backend boundary (see `../index.md`), callers provide a `Network` implementation,
+and the Simplex backend derives/constructs these planes internally during backend build/start.
 
-Recommended shape: bundle these handles into a `Planes` struct owned by `SimplexNetwork`, so the
-driver can pass `network.planes` into the engine start.
+Recommended shape: keep these handles in an internal `Planes` struct owned by the backend,
+constructed from the injected network implementation.
 
 ## 1) Vote plane (`vote_network`)
 
