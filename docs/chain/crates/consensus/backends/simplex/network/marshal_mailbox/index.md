@@ -10,7 +10,7 @@ The **marshal mailbox** is the payload-facing API used by:
 
 It is the interface to a long-running **marshal actor**.
 
-In the recommended wiring, `SimplexNetwork` owns the marshal actor and retains a cloneable
+In the recommended wiring, the Simplex backend owns the marshal actor and retains a cloneable
 mailbox handle for:
 
 - the marshaled application wrapper (propose/verify)

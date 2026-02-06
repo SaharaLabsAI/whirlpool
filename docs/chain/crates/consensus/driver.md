@@ -14,36 +14,45 @@ driver/backend boundary and algorithm-specific implementations live under `backe
 
 /// Algorithm/backend interface.
 ///
-/// The backend runs the *consensus algorithm* given an application adapter + networking.
+/// The backend runs the *consensus algorithm* given application + networking inputs.
 ///
-/// IMPORTANT: backends have different needs (message types, payload handling), so we keep
-/// the boundary minimal and allow each backend to define its required "context".
+/// IMPORTANT: backends have different needs (message types, payload handling), so input shape
+/// is backend-defined. Callers should pass direct dependencies, not backend internals.
 pub trait ConsensusBackend {
   type Error;
-  type Context<'a>
+  type BuildInput<'a>
   where
     Self: 'a;
 
-  async fn start(&mut self, ctx: Self::Context<'_>) -> Result<(), Self::Error>;
+  async fn build(input: Self::BuildInput<'_>) -> Result<Self, Self::Error>
+  where
+    Self: Sized;
+
+  async fn start(self) -> Result<(), Self::Error>;
 }
 
-/// Chain-facing driver composition: owns chain app + backend + wiring.
+/// Chain-facing driver composition: owns chain app + wiring.
 ///
 /// Backend selection is compile-time (different binaries / feature flags).
-pub struct ConsensusDriver<App, Backend, Network> {
+///
+/// The driver typically also owns a backend-specific build config `Cfg`.
+pub struct ConsensusDriver<App, Backend, Network, Cfg> {
   app: App,
-  backend: Backend,
   network: Network,
+  cfg: Cfg,
+  _backend: std::marker::PhantomData<Backend>,
 }
 
-impl<App, Backend, Network> ConsensusDriver<App, Backend, Network>
+impl<App, Backend, Network, Cfg> ConsensusDriver<App, Backend, Network, Cfg>
 where
   Backend: ConsensusBackend,
 {
-  pub async fn start(&mut self) -> Result<(), Backend::Error> {
-    // 1) build backend context from (app, network, storage bindings)
-    // 2) start backend
-    self.backend.start(/* ctx */).await
+  pub async fn start(self) -> Result<(), Backend::Error> {
+    // Build backend from direct caller-owned dependencies.
+    let backend = Backend::build(/* app, network, cfg */).await?;
+
+    // Start backend; ownership moves into runtime tasks.
+    backend.start().await
   }
 }
 ```
@@ -65,7 +74,7 @@ We select the backend at **compile time** (different binaries / feature flags) f
 
 So the intended pattern is:
 
-- `ConsensusDriver<App, Backend, Network>` is generic over a concrete `Backend: ConsensusBackend`.
+- `ConsensusDriver<App, Backend, Network, Cfg>` is generic over a concrete `Backend: ConsensusBackend`.
 - No trait objects (`Box<dyn ...>`) and no runtime selection.
 
 If runtime selection is ever needed, it will require additional type erasure/adapters and is out of
