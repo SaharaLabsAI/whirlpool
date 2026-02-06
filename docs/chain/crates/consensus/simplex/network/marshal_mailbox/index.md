@@ -10,6 +10,12 @@ The **marshal mailbox** is the payload-facing API used by:
 
 It is the interface to a long-running **marshal actor**.
 
+In the recommended wiring, `SimplexNetwork` owns the marshal actor and retains a cloneable
+mailbox handle for:
+
+- the marshaled application wrapper (propose/verify)
+- reporters/indexers (finalization -> fetch bytes -> emit `FinalizedBlock`)
+
 In Alto, marshal payload networking uses a *separate* P2P channel in addition to the 3 Simplex
 planes:
 

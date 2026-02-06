@@ -21,8 +21,5 @@ pub enum ConsensusEvent {
   // e.g. view/round advanced, peer needed, etc.
 }
 
-// Main driver that wires the algorithm to the app boundaries.
-pub struct ConsensusDriver<A> {
-  pub app: A, // implements core::ConsensusApplication + core::VerifyingApplication
-}
+// Driver/backend abstractions are defined in `consensus/driver.md`.
 ```

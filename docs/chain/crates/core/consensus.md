@@ -66,17 +66,14 @@ pub enum Activity {
   Finalized(types::FinalizedBlock),
 }
 
-// Optional: a higher-level driver boundary used by the node.
-pub trait ConsensusDriver {
-  type Error;
-  async fn start(&mut self) -> Result<(), Self::Error>;
-}
-
 Where this usually lands:
 
 - `ConsensusApplication` / `VerifyingApplication`: implemented by the “app” layer (often backed by `executor` + `storage`).
 - `Reporter`: implemented by something that wants notifications (logs, metrics, indexer).
-- `ConsensusDriver`: implemented by the concrete `consensus` crate.
+
+Driver/backend abstractions live in the `consensus` crate (they depend on networking/storage/wiring):
+
+- see [`consensus/driver`](../consensus/driver.md)
 ```
 
 Design rule: `core` depends only on `types` (no dependency on concrete crates like `consensus`/`network`).

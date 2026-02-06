@@ -19,10 +19,81 @@ At minimum you are building and starting:
 
 Our `core` traits are engine-agnostic ports.
 
-- `core/consensus.md`: `ConsensusApplication`, `VerifyingApplication`, `Reporter`
+- [`core/consensus`](../../core/consensus.md): `ConsensusApplication`, `VerifyingApplication`, `Reporter`
 
 The Simplex adapter layer is responsible for implementing the commonware traits and delegating
 to our `core` traits.
+
+## Concrete adapter structure (recommended)
+
+This is the lowest-level shape we should commit to in docs: a **driver struct** that implements
+our chain-facing consensus driver (`consensus/driver.md`), and internally delegates to a
+**backend** (Simplex).
+
+The intent is:
+
+- `core/*` stays engine-agnostic.
+- `consensus/simplex/*` is the glue that binds `core` to `commonware_consensus::simplex`.
+
+### 1) Driver owns the wiring
+
+```rust
+// Pseudocode — not compile-ready.
+
+pub struct SimplexDriver<E, App> {
+  // Chain-specific logic.
+  app: App,
+
+  // Networking + payload plumbing (buffer + marshal + planes).
+  network: SimplexNetwork<E>,
+
+  // Adapter that implements the traits Simplex expects.
+  // In Alto this is `commonware_consensus::application::marshaled::Marshaled<...>`.
+  marshaled_app: commonware_consensus::application::marshaled::Marshaled<E, /* ... */>,
+
+  // The actual consensus engine.
+  engine: commonware_consensus::simplex::Engine<E, /* ... */>,
+}
+
+impl<E, App> SimplexDriver<E, App> {
+  pub async fn start(&mut self) -> Result<(), anyhow::Error> {
+    // 1) register network channels (votes/certs/resolver/broadcast/marshal)
+    // 2) start network payload tasks (buffer + marshal)
+    // 3) start simplex engine with the 3 simplex planes
+    Ok(())
+  }
+}
+```
+
+This is the same ownership/composition pattern as Alto:
+
+- `vendor/alto/chain/src/engine.rs`: `Engine<E, B, S, I>` owns buffer + marshal + marshaled app + simplex engine.
+
+### 2) Backend is “Simplex” (not a trait object)
+
+If we are using Simplex, prefer holding the concrete type `commonware_consensus::simplex::Engine`.
+This keeps the wiring explicit and prevents “dynamic dispatch everywhere”.
+
+For the parent-level driver/backend abstractions (used to benchmark multiple algorithms), see:
+
+- [`consensus/driver`](../driver.md)
+
+### 3) Adapter types you will actually use (commonware)
+
+These are the concrete adapter/wrapper patterns worth mirroring:
+
+- `commonware_consensus::application::marshaled::Marshaled<...>`
+  - wraps your app and supplies `Automaton`/`Relay` behaviors needed by Simplex
+  - file: `vendor/commonware/consensus/src/application/marshaled.rs`
+
+- `commonware_consensus::reporter::Reporters<...>`
+  - combines reporters (tee activity to multiple sinks)
+  - file: `vendor/commonware/consensus/src/reporter.rs`
+
+Alto examples:
+
+- app implements commonware traits directly: `vendor/alto/chain/src/application.rs`
+- engine composition / start order: `vendor/alto/chain/src/engine.rs`
 
 ## Required ingredients (checklist)
 
