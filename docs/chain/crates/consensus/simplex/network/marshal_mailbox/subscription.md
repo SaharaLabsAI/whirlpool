@@ -19,7 +19,12 @@ This pattern is used when you have a commitment (from consensus activity) but no
 
 Alto example:
 
-- `vendor/alto/chain/src/indexer.rs` waits on the marshal subscription before uploading notarized/finalized artifacts.
+- `vendor/alto/chain/src/indexer.rs` waits on the marshal subscription before uploading notarized/finalized artifacts:
+  - notarization path: `marshal.subscribe(Some(notarization.round()), notarization.proposal.payload)` (lines ~137-146)
+  - finalization path: `marshal.subscribe(Some(finalization.round()), finalization.proposal.payload)` (lines ~179-187)
+
+Note the shape: `subscribe(..).await.await` — the first await registers the subscription; the second
+await waits for the block to arrive (or be cancelled).
 
 ## Subscription vs mailbox
 

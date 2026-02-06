@@ -15,6 +15,12 @@ Carries **individual votes** (small, frequent messages), such as:
 
 Alto example wiring: `vendor/alto/chain/src/bin/validator.rs` registers `pending` for votes.
 
+Concrete references (Alto):
+
+- channel IDs: `PENDING_CHANNEL` / `RECOVERED_CHANNEL` / `RESOLVER_CHANNEL` (lines ~28-31)
+- registrations: `network.register(PENDING_CHANNEL, ...)` etc. (lines ~206-217)
+- engine start: `engine.start(pending, recovered, resolver, ...)` (line ~286)
+
 ## 2) Certificate plane (`certificate_network`)
 
 Carries **aggregated certificates** (quorum proofs), such as:
@@ -25,12 +31,22 @@ Carries **aggregated certificates** (quorum proofs), such as:
 
 Alto example wiring: `vendor/alto/chain/src/bin/validator.rs` registers `recovered` for certificates.
 
+Concrete references (Alto):
+
+- `RECOVERED_CHANNEL` constant (line ~29)
+- registration block (lines ~210-213)
+
 ## 3) Resolver / fetch plane (`resolver_network`)
 
 Carries **request/response** traffic for missing consensus artifacts (e.g. certificates / views)
 so a node can catch up.
 
 Alto example wiring: `vendor/alto/chain/src/bin/validator.rs` registers `resolver` for fetch.
+
+Concrete references (Alto):
+
+- `RESOLVER_CHANNEL` constant (line ~30)
+- registration block (lines ~215-217)
 
 ## Notes
 
@@ -40,3 +56,4 @@ Alto example wiring: `vendor/alto/chain/src/bin/validator.rs` registers `resolve
 References:
 
 - `vendor/commonware/consensus/src/simplex/engine.rs` (`Engine::start`)
+- Alto end-to-end wiring: `vendor/alto/chain/src/bin/validator.rs` (channel registration + `engine.start(...)`)

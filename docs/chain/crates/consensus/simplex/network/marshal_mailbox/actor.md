@@ -40,4 +40,12 @@ Commonware references:
 
 Alto wiring reference:
 
-- marshal actor + mailbox initialized in `vendor/alto/chain/src/engine.rs`
+- marshal actor + mailbox initialized in `vendor/alto/chain/src/engine.rs`:
+  - `marshal::Actor::init(...) -> (marshal, marshal_mailbox, _)` (lines ~226-250)
+  - the marshaled app is constructed with `marshal_mailbox.clone()` (lines ~254-259)
+  - consensus config uses `marshaled` as `automaton` and `relay` (lines ~275-282)
+
+Runtime start order (Alto):
+
+- `buffer.start(broadcast)` then `marshal.start(...)` then `consensus.start(pending, recovered, resolver)`
+  (`vendor/alto/chain/src/engine.rs`, lines ~369-382)
