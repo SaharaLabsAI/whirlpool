@@ -12,47 +12,52 @@ driver/backend boundary and algorithm-specific implementations live under `backe
 ```rust
 // NOTE: high-level shapes, not compile-ready.
 
+/// Returned by `ConsensusBackend::start`.
+///
+/// Must support graceful shutdown (signal stop + await completion).
+pub trait ConsensusHandle {
+  type Error;
+
+  /// Graceful shutdown: signal stop, then await completion.
+  async fn stop(self) -> Result<(), Self::Error>;
+}
+
 /// Algorithm/backend interface.
 ///
-/// The backend runs the *consensus algorithm* given application + networking inputs.
+/// The backend runs the *consensus algorithm* once it is fully constructed.
 ///
-/// IMPORTANT: backends have different needs (message types, payload handling), so input shape
-/// is backend-defined. Callers should pass direct dependencies, not backend internals.
+/// IMPORTANT: backends have different build-time needs (message types, payload handling), so
+/// construction is backend-defined and is intentionally *not* part of this trait.
 pub trait ConsensusBackend {
   type Error;
-  type BuildInput<'a>
-  where
-    Self: 'a;
 
-  async fn build(input: Self::BuildInput<'_>) -> Result<Self, Self::Error>
-  where
-    Self: Sized;
+  /// Runtime handle returned by `start`.
+  type Handle: ConsensusHandle<Error = Self::Error>;
 
-  async fn start(self) -> Result<(), Self::Error>;
+  /// Start the backend and return a runtime handle.
+  ///
+  /// This consumes the backend and transfers ownership into runtime tasks.
+  async fn start(self) -> Result<Self::Handle, Self::Error>;
 }
 
-/// Chain-facing driver composition: owns chain app + wiring.
+/// Chain-facing driver: a thin wrapper that starts a pre-built backend.
 ///
-/// Backend selection is compile-time (different binaries / feature flags).
-///
-/// The driver typically also owns a backend-specific build config `Cfg`.
-pub struct ConsensusDriver<App, Backend, Network, Cfg> {
-  app: App,
-  network: Network,
-  cfg: Cfg,
-  _backend: std::marker::PhantomData<Backend>,
+/// The caller is responsible for constructing the backend from its direct dependencies
+/// (e.g. `app`, `network`, backend-specific config).
+pub struct ConsensusDriver<Backend> {
+  backend: Backend,
 }
 
-impl<App, Backend, Network, Cfg> ConsensusDriver<App, Backend, Network, Cfg>
+impl<Backend> ConsensusDriver<Backend>
 where
   Backend: ConsensusBackend,
 {
-  pub async fn start(self) -> Result<(), Backend::Error> {
-    // Build backend from direct caller-owned dependencies.
-    let backend = Backend::build(/* app, network, cfg */).await?;
+  pub fn new(backend: Backend) -> Self {
+    Self { backend }
+  }
 
-    // Start backend; ownership moves into runtime tasks.
-    backend.start().await
+  pub async fn start(self) -> Result<Backend::Handle, Backend::Error> {
+    self.backend.start().await
   }
 }
 ```
@@ -74,7 +79,8 @@ We select the backend at **compile time** (different binaries / feature flags) f
 
 So the intended pattern is:
 
-- `ConsensusDriver<App, Backend, Network, Cfg>` is generic over a concrete `Backend: ConsensusBackend`.
+- `ConsensusDriver<Backend>` holds a concrete `Backend: ConsensusBackend`.
+- The caller constructs `Backend` explicitly (from `app`, `network`, and backend-specific config).
 - No trait objects (`Box<dyn ...>`) and no runtime selection.
 
 If runtime selection is ever needed, it will require additional type erasure/adapters and is out of

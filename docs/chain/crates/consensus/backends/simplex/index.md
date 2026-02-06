@@ -29,6 +29,11 @@ The backend owns all Simplex-specific internals.
 - Callers must not construct `Marshaled` or `Planes`.
 - Callers provide only caller-owned dependencies (`app`, `network`, build config).
 
+When started, the backend returns a runtime handle (see `ConsensusHandle` in
+`docs/chain/crates/consensus/driver.md`). This handle supports graceful shutdown:
+
+- `handle.stop(self)` signals shutdown and awaits task completion.
+
 Build details:
 
 - [`build`](./build/index.md)
@@ -129,14 +134,14 @@ Alto shows both styles:
 
 The typical start order should be:
 
-1. caller/driver prepares caller-owned dependencies (`app`, `network`, `SimplexBuildConfig`)
-2. backend `build(app, network, cfg)` derives consensus planes from `network`
-3. backend `build(app, network, cfg)` consumes `app` to construct `application::marshaled::Marshaled`
-4. backend `build(app, network, cfg)` builds and validates `simplex::Config` from `cfg` + backend defaults
-5. backend `build(app, network, cfg)` constructs `simplex::Engine::new(...)`
-6. backend now holds minimal pre-start state: `engine` + `planes`
-7. backend `start(self)` consumes that state and starts simplex with owned planes
-8. driver supervises all tasks and propagates shutdown on fatal error
+1. caller builds the backend from caller-owned dependencies (`app`, `network`, `SimplexBuildConfig`)
+2. backend construction derives consensus planes from `network`
+3. backend construction consumes `app` to construct `application::marshaled::Marshaled`
+4. backend construction builds and validates `simplex::Config` from `SimplexBuildConfig` + backend defaults
+5. backend construction constructs `simplex::Engine::new(...)`
+6. backend holds minimal pre-start state: `engine` + `planes`
+7. caller starts the backend via `backend.start()` (ownership moves into runtime tasks)
+8. the caller/driver supervises tasks and propagates shutdown on fatal error
 
 Behavioral reference for ordering and components remains Alto (`vendor/alto/chain/src/engine.rs`),
 while this doc keeps those details behind the backend API.

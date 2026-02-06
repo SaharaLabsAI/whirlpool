@@ -2,8 +2,11 @@
 
 The Simplex backend exposes a two-phase lifecycle:
 
-1. `build(...) -> SimplexBackend` wires all dependencies and produces a minimal pre-start state.
-2. `start(self) -> Result<()>` consumes that state and spawns runtime tasks.
+1. construction (backend-defined; typically `SimplexBackend::new(...)`) wires all dependencies and
+   produces a minimal pre-start state.
+2. `start(self) -> Result<Handle>` consumes that state and spawns runtime tasks.
+
+The returned handle supports graceful shutdown: signal stop, then await completion.
 
 This split is important because:
 
@@ -14,7 +17,7 @@ This split is important because:
 
 ### Inputs
 
-At build time, the driver/caller provides only caller-owned dependencies:
+At build time, the caller provides only caller-owned dependencies:
 
 - `App`: the chain application implementation.
 - `Network`: a network implementation that the backend can query to derive the 3 Simplex planes.
@@ -37,7 +40,21 @@ After `build(...)`, the backend should hold only the minimal state required to s
 - `engine: commonware_consensus::simplex::Engine<...>`
 - `planes: Planes`
 
-### Related
+### Sketch
+
+```rust
+// Pseudocode.
+
+let cfg = SimplexBuildConfig::prod_defaults(partition_prefix, scheme);
+let backend = SimplexBackend::new(app, network, cfg)?;
+
+let driver = ConsensusDriver::new(backend);
+let handle = driver.start().await?;
+
+// Later...
+handle.stop().await?;
+```
+
 
 - [`simplex`](../index.md)
 - [`network planes`](../network/planes.md)
