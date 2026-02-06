@@ -14,4 +14,4 @@ Depends on: `types`, `core` (traits), `storage`.
 
 - [`types`](./types.md) — public config + event shapes
 - [`driver`](./driver.md) — parent-level driver/backend abstractions
-- [`simplex`](./simplex/index.md) — how to wire `vendor/commonware/consensus` (Simplex)
+- [`simplex`](./backends/simplex/index.md) — Simplex backend (`vendor/commonware/consensus`)

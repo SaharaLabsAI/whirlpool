@@ -1,4 +1,4 @@
-# `consensus` - Simplex (commonware) wiring
+# `consensus/backends/simplex` — Simplex backend (commonware)
 
 This chain uses `vendor/commonware/consensus` Simplex as the consensus engine.
 
@@ -19,51 +19,70 @@ At minimum you are building and starting:
 
 Our `core` traits are engine-agnostic ports.
 
-- [`core/consensus`](../../core/consensus.md): `ConsensusApplication`, `VerifyingApplication`, `Reporter`
+- [`core/consensus`](../../../core/consensus.md): `ConsensusApplication`, `VerifyingApplication`, `Reporter`
 
 The Simplex adapter layer is responsible for implementing the commonware traits and delegating
 to our `core` traits.
 
 ## Concrete adapter structure (recommended)
 
-This is the lowest-level shape we should commit to in docs: a **driver struct** that implements
-our chain-facing consensus driver (`consensus/driver.md`), and internally delegates to a
-**backend** (Simplex).
+This backend is used with the parent-level `ConsensusDriver<App, Backend, Network>` composition
+defined in [`consensus/driver`](../../driver.md).
 
 The intent is:
 
 - `core/*` stays engine-agnostic.
-- `consensus/simplex/*` is the glue that binds `core` to `commonware_consensus::simplex`.
+- `consensus/backends/simplex/*` wires `core` to `commonware_consensus::simplex`.
 
-### 1) Driver owns the wiring
+### 1) Backend implements `ConsensusBackend`
 
 ```rust
 // Pseudocode — not compile-ready.
 
-pub struct SimplexDriver<E, App> {
-  // Chain-specific logic.
-  app: App,
-
-  // Networking + payload plumbing (buffer + marshal + planes).
-  network: SimplexNetwork<E>,
-
-  // Adapter that implements the traits Simplex expects.
-  // In Alto this is `commonware_consensus::application::marshaled::Marshaled<...>`.
-  marshaled_app: commonware_consensus::application::marshaled::Marshaled<E, /* ... */>,
-
-  // The actual consensus engine.
+pub struct SimplexBackend<E, App> {
+  // The algorithm engine.
   engine: commonware_consensus::simplex::Engine<E, /* ... */>,
+
+  // Backend does not own `App`, but we carry it at the type level so our
+  // `Context<'a>` can borrow `&'a App`.
+  _app: std::marker::PhantomData<App>,
 }
 
-impl<E, App> SimplexDriver<E, App> {
-  pub async fn start(&mut self) -> Result<(), anyhow::Error> {
-    // 1) register network channels (votes/certs/resolver/broadcast/marshal)
-    // 2) start network payload tasks (buffer + marshal)
-    // 3) start simplex engine with the 3 simplex planes
+pub struct SimplexContext<'a, E, App> {
+  // Chain-specific logic (wrapped/ adapted as needed).
+  pub app: &'a App,
+
+  // Wiring owned by the driver.
+  pub network: &'a SimplexNetwork<E>,
+  pub planes: &'a Planes,
+
+  // The adapter that implements the traits Simplex expects.
+  // In Alto this is `commonware_consensus::application::marshaled::Marshaled<...>`.
+  pub marshaled_app: commonware_consensus::application::marshaled::Marshaled<E, /* ... */>,
+}
+
+impl<E, App> consensus::ConsensusBackend for SimplexBackend<E, App> {
+  type Error = anyhow::Error;
+  type Context<'a> = SimplexContext<'a, E, App>
+  where
+    Self: 'a,
+    App: 'a;
+
+  async fn start(&mut self, ctx: Self::Context<'_>) -> Result<(), Self::Error> {
+    // The driver starts payload tasks (buffer + marshal) first.
+    // Then the backend starts simplex with the 3 simplex planes.
+    // ctx.planes -> (vote/cert/resolver)
     Ok(())
   }
 }
 ```
+
+The driver (`ConsensusDriver<App, SimplexBackend<E>, SimplexNetwork<E>>`) is responsible for:
+
+- registering channels (votes/certs/resolver/broadcast/marshal)
+- starting payload tasks (buffer + marshal)
+- building the `Marshaled` app adapter (needs `network.marshal_mailbox.clone()`)
+- then calling `backend.start(ctx)`
 
 This is the same ownership/composition pattern as Alto:
 
@@ -76,7 +95,7 @@ This keeps the wiring explicit and prevents “dynamic dispatch everywhere”.
 
 For the parent-level driver/backend abstractions (used to benchmark multiple algorithms), see:
 
-- [`consensus/driver`](../driver.md)
+- [`consensus/driver`](../../driver.md)
 
 ### 3) Adapter types you will actually use (commonware)
 

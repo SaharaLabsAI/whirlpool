@@ -5,7 +5,7 @@ This file defines the **parent-level abstractions** for running consensus.
 Motivation: we may benchmark multiple consensus algorithms over the same chain/execution layer.
 
 `core` remains engine-agnostic (traits for propose/verify/report). `consensus` defines the
-driver/backend boundary and algorithm-specific implementations live under subfolders (e.g. `simplex/`).
+driver/backend boundary and algorithm-specific implementations live under `backends/*`.
 
 ## Shapes (pseudocode)
 
@@ -57,7 +57,7 @@ The Simplex implementation is a concrete backend + driver composition that wires
 - the 3 Simplex network planes (votes/certs/resolver)
 - a reporter that produces `ConsensusEvent::Finalized(types::FinalizedBlock)`
 
-See: [`simplex`](./simplex/index.md).
+See: [`simplex`](./backends/simplex/index.md).
 
 ## Notes on dynamic dispatch
 

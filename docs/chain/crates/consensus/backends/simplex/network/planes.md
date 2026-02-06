@@ -6,7 +6,7 @@ channels (they may share an underlying transport implementation).
 These are the three channels passed into `commonware_consensus::simplex::Engine::start(...)`.
 
 In our implementation sketch (see `../index.md`), these are acquired by the driver and passed into
-the backend engine during `SimplexDriver::start()`.
+the backend engine during `ConsensusDriver::start()`.
 
 Recommended shape: bundle these handles into a `Planes` struct owned by `SimplexNetwork`, so the
 driver can pass `network.planes` into the engine start.
