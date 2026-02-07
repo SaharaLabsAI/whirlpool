@@ -51,7 +51,7 @@ pub struct ChannelConfig {
 }
 
 /// A minimal sender over an authenticated peer identity.
-pub trait Sender {
+pub trait ChannelSender {
   type PeerId;
   type Error;
 
@@ -59,7 +59,7 @@ pub trait Sender {
 }
 
 /// A minimal receiver over an authenticated peer identity.
-pub trait Receiver {
+pub trait ChannelReceiver {
   type PeerId;
   type Error;
 
@@ -67,16 +67,16 @@ pub trait Receiver {
   async fn recv(&mut self) -> Result<(Self::PeerId, Vec<u8>), Self::Error>;
 }
 
-/// Consensus-agnostic network boundary.
+/// Consensus-agnostic channel boundary.
 ///
 /// Consumers request one or more *logical channels* by registering `ChannelId`s.
 /// A consensus engine is responsible for choosing the IDs and mapping them to its
 /// own internal message classes.
-pub trait Network {
+pub trait ChannelNetwork {
   type PeerId;
 
-  type PlaneSender: Sender<PeerId = Self::PeerId>;
-  type PlaneReceiver: Receiver<PeerId = Self::PeerId>;
+  type Sender: ChannelSender<PeerId = Self::PeerId>;
+  type Receiver: ChannelReceiver<PeerId = Self::PeerId>;
 
   /// Register/open a logical channel.
   ///
@@ -88,8 +88,17 @@ pub trait Network {
     &mut self,
     channel: ChannelId,
     cfg: ChannelConfig,
-  ) -> (Self::PlaneSender, Self::PlaneReceiver);
+  ) -> (Self::Sender, Self::Receiver);
 }
+
+/// Network boundary.
+///
+/// `ChannelNetwork` is the minimum required to satisfy Commonware-style engines
+/// that take `(Sender, Receiver)` pairs (e.g. Simplex).
+///
+/// Implementations may choose to expose additional capabilities (peer events,
+/// membership management, blocking, etc.) via extra traits.
+pub trait Network: ChannelNetwork {}
 
 // Optional extensions (still consensus-agnostic):
 //
