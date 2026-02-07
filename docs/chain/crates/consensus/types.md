@@ -21,5 +21,5 @@ pub enum ConsensusEvent {
   // e.g. view/round advanced, peer needed, etc.
 }
 
-// Driver/backend abstractions are defined in `consensus/driver.md`.
+// Driver/engine abstractions are defined in `consensus/driver.md`.
 ```

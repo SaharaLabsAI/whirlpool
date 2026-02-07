@@ -1,12 +1,12 @@
 ## Build Config
 
-This page defines the caller-facing build configuration for the Simplex backend.
+This page defines the caller-facing build configuration for the Simplex engine.
 
 Goals:
 
 - Keep the chain-facing config surface small.
 - Make default values explicit.
-- Do not require callers to construct backend internals (`Marshaled`, `Planes`).
+- Do not require callers to construct engine internals (`Marshaled`, `Planes`).
 
 ### Defaults and profiles
 
@@ -33,11 +33,11 @@ type DefaultScheme = commonware_consensus::simplex::scheme::bls12381_threshold::
   commonware_cryptography::bls12381::primitives::variant::MinSig,
 >;
 
-/// Caller-facing build configuration for the Simplex backend.
+/// Caller-facing build configuration for the Simplex engine.
 ///
 /// Keep this "surface" small, but make defaults explicit.
 ///
-/// Important: `Marshaled` + network `Planes` are backend internals; callers should not
+/// Important: `Marshaled` + network `Planes` are engine internals; callers should not
 /// construct them.
 pub struct SimplexBuildConfig<
   I,
@@ -110,7 +110,7 @@ pub struct SimplexBuildConfig<
   pub fetch_concurrent: usize,
 }
 
-/// How the backend sources the commonware "blocker" implementation.
+/// How the engine sources the commonware "blocker" implementation.
 ///
 /// Default is to derive it from the network oracle.
 pub enum BlockerConfig {
@@ -164,7 +164,7 @@ impl<I> SimplexBuildConfig<I> {
 
 ### Notes
 
-- The backend still needs additional build-time dependencies (e.g., `Network` to derive planes;
+- The engine still needs additional build-time dependencies (e.g., `Network` to derive planes;
   `App` to construct `Marshaled`). `SimplexBuildConfig` only covers knobs and explicit defaults.
 - `commonware_consensus::simplex::Config::assert()` enforces constraints like
   `leader_timeout <= notarization_timeout` and `skip_timeout <= activity_timeout`.

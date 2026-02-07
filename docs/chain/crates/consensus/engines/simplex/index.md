@@ -22,17 +22,17 @@ Our `core` traits are engine-agnostic ports.
 The Simplex adapter layer is responsible for implementing the commonware traits and delegating
 to our `core` traits.
 
-## Build and Start (encapsulated backend)
+## Build and Start (encapsulated engine)
 
-The backend owns all Simplex-specific internals.
+The engine owns all Simplex-specific internals.
 
 - Callers must not construct `Marshaled` or `Planes`.
 - Callers provide only caller-owned dependencies (`app`, `network`, build config).
 
-When started, the backend returns a runtime handle (see `ConsensusHandle` in
+When started, the engine returns a runtime handle (see `ConsensusHandle` in
 `docs/chain/crates/consensus/driver.md`). This handle supports graceful shutdown:
 
-- `handle.stop(self)` signals shutdown and awaits task completion.
+- `handle.stop()` signals shutdown and awaits task completion.
 
 Build details:
 
@@ -130,18 +130,18 @@ Alto shows both styles:
 - separate indexer/pusher reporter that fetches blocks via marshal subscription before uploading
   notarized/finalized artifacts (`vendor/alto/chain/src/indexer.rs`)
 
-## Startup sequence (encapsulated Simplex backend)
+## Startup sequence (encapsulated Simplex engine)
 
 The typical start order should be:
 
-1. caller builds the backend from caller-owned dependencies (`app`, `network`, `SimplexBuildConfig`)
-2. backend construction derives consensus planes from `network`
-3. backend construction consumes `app` to construct `application::marshaled::Marshaled`
-4. backend construction builds and validates `simplex::Config` from `SimplexBuildConfig` + backend defaults
-5. backend construction constructs `simplex::Engine::new(...)`
-6. backend holds minimal pre-start state: `engine` + `planes`
-7. caller starts the backend via `backend.start()` (ownership moves into runtime tasks)
+1. caller constructs the engine from caller-owned dependencies (`app`, `network`, `SimplexBuildConfig`)
+2. engine construction derives consensus planes from `network`
+3. engine construction consumes `app` to construct `application::marshaled::Marshaled`
+4. engine construction builds and validates `simplex::Config` from `SimplexBuildConfig` + engine defaults
+5. engine construction constructs `simplex::Engine::new(...)`
+6. engine holds minimal pre-start state: `engine` + `planes`
+7. caller starts the engine via `engine.start()` (ownership moves into runtime tasks)
 8. the caller/driver supervises tasks and propagates shutdown on fatal error
 
 Behavioral reference for ordering and components remains Alto (`vendor/alto/chain/src/engine.rs`),
-while this doc keeps those details behind the backend API.
+while this doc keeps those details behind the engine API.

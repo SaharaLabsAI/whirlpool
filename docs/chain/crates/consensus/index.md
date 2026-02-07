@@ -13,5 +13,5 @@ Depends on: `types`, `core` (traits), `storage`.
 ## Sub-pages
 
 - [`types`](./types.md) — public config + event shapes
-- [`driver`](./driver.md) — parent-level driver/backend abstractions
-- [`simplex`](./backends/simplex/index.md) — Simplex backend (`vendor/commonware/consensus`)
+- [`driver`](./driver.md) — parent-level driver/engine abstractions
+- [`simplex`](./engines/simplex/index.md) — Simplex engine (`vendor/commonware/consensus`)

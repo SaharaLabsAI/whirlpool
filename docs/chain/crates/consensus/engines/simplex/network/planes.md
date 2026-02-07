@@ -5,10 +5,10 @@ channels (they may share an underlying transport implementation).
 
 These are the three channels passed into `commonware_consensus::simplex::Engine::start(...)`.
 
-In our backend boundary (see `../index.md`), callers provide a `Network` implementation,
-and the Simplex backend derives/constructs these planes internally during backend build/start.
+In our engine boundary (see `../index.md`), callers provide a `Network` implementation,
+and the Simplex engine derives/constructs these planes internally during engine construction/start.
 
-Recommended shape: keep these handles in an internal `Planes` struct owned by the backend,
+Recommended shape: keep these handles in an internal `Planes` struct owned by the engine,
 constructed from the injected network implementation.
 
 ## 1) Vote plane (`vote_network`)
