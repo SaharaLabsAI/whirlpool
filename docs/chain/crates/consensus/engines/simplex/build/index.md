@@ -25,6 +25,16 @@ At build time, the caller provides only caller-owned dependencies:
 
 See: [`config`](./config.md).
 
+Notes:
+
+- `SimplexBuildConfig` hardcodes chain-level constants like the persistence `PARTITION_PREFIX`
+  (currently `"whirlpool-"`). The engine uses this to derive commonware partition strings.
+- The consensus scheme *type* is hardcoded (BLS12-381 threshold). The scheme *value* is derived
+  from membership/network state during `SimplexEngine::new(...)`.
+- The build config includes a [`BlockerPolicy`](./config.md) rather than a concrete blocker.
+  The engine derives the concrete commonware `Blocker` during `SimplexEngine::new(...)` using
+  runtime dependencies (the network's oracle and the local validator's public key).
+
 ### Engine-owned internals
 
 The engine constructs and owns:
@@ -45,7 +55,7 @@ After construction, the engine should hold only the minimal state required to st
 ```rust
 // Pseudocode.
 
-let cfg = SimplexBuildConfig::prod_defaults(partition_prefix, scheme);
+let cfg = SimplexBuildConfig::prod_defaults();
 let engine = SimplexEngine::new(app, network, cfg)?;
 
 let driver = ConsensusDriver::new(engine);

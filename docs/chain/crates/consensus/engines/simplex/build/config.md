@@ -23,12 +23,16 @@ vary view liveness thresholds (`activity_timeout`, `skip_timeout`).
 ```rust
 // Pseudocode — not compile-ready.
 
-// Type aliases keep the docs readable. (Alto does the same; see
-// `vendor/alto/types/src/consensus.rs:13`.)
-//
-// Default crypto scheme matches commonware's BLS12-381 threshold scheme:
-// `vendor/commonware/consensus/src/simplex/scheme/bls12381_threshold.rs`.
-type DefaultScheme = commonware_consensus::simplex::scheme::bls12381_threshold::Scheme<
+/// Chain-level constants intentionally not exposed as caller knobs.
+///
+/// Used to derive the commonware `partition` strings for persistence.
+const PARTITION_PREFIX: &str = "whirlpool-";
+
+/// Consensus scheme type used by this chain.
+///
+/// Note: a concrete scheme *value* depends on validator membership and is derived from the
+/// membership/network layer during engine construction.
+type Scheme = commonware_consensus::simplex::scheme::bls12381_threshold::Scheme<
   commonware_cryptography::ed25519::PublicKey,
   commonware_cryptography::bls12381::primitives::variant::MinSig,
 >;
@@ -41,31 +45,30 @@ type DefaultScheme = commonware_consensus::simplex::scheme::bls12381_threshold::
 /// construct them.
 pub struct SimplexBuildConfig<
   I,
-  S = DefaultScheme,
   ElectorCfg = commonware_consensus::simplex::elector::RoundRobin,
   Strat = commonware_parallel::Sequential,
 > {
-  /// Storage namespace prefix used to derive commonware `partition` strings.
-  pub partition_prefix: String,
-
   /// Optional indexer/pusher that receives finalized artifacts.
   ///
   /// If `None`, we still finalize blocks locally; we just don't push them out.
   pub indexer: Option<I>,
 
-  /// Consensus crypto scheme.
-  ///
-  /// Default type is commonware's BLS12-381 threshold scheme:
-  /// `vendor/commonware/consensus/src/simplex/scheme/bls12381_threshold.rs`.
-  pub scheme: S,
-
   /// Peer blocking / authorization policy.
+
   ///
-  /// Default is `FromNetworkOracle`, i.e. derive a blocker from the provided network.
-  /// Alto reference:
+  /// Default is [`BlockerPolicy::NetworkOracleControl`], i.e. derive a concrete commonware
+  /// `Blocker` from the network's oracle during engine construction.
+  ///
+  /// Concretely, the engine needs:
+  /// - a network-provided oracle (from the network layer)
+  /// - the local validator's public key (typically from the derived consensus `scheme` value)
+  ///
+  /// And then derives the blocker with a pattern like `oracle.control(self_public_key)`.
+  ///
+  /// Alto references (wiring blocker from oracle):
   /// - `vendor/alto/chain/src/bin/validator.rs:199` (authenticated network returns `oracle`)
   /// - `vendor/alto/chain/src/bin/validator.rs:246` (passes `oracle.clone()` as blocker)
-  pub blocker: BlockerConfig,
+  pub blocker: BlockerPolicy,
 
   /// Leader election policy.
   ///
@@ -110,23 +113,39 @@ pub struct SimplexBuildConfig<
   pub fetch_concurrent: usize,
 }
 
-/// How the engine sources the commonware "blocker" implementation.
+/// Policy for how the engine derives a commonware `Blocker` implementation.
 ///
-/// Default is to derive it from the network oracle.
-pub enum BlockerConfig {
-  FromNetworkOracle,
+/// In commonware simplex, the runtime config wants a concrete type `B` where
+/// `B: commonware_p2p::Blocker<PublicKey = S::PublicKey>`.
+///
+/// This policy exists to keep defaults pure (no runtime dependencies) while still
+/// making it explicit that the engine will derive the concrete blocker during
+/// `SimplexEngine::new(...)`.
+pub enum BlockerPolicy {
+  /// Derive a blocker from the network's oracle and the local validator identity.
+  ///
+  /// Typical derivation: `oracle.control(self_public_key)`.
+  NetworkOracleControl,
+
+  /// Do not provide a peer blocker.
+  ///
+  /// This is typically only useful for local/dev networks or tests where peer authorization is
+  /// not required.
+  ///
+  /// Note: this assumes the engine can construct a `Blocker` that effectively permits peers.
+  /// If the underlying network/oracle does not support this, the engine should reject the build.
+  Disabled,
+
   // Optional extension: `Custom(B)` for tests.
 }
 
 impl<I> SimplexBuildConfig<I> {
   /// Production-flavored defaults (aligned to Alto validator defaults).
-  pub fn prod_defaults(partition_prefix: String, scheme: DefaultScheme) -> Self {
+pub fn prod_defaults() -> Self {
     Self {
-      partition_prefix,
       indexer: None,
 
-      scheme,
-      blocker: BlockerConfig::FromNetworkOracle,
+      blocker: BlockerPolicy::NetworkOracleControl,
       elector: commonware_consensus::simplex::elector::RoundRobin::default(),
       strategy: commonware_parallel::Sequential,
       epoch: Epoch::zero(),
@@ -151,12 +170,13 @@ impl<I> SimplexBuildConfig<I> {
   }
 
   /// Dev/test-flavored defaults (faster turnover in local runs).
-  pub fn dev_defaults(partition_prefix: String, scheme: DefaultScheme) -> Self {
+  pub fn dev_defaults() -> Self {
     Self {
       // Keep non-timing defaults the same as prod.
+      blocker: BlockerPolicy::Disabled,
       activity_timeout: ViewDelta::new(10),
       skip_timeout: ViewDelta::new(5),
-      ..Self::prod_defaults(partition_prefix, scheme)
+      ..Self::prod_defaults()
     }
   }
 }
