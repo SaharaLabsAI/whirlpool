@@ -39,6 +39,10 @@ Build details:
 - [`build`](./build/index.md)
 - [`build config`](./build/config.md)
 
+Engine wrapper:
+
+- [`engine`](./engine.md)
+
 ## Adapter types you will actually use (commonware)
 
 These are the concrete adapter/wrapper patterns worth mirroring:

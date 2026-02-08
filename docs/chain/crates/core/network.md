@@ -84,7 +84,7 @@ pub trait ChannelNetwork {
   /// - multiplex multiple channels over one transport
   /// - enforce quotas/backpressure
   /// - drop/ban peers for abuse (outside this trait)
-  fn register(
+  fn register_channel(
     &mut self,
     channel: ChannelId,
     cfg: ChannelConfig,

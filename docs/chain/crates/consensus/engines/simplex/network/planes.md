@@ -5,11 +5,36 @@ channels (they may share an underlying transport implementation).
 
 These are the three channels passed into `commonware_consensus::simplex::Engine::start(...)`.
 
-In our engine boundary (see `../index.md`), callers provide a `Network` implementation,
-and the Simplex engine derives/constructs these planes internally during engine construction/start.
+In our engine boundary (see `../index.md`), callers provide a network implementation
+that can register/open logical channels (see `core` network traits: `docs/chain/crates/core/network.md`).
+The Simplex engine derives/constructs these planes internally during engine construction/start by
+registering three channel IDs and retaining the resulting `(Sender, Receiver)` pairs.
 
-Recommended shape: keep these handles in an internal `Planes` struct owned by the engine,
-constructed from the injected network implementation.
+Recommended shape: keep these handles in an internal `Planes` struct owned by the engine.
+
+```rust
+// Pseudocode (shape only): build planes from a consensus-agnostic channel network.
+//
+// The engine chooses channel IDs; the network does not interpret them.
+
+struct Planes<NS, NR> {
+  pending: (NS, NR),
+  recovered: (NS, NR),
+  resolver: (NS, NR),
+}
+
+impl<Net> Planes<Net::Sender, Net::Receiver>
+where
+  Net: core::network::Network,
+{
+  fn new(network: &mut Net, cfg: Config) -> Self {
+    let pending = network.register_channel(PENDING_CHANNEL, cfg.pending);
+    let recovered = network.register_channel(RECOVERED_CHANNEL, cfg.recovered);
+    let resolver = network.register_channel(RESOLVER_CHANNEL, cfg.resolver);
+    Self { pending, recovered, resolver }
+  }
+}
+```
 
 ## 1) Vote plane (`vote_network`)
 
