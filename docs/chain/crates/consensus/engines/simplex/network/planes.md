@@ -27,7 +27,8 @@ impl<Net> Planes<Net::Sender, Net::Receiver>
 where
   Net: core::network::Network,
 {
-  fn new(network: &mut Net, cfg: Config) -> Self {
+  // `cfg` is `SimplexBuildConfig::network` (see `../build/config/index.md`).
+  fn new(network: &mut Net, cfg: NetworkConfig) -> Self {
     let pending = network.register_channel(PENDING_CHANNEL, cfg.pending);
     let recovered = network.register_channel(RECOVERED_CHANNEL, cfg.recovered);
     let resolver = network.register_channel(RESOLVER_CHANNEL, cfg.resolver);

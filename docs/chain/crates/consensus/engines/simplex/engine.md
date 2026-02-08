@@ -17,7 +17,7 @@ See also:
 - [`network/planes`](./network/planes.md)
 - [`network/marshal_mailbox`](./network/marshal_mailbox/index.md)
 - [`build`](./build/index.md)
-- [`build config`](./build/config.md)
+- [`build config`](./build/config/index.md)
 
 ```rust
 // NOTE: pseudocode for boundaries (not a spec; syntax intentionally loose).
@@ -46,7 +46,9 @@ where
     // Plane IDs + per-plane quotas/backlogs are engine-specific; see `network/planes.md`.
     // The exact config surface is intentionally not shown here.
     // `Planes::new(...)` registers three channel IDs via `network.register_channel(...)`.
-    let planes = Planes::new(&mut network /*, plane config (quotas/backlogs) */);
+    //
+    // Per-plane channel configs live under `SimplexBuildConfig::network`.
+    let planes = Planes::new(&mut network, cfg.network);
 
     // Details omitted: derive scheme from membership/network state, derive blocker
     // according to cfg.blocker policy (e.g. `oracle.control(self_public_key)`),

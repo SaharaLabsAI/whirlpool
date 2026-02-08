@@ -1,6 +1,11 @@
 ## Build Config
 
-This page defines the caller-facing build configuration for the Simplex engine.
+This section defines the caller-facing build configuration for the Simplex engine.
+
+Split:
+
+- [`simplex`](./simplex.md): algorithm/runtime knobs (used to build `simplex::Config`)
+- [`network`](./network.md): per-plane channel configuration (used to register network planes)
 
 Goals:
 
@@ -37,6 +42,12 @@ type Scheme = commonware_consensus::simplex::scheme::bls12381_threshold::Scheme<
   commonware_cryptography::bls12381::primitives::variant::MinSig,
 >;
 
+// Defined in subpages:
+// - `SimplexConfig`: see `./simplex.md`
+// - `NetworkConfig`: see `./network.md`
+pub struct SimplexConfig { /* ... */ }
+pub struct NetworkConfig { /* ... */ }
+
 /// Caller-facing build configuration for the Simplex engine.
 ///
 /// Keep this "surface" small, but make defaults explicit.
@@ -54,20 +65,9 @@ pub struct SimplexBuildConfig<
   pub indexer: Option<I>,
 
   /// Peer blocking / authorization policy.
-
   ///
   /// Default is [`BlockerPolicy::NetworkOracleControl`], i.e. derive a concrete commonware
   /// `Blocker` from the network's oracle during engine construction.
-  ///
-  /// Concretely, the engine needs:
-  /// - a network-provided oracle (from the network layer)
-  /// - the local validator's public key (typically from the derived consensus `scheme` value)
-  ///
-  /// And then derives the blocker with a pattern like `oracle.control(self_public_key)`.
-  ///
-  /// Alto references (wiring blocker from oracle):
-  /// - `vendor/alto/chain/src/bin/validator.rs:199` (authenticated network returns `oracle`)
-  /// - `vendor/alto/chain/src/bin/validator.rs:246` (passes `oracle.clone()` as blocker)
   pub blocker: BlockerPolicy,
 
   /// Leader election policy.
@@ -80,37 +80,11 @@ pub struct SimplexBuildConfig<
   /// Default: `commonware_parallel::Sequential`.
   pub strategy: Strat,
 
-  /// Fixed epoch used for the run.
-  ///
-  /// Default: `Epoch::zero()`.
-  pub epoch: Epoch,
+  /// Simplex algorithm/runtime knobs (see `./simplex.md`).
+  pub simplex: SimplexConfig,
 
-  /// Capacity of internal mailboxes used by consensus + payload tasks.
-  pub mailbox_size: usize,
-
-  /// Persistence buffers used by simplex replay / storage journals.
-  ///
-  /// Defaults match Alto (`vendor/alto/chain/src/engine.rs`).
-  pub replay_buffer: NonZeroUsize,
-  pub write_buffer: NonZeroUsize,
-
-  /// Buffer pool used by persistence structures.
-  ///
-  /// Default matches Alto (`vendor/alto/chain/src/engine.rs`).
-  pub buffer_pool: PoolRef,
-
-  /// Simplex timing parameters.
-  pub leader_timeout: Duration,
-  pub notarization_timeout: Duration,
-  pub nullify_retry: Duration,
-
-  /// View tracking / liveness.
-  pub activity_timeout: ViewDelta,
-  pub skip_timeout: ViewDelta,
-
-  /// Missing-artifact fetch behavior.
-  pub fetch_timeout: Duration,
-  pub fetch_concurrent: usize,
+  /// Simplex per-plane network configuration (see `./network.md`).
+  pub network: NetworkConfig,
 }
 
 /// Policy for how the engine derives a commonware `Blocker` implementation.
@@ -131,53 +105,30 @@ pub enum BlockerPolicy {
   ///
   /// This is typically only useful for local/dev networks or tests where peer authorization is
   /// not required.
-  ///
-  /// Note: this assumes the engine can construct a `Blocker` that effectively permits peers.
-  /// If the underlying network/oracle does not support this, the engine should reject the build.
   Disabled,
-
-  // Optional extension: `Custom(B)` for tests.
 }
 
 impl<I> SimplexBuildConfig<I> {
   /// Production-flavored defaults (aligned to Alto validator defaults).
-pub fn prod_defaults() -> Self {
+  pub fn prod_defaults() -> Self {
     Self {
       indexer: None,
 
       blocker: BlockerPolicy::NetworkOracleControl,
       elector: commonware_consensus::simplex::elector::RoundRobin::default(),
       strategy: commonware_parallel::Sequential,
-      epoch: Epoch::zero(),
 
-      mailbox_size: 1024,
-
-      // Alto persistence defaults.
-      replay_buffer: NonZeroUsize::new(8 * 1024 * 1024).unwrap(),
-      write_buffer: NonZeroUsize::new(1024 * 1024).unwrap(),
-      buffer_pool: PoolRef::new(NZU16!(4_096), NZUsize!(8_192)),
-
-      leader_timeout: Duration::from_secs(1),
-      notarization_timeout: Duration::from_secs(2),
-      nullify_retry: Duration::from_secs(10),
-
-      activity_timeout: ViewDelta::new(256),
-      skip_timeout: ViewDelta::new(32),
-
-      fetch_timeout: Duration::from_secs(2),
-      fetch_concurrent: 4,
+      simplex: SimplexConfig::prod_defaults(),
+      network: NetworkConfig::prod_defaults(),
     }
   }
 
   /// Dev/test-flavored defaults (faster turnover in local runs).
   pub fn dev_defaults() -> Self {
-    Self {
-      // Keep non-timing defaults the same as prod.
-      blocker: BlockerPolicy::Disabled,
-      activity_timeout: ViewDelta::new(10),
-      skip_timeout: ViewDelta::new(5),
-      ..Self::prod_defaults()
-    }
+    let mut cfg = Self::prod_defaults();
+    cfg.blocker = BlockerPolicy::Disabled;
+    cfg.simplex = SimplexConfig::dev_defaults();
+    cfg
   }
 }
 ```

@@ -37,7 +37,7 @@ When started, the engine returns a runtime handle (see `ConsensusHandle` in
 Build details:
 
 - [`build`](./build/index.md)
-- [`build config`](./build/config.md)
+- [`build config`](./build/config/index.md)
 
 Engine wrapper:
 

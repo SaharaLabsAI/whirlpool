@@ -23,7 +23,7 @@ At build time, the caller provides only caller-owned dependencies:
 - `Network`: a network implementation that the engine can query to derive the 3 Simplex planes.
 - `SimplexBuildConfig`: engine-specific build knobs and defaults.
 
-See: [`config`](./config.md).
+See: [`config`](./config/index.md).
 
 Notes:
 
@@ -31,7 +31,7 @@ Notes:
   (currently `"whirlpool-"`). The engine uses this to derive commonware partition strings.
 - The consensus scheme *type* is hardcoded (BLS12-381 threshold). The scheme *value* is derived
   from membership/network state during `SimplexEngine::new(...)`.
-- The build config includes a [`BlockerPolicy`](./config.md) rather than a concrete blocker.
+- The build config includes a [`BlockerPolicy`](./config/index.md) rather than a concrete blocker.
   The engine derives the concrete commonware `Blocker` during `SimplexEngine::new(...)` using
   runtime dependencies (the network's oracle and the local validator's public key).
 
