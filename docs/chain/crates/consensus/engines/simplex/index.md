@@ -26,7 +26,7 @@ to our `core` traits.
 
 The engine owns all Simplex-specific internals.
 
-- Callers must not construct `Marshaled` or `Planes`.
+- Callers must not construct `Marshaled` or `SimplexChannels`.
 - Callers provide only caller-owned dependencies (`app`, `network`, build config).
 
 When started, the engine returns a runtime handle (see `ConsensusHandle` in
@@ -89,9 +89,9 @@ You must provide a `commonware_consensus::simplex::Config` with (non-exhaustive)
 
 See: `vendor/commonware/consensus/src/simplex/config.rs`.
 
-### Network planes (3 channels required by Simplex)
+### Network channels (3 channels required by Simplex)
 
-See: [`network/planes`](./network/planes.md).
+See: [`network/channels`](./network/planes.md).
 
 ### Marshaling layer (block/payload availability)
 

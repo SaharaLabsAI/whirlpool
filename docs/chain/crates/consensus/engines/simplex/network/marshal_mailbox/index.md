@@ -1,7 +1,7 @@
 # Marshal mailbox (payload networking)
 
 Simplex consensus votes on **commitments/digests** that refer to proposal payloads (blocks).
-Consensus should not carry full block bytes in its vote/certificate planes.
+Consensus should not carry full block bytes in its votes/certificates channels.
 
 The **marshal mailbox** is the payload-facing API used by:
 
@@ -17,7 +17,7 @@ mailbox handle for:
 - reporters/indexers (finalization -> fetch bytes -> emit `FinalizedBlock`)
 
 In Alto, marshal payload networking uses a *separate* P2P channel in addition to the 3 Simplex
-planes:
+channels:
 
 - `MARSHAL_CHANNEL` constant (see `vendor/alto/chain/src/bin/validator.rs`, line ~32)
 - `network.register(MARSHAL_CHANNEL, ...)` (lines ~227-229)

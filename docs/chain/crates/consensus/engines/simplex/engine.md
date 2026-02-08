@@ -14,7 +14,7 @@ The wrapper follows the two-phase lifecycle described in [`build`](./build/index
 
 See also:
 
-- [`network/planes`](./network/planes.md)
+- [`network/channels`](./network/planes.md)
 - [`network/marshal_mailbox`](./network/marshal_mailbox/index.md)
 - [`build`](./build/index.md)
 - [`build config`](./build/config/index.md)
@@ -27,7 +27,7 @@ pub struct SimplexEngine<Net> {
   // Derived during `new(...)`.
   //
   // Note: these are the two items called out in `build/index.md` as the minimal pre-start state.
-  pub planes: Planes<Net::Sender, Net::Receiver>,
+  pub channels: SimplexChannels<Net::Sender, Net::Receiver>,
   pub engine: commonware_consensus::simplex::Engine<...>,
 }
 
@@ -37,34 +37,34 @@ where
 {
   pub fn new(app: App, mut network: Net, cfg: SimplexBuildConfig) -> Result<Self> {
     // Engine-owned internals (callers do not construct these):
-    // - Planes derived from the network
+    // - SimplexChannels derived from the network
     // - Marshaled application wrapper
     // - commonware simplex::Config (including derived blocker)
 
     // Derive the three Simplex planes from the consensus-agnostic channel network.
     //
-    // Plane IDs + per-plane quotas/backlogs are engine-specific; see `network/planes.md`.
+// Channel IDs + per-channel quotas/backlogs are engine-specific; see `network/channels`.
     // The exact config surface is intentionally not shown here.
-    // `Planes::new(...)` registers three channel IDs via `network.register_channel(...)`.
+    // `SimplexChannels::new(...)` registers three channel IDs via `network.register_channel(...)`.
     //
     // Per-plane channel configs live under `SimplexBuildConfig::network`.
-    let planes = Planes::new(&mut network, cfg.network);
+    let channels = SimplexChannels::new(&mut network, cfg.network);
 
     // Details omitted: derive scheme from membership/network state, derive blocker
     // according to cfg.blocker policy (e.g. `oracle.control(self_public_key)`),
     // construct `Marshaled::new(app, ...)`, build `simplex::Config`, then:
     let engine = commonware_consensus::simplex::Engine::new(/* env, simplex::Config */);
 
-    Ok(Self { planes, engine })
+    Ok(Self { channels, engine })
   }
 
   pub fn start(self) -> Result<Handle<()>> {
     // Spawn engine-owned runtime tasks (marshal actor, broadcast engine, etc.)
     // and start consensus by passing the (Sender, Receiver) pairs.
     Ok(self.engine.start(
-      self.planes.pending,   // vote plane
-      self.planes.recovered, // certificate plane
-      self.planes.resolver,  // resolver plane (request/response)
+      self.channels.votes,
+      self.channels.certificates,
+      self.channels.resolver,  // resolver channel (request/response)
     ))
   }
 }
@@ -89,5 +89,5 @@ handle.stop().await?;
 
 ## Notes
 
-- The planes are logical channels; the network implementation may multiplex them.
-- Payload bytes are handled via marshal mailbox wiring, not the three Simplex planes.
+- The channels are logical; the network implementation may multiplex them.
+- Payload bytes are handled via marshal mailbox wiring, not the three Simplex channels.

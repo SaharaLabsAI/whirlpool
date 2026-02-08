@@ -47,5 +47,5 @@ Alto wiring reference:
 
 Runtime start order (Alto):
 
-- `buffer.start(broadcast)` then `marshal.start(...)` then `consensus.start(pending, recovered, resolver)`
+- `buffer.start(broadcast)` then `marshal.start(...)` then `consensus.start(votes, certificates, resolver)`
   (`vendor/alto/chain/src/engine.rs`, lines ~369-382)

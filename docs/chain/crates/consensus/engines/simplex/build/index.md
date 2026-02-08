@@ -11,7 +11,7 @@ The returned handle supports graceful shutdown: signal stop, then await completi
 This split is important because:
 
 - `commonware_consensus::simplex::Engine::new(...)` is a build-time wiring step.
-- `commonware_consensus::simplex::Engine::start(...)` requires runtime network planes.
+- `commonware_consensus::simplex::Engine::start(...)` requires runtime network channels.
 - `application::marshaled::Marshaled::new(...)` consumes the chain `App` and must be created inside
   the engine (callers should not know how).
 
@@ -20,7 +20,7 @@ This split is important because:
 At build time, the caller provides only caller-owned dependencies:
 
 - `App`: the chain application implementation.
-- `Network`: a network implementation that the engine can query to derive the 3 Simplex planes.
+- `Network`: a network implementation that the engine can query to derive the 3 Simplex channels.
 - `SimplexBuildConfig`: engine-specific build knobs and defaults.
 
 See: [`config`](./config/index.md).
@@ -39,7 +39,7 @@ Notes:
 
 The engine constructs and owns:
 
-- `Planes` (vote/cert/resolver), derived from `Network`.
+- `SimplexChannels` (votes/certificates/resolver), derived from `Network`.
 - `Marshaled` (block/payload availability + relay adapter).
 - `simplex::Config` (constructed from `SimplexBuildConfig` + derived deps).
 
@@ -48,7 +48,7 @@ The engine constructs and owns:
 After construction, the engine should hold only the minimal state required to start:
 
 - `engine: commonware_consensus::simplex::Engine<...>`
-- `planes: Planes`
+- `channels: SimplexChannels`
 
 ### Sketch
 
@@ -67,5 +67,5 @@ handle.stop().await?;
 
 
 - [`simplex`](../index.md)
-- [`network planes`](../network/planes.md)
+- [`network channels`](../network/planes.md)
 - [`marshal mailbox`](../network/marshal_mailbox/index.md)

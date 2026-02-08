@@ -11,7 +11,7 @@ Goals:
 
 - Keep the chain-facing config surface small.
 - Make default values explicit.
-- Do not require callers to construct engine internals (`Marshaled`, `Planes`).
+- Do not require callers to construct engine internals (`Marshaled`, `SimplexChannels`).
 
 ### Defaults and profiles
 
@@ -52,7 +52,7 @@ pub struct NetworkConfig { /* ... */ }
 ///
 /// Keep this "surface" small, but make defaults explicit.
 ///
-/// Important: `Marshaled` + network `Planes` are engine internals; callers should not
+/// Important: `Marshaled` + network `SimplexChannels` are engine internals; callers should not
 /// construct them.
 pub struct SimplexBuildConfig<
   I,
