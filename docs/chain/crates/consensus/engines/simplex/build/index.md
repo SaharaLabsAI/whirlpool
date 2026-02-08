@@ -67,5 +67,5 @@ handle.stop().await?;
 
 
 - [`simplex`](../index.md)
-- [`network channels`](../network/planes.md)
+- [`network channels`](../network/channels.md)
 - [`marshal mailbox`](../network/marshal_mailbox/index.md)

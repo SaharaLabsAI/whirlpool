@@ -91,7 +91,7 @@ See: `vendor/commonware/consensus/src/simplex/config.rs`.
 
 ### Network channels (3 channels required by Simplex)
 
-See: [`network/channels`](./network/planes.md).
+See: [`network/channels`](./network/channels.md).
 
 ### Marshaling layer (block/payload availability)
 

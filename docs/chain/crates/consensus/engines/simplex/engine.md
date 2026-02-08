@@ -14,7 +14,7 @@ The wrapper follows the two-phase lifecycle described in [`build`](./build/index
 
 See also:
 
-- [`network/channels`](./network/planes.md)
+- [`network/channels`](./network/channels.md)
 - [`network/marshal_mailbox`](./network/marshal_mailbox/index.md)
 - [`build`](./build/index.md)
 - [`build config`](./build/config/index.md)
