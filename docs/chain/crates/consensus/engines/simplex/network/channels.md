@@ -17,6 +17,14 @@ Recommended shape: keep these handles in an internal `SimplexChannels` struct ow
 //
 // The engine chooses channel IDs; the network does not interpret them.
 
+// Engine-chosen channel IDs.
+//
+// These are *engine-internal* constants (not part of the `core` network traits) and exist as
+// documentation placeholders that match Alto wiring.
+const PENDING_CHANNEL: core::network::ChannelId = core::network::ChannelId(0);
+const RECOVERED_CHANNEL: core::network::ChannelId = core::network::ChannelId(1);
+const RESOLVER_CHANNEL: core::network::ChannelId = core::network::ChannelId(2);
+
 struct SimplexChannels<NS, NR> {
   votes: (NS, NR),
   certificates: (NS, NR),
@@ -73,7 +81,7 @@ Concrete references (Alto):
 Carries **request/response** traffic for missing consensus artifacts (e.g. certificates / views)
 so a node can catch up.
 
-Alto example wiring: `vendor/alto/chain/src/bin/validator.rs` registers `resolver` for fetch.
+Alto example wiring: `vendor/alto/chain/src/bin/validator.rs` registers the `RESOLVER_CHANNEL` for fetch.
 
 Concrete references (Alto):
 
