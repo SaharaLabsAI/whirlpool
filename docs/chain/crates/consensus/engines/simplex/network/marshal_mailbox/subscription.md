@@ -30,3 +30,8 @@ await waits for the block to arrive (or be cancelled).
 
 - **Mailbox**: the request interface to the marshal actor.
 - **Subscription**: the returned handle representing "notify me when payload X is available".
+
+See also:
+
+- [`construct`](./construct.md) — where mailbox clones are created (marshaled app, reporters)
+- [`runtime`](./runtime.md) — how marshal networking is wired

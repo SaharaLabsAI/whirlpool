@@ -10,22 +10,30 @@ The **marshal mailbox** is the payload-facing API used by:
 
 It is the interface to a long-running **marshal actor**.
 
+If you feel unclear about how marshal is *constructed* and *wired into* the engine, start with:
+
+- [`construct`](./construct.md) — build-time construction (inside `SimplexEngine::new`)
+- [`runtime`](./runtime.md) — runtime wiring (inside `SimplexEngine::start`)
+- [`channels`](./channels.md) — marshal-specific network channels
+
 In the recommended wiring, the Simplex engine owns the marshal actor and retains a cloneable
 mailbox handle for:
 
 - the marshaled application wrapper (propose/verify)
 - reporters/indexers (finalization -> fetch bytes -> emit `FinalizedBlock`)
 
-In Alto, marshal payload networking uses a *separate* P2P channel in addition to the 3 Simplex
-channels:
+In Alto, marshal payload networking uses *two* additional P2P channels in addition to the 3
+Simplex consensus channels:
 
-- `MARSHAL_CHANNEL` constant (see `vendor/alto/chain/src/bin/validator.rs`, line ~32)
-- `network.register(MARSHAL_CHANNEL, ...)` (lines ~227-229)
-- a P2P resolver is initialized and passed into the engine start:
-  - `marshal::resolver::p2p::init(...)` (lines ~271-283)
-  - `engine.start(..., marshal_resolver)` (line ~286)
+- `BROADCASTER_CHANNEL` constant (payload broadcast)
+- `MARSHAL_CHANNEL` constant (payload backfill request/response)
+
+See: [`channels`](./channels.md).
 
 ## Sub-pages
 
 - [`actor`](./actor.md) — what the marshal task owns/does
 - [`subscription`](./subscription.md) — how "wait for payload X" works
+- [`channels`](./channels.md) — marshal-specific network channels + constants
+- [`construct`](./construct.md) — build-time construction
+- [`runtime`](./runtime.md) — runtime wiring and start order

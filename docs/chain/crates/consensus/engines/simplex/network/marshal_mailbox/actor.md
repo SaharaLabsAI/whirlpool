@@ -49,3 +49,9 @@ Runtime start order (Alto):
 
 - `buffer.start(broadcast)` then `marshal.start(...)` then `consensus.start(votes, certificates, resolver)`
   (`vendor/alto/chain/src/engine.rs`, lines ~369-382)
+
+See also:
+
+- [`construct`](./construct.md) — how marshal + mailbox are built
+- [`runtime`](./runtime.md) — how marshal networking is wired at start
+- [`channels`](./channels.md) — marshal-specific channel IDs

@@ -16,7 +16,7 @@ See also:
 
 - [`network crate`](../network.md) (concrete implementation responsibilities)
 - Simplex-specific channel mapping lives under consensus:
-  - [`simplex/network/planes`](../consensus/engines/simplex/network/planes.md)
+  - [`simplex/network/channels`](../consensus/engines/simplex/network/channels.md)
   - [`simplex/network/marshal_mailbox`](../consensus/engines/simplex/network/marshal_mailbox/index.md)
 
 ```rust
@@ -114,19 +114,25 @@ pub trait Network: ChannelNetwork {}
 This file deliberately does **not** define concepts like "vote plane" or "certificate plane".
 Those are engine-specific and belong in the engine’s docs.
 
-For example, Commonware Simplex requires three channels (vote/certificate/resolver), and marshal mailbox introduces additional channels for payload distribution/backfill. Those mappings live under:
+For example, Commonware Simplex requires three channels (votes/certificates/resolver), and marshal mailbox introduces additional channels for payload distribution/backfill. Those mappings live under:
 
-- [`simplex/network/planes`](../consensus/engines/simplex/network/planes.md)
+- [`simplex/network/channels`](../consensus/engines/simplex/network/channels.md)
 - [`simplex/network/marshal_mailbox`](../consensus/engines/simplex/network/marshal_mailbox/index.md)
 
 ## Example mapping (Alto)
 
-Alto registers one authenticated network and splits it into fixed channel IDs:
+Alto registers one authenticated network and splits it into fixed channel IDs.
 
-- `PENDING_CHANNEL = 0`   (Simplex: vote)
-- `RECOVERED_CHANNEL = 1` (Simplex: certificate)
-- `RESOLVER_CHANNEL = 2`  (Simplex: resolver)
-- `BROADCASTER_CHANNEL = 3` (payload broadcast)
-- `MARSHAL_CHANNEL = 4`     (marshal backfill)
+For Simplex consensus channels (engine-internal):
 
-See `vendor/alto/chain/src/bin/validator.rs`.
+- `PENDING_CHANNEL = 0`   (votes)
+- `RECOVERED_CHANNEL = 1` (certificates)
+- `RESOLVER_CHANNEL = 2`  (consensus resolver)
+
+Payload/marshal channels are intentionally documented under marshal mailbox, since they are not
+part of the consensus-agnostic `core` boundary.
+
+See:
+
+- `vendor/alto/chain/src/bin/validator.rs`
+- [`simplex/network/marshal_mailbox/channels`](../consensus/engines/simplex/network/marshal_mailbox/channels.md)
