@@ -9,3 +9,6 @@ pub use types::CommonwareBlock;
 pub use config::CommonwareConfig;
 pub use adapter::AppAdapter;
 pub use engine::CommonwareEngine;
+
+#[cfg(test)]
+mod tests;

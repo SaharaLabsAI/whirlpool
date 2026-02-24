@@ -629,7 +629,7 @@ Create a backend-agnostic consensus abstraction layer (`consensus-core`) and its
 
   **Commit**: YES | Message: `feat(consensus-core): add mock engine and unit tests` | Files: [crates/consensus-core/src/mock/**, crates/consensus-core/Cargo.toml]
 
-- [ ] 9. Create consensus-commonware Crate Structure + lib.rs
+- [x] 9. Create consensus-commonware Crate Structure + lib.rs
 
   **What to do**:
   Set up `consensus-commonware` crate with proper dependencies and module structure.
@@ -691,7 +691,7 @@ Create a backend-agnostic consensus abstraction layer (`consensus-core`) and its
 
   **Commit**: NO (batched with wave 4)
 
-- [ ] 10. Implement consensus-commonware/types.rs — Block Trait Bindings
+- [x] 10. Implement consensus-commonware/types.rs — Block Trait Bindings
 
   **What to do**:
   Create type aliases and `CommonwareBlock` super-trait binding core + commonware trait requirements.
@@ -749,7 +749,7 @@ Create a backend-agnostic consensus abstraction layer (`consensus-core`) and its
 
   **Commit**: NO (batched with wave 4)
 
-- [ ] 11. Implement consensus-commonware/config.rs — CommonwareConfig
+- [x] 11. Implement consensus-commonware/config.rs — CommonwareConfig
 
   **What to do**:
   Create `CommonwareConfig` struct per design doc §4.3, including missing fields found by Metis (elector, strategy, buffer_pool).
@@ -814,7 +814,7 @@ Create a backend-agnostic consensus abstraction layer (`consensus-core`) and its
 
   **Commit**: NO (batched with wave 4)
 
-- [ ] 12. Implement consensus-commonware/adapter.rs — AppAdapter
+- [x] 12. Implement consensus-commonware/adapter.rs — AppAdapter
 
   **What to do**:
   Create `AppAdapter<A>` bridging `ConsensusApp` + `EventSink` to commonware `Application<E>` + `VerifyingApplication<E>` + `Reporter<Activity = Update<B>>`.
@@ -884,7 +884,7 @@ Create a backend-agnostic consensus abstraction layer (`consensus-core`) and its
 
   **Commit**: NO (batched with wave 4)
 
-- [ ] 13. Implement consensus-commonware/engine.rs — CommonwareEngine
+- [x] 13. Implement consensus-commonware/engine.rs — CommonwareEngine
 
   **What to do**:
   Create `CommonwareEngine` that builds and starts the full Simplex stack, implementing `ConsensusEngine`.
@@ -956,7 +956,7 @@ Create a backend-agnostic consensus abstraction layer (`consensus-core`) and its
 
   **Commit**: YES | Message: `feat(consensus-commonware): implement Simplex BFT adapter` | Files: [crates/consensus-commonware/src/**]
 
-- [ ] 14. Write consensus-commonware Tests
+- [x] 14. Write consensus-commonware Tests
 
   **What to do**:
   Unit tests for adapter crate. Focus on type-level verification, config construction, adapter method logic with mocks.

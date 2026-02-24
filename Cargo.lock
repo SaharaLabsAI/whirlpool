@@ -651,6 +651,7 @@ dependencies = [
 name = "consensus-commonware"
 version = "0.1.0"
 dependencies = [
+ "bytes",
  "commonware-broadcast",
  "commonware-codec",
  "commonware-consensus",
