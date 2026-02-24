@@ -16,6 +16,7 @@ Follow this sequence and stop once you have enough context for the task:
 
 - Do not change `vendor/**` unless explicitly requested.
 - For vendor investigations, start from each project's `llmdocs/index.md` before reading source code.
+- When designing new business logic or architecture, you must use the `rust-whiteboard-design-docs` skill first.
 - Keep changes small, focused, and aligned with local formatting/lint/test expectations.
 - Never commit secrets.
 

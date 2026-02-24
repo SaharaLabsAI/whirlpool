@@ -7,8 +7,9 @@ Use the Nix flake shell when needed. The repository includes `flake.nix` with Ru
 ## When in doubt
 
 1. Follow the target subproject's own `AGENTS.md` and `llmdocs/`.
-2. Keep changes small and focused.
-3. Match formatting/lint/test expectations before considering work complete.
+2. When designing new business logic or architecture, use the `rust-whiteboard-design-docs` skill first.
+3. Keep changes small and focused.
+4. Match formatting/lint/test expectations before considering work complete.
 
 ## Git workflow
 
