@@ -141,7 +141,7 @@ Create a backend-agnostic consensus abstraction layer (`consensus-core`) and its
 
 <!-- TASKS_START -->
 
-- [ ] 1. Create Workspace Cargo.toml + Directory Scaffold
+- [x] 1. Create Workspace Cargo.toml + Directory Scaffold
 
   **What to do**:
   Create the root workspace `Cargo.toml` and empty crate directory structure. This unblocks all subsequent tasks and is required for `flake.nix` to function.

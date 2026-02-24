@@ -1,0 +1,15 @@
+[package]
+name = "consensus-commonware"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+consensus-core = { path = "../consensus-core" }
+commonware-consensus = { path = "../../vendor/commonware/consensus" }
+commonware-broadcast = { path = "../../vendor/commonware/broadcast" }
+commonware-cryptography = { path = "../../vendor/commonware/cryptography" }
+commonware-p2p = { path = "../../vendor/commonware/p2p" }
+commonware-runtime = { path = "../../vendor/commonware/runtime" }
+commonware-storage = { path = "../../vendor/commonware/storage" }
+commonware-codec = { path = "../../vendor/commonware/codec" }
+commonware-utils = { path = "../../vendor/commonware/utils" }

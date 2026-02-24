@@ -1,0 +1,11 @@
+[workspace]
+exclude = ["vendor"]
+resolver = "2"
+members = [
+    "crates/consensus-core",
+    "crates/consensus-commonware",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"

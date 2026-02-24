@@ -1,0 +1,8 @@
+   Compiling proc-macro2 v1.0.106
+   Compiling quote v1.0.44
+   Compiling thiserror v2.0.18
+   Compiling syn v2.0.117
+   Compiling thiserror-impl v2.0.18
+    Checking consensus-core v0.1.0 (/home/dev/sahara/web3/agent/playground/whirlpool/crates/consensus-core)
+    Checking consensus-commonware v0.1.0 (/home/dev/sahara/web3/agent/playground/whirlpool/crates/consensus-commonware)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.79s

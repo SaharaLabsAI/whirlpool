@@ -1,0 +1,8 @@
+[package]
+name = "consensus-core"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+thiserror = "2"
+tokio = { version = "1", default-features = false, features = ["rt"] }
