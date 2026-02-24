@@ -13,3 +13,8 @@ commonware-runtime = { path = "../../vendor/commonware/runtime" }
 commonware-storage = { path = "../../vendor/commonware/storage" }
 commonware-codec = { path = "../../vendor/commonware/codec" }
 commonware-utils = { path = "../../vendor/commonware/utils" }
+
+tokio = { version = "1", features = ["rt", "sync", "macros"] }
+tracing = "0.1"
+futures = "0.3"
+rand = "0.8"

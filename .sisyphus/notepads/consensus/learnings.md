@@ -100,3 +100,65 @@ This file tracks conventions, patterns, and wisdom accumulated during consensus 
 - Clippy clean with --features mock -- -D warnings (zero warnings)
 - Evidence saved to `.sisyphus/evidence/task-8-tests.txt`
 - Added `#[cfg(test)] mod tests;` to lib.rs to include test module
+
+## Task 9: Module Structure for consensus-commonware
+
+- Created module structure for the new `consensus-commonware` adapter crate
+- Updated `crates/consensus-commonware/src/lib.rs` with module declarations for: types, config, adapter, engine
+- Added `pub use` statements to re-export CommonwareBlock and CommonwareConfig
+- Created 4 stub files (types.rs, config.rs, adapter.rs, engine.rs) with minimal placeholder types
+  - types.rs: `pub trait CommonwareBlock {}` (marker trait)
+  - config.rs: `pub struct CommonwareConfig;` (empty struct)
+  - adapter.rs: `pub struct AppAdapter;` (empty struct)
+  - engine.rs: `pub struct CommonwareEngine;` (empty struct)
+- Added dependencies to Cargo.toml: tokio (with rt, sync, macros features) and tracing 0.1
+- All dependencies already present: consensus-core, and all commonware-* path dependencies
+- Successfully compiled with `cargo check -p consensus-commonware` (exit 0)
+
+## CommonwareBlock Super-Trait Implementation
+
+**Task**: Replace placeholder `CommonwareBlock` trait with proper super-trait combining both `consensus_core::Block` and `commonware_consensus::Block`.
+
+**Implementation Pattern**:
+- Super-trait: `pub trait CommonwareBlock: CoreBlock + VendorBlock + Clone {}`
+- Blanket impl: `impl<T> CommonwareBlock for T where T: CoreBlock + VendorBlock + Clone`
+- This allows automatic implementation for any type satisfying both trait requirements
+
+**Key Details**:
+- Both Block traits have `height() -> u64` methods from different sources (no name conflict in Rust)
+- CoreBlock requires: `id()`, `parent_id()`, `height()` methods
+- VendorBlock requires: `Heightable + Codec + Digestible + Committable + Send + Sync` super-traits
+- Clone bound needed to ensure concrete types are cloneable
+
+**Verification**:
+- `cargo check -p consensus-commonware` ✅ PASSED
+- No compilation errors
+- Blanket impl pattern means users don't need to manually implement CommonwareBlock
+
+## CommonwareConfig Implementation
+
+**Date**: 2025-02-24
+
+### Completed
+- Replaced placeholder `pub struct CommonwareConfig;` with full real struct
+- Struct has 11 public fields covering all user-facing params for Simplex BFT engine
+- Field mapping from vendor `simplex::Config<...>`:
+  - `partition` → `namespace: String`
+  - `leader_timeout`, `notarization_timeout`, `nullify_retry` → `Duration` fields
+  - `activity_timeout`, `skip_timeout` → `u64` (from `ViewDelta` which is `u64`)
+  - `mailbox_size` → `usize`
+  - `replay_buffer`, `write_buffer` → `NonZeroUsize`
+  - `epoch` → `u64` (from `Epoch` which is `u64`)
+  - `fetch_timeout`, `fetch_concurrent` → Duration and usize
+
+### Design Decisions
+- Used concrete `u64` for timeout values (vs. type aliases) to avoid vendor import in public API
+- No `Default` impl per design constraint (users must explicitly set all values)
+- No builder pattern per design constraint
+- No generic type parameters (config is concrete, not parameterized)
+- Internal details (scheme, elector, blocker, automaton, relay, reporter, strategy, buffer_pool) are NOT exposed—handled by engine
+
+### Compilation Status
+- `cargo check -p consensus-commonware` ✓ PASS
+- `cargo clippy` has unrelated vendor errors but config.rs has no issues
+
