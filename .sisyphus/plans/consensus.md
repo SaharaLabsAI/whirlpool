@@ -229,7 +229,7 @@ Create a backend-agnostic consensus abstraction layer (`consensus-core`) and its
 
   **Commit**: YES | Message: `feat(consensus): scaffold workspace and crate directories` | Files: [Cargo.toml, crates/consensus-core/**, crates/consensus-commonware/**]
 
-- [ ] 2. Implement consensus-core/error.rs — ConsensusError
+- [x] 2. Implement consensus-core/error.rs — ConsensusError
 
   **What to do**:
   Create `crates/consensus-core/src/error.rs` with the `ConsensusError` enum exactly as specified in design doc §3.5.
@@ -285,7 +285,7 @@ Create a backend-agnostic consensus abstraction layer (`consensus-core`) and its
 
   **Commit**: NO (batched with wave 2)
 
-- [ ] 3. Implement consensus-core/block.rs — Block Trait
+- [x] 3. Implement consensus-core/block.rs — Block Trait
 
   **What to do**:
   Create `crates/consensus-core/src/block.rs` with the `Block` trait exactly as specified in design doc §3.1.
@@ -341,7 +341,7 @@ Create a backend-agnostic consensus abstraction layer (`consensus-core`) and its
 
   **Commit**: NO (batched with wave 2)
 
-- [ ] 4. Implement consensus-core/app.rs — ConsensusApp Trait
+- [x] 4. Implement consensus-core/app.rs — ConsensusApp Trait
 
   **What to do**:
   Create `crates/consensus-core/src/app.rs` with the `ConsensusApp` trait as specified in design doc §3.2.
@@ -409,7 +409,7 @@ Create a backend-agnostic consensus abstraction layer (`consensus-core`) and its
 
   **Commit**: NO (batched with wave 2)
 
-- [ ] 5. Implement consensus-core/event.rs — ConsensusEvent + EventSink
+- [x] 5. Implement consensus-core/event.rs — ConsensusEvent + EventSink
 
   **What to do**:
   Create `crates/consensus-core/src/event.rs` with `ConsensusEvent` enum and `EventSink` trait as specified in design doc §3.3.
@@ -465,7 +465,7 @@ Create a backend-agnostic consensus abstraction layer (`consensus-core`) and its
 
   **Commit**: NO (batched with wave 2)
 
-- [ ] 6. Implement consensus-core/engine.rs — ConsensusEngine + RunningEngine + ConsensusStatus
+- [x] 6. Implement consensus-core/engine.rs — ConsensusEngine + RunningEngine + ConsensusStatus
 
   **What to do**:
   Create `crates/consensus-core/src/engine.rs` with `ConsensusEngine` trait, `RunningEngine` struct, and `ConsensusStatus` struct per design doc §3.4 + ConsensusStatus extension.

@@ -1,0 +1,59 @@
+warning: Git tree '/home/dev/sahara/web3/agent/playground/whirlpool' is dirty
+    Checking consensus-core v0.1.0 (/home/dev/sahara/web3/agent/playground/whirlpool/crates/consensus-core)
+error[E0432]: unresolved import `crate::error`
+ --> crates/consensus-core/src/app.rs:2:12
+  |
+2 | use crate::error::ConsensusError;
+  |            ^^^^^
+  |            |
+  |            unresolved import
+  |            help: a similar path exists: `core::error`
+
+error[E0432]: unresolved import `crate::error`
+ --> crates/consensus-core/src/engine.rs:1:12
+  |
+1 | use crate::error::ConsensusError;
+  |            ^^^^^
+  |            |
+  |            unresolved import
+  |            help: a similar path exists: `core::error`
+
+error[E0282]: type annotations needed
+  --> crates/consensus-core/src/engine.rs:50:9
+   |
+50 | /         self.handle
+51 | |             .await
+   | |__________________^ cannot infer type
+
+error[E0282]: type annotations needed
+  --> crates/consensus-core/src/engine.rs:52:23
+   |
+52 |             .map_err(|e| ConsensusError::Runtime(e.to_string()))?
+   |                       ^                          - type must be known at this point
+   |
+help: consider giving this closure parameter an explicit type
+   |
+52 |             .map_err(|e: /* Type */| ConsensusError::Runtime(e.to_string()))?
+   |                        ++++++++++++
+
+error[E0282]: type annotations needed
+  --> crates/consensus-core/src/engine.rs:58:9
+   |
+58 | /         self.handle
+59 | |             .await
+   | |__________________^ cannot infer type
+
+error[E0282]: type annotations needed
+  --> crates/consensus-core/src/engine.rs:60:23
+   |
+60 |             .map_err(|e| ConsensusError::Runtime(e.to_string()))?
+   |                       ^                          - type must be known at this point
+   |
+help: consider giving this closure parameter an explicit type
+   |
+60 |             .map_err(|e: /* Type */| ConsensusError::Runtime(e.to_string()))?
+   |                        ++++++++++++
+
+Some errors have detailed explanations: E0282, E0432.
+For more information about an error, try `rustc --explain E0282`.
+error: could not compile `consensus-core` (lib) due to 6 previous errors
