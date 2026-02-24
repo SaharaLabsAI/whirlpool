@@ -7,9 +7,10 @@ This is the top-level entrypoint for AI coding agents in this repository.
 Follow this sequence and stop once you have enough context for the task:
 
 1. `agents/00-scope.md`
-2. `agents/10-vendor-policy.md`
-3. `agents/20-vendor-llmdocs-workflow.md`
-4. `agents/30-dev-env-and-workflow.md`
+2. `agents/05-routing.md` — decision tree to skip docs you don't need
+3. `agents/10-vendor-policy.md`
+4. `agents/20-vendor-llmdocs-workflow.md`
+5. `agents/30-dev-env-and-workflow.md`
 
 ## Fast rules
 
