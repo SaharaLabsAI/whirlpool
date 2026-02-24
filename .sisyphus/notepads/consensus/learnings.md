@@ -68,3 +68,35 @@ This file tracks conventions, patterns, and wisdom accumulated during consensus 
 - Coordinate with other Wave 2 tasks: error.rs (Task 2), block.rs (Task 3), event.rs (Task 5), engine.rs (Task 6)
 - RPITIT syntax is stable in Rust 2021 edition and works well for trait methods returning Futures
 - All dependencies (Block trait, ConsensusError enum) are properly resolved when all Wave 2 tasks complete
+
+## Task 7: Mock Module for Testing
+
+- Created mock module with MockBlock and MockEngine for testing consensus abstractions
+- MockBlock uses `[u8; 32]` as block identifier with genesis() and child() helper methods
+- MockEngine is generic over EventSink implementation `MockEngine<S: EventSink<Block = MockBlock>>`
+  - **CRITICAL**: Cannot use `Arc<dyn EventSink>` because RPITIT makes EventSink not dyn-compatible
+  - Must use generic type parameter instead: `pub struct MockEngine<S: EventSink<Block = MockBlock>>`
+- MockEngine spawns tokio task that iterates blocks and emits Finalized events
+- Uses tokio::sync::oneshot channel for graceful shutdown coordination
+- Added tokio "sync" feature to dependencies (required for oneshot channel)
+- Added `[features] mock = []` to Cargo.toml for conditional compilation
+- Added dev-dependencies for tokio with "rt" and "macros" features
+- Conditional module in lib.rs: `#[cfg(any(test, feature = "mock"))] pub mod mock;`
+- MockBlock::child() encodes height in first 8 bytes of id (deterministic, no randomness)
+- Successfully compiles with `cargo check -p consensus-core --features mock` (exit 0)
+
+## Task 8: Unit Tests for consensus-core
+
+- Created comprehensive test suite in `crates/consensus-core/src/tests.rs` with 7 test cases
+- Tests cover: MockBlock (genesis, child), MockEngine (lifecycle, shutdown, status), ConsensusError (display), EventSink (event collection)
+- CollectorSink test helper pattern: returns `(Arc<Self>, Arc<Mutex<Vec<u64>>>)` to allow verification after engine completion
+  - Must wrap sink in Arc because MockEngine::new() takes `Arc<S>` where `S: EventSink<Block = MockBlock>`
+  - Shared events Vec allows assertion after async engine completes
+- Import fix: use `crate::mock::MockBlock` and `crate::mock::MockEngine` (public re-exports), NOT `crate::mock::block::MockBlock` (private modules)
+- Type annotation required for Result types in async contexts: `let result: Result<(), ConsensusError> = running.wait().await;`
+  - Compiler cannot infer Result type when only calling `.is_ok()` without storing value
+  - Alternative: use `.expect()` directly which consumes Result and returns inner value
+- All 7 tests pass with cargo nextest (exit 0)
+- Clippy clean with --features mock -- -D warnings (zero warnings)
+- Evidence saved to `.sisyphus/evidence/task-8-tests.txt`
+- Added `#[cfg(test)] mod tests;` to lib.rs to include test module

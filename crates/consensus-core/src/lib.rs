@@ -15,3 +15,10 @@ pub use event::{ConsensusEvent, EventSink};
 
 pub mod engine;
 pub use engine::{ConsensusEngine, ConsensusStatus, RunningEngine};
+
+
+#[cfg(any(test, feature = "mock"))]
+pub mod mock;
+
+#[cfg(test)]
+mod tests;

@@ -530,7 +530,7 @@ Create a backend-agnostic consensus abstraction layer (`consensus-core`) and its
 
   **Commit**: YES | Message: `feat(consensus-core): implement all core traits and types` | Files: [crates/consensus-core/src/**]
 
-- [ ] 7. Implement MockEngine + Mock Block Type
+- [x] 7. Implement MockEngine + Mock Block Type
 
   **What to do**:
   Create mock/noop consensus engine and mock block in `consensus-core` behind `#[cfg(any(test, feature = "mock"))]`.
@@ -582,7 +582,7 @@ Create a backend-agnostic consensus abstraction layer (`consensus-core`) and its
 
   **Commit**: NO (batched with task 8)
 
-- [ ] 8. Write consensus-core Unit Tests
+- [x] 8. Write consensus-core Unit Tests
 
   **What to do**:
   Comprehensive unit tests: block trait, engine lifecycle, shutdown, status, errors, event delivery.
