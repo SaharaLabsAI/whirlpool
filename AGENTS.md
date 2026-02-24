@@ -1,60 +1,23 @@
 # AGENTS.md
 
-This file is the top-level, tool-agnostic guide for AI coding agents working in this repository.
+This is the top-level entrypoint for AI coding agents in this repository.
 
-## Repository shape
+## Progressive reading order
 
-- `vendor/` git submodules kept for **fast code reference**
-- a Nix dev shell (`flake.nix`)
+Follow this sequence and stop once you have enough context for the task:
 
-### `vendor/` is reference-only
+1. `agents/00-scope.md`
+2. `agents/10-vendor-policy.md`
+3. `agents/20-vendor-llmdocs-workflow.md`
+4. `agents/30-dev-env-and-workflow.md`
 
-The projects under `vendor/` are **not part of this project**. Do not change `vendor/**` unless the task explicitly asks you to.
+## Fast rules
 
-The vendor submodules are:
-
-- `vendor/commonware/` (Commonware monorepo)
-- `vendor/reth/` (Reth)
-- `vendor/alto/` (Alto)
-
-Each vendor subproject has its own:
-
-- `AGENTS.md` (agent instructions)
-- `llmdocs/` (agent-oriented architecture/workflow docs)
-
-## Start here (non-negotiable): read llmdocs first (when looking into vendor)
-
-Before searching/reading any source code inside a vendor subproject, check whether it has `llmdocs/` and start from its index:
-
-- Commonware: `vendor/commonware/llmdocs/index.md`
-- Reth: `vendor/reth/llmdocs/index.md`
-- Alto: `vendor/alto/llmdocs/index.md`
-
-Suggested reading order (per subproject):
-
-1) `llmdocs/index.md`
-2) relevant `llmdocs/overview/*`
-3) relevant `llmdocs/architecture/*`
-4) relevant `llmdocs/guides/*`
-5) relevant `llmdocs/reference/*`
-
-## Nix dev environment
-
-This repo includes a `flake.nix` intended to provide a Rust dev shell with tools like `cargo-nextest`.
-
-## When in doubt
-
-1) Follow the subproject's own `AGENTS.md` and `llmdocs/`.
-2) Keep changes small and focused.
-3) Match the subproject's formatting/lint/test expectations before considering work complete.
+- Do not change `vendor/**` unless explicitly requested.
+- For vendor investigations, start from each project's `llmdocs/index.md` before reading source code.
+- Keep changes small, focused, and aligned with local formatting/lint/test expectations.
+- Never commit secrets.
 
 ## User interaction
 
-When you ask the user questions, address the user as **Bob**.
-
-## Git workflow
-
-- Every time you finish a todo item, create an **atomic commit** for that completed unit of work.
-- Use `git commit --no-gpg-sign ...` (ignore GPG signing).
-- Follow existing commit message style in `git log`.
-- Never commit secrets (e.g. `.env`, credentials).
+When asking the user questions, address the user as **Bob**.
