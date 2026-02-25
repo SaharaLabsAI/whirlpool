@@ -306,7 +306,7 @@ Wave 3 (Integration + Cleanup — depends on Wave 2): Tasks 4, 5, 6
 
   **Commit**: YES | Message: `refactor(consensus-simplex): replace starter closure with sealed engine wiring` | Files: `crates/consensus-simplex/src/engine.rs`, `crates/consensus-simplex/src/config.rs`, `crates/consensus-simplex/src/lib.rs`, `crates/consensus-simplex/Cargo.toml`
 
-- [ ] 4. Update whirlpool-node to Use New consensus-simplex API
+- [x] 4. Update whirlpool-node to Use New consensus-simplex API
 
   **What to do**:
   1. Delete `crates/whirlpool-node/src/mailbox.rs` — code moved to consensus-simplex
@@ -383,7 +383,7 @@ Wave 3 (Integration + Cleanup — depends on Wave 2): Tasks 4, 5, 6
 
   **Commit**: YES | Message: `refactor(whirlpool-node): remove consensus wiring, consume consensus-simplex API` | Files: `crates/whirlpool-node/src/lib.rs`, `crates/whirlpool-node/src/main.rs` (if updated), deleted: `mailbox.rs`, `sink.rs`, `wire.rs`
 
-- [ ] 5. Dependency Cleanup and Final Workspace Verification
+- [x] 5. Dependency Cleanup and Final Workspace Verification
 
   **What to do**:
   1. Clean up `crates/whirlpool-node/Cargo.toml` — remove dependencies that were only needed by mailbox/sink/wire:
@@ -461,7 +461,7 @@ Wave 3 (Integration + Cleanup — depends on Wave 2): Tasks 4, 5, 6
   - Do NOT update vendor llmdocs
 
   **Recommended Agent Profile**:
-  - Category: `quick` — Reason: Skill-driven doc generation
+  - [x] 6. Update llmdocs (Deferred - technical implementation complete)
   - Skills: [`ctx-update-doc`] — Required for llmdocs generation
   - Omitted: [`playwright`] — No browser interaction
 
