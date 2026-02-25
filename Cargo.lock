@@ -305,6 +305,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "chain-binary"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "commonware-broadcast",
+ "commonware-codec",
+ "commonware-consensus",
+ "commonware-cryptography",
+ "commonware-p2p",
+ "commonware-runtime",
+ "commonware-storage",
+ "commonware-utils",
+ "consensus-commonware",
+ "consensus-core",
+ "futures",
+ "sha2 0.10.9",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "ciborium"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"

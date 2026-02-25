@@ -4,6 +4,7 @@ resolver = "2"
 members = [
     "crates/consensus-core",
     "crates/consensus-commonware",
+    "crates/chain-binary",
 ]
 
 [workspace.package]
