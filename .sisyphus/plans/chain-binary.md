@@ -718,7 +718,7 @@ A running binary that starts a single-node simplex consensus engine, proposes em
 
   **Commit**: YES | Message: `feat(chain-binary): implement Mailbox bridge for simplex Automaton/Relay (TDD)` | Files: `crates/chain-binary/src/mailbox.rs`
 
-- [ ] 6. wire.rs — Starter Closure Wiring All Components
+- [x] 6. wire.rs — Starter Closure Wiring All Components
 
   **What to do**:
 
