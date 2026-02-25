@@ -349,7 +349,7 @@ A running binary that starts a single-node simplex consensus engine, proposes em
   **Commit**: YES | Message: `feat(chain-binary): implement EmptyBlock with dual-trait conformance (TDD)` | Files: `crates/chain-binary/src/block.rs`
 
 
-- [ ] 3. EmptyBlockApp — ConsensusApp Implementation (TDD)
+- [x] 3. EmptyBlockApp — ConsensusApp Implementation (TDD)
 
   **What to do**:
 
@@ -478,7 +478,7 @@ A running binary that starts a single-node simplex consensus engine, proposes em
 
   **Commit**: YES | Message: `feat(chain-binary): implement EmptyBlockApp with 5 verify rules (TDD)` | Files: `crates/chain-binary/src/app.rs`
 
-- [ ] 4. FinalizationSink — EventSink Implementation (TDD)
+- [x] 4. FinalizationSink — EventSink Implementation (TDD)
 
   **What to do**:
 
@@ -591,7 +591,7 @@ A running binary that starts a single-node simplex consensus engine, proposes em
   **Commit**: YES | Message: `feat(chain-binary): implement FinalizationSink with height tracking (TDD)` | Files: `crates/chain-binary/src/sink.rs`
 
 
-- [ ] 5. Mailbox Bridge — Automaton/CertifiableAutomaton/Relay (TDD)
+- [x] 5. Mailbox Bridge — Automaton/CertifiableAutomaton/Relay (TDD)
 
   **What to do**:
 
