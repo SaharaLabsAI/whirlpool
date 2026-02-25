@@ -1,7 +1,7 @@
-use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
-use consensus_core::{EventSink, ConsensusEvent};
 use crate::block::EmptyBlock;
+use consensus_core::{ConsensusEvent, EventSink};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use tracing::{info, warn};
 
 /// FinalizationSink tracks finalized block heights and logs consensus events.
@@ -33,36 +33,47 @@ impl EventSink for FinalizationSink {
 
     async fn handle(&self, event: ConsensusEvent<EmptyBlock>) {
         use consensus_core::Block as CoreBlock;
-        
+
         match event {
-            ConsensusEvent::Finalized { block, height, proof: _ } => {
+            ConsensusEvent::Finalized {
+                block,
+                height,
+                proof: _,
+            } => {
                 self.height.store(height, Ordering::SeqCst);
                 info!(height = height, block_id = ?CoreBlock::id(&block), "block finalized");
             }
             ConsensusEvent::PreFinalized { block: _, height } => {
                 info!(height = height, "block pre-finalized");
             }
-            ConsensusEvent::Fault { offender, evidence: _ } => {
+            ConsensusEvent::Fault {
+                offender,
+                evidence: _,
+            } => {
                 warn!(?offender, "consensus fault detected");
             }
         }
     }
 }
 
-
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-    use std::sync::atomic::{AtomicU64, Ordering};
-    use consensus_core::{ConsensusEvent, EventSink};
     use crate::block::EmptyBlock;
+    use consensus_core::{ConsensusEvent, EventSink};
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::Arc;
 
     #[tokio::test]
     async fn test_handle_finalized_logs_height() {
         let height = Arc::new(AtomicU64::new(0));
         let sink = super::FinalizationSink::new(height.clone());
         let block = EmptyBlock::new(1, [0; 32]);
-        sink.handle(ConsensusEvent::Finalized { block, height: 1, proof: vec![] }).await;
+        sink.handle(ConsensusEvent::Finalized {
+            block,
+            height: 1,
+            proof: vec![],
+        })
+        .await;
         // Test passes if no panic
     }
 
@@ -71,7 +82,12 @@ mod tests {
         let height = Arc::new(AtomicU64::new(0));
         let sink = super::FinalizationSink::new(height.clone());
         let block = EmptyBlock::new(5, [0; 32]);
-        sink.handle(ConsensusEvent::Finalized { block, height: 5, proof: vec![] }).await;
+        sink.handle(ConsensusEvent::Finalized {
+            block,
+            height: 5,
+            proof: vec![],
+        })
+        .await;
         assert_eq!(height.load(Ordering::SeqCst), 5);
     }
 
@@ -80,7 +96,8 @@ mod tests {
         let height = Arc::new(AtomicU64::new(0));
         let sink = super::FinalizationSink::new(height.clone());
         let block = EmptyBlock::new(3, [0; 32]);
-        sink.handle(ConsensusEvent::PreFinalized { block, height: 3 }).await;
+        sink.handle(ConsensusEvent::PreFinalized { block, height: 3 })
+            .await;
         assert_eq!(height.load(Ordering::SeqCst), 0); // unchanged
     }
 
@@ -88,7 +105,11 @@ mod tests {
     async fn test_handle_fault_logs_warning() {
         let height = Arc::new(AtomicU64::new(0));
         let sink = super::FinalizationSink::new(height.clone());
-        sink.handle(ConsensusEvent::Fault { offender: vec![1, 2, 3], evidence: vec![] }).await;
+        sink.handle(ConsensusEvent::Fault {
+            offender: vec![1, 2, 3],
+            evidence: vec![],
+        })
+        .await;
         // Test passes if no panic
     }
 
@@ -98,7 +119,12 @@ mod tests {
         let sink = super::FinalizationSink::new(height.clone());
         for h in 1..=3 {
             let block = EmptyBlock::new(h, [0; 32]);
-            sink.handle(ConsensusEvent::Finalized { block, height: h, proof: vec![] }).await;
+            sink.handle(ConsensusEvent::Finalized {
+                block,
+                height: h,
+                proof: vec![],
+            })
+            .await;
         }
         assert_eq!(height.load(Ordering::SeqCst), 3);
     }

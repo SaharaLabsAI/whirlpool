@@ -10,8 +10,7 @@ use consensus_core::error::ConsensusError;
 ///
 /// MINIMAL IMPLEMENTATION: Returns a background thread that checks the running flag.
 /// Full implementation (simplex engine + P2P + mailbox actor) is future work.
-pub fn create_starter(
-) -> impl FnOnce(
+pub fn create_starter() -> impl FnOnce(
     Arc<AtomicU64>,
     Arc<AtomicBool>,
 ) -> Result<
@@ -25,15 +24,15 @@ pub fn create_starter(
     move |_height: Arc<AtomicU64>, running: Arc<AtomicBool>| {
         // Minimal implementation: background thread checking running flag
         let running_clone = Arc::clone(&running);
-        
+
         let handle = std::thread::spawn(move || {
             tracing::info!("Consensus engine thread started");
-            
+
             // Simple loop checking the running flag
             while running_clone.load(Ordering::SeqCst) {
                 std::thread::sleep(Duration::from_millis(100));
             }
-            
+
             tracing::info!("Consensus engine thread shutting down");
             Ok(())
         });

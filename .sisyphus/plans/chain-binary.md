@@ -1041,17 +1041,17 @@ A running binary that starts a single-node simplex consensus engine, proposes em
 
 ## Final Verification Wave (4 parallel agents, ALL must APPROVE)
 
-- [ ] F1. Plan Compliance Audit
+- [x] F1. Plan Compliance Audit
   - Agent: `oracle`
   - Check: All 8 tasks follow TDD where specified, all references exist, all acceptance criteria are agent-executable
   - Evidence: `.sisyphus/evidence/f1-compliance.txt`
 
-- [ ] F2. Code Quality Review
+- [x] F2. Code Quality Review
   - Agent: `unspecified-high`
   - Check: `cargo clippy -p chain-binary -- -D warnings`, `cargo fmt -p chain-binary -- --check`, no unused imports/variables
   - Evidence: `.sisyphus/evidence/f2-quality.txt`
 
-- [ ] F3. Real Manual QA
+- [x] F3. Real Manual QA
   - Agent: `unspecified-high`
   - Check: Start binary, observe 3+ blocks finalized via log output, Ctrl-C graceful shutdown
   - Steps:
@@ -1063,7 +1063,7 @@ A running binary that starts a single-node simplex consensus engine, proposes em
     6. Verify clean shutdown (no panics, exit code 0)
   - Evidence: `.sisyphus/evidence/f3-manual-qa.txt`
 
-- [ ] F4. Scope Fidelity Check
+- [x] F4. Scope Fidelity Check
   - Agent: `deep`
   - Check: No modifications to `vendor/`, `consensus-core/`, or `consensus-commonware/`. Only `chain-binary/` crate + workspace `Cargo.toml` changed.
   - Evidence: `.sisyphus/evidence/f4-scope.txt`

@@ -3,8 +3,8 @@
 //! This module implements a minimal `ConsensusApp` using `EmptyBlock` as the block type.
 //! The application is stateless (zero-sized struct) and enforces 5 block verification rules.
 
-use consensus_core::{ConsensusApp, ConsensusError, Block as CoreBlock};
 use crate::block::EmptyBlock;
+use consensus_core::{Block as CoreBlock, ConsensusApp, ConsensusError};
 
 /// Stateless consensus application for EmptyBlock.
 ///
@@ -35,30 +35,29 @@ impl ConsensusApp for EmptyBlockApp {
     async fn verify(&self, parent: &EmptyBlock, block: &EmptyBlock) -> Result<(), ConsensusError> {
         // Rule 1: Height must be parent + 1
         if CoreBlock::height(block) != CoreBlock::height(parent) + 1 {
-            return Err(ConsensusError::InvalidBlock(
-                format!("height mismatch: expected {}, got {}",
-                        CoreBlock::height(parent) + 1, CoreBlock::height(block))
-            ));
+            return Err(ConsensusError::InvalidBlock(format!(
+                "height mismatch: expected {}, got {}",
+                CoreBlock::height(parent) + 1,
+                CoreBlock::height(block)
+            )));
         }
 
         // Rule 2: parent_id must match
         if CoreBlock::parent_id(block) != CoreBlock::id(parent) {
-            return Err(ConsensusError::InvalidBlock(
-                "parent mismatch".to_string()
-            ));
+            return Err(ConsensusError::InvalidBlock("parent mismatch".to_string()));
         }
 
         // Rule 3: No self-reference (except genesis)
         if CoreBlock::id(block) == CoreBlock::parent_id(block) && CoreBlock::height(block) != 0 {
             return Err(ConsensusError::InvalidBlock(
-                "non-genesis block self-references".to_string()
+                "non-genesis block self-references".to_string(),
             ));
         }
 
         // Rule 4: Height 0 with non-zero parent is invalid
         if CoreBlock::height(block) == 0 && CoreBlock::parent_id(block) != [0u8; 32] {
             return Err(ConsensusError::InvalidBlock(
-                "height 0 with non-zero parent".to_string()
+                "height 0 with non-zero parent".to_string(),
             ));
         }
 
@@ -85,7 +84,10 @@ mod tests {
     async fn test_propose_returns_block_at_correct_height() {
         let app = EmptyBlockApp::new();
         let genesis = app.genesis().await;
-        let block = app.propose(&genesis, 1).await.expect("propose should return Some");
+        let block = app
+            .propose(&genesis, 1)
+            .await
+            .expect("propose should return Some");
         assert_eq!(CoreBlock::height(&block), 1);
     }
 
@@ -95,7 +97,10 @@ mod tests {
         let app = EmptyBlockApp::new();
         let genesis = app.genesis().await;
         let parent_id = CoreBlock::id(&genesis);
-        let block = app.propose(&genesis, 1).await.expect("propose should return Some");
+        let block = app
+            .propose(&genesis, 1)
+            .await
+            .expect("propose should return Some");
         assert_eq!(CoreBlock::parent_id(&block), parent_id);
     }
 
@@ -117,7 +122,10 @@ mod tests {
         let block = EmptyBlock::new(5, CoreBlock::id(&genesis));
         let result = app.verify(&genesis, &block).await;
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ConsensusError::InvalidBlock(_)));
+        assert!(matches!(
+            result.unwrap_err(),
+            ConsensusError::InvalidBlock(_)
+        ));
     }
 
     // Test 6: Verify wrong parent fails
@@ -129,7 +137,10 @@ mod tests {
         let block = EmptyBlock::new(1, [99u8; 32]);
         let result = app.verify(&genesis, &block).await;
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ConsensusError::InvalidBlock(_)));
+        assert!(matches!(
+            result.unwrap_err(),
+            ConsensusError::InvalidBlock(_)
+        ));
     }
 
     // Test 7: Verify genesis height with non-zero parent fails
@@ -141,7 +152,10 @@ mod tests {
         let bad_genesis = EmptyBlock::new(0, [1u8; 32]);
         let result = app.verify(&genesis, &bad_genesis).await;
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ConsensusError::InvalidBlock(_)));
+        assert!(matches!(
+            result.unwrap_err(),
+            ConsensusError::InvalidBlock(_)
+        ));
     }
 
     // Test 8: Verify self-referencing block fails (non-genesis)
@@ -155,7 +169,10 @@ mod tests {
         let self_ref_block = EmptyBlock::new(1, self_ref_id);
         let result = app.verify(&genesis, &self_ref_block).await;
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ConsensusError::InvalidBlock(_)));
+        assert!(matches!(
+            result.unwrap_err(),
+            ConsensusError::InvalidBlock(_)
+        ));
     }
 
     // Test 9: Verify future height fails (height > parent + 1)
@@ -167,7 +184,10 @@ mod tests {
         let block = EmptyBlock::new(3, CoreBlock::id(&genesis));
         let result = app.verify(&genesis, &block).await;
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), ConsensusError::InvalidBlock(_)));
+        assert!(matches!(
+            result.unwrap_err(),
+            ConsensusError::InvalidBlock(_)
+        ));
     }
 
     // Test 10: Propose after propose increments height correctly

@@ -1,11 +1,11 @@
 // EmptyBlock - Minimal block implementation for chain-binary
 
-use consensus_core::Block as CoreBlock;
-use commonware_codec::{Write as CodecWrite, Read as CodecRead, EncodeSize, Error as CodecError};
-use commonware_consensus::Heightable;
-use commonware_cryptography::{Digestible, Committable};
-use sha2::{Sha256, Digest as Sha2Digest};
 use bytes::{Buf, BufMut};
+use commonware_codec::{EncodeSize, Error as CodecError, Read as CodecRead, Write as CodecWrite};
+use commonware_consensus::Heightable;
+use commonware_cryptography::{Committable, Digestible};
+use consensus_core::Block as CoreBlock;
+use sha2::{Digest as Sha2Digest, Sha256};
 
 pub type BlockId = [u8; 32];
 
@@ -20,7 +20,10 @@ pub struct EmptyBlock {
 
 impl EmptyBlock {
     pub fn genesis() -> Self {
-        Self { height: 0, parent_id: [0u8; 32] }
+        Self {
+            height: 0,
+            parent_id: [0u8; 32],
+        }
     }
 
     pub fn new(height: u64, parent_id: BlockId) -> Self {
@@ -41,9 +44,15 @@ impl EmptyBlock {
 // consensus_core::Block
 impl CoreBlock for EmptyBlock {
     type Id = BlockId;
-    fn id(&self) -> BlockId { self.compute_id() }
-    fn parent_id(&self) -> BlockId { self.parent_id }
-    fn height(&self) -> u64 { self.height }
+    fn id(&self) -> BlockId {
+        self.compute_id()
+    }
+    fn parent_id(&self) -> BlockId {
+        self.parent_id
+    }
+    fn height(&self) -> u64 {
+        self.height
+    }
 }
 
 // commonware_codec traits (follow TestBlock pattern exactly)
@@ -62,7 +71,7 @@ impl EncodeSize for EmptyBlock {
 
 impl CodecRead for EmptyBlock {
     type Cfg = ();
-    
+
     fn read_cfg(reader: &mut impl Buf, _cfg: &Self::Cfg) -> Result<Self, CodecError> {
         if reader.remaining() < 40 {
             return Err(CodecError::Invalid("EmptyBlock", "not enough bytes"));
@@ -77,7 +86,7 @@ impl CodecRead for EmptyBlock {
 // commonware_cryptography traits
 impl Digestible for EmptyBlock {
     type Digest = BlockDigest;
-    
+
     fn digest(&self) -> Self::Digest {
         BlockDigest::from(self.compute_id())
     }
@@ -85,7 +94,7 @@ impl Digestible for EmptyBlock {
 
 impl Committable for EmptyBlock {
     type Commitment = BlockDigest;
-    
+
     fn commitment(&self) -> Self::Commitment {
         self.digest()
     }
@@ -140,9 +149,9 @@ mod tests {
 
     #[test]
     fn test_codec_roundtrip() {
-        use commonware_codec::{Write as CodecWrite, Read as CodecRead};
         use bytes::BytesMut;
-        
+        use commonware_codec::{Read as CodecRead, Write as CodecWrite};
+
         let block = EmptyBlock::new(5, [42u8; 32]);
         let mut buf = BytesMut::new();
         block.write(&mut buf);
@@ -154,7 +163,7 @@ mod tests {
     #[test]
     fn test_digest_deterministic() {
         use commonware_cryptography::Digestible;
-        
+
         let block = EmptyBlock::new(3, [7u8; 32]);
         let d1 = block.digest();
         let d2 = block.digest();
@@ -164,7 +173,7 @@ mod tests {
     #[test]
     fn test_different_blocks_different_digests() {
         use commonware_cryptography::Digestible;
-        
+
         let b1 = EmptyBlock::new(1, [0u8; 32]);
         let b2 = EmptyBlock::new(2, [0u8; 32]);
         assert_ne!(b1.digest(), b2.digest());
