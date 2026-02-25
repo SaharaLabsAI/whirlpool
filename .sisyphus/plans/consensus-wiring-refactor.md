@@ -99,7 +99,7 @@ Wave 3 (Integration + Cleanup — depends on Wave 2): Tasks 4, 5, 6
 
 ## TODOs
 
-- [ ] 1. Move and Genericize Mailbox into consensus-simplex
+- [x] 1. Move and Genericize Mailbox into consensus-simplex
 
   **What to do**:
   1. Create `crates/consensus-simplex/src/mailbox.rs`
@@ -164,7 +164,7 @@ Wave 3 (Integration + Cleanup — depends on Wave 2): Tasks 4, 5, 6
 
   **Commit**: YES | Message: `refactor(consensus-simplex): move and genericize Mailbox from whirlpool-node` | Files: `crates/consensus-simplex/src/mailbox.rs`, `crates/consensus-simplex/src/lib.rs`, `crates/consensus-simplex/Cargo.toml`
 
-- [ ] 2. Move and Genericize FinalizationSink into consensus-simplex
+- [x] 2. Move and Genericize FinalizationSink into consensus-simplex
 
   **What to do**:
   1. Create `crates/consensus-simplex/src/sink.rs`
@@ -229,7 +229,7 @@ Wave 3 (Integration + Cleanup — depends on Wave 2): Tasks 4, 5, 6
 
   **What to do**:
   1. Refactor `CommonwareEngine` in `crates/consensus-simplex/src/engine.rs` to replace the starter-closure pattern with a proper builder/factory that internally wires all components:
-     - **New API**: `CommonwareEngine::new(app, sink, config)` or a builder pattern `CommonwareEngine::builder().app(app).sink(sink).config(config).build()`
+     - [x] 3. Build Real Engine Wiring in consensus-simplex
      - Constructor takes: `A: ConsensusApp`, `S: EventSink<Block=A::Block>`, `CommonwareConfig`, plus P2P parameters (validator key/signer, network config like bind address, peer addresses, namespace)
      - The `start()` method (ConsensusEngine impl) now internally:
        a. Creates mpsc channel for Mailbox↔MailboxActor

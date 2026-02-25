@@ -844,7 +844,7 @@ A running binary that starts a single-node simplex consensus engine, proposes em
   **Commit**: YES | Message: `feat(chain-binary): wire starter closure with P2P, simplex engine, and mailbox bridge` | Files: `crates/chain-binary/src/wire.rs`
 
 
-- [ ] 7. main.rs — Binary Entrypoint
+- [x] 7. main.rs — Binary Entrypoint
 
   **What to do**:
 
@@ -941,7 +941,7 @@ A running binary that starts a single-node simplex consensus engine, proposes em
 
   **Commit**: YES | Message: `feat(chain-binary): implement main entrypoint with signal handling` | Files: `crates/chain-binary/src/main.rs`
 
-- [ ] 8. Integration Test — Single-Node Finalization
+- [x] 8. Integration Test — Single-Node Finalization
 
   **What to do**:
 
