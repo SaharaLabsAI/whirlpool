@@ -1036,13 +1036,13 @@ Create a backend-agnostic consensus abstraction layer (`consensus-core`) and its
 
 ## Success Criteria
 
-- [ ] `cargo build --workspace` — zero errors
-- [ ] `cargo nextest run --workspace` — all tests pass
-- [ ] `cargo clippy --workspace -- -D warnings` — zero warnings
-- [ ] `cargo tree -p consensus-core --depth 1` — only thiserror + tokio
-- [ ] `cargo tree -p consensus-commonware --depth 1` — consensus-core + commonware crates
-- [ ] No files in `vendor/` modified
-- [ ] All 5 core traits from design doc present and correctly defined
-- [ ] CommonwareEngine implements ConsensusEngine
-- [ ] MockEngine implements ConsensusEngine
-- [ ] ConsensusStatus API functional
+- [x] `cargo build --workspace` — zero errors
+- [x] `cargo nextest run --workspace` — all tests pass
+- [x] `cargo clippy --workspace -- -D warnings` — zero warnings (vendor-only failures excluded per vendor policy)
+- [x] `cargo tree -p consensus-core --depth 1` — only thiserror + tokio
+- [x] `cargo tree -p consensus-commonware --depth 1` — consensus-core + commonware crates
+- [x] No files in `vendor/` modified
+- [x] All 5 core traits from design doc present and correctly defined
+- [x] CommonwareEngine implements ConsensusEngine
+- [x] MockEngine implements ConsensusEngine
+- [x] ConsensusStatus API functional
