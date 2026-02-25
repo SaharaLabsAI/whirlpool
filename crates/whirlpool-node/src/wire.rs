@@ -1,4 +1,4 @@
-//! Wiring for chain-binary: starter closure that launches the consensus stack.
+//! Wiring for whirlpool-node: starter closure that launches the consensus stack.
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;

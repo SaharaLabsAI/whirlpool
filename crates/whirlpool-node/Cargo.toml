@@ -1,5 +1,5 @@
 [package]
-name = "chain-binary"
+name = "whirlpool-node"
 version.workspace = true
 edition.workspace = true
 
@@ -23,5 +23,5 @@ bytes = "1"
 commonware-math = { version = "0.0.65", path = "../../vendor/commonware/math" }
 
 [[bin]]
-name = "chain-binary"
+name = "whirlpool-node"
 path = "src/main.rs"

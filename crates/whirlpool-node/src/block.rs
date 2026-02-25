@@ -1,4 +1,4 @@
-// EmptyBlock - Minimal block implementation for chain-binary
+// EmptyBlock - Minimal block implementation for whirlpool-node
 
 use bytes::{Buf, BufMut};
 use commonware_codec::{EncodeSize, Error as CodecError, Read as CodecRead, Write as CodecWrite};
@@ -107,7 +107,7 @@ impl Heightable for EmptyBlock {
     }
 }
 
-// EmptyBlock - Minimal block implementation for chain-binary
+// EmptyBlock - Minimal block implementation for whirlpool-node
 
 #[cfg(test)]
 mod tests {
