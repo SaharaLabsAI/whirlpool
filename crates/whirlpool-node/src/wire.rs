@@ -8,7 +8,7 @@ use consensus::error::ConsensusError;
 
 /// Creates the starter closure for `CommonwareEngine`.
 ///
-/// MINIMAL IMPLEMENTATION: Returns a background thread that checks the running flag.
+/// STUB IMPLEMENTATION: Simulates block finalization by incrementing height every 5 seconds.
 /// Full implementation (simplex engine + P2P + mailbox actor) is future work.
 pub fn create_starter() -> impl FnOnce(
     Arc<AtomicU64>,
@@ -21,16 +21,30 @@ pub fn create_starter() -> impl FnOnce(
     ConsensusError,
 > + Send
        + 'static {
-    move |_height: Arc<AtomicU64>, running: Arc<AtomicBool>| {
-        // Minimal implementation: background thread checking running flag
+    move |height: Arc<AtomicU64>, running: Arc<AtomicBool>| {
+        // Stub implementation: simulate block finalization every 5 seconds
         let running_clone = Arc::clone(&running);
+        let height_clone = Arc::clone(&height);
 
         let handle = std::thread::spawn(move || {
-            tracing::info!("Consensus engine thread started");
+            tracing::info!("Consensus engine thread started (stub mode - simulating finalization)");
 
-            // Simple loop checking the running flag
+            let mut current_height = 0u64;
+            let start = std::time::Instant::now();
+
+            // Simple loop checking the running flag and simulating block finalization
             while running_clone.load(Ordering::SeqCst) {
                 std::thread::sleep(Duration::from_millis(100));
+
+                // Simulate block finalization every 5 seconds
+                let elapsed_secs = start.elapsed().as_secs();
+                let expected_height = elapsed_secs / 5; // 1 block every 5 seconds
+
+                if expected_height > current_height {
+                    current_height = expected_height;
+                    height_clone.store(current_height, Ordering::SeqCst);
+                    tracing::info!("Simulated block finalized at height {}", current_height);
+                }
             }
 
             tracing::info!("Consensus engine thread shutting down");
