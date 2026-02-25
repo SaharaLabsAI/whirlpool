@@ -2,8 +2,8 @@
 exclude = ["vendor"]
 resolver = "2"
 members = [
-    "crates/consensus-core",
-    "crates/consensus-commonware",
+    "crates/consensus",
+    "crates/consensus-simplex",
     "crates/chain-binary",
 ]
 

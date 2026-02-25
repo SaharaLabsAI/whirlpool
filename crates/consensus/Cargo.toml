@@ -1,5 +1,5 @@
 [package]
-name = "consensus-core"
+name = "consensus"
 version.workspace = true
 edition.workspace = true
 

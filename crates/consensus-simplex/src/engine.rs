@@ -8,8 +8,8 @@
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 
-use consensus_core::engine::{ConsensusEngine, RunningEngine};
-use consensus_core::error::ConsensusError;
+use consensus::engine::{ConsensusEngine, RunningEngine};
+use consensus::error::ConsensusError;
 
 /// A consensus engine backed by the Commonware Simplex BFT protocol.
 ///

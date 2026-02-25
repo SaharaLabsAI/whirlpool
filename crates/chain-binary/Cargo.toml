@@ -4,8 +4,8 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-consensus-core = { path = "../consensus-core" }
-consensus-commonware = { path = "../consensus-commonware" }
+consensus = { path = "../consensus" }
+consensus-simplex = { path = "../consensus-simplex" }
 commonware-consensus = { path = "../../vendor/commonware/consensus" }
 commonware-broadcast = { path = "../../vendor/commonware/broadcast" }
 commonware-cryptography = { path = "../../vendor/commonware/cryptography" }

@@ -9,10 +9,10 @@ use bytes::{Buf, BufMut};
 use commonware_codec::{EncodeSize, Error as CodecError, Read as CodecRead, Write as CodecWrite};
 use commonware_consensus::{Block as VendorBlock, Heightable};
 use commonware_cryptography::{Committable, Digestible};
-use consensus_core::block::Block as CoreBlock;
-use consensus_core::engine::ConsensusEngine;
-use consensus_core::error::ConsensusError;
-use consensus_core::event::{ConsensusEvent, EventSink};
+use consensus::block::Block as CoreBlock;
+use consensus::engine::ConsensusEngine;
+use consensus::error::ConsensusError;
+use consensus::event::{ConsensusEvent, EventSink};
 
 use crate::config::CommonwareConfig;
 use crate::engine::CommonwareEngine;
@@ -32,7 +32,7 @@ fn zero_digest() -> TestDigest {
     commonware_cryptography::sha256::Sha256::fill(0)
 }
 
-/// A test block that implements both `consensus_core::Block` and all vendor
+/// A test block that implements both `consensus::Block` and all vendor
 /// traits required by `commonware_consensus::Block`.
 #[derive(Clone, Debug)]
 struct TestBlock {
@@ -61,7 +61,7 @@ impl TestBlock {
     }
 }
 
-// --- consensus_core::Block ---
+// --- consensus::Block ---
 
 impl CoreBlock for TestBlock {
     type Id = [u8; 32];
@@ -186,7 +186,7 @@ impl EventSink for CollectorSink {
 
 struct MockApp;
 
-impl consensus_core::app::ConsensusApp for MockApp {
+impl consensus::app::ConsensusApp for MockApp {
     type Block = TestBlock;
 
     fn genesis(&self) -> impl std::future::Future<Output = Self::Block> + Send {

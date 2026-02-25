@@ -318,8 +318,8 @@ dependencies = [
  "commonware-runtime",
  "commonware-storage",
  "commonware-utils",
- "consensus-commonware",
- "consensus-core",
+ "consensus",
+ "consensus-simplex",
  "futures",
  "sha2 0.10.9",
  "tokio",
@@ -671,7 +671,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "consensus-commonware"
+name = "consensus"
+version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.18",
+ "tokio",
+]
+
+[[package]]
+name = "consensus-simplex"
 version = "0.1.0"
 dependencies = [
  "bytes",
@@ -683,19 +691,11 @@ dependencies = [
  "commonware-runtime",
  "commonware-storage",
  "commonware-utils",
- "consensus-core",
+ "consensus",
  "futures",
  "rand 0.8.5",
  "tokio",
  "tracing",
-]
-
-[[package]]
-name = "consensus-core"
-version = "0.1.0"
-dependencies = [
- "thiserror 2.0.18",
- "tokio",
 ]
 
 [[package]]

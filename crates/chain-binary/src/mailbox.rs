@@ -10,7 +10,7 @@ use commonware_consensus::types::Epoch;
 use commonware_consensus::{Automaton, CertifiableAutomaton, Relay};
 use commonware_cryptography::ed25519::PublicKey;
 use commonware_cryptography::sha256::Digest;
-use consensus_core::Block as CoreBlock;
+use consensus::Block as CoreBlock;
 use futures::channel::{mpsc, oneshot};
 use futures::SinkExt;
 use std::sync::atomic::{AtomicU64, Ordering};

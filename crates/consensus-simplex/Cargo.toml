@@ -1,10 +1,10 @@
 [package]
-name = "consensus-commonware"
+name = "consensus-simplex"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
-consensus-core = { path = "../consensus-core" }
+consensus = { path = "../consensus" }
 commonware-consensus = { path = "../../vendor/commonware/consensus" }
 commonware-broadcast = { path = "../../vendor/commonware/broadcast" }
 commonware-cryptography = { path = "../../vendor/commonware/cryptography" }

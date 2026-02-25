@@ -1,6 +1,6 @@
 //! CommonwareBlock super-trait combining consensus-core and commonware-consensus block interfaces.
 
-use consensus_core::Block as CoreBlock;
+use consensus::Block as CoreBlock;
 use commonware_consensus::Block as VendorBlock;
 
 /// A block type that satisfies both the consensus-core `Block` trait

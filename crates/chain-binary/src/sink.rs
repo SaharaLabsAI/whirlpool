@@ -1,5 +1,5 @@
 use crate::block::EmptyBlock;
-use consensus_core::{ConsensusEvent, EventSink};
+use consensus::{ConsensusEvent, EventSink};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tracing::{info, warn};
@@ -32,7 +32,7 @@ impl EventSink for FinalizationSink {
     type Block = EmptyBlock;
 
     async fn handle(&self, event: ConsensusEvent<EmptyBlock>) {
-        use consensus_core::Block as CoreBlock;
+        use consensus::Block as CoreBlock;
 
         match event {
             ConsensusEvent::Finalized {
@@ -59,7 +59,7 @@ impl EventSink for FinalizationSink {
 #[cfg(test)]
 mod tests {
     use crate::block::EmptyBlock;
-    use consensus_core::{ConsensusEvent, EventSink};
+    use consensus::{ConsensusEvent, EventSink};
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::sync::Arc;
 
