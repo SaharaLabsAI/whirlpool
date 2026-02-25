@@ -19,6 +19,7 @@ Follow this sequence and stop once you have enough context for the task:
 - When designing new business logic or architecture, you must use the `rust-whiteboard-design-docs` skill first.
 - Keep changes small, focused, and aligned with local formatting/lint/test expectations.
 - Never commit secrets.
+- Before marking any todo item or task complete, `cargo build` and `cargo test` must both pass. Fix any failures introduced by your changes before proceeding.
 - After completing code changes, always use the `ctx-update-doc` skill to generate/update llmdocs for the affected crates.
 
 ## User interaction
