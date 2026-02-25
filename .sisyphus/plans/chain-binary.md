@@ -214,7 +214,7 @@ A running binary that starts a single-node simplex consensus engine, proposes em
 
   **Commit**: YES | Message: `feat(chain-binary): scaffold crate with module stubs and config constants` | Files: `crates/chain-binary/`, `Cargo.toml`, `Cargo.lock`
 
-- [ ] 2. EmptyBlock Type with Dual-Trait Conformance (TDD)
+- [x] 2. EmptyBlock Type with Dual-Trait Conformance (TDD)
 
   **What to do**:
 
