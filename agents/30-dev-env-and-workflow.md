@@ -10,6 +10,7 @@ Use the Nix flake shell when needed. The repository includes `flake.nix` with Ru
 2. When designing new business logic or architecture, use the `rust-whiteboard-design-docs` skill first.
 3. Keep changes small and focused.
 4. Match formatting/lint/test expectations before considering work complete.
+5. After completing code changes, use the `ctx-update-doc` skill to generate/update llmdocs for the affected crates.
 
 ## Git workflow
 

@@ -19,6 +19,7 @@ Follow this sequence and stop once you have enough context for the task:
 - When designing new business logic or architecture, you must use the `rust-whiteboard-design-docs` skill first.
 - Keep changes small, focused, and aligned with local formatting/lint/test expectations.
 - Never commit secrets.
+- After completing code changes, always use the `ctx-update-doc` skill to generate/update llmdocs for the affected crates.
 
 ## User interaction
 
