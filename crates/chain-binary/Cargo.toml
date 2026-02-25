@@ -1,0 +1,26 @@
+[package]
+name = "chain-binary"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+consensus-core = { path = "../consensus-core" }
+consensus-commonware = { path = "../consensus-commonware" }
+commonware-consensus = { path = "../../vendor/commonware/consensus" }
+commonware-broadcast = { path = "../../vendor/commonware/broadcast" }
+commonware-cryptography = { path = "../../vendor/commonware/cryptography" }
+commonware-p2p = { path = "../../vendor/commonware/p2p" }
+commonware-runtime = { path = "../../vendor/commonware/runtime" }
+commonware-storage = { path = "../../vendor/commonware/storage" }
+commonware-codec = { path = "../../vendor/commonware/codec" }
+commonware-utils = { path = "../../vendor/commonware/utils" }
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+futures = "0.3"
+sha2 = "0.10"
+bytes = "1"
+
+[[bin]]
+name = "chain-binary"
+path = "src/main.rs"

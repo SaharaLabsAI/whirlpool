@@ -1012,16 +1012,16 @@ Create a backend-agnostic consensus abstraction layer (`consensus-core`) and its
 
 ## Final Verification Wave (4 parallel agents, ALL must APPROVE)
 
-- [ ] F1. Plan Compliance Audit — oracle
+- [x] F1. Plan Compliance Audit — oracle
   Verify all tasks match `docs/design/consensus.md` requirements. Check: all 5 core traits present, crate layout matches §2, dependency graph matches §3, no scope violations.
 
-- [ ] F2. Code Quality Review — unspecified-high
+- [x] F2. Code Quality Review — unspecified-high
   Run `cargo clippy --workspace -- -D warnings`, `cargo fmt --check`, `cargo doc --workspace --no-deps`. Verify no warnings, proper documentation on public items.
 
-- [ ] F3. Real Manual QA — unspecified-high
+- [x] F3. Real Manual QA — unspecified-high
   Execute: `cargo build --workspace`, `cargo nextest run --workspace`, `cargo tree -p consensus-core --depth 1` (verify minimal deps), `cargo tree -p consensus-commonware --depth 1` (verify correct deps).
 
-- [ ] F4. Scope Fidelity Check — deep
+- [x] F4. Scope Fidelity Check — deep
   Verify: no files outside `crates/` and root `Cargo.toml` were created/modified. No `vendor/` changes. No undocumented features added. Mock engine is behind feature flag. All acceptance criteria from all tasks are met.
 
 ## Commit Strategy
