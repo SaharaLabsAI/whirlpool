@@ -8,5 +8,4 @@ pub mod app;
 pub mod sink;
 #[cfg(any(test, feature = "never_enable_this"))]
 pub mod mailbox;
-#[cfg(feature = "never_enable_this")]
 pub mod wire;

@@ -858,7 +858,7 @@ A running binary that starts a single-node simplex consensus engine, proposes em
   use tracing_subscriber::EnvFilter;
 
   fn main() {
-      // 1. Initialize tracing
+      - [x] 7. main.rs — Binary Entrypoint
       tracing_subscriber::fmt()
           .with_env_filter(
               EnvFilter::try_from_default_env()
