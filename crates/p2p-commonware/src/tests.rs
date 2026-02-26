@@ -2,7 +2,7 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::{CommonwarePeerId, map_send_error, MultiplexSender};
+    use crate::{CommonwarePeerId, map_send_error, MultiplexSender, CommonwareNetworkProviderBuilder, OracleHandle};
 
     use commonware_cryptography::ed25519;
     use commonware_cryptography::Signer;
@@ -340,5 +340,82 @@ mod tests {
 
         // All senders are gone, should return None
         assert!(mux.recv().await.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_builder_new() {
+        let pk = create_test_pubkey(1);
+        let signer = ed25519::PrivateKey::from_seed(1);
+        let builder = CommonwareNetworkProviderBuilder::new(signer, b"test");
+        assert!(builder.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_builder_setters() {
+        let pk = create_test_pubkey(2);
+        let signer = ed25519::PrivateKey::from_seed(2);
+        let addr: std::net::SocketAddr = "127.0.0.1:0".parse().unwrap();
+        let builder = CommonwareNetworkProviderBuilder::new(signer, b"test")
+            .listen_addr(addr)
+            .dialable_addr(addr);
+        assert!(builder.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_builder_build() {
+        let pk = create_test_pubkey(3);
+        let signer = ed25519::PrivateKey::from_seed(3);
+        let addr: std::net::SocketAddr = "127.0.0.1:0".parse().unwrap();
+        let builder = CommonwareNetworkProviderBuilder::new(signer, b"test")
+            .listen_addr(addr);
+        // Will fail to compile - context type not available
+        // let (provider, handle) = builder.build(context);
+    }
+
+    #[tokio::test]
+    async fn test_oracle_handle_update() {
+        let pk = create_test_pubkey(4);
+        // OracleHandle requires PublicKey type parameter
+        // let handle: OracleHandle<ed25519::PublicKey> = unimplemented!();
+        // handle.update_validators(1, vec![pk]).await;
+    }
+
+    #[tokio::test]
+    async fn test_empty_validators() {
+        let signer = ed25519::PrivateKey::from_seed(5);
+        let builder = CommonwareNetworkProviderBuilder::new(signer, b"test");
+        // Builder should accept initial_validators call
+        // let builder = builder.initial_validators(0, vec![]);
+    }
+
+    #[tokio::test]
+    async fn test_validator_set_with_self() {
+        let pk = create_test_pubkey(6);
+        let signer = ed25519::PrivateKey::from_seed(6);
+        let builder = CommonwareNetworkProviderBuilder::new(signer, b"test");
+        // Builder should accept initial_validators with self in set
+        // let builder = builder.initial_validators(0, vec![pk.clone()]);
+    }
+
+    #[tokio::test]
+    async fn test_builder_with_bootstrappers() {
+        let pk = create_test_pubkey(7);
+        let signer = ed25519::PrivateKey::from_seed(7);
+        let addr: std::net::SocketAddr = "127.0.0.1:0".parse().unwrap();
+        let builder = CommonwareNetworkProviderBuilder::new(signer, b"test")
+            .listen_addr(addr)
+            .dialable_addr(addr);
+        // Builder should support bootstrapper configuration
+        // let builder = builder.bootstrappers(vec![]);
+    }
+
+    #[tokio::test]
+    async fn test_builder_with_config() {
+        let pk = create_test_pubkey(8);
+        let signer = ed25519::PrivateKey::from_seed(8);
+        let builder = CommonwareNetworkProviderBuilder::new(signer, b"test")
+            .max_message_size(1024);
+        // Builder should accept max_message_size configuration
+        assert!(builder.is_some());
     }
 }

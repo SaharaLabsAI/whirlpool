@@ -1,0 +1,31 @@
+warning: Git tree '/home/dev/sahara/web3/agent/playground/whirlpool' is dirty
+warning: use of deprecated method `futures::futures_channel::mpsc::Receiver::<T>::try_next`: please use `try_recv` instead
+   --> vendor/commonware/utils/src/channels/tracked.rs:245:20
+    |
+245 |         self.inner.try_next().ok().flatten()
+    |                    ^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+
+warning: `commonware-utils` (lib) generated 1 warning
+   Compiling p2p-commonware v0.1.0 (/home/dev/sahara/web3/agent/playground/whirlpool/crates/p2p-commonware)
+error[E0432]: unresolved imports `crate::CommonwareNetworkProviderBuilder`, `crate::OracleHandle`
+ --> crates/p2p-commonware/src/tests.rs:5:68
+  |
+5 |     use crate::{CommonwarePeerId, map_send_error, MultiplexSender, CommonwareNetworkProviderBuilder, OracleHandle};
+  |                                                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^ no `OracleHandle` in the root
+  |                                                                    |
+  |                                                                    no `CommonwareNetworkProviderBuilder` in the root
+  |                                                                    help: a similar name exists in the module: `CommonwareNetworkProvider`
+
+warning: unused variable: `pk`
+   --> crates/p2p-commonware/src/tests.rs:377:13
+    |
+377 |         let pk = create_test_pubkey(4);
+    |             ^^ help: if this is intentional, prefix it with an underscore: `_pk`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+For more information about this error, try `rustc --explain E0432`.
+warning: `p2p-commonware` (lib test) generated 1 warning
+error: could not compile `p2p-commonware` (lib test) due to 1 previous error; 1 warning emitted
