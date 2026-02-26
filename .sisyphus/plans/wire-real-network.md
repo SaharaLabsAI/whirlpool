@@ -208,7 +208,7 @@ Wave 3 (integration): Tasks 5, 6, 7 [provider redesign → main.rs wiring → in
 
   **Commit**: YES | Message: `test(p2p-commonware): add TDD test scaffolding for multiplex sender/receiver/provider` | Files: `crates/p2p-commonware/src/tests.rs`, `crates/p2p-commonware/src/lib.rs`
 
-- [ ] 3. Implement MultiplexSender
+- [x] 3. Implement MultiplexSender
 
   **What to do**:
   Create `crates/p2p-commonware/src/sender.rs` with a `MultiplexSender` that wraps a `HashMap<Channel, CommonwareSender<S>>` and routes `send()` calls to the correct per-channel sender.
@@ -285,7 +285,7 @@ Wave 3 (integration): Tasks 5, 6, 7 [provider redesign → main.rs wiring → in
 
   **Commit**: YES | Message: `feat(p2p-commonware): implement MultiplexSender for multi-channel routing` | Files: `crates/p2p-commonware/src/sender.rs`, `crates/p2p-commonware/src/lib.rs`
 
-- [ ] 4. Implement MultiplexReceiver
+- [x] 4. Implement MultiplexReceiver
 
   **What to do**:
   Create `crates/p2p-commonware/src/receiver.rs` with a `MultiplexReceiver` that merges multiple per-channel commonware receivers into a single stream, tagging each message with its source channel.
