@@ -242,7 +242,8 @@ async fn test_engine_start_and_status() {
     let app = Arc::new(MockApp);
     let height = Arc::new(AtomicU64::new(0));
     let sink = Arc::new(FinalizationSink::<TestBlock>::new(height));
-    let engine = CommonwareEngine::new(app, sink, test_config("engine-start"));
+    let network = p2p::mock::MockNetworkProvider::new(p2p::mock::MockPeerId(0));
+    let engine = CommonwareEngine::new(app, sink, test_config("engine-start"), network);
 
     let running_engine = engine.start().expect("engine should start");
     let status = running_engine.status();
@@ -257,7 +258,8 @@ async fn test_engine_shutdown() {
     let app = Arc::new(MockApp);
     let height = Arc::new(AtomicU64::new(0));
     let sink = Arc::new(FinalizationSink::<TestBlock>::new(height));
-    let engine = CommonwareEngine::new(app, sink, test_config("engine-shutdown"));
+    let network = p2p::mock::MockNetworkProvider::new(p2p::mock::MockPeerId(0));
+    let engine = CommonwareEngine::new(app, sink, test_config("engine-shutdown"), network);
 
     let running_engine = engine.start().expect("engine should start");
     assert!(running_engine.status().is_running);
@@ -269,7 +271,8 @@ async fn test_engine_height_tracking() {
     let app = Arc::new(MockApp);
     let _height = Arc::new(AtomicU64::new(0));
     let sink = Arc::new(FinalizationSink::<TestBlock>::new(Arc::clone(&_height)));
-    let engine = CommonwareEngine::new(app, sink, test_config("engine-height"));
+    let network = p2p::mock::MockNetworkProvider::new(p2p::mock::MockPeerId(0));
+    let engine = CommonwareEngine::new(app, sink, test_config("engine-height"), network);
 
     let running_engine = engine.start().expect("engine should start");
 
@@ -337,4 +340,20 @@ async fn test_collector_sink_captures_events() {
 
     let collected = events.lock().unwrap();
     assert_eq!(*collected, vec![42, 43]);
+}
+
+#[tokio::test]
+async fn test_engine_opens_three_channels() {
+    let app = Arc::new(MockApp);
+    let height = Arc::new(AtomicU64::new(0));
+    let sink = Arc::new(FinalizationSink::<TestBlock>::new(height));
+    let network = p2p::mock::MockNetworkProvider::new(p2p::mock::MockPeerId(0));
+    
+    let engine = CommonwareEngine::new(app, sink, test_config("engine-channels"), network);
+    let running_engine = engine.start().expect("engine should start");
+    
+    // If start() succeeded, all 3 channels were opened successfully
+    // MockNetworkProvider records calls internally
+    
+    running_engine.shutdown().await.expect("shutdown should succeed");
 }

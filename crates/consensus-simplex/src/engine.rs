@@ -40,7 +40,7 @@ use crate::types::CommonwareBlock;
 /// **CURRENT STATUS:** This is a STUB implementation that simulates consensus by
 /// incrementing block height every 5 seconds. Full simplex engine wiring (P2P,
 /// marshal actor, simplex::Engine) is future work pending P2P configuration design.
-pub struct CommonwareEngine<A, S>
+pub struct CommonwareEngine<A, S, N>
 where
     A: ConsensusApp,
     S: EventSink<Block = A::Block>,
@@ -49,32 +49,44 @@ where
     app: Arc<A>,
     sink: Arc<S>,
     config: CommonwareConfig,
+    network: N,
 }
 
-impl<A, S> CommonwareEngine<A, S>
+impl<A, S, N> CommonwareEngine<A, S, N>
 where
     A: ConsensusApp + Send + Sync + 'static,
     S: EventSink<Block = A::Block> + Send + Sync + 'static,
     A::Block: CommonwareBlock + Digestible<Digest = Digest> + Send + Sync + 'static,
+    N: p2p::NetworkProvider,
 {
-    /// Create a new `CommonwareEngine` with the given app, sink, and config.
+    /// Create a new `CommonwareEngine` with the given app, sink, config, and network provider.
     ///
     /// # Arguments
     /// - `app`: The consensus application (implements ConsensusApp)
     /// - `sink`: The event sink for finalization notifications
     /// - `config`: Configuration for the simplex consensus engine
-    pub fn new(app: Arc<A>, sink: Arc<S>, config: CommonwareConfig) -> Self {
-        Self { app, sink, config }
+    /// - `network`: Network provider for P2P communication
+    pub fn new(app: Arc<A>, sink: Arc<S>, config: CommonwareConfig, network: N) -> Self {
+        Self { app, sink, config, network }
     }
 }
 
-impl<A, S> ConsensusEngine for CommonwareEngine<A, S>
+impl<A, S, N> ConsensusEngine for CommonwareEngine<A, S, N>
 where
     A: ConsensusApp + Send + Sync + 'static,
     S: EventSink<Block = A::Block> + Send + Sync + 'static,
     A::Block: CommonwareBlock + Digestible<Digest = Digest> + Send + Sync + 'static,
+    N: p2p::NetworkProvider,
 {
     fn start(self) -> Result<RunningEngine, ConsensusError> {
+        // Open P2P network channel
+        let (_sender, _receiver) = self.network.start()
+            .map_err(|e| ConsensusError::Other(format!("Failed to start network: {}", e).into()))?;
+
+        // TODO: Wire sender/receiver to the consensus engine
+        // The sender can send on VOTE_CHANNEL, CERTIFICATE_CHANNEL, RESOLVER_CHANNEL
+        // The receiver receives messages from all channels
+
         let height = Arc::new(AtomicU64::new(0));
         let running = Arc::new(AtomicBool::new(true));
 
@@ -89,7 +101,6 @@ where
         
         // Create finalization sink
         let _finalization_sink = FinalizationSink::<A::Block>::new(Arc::clone(&height));
-
         // STUB: Simulate block finalization instead of real simplex engine wiring
         // Real implementation would:
         // 1. Create AppAdapter wrapping app + sink
@@ -180,7 +191,8 @@ mod tests {
         let sink = Arc::new(FinalizationSink::<TestBlock>::new(height));
         let config = test_config();
 
-        let _engine = CommonwareEngine::new(app, sink, config);
+        let network = p2p::mock::MockNetworkProvider::new(p2p::mock::MockPeerId(0));
+        let _engine = CommonwareEngine::new(app, sink, config, network);
         // Test passes if construction succeeds
     }
 
@@ -191,7 +203,8 @@ mod tests {
         let sink = Arc::new(FinalizationSink::<TestBlock>::new(height));
         let config = test_config();
 
-        let engine = CommonwareEngine::new(app, sink, config);
+        let network = p2p::mock::MockNetworkProvider::new(p2p::mock::MockPeerId(0));
+        let engine = CommonwareEngine::new(app, sink, config, network);
         let running = engine.start().expect("Engine should start");
 
         // Check status
@@ -210,7 +223,8 @@ mod tests {
         let sink = Arc::new(FinalizationSink::<TestBlock>::new(Arc::clone(&_height)));
         let config = test_config();
 
-        let engine = CommonwareEngine::new(app, sink, config);
+        let network = p2p::mock::MockNetworkProvider::new(p2p::mock::MockPeerId(0));
+        let engine = CommonwareEngine::new(app, sink, config, network);
         let running = engine.start().expect("Engine should start");
 
         let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
