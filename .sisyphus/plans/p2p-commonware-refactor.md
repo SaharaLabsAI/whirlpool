@@ -530,16 +530,16 @@ Wave 4: Cleanup (2 tasks — parallel)
 
 ## Final Verification Wave (4 parallel agents, ALL must APPROVE)
 
-- [ ] F1. Plan Compliance Audit — oracle
+- [x] F1. Plan Compliance Audit — oracle
   Verify all tasks were executed per plan. Check that no guardrails were violated. Confirm all acceptance criteria met.
 
-- [ ] F2. Code Quality Review — unspecified-high
+- [x] F2. Code Quality Review — unspecified-high
   Review all changed files for code quality: proper error handling, no unwraps on fallible operations, proper generic bounds, no dead code, idiomatic Rust patterns.
 
-- [ ] F3. Real Manual QA — unspecified-high
+- [x] F3. Real Manual QA — unspecified-high
   Execute full workspace build and test suite. Verify zero `commonware_p2p` references in whirlpool-node. Run each integration test individually.
 
-- [ ] F4. Scope Fidelity Check — deep
+- [x] F4. Scope Fidelity Check — deep
   Verify no scope creep: `vendor/**` untouched, `NetworkProvider` trait untouched, `block.rs` untouched, `single_node.rs` untouched, no runtime wrapping added.
 
 ## Commit Strategy
