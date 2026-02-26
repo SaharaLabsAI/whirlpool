@@ -1,67 +1,103 @@
+//! Whirlpool consensus node binary.
+
+use commonware_cryptography::Signer;
+use commonware_p2p::Manager;
+use commonware_cryptography::ed25519;
+use commonware_p2p::authenticated::discovery;
+use commonware_runtime::{tokio, Runner, Metrics};
+use commonware_utils::ordered::Set;
 use consensus::ConsensusEngine;
 use consensus_simplex::{CommonwareConfig, CommonwareEngine, FinalizationSink};
-use p2p::mock::MockNetworkProvider;
-use std::num::NonZeroUsize;
-use std::sync::atomic::AtomicU64;
+use p2p_commonware::CommonwareNetworkProvider;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
+use std::sync::atomic::AtomicU64;
+use std::num::NonZeroUsize;
 use std::time::Duration;
-use tracing_subscriber::EnvFilter;
+use tracing::{debug, info};
 use whirlpool_node::app::EmptyBlockApp;
+use whirlpool_node::config;
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 1. Init tracing
+// Application namespace for network isolation
+const APPLICATION_NAMESPACE: &[u8] = b"whirlpool-dev";
+const MAX_MESSAGE_SIZE: u32 = 1024 * 1024; // 1 MB
+
+fn main() {
+    // Initialize tracing
     tracing_subscriber::fmt()
         .with_env_filter(
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+            tracing_subscriber::EnvFilter::from_default_env()
+                .add_directive(tracing::Level::INFO.into()),
         )
         .init();
 
-    tracing::info!("whirlpool-node starting");
+    info!("Starting Whirlpool node");
 
-    // 2. Create consensus app and sink
+    // Create application and sink (sync setup)
     let app = Arc::new(EmptyBlockApp::new());
     let height = Arc::new(AtomicU64::new(0));
     let sink = Arc::new(FinalizationSink::new(Arc::clone(&height)));
+    info!("Application and sink initialized");
 
-    // 3. Configure commonware engine
-    let config = CommonwareConfig {
-        namespace: String::from_utf8_lossy(whirlpool_node::config::NAMESPACE).to_string(),
-        leader_timeout: Duration::from_secs(5),
-        notarization_timeout: Duration::from_secs(5),
-        nullify_retry: Duration::from_millis(500),
-        activity_timeout: 10,
-        skip_timeout: 5,
-        mailbox_size: 100,
-        replay_buffer: NonZeroUsize::new(100).unwrap(),
-        write_buffer: NonZeroUsize::new(100).unwrap(),
-        epoch: 0,
-        fetch_timeout: Duration::from_secs(5),
-        fetch_concurrent: 4,
-    };
+    // Create commonware runtime and start async context
+    let executor = tokio::Runner::default();
 
-    // 4. Create network provider
-    // TODO: Replace MockNetworkProvider with CommonwareNetworkProvider once network infrastructure is set up
-    let peer_id = p2p::mock::MockPeerId(0);
-    let network = MockNetworkProvider::new(peer_id);
+    executor.start(|context| async move {
+        info!("Commonware runtime started");
 
-    // 5. Create and start the engine
-    let engine = CommonwareEngine::new(app, sink, config, network);
-    let running = engine.start().expect("failed to start consensus engine");
+        // Create ed25519 signer from deterministic seed (development only)
+        let signer = ed25519::PrivateKey::from_seed(config::VALIDATOR_SEED);
+        info!("Created ed25519 signer");
 
-    tracing::info!("consensus engine started, press Ctrl-C to stop");
+        // Create discovery network configuration (single-node local dev setup)
+        let listen_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0); // OS assigns port
+        let dialable_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
+        
+        let p2p_cfg = discovery::Config::local(
+            signer,
+            APPLICATION_NAMESPACE,
+            listen_addr,
+            dialable_addr,
+            vec![], // Empty bootstrappers for single-node dev
+            MAX_MESSAGE_SIZE,
+        );
 
-    // 6. Wait for Ctrl-C
-    tokio::signal::ctrl_c()
-        .await
-        .expect("failed to listen for ctrl-c");
+        // Create discovery network and oracle
+        let (network, mut oracle) = discovery::Network::new(context.with_label("network"), p2p_cfg);
+        info!("Discovery network created");
 
-    tracing::info!("shutting down...");
+        // Update oracle with empty peer set (single-node dev setup)
+        oracle.update(0, Set::from_iter_dedup(vec![])).await;
+        debug!("Oracle updated with empty peer set");
 
-    // 7. Shutdown gracefully
-    running.shutdown().await.expect("failed to shutdown engine");
+        // Create network provider
+        let network_provider = CommonwareNetworkProvider::new(network, oracle);
+        info!("Network provider initialized");
 
-    tracing::info!("whirlpool-node stopped");
+        // Configure consensus engine config
+        let engine_config = CommonwareConfig {
+            namespace: String::from_utf8_lossy(config::NAMESPACE).to_string(),
+            leader_timeout: Duration::from_secs(5),
+            notarization_timeout: Duration::from_secs(5),
+            nullify_retry: Duration::from_millis(500),
+            activity_timeout: 10,
+            skip_timeout: 5,
+            mailbox_size: 100,
+            replay_buffer: NonZeroUsize::new(100).unwrap(),
+            write_buffer: NonZeroUsize::new(100).unwrap(),
+            epoch: 0,
+            fetch_timeout: Duration::from_secs(5),
+            fetch_concurrent: 4,
+        };
 
-    Ok(())
+        // Create and start consensus engine
+        let engine = CommonwareEngine::new(app, sink, engine_config, network_provider);
+        let _running = engine.start().expect("failed to start consensus engine");
+        info!("Consensus engine created and started successfully");
+
+        // Wait indefinitely for the engine to run
+        // In production, this would integrate with proper signal handling
+        ::std::future::pending::<()>().await;
+    });
 }
+

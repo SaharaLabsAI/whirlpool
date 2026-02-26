@@ -6,10 +6,14 @@ edition.workspace = true
 [dependencies]
 consensus = { path = "../consensus" }
 consensus-simplex = { path = "../consensus-simplex" }
-p2p = { path = "../p2p", features = ["mock"] }
+p2p = { path = "../p2p" }
 commonware-consensus = { path = "../../vendor/commonware/consensus" }
 commonware-codec = { path = "../../vendor/commonware/codec" }
 commonware-cryptography = { path = "../../vendor/commonware/cryptography" }
+p2p-commonware = { path = "../p2p-commonware" }
+commonware-p2p = { path = "../../vendor/commonware/p2p" }
+commonware-runtime = { path = "../../vendor/commonware/runtime" }
+commonware-utils = { path = "../../vendor/commonware/utils" }
 sha2 = "0.10"
 bytes = "1"
 tokio = { version = "1", features = ["full"] }
