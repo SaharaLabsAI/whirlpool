@@ -63,11 +63,15 @@ where
 // MultiplexReceiver: merges multiple per-channel receivers into single stream
 pub struct MultiplexReceiver<R> {
     receivers: Vec<(Channel, CommonwareReceiver<R>)>,
+    _handle: commonware_runtime::Handle<()>,
 }
 
 impl<R> MultiplexReceiver<R> {
-    pub fn new(receivers: Vec<(Channel, CommonwareReceiver<R>)>) -> Self {
-        Self { receivers }
+    pub fn new(receivers: Vec<(Channel, CommonwareReceiver<R>)>, handle: commonware_runtime::Handle<()>) -> Self {
+        Self {
+            receivers,
+            _handle: handle,
+        }
     }
 }
 
