@@ -111,7 +111,7 @@ Wave 3 (Integration — depends on Wave 2):
 
 <!-- TASKS_START -->
 
-- [ ] 1. Create `p2p` core crate — traits, types, and errors (TDD)
+- [x] 1. Create `p2p` core crate — traits, types, and errors (TDD)
 
   **What to do**:
   1. Create `crates/p2p/Cargo.toml` with deps: `thiserror = "2"`, `tokio = { version = "1", features = ["sync"] }`, `bytes = "1"`. Package name `p2p`, edition 2021, version 0.1.0. Add `[features] mock = []`.
@@ -260,7 +260,7 @@ Wave 3 (Integration — depends on Wave 2):
 
   **Commit**: YES | Message: `feat(p2p): add core traits, types, and error definitions` | Files: `crates/p2p/`
 
-- [ ] 2. Add mock module to `p2p` crate (TDD)
+- [x] 2. Add mock module to `p2p` crate (TDD)
 
   **What to do**:
   1. Write RED tests first in `crates/p2p/src/tests.rs` (append to existing):
