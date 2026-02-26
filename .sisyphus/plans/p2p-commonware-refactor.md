@@ -443,7 +443,7 @@ Wave 4: Cleanup (2 tasks — parallel)
 
   **Commit**: YES | Message: `refactor(whirlpool-node): use p2p-commonware builder in integration tests` | Files: `crates/whirlpool-node/tests/network_integration.rs`
 
-- [ ] 6. Remove Vendor Dependencies from whirlpool-node Cargo.toml
+- [x] 6. Remove Vendor Dependencies from whirlpool-node Cargo.toml
 
   **What to do**: Remove `commonware-p2p` and `commonware-utils` from `crates/whirlpool-node/Cargo.toml` dependencies.
 
