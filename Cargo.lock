@@ -3062,18 +3062,11 @@ name = "whirlpool-node"
 version = "0.1.0"
 dependencies = [
  "bytes",
- "commonware-broadcast",
  "commonware-codec",
  "commonware-consensus",
  "commonware-cryptography",
- "commonware-math",
- "commonware-p2p",
- "commonware-runtime",
- "commonware-storage",
- "commonware-utils",
  "consensus",
  "consensus-simplex",
- "futures",
  "sha2 0.10.9",
  "tokio",
  "tracing",

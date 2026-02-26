@@ -4,7 +4,6 @@
 // The simplex engine requires Automaton/Relay traits, but ConsensusApp doesn't provide them.
 // Mailbox implements these traits and delegates to an actor that handles the actual work.
 
-use commonware_codec::Write as CodecWrite;
 use commonware_consensus::simplex::types::Context;
 use commonware_consensus::types::Epoch;
 use commonware_consensus::{Automaton, CertifiableAutomaton, Relay};
@@ -12,7 +11,6 @@ use commonware_cryptography::ed25519::PublicKey;
 use commonware_cryptography::sha256::Digest;
 use commonware_cryptography::Digestible;
 use consensus::app::ConsensusApp;
-use consensus::Block as CoreBlock;
 use futures::channel::{mpsc, oneshot};
 use futures::SinkExt;
 use std::marker::PhantomData;
@@ -51,7 +49,7 @@ impl<B> Mailbox<B> {
 }
 
 // Implement Automaton trait (async methods matching vendor pattern)
-impl<B> Automaton for Mailbox<B> {
+impl<B: Clone + Send + 'static> Automaton for Mailbox<B> {
     type Context = Context<Digest, PublicKey>;
     type Digest = Digest;
 
@@ -88,10 +86,10 @@ impl<B> Automaton for Mailbox<B> {
 }
 
 // Implement CertifiableAutomaton trait (uses default certify)
-impl<B> CertifiableAutomaton for Mailbox<B> {}
+impl<B: Clone + Send + 'static> CertifiableAutomaton for Mailbox<B> {}
 
 // Implement Relay trait (no-op broadcast for single node)
-impl<B> Relay for Mailbox<B> {
+impl<B: Clone + Send + 'static> Relay for Mailbox<B> {
     type Digest = Digest;
 
     async fn broadcast(&mut self, _payload: Self::Digest) {
@@ -107,7 +105,11 @@ pub struct MailboxActor<A: ConsensusApp> {
     genesis_block: Option<A::Block>,
 }
 
-impl<A: ConsensusApp> MailboxActor<A> {
+impl<A> MailboxActor<A>
+where
+    A: ConsensusApp,
+    A::Block: Digestible<Digest = Digest>,
+{
     pub fn new(receiver: mpsc::Receiver<Message>, height: Arc<AtomicU64>, app: Arc<A>) -> Self {
         Self {
             receiver,
@@ -163,9 +165,9 @@ impl<A: ConsensusApp> MailboxActor<A> {
 // Helper functions
 fn compute_digest<B>(block: &B) -> Digest
 where
-    B: CoreBlock + CodecWrite + Digestible<Digest = Digest>,
+    B: Digestible<Digest = Digest>,
 {
-    Digest::from(CoreBlock::id(block))
+    block.digest()
 }
 
 #[allow(dead_code)]
@@ -191,203 +193,109 @@ mod tests {
     use commonware_cryptography::ed25519::PrivateKey;
     use commonware_cryptography::sha256::Digest;
     use commonware_cryptography::Signer;
-    use commonware_math::algebra::Random;
-    use commonware_runtime::{deterministic, Runner};
-    use commonware_runtime::{Clock, Spawner};
-    use commonware_utils::test_rng;
     use futures::channel::mpsc;
+    use std::sync::atomic::AtomicU64;
+    use std::sync::Arc;
 
-    #[test]
-    fn test_genesis_returns_deterministic_digest() {
-        let executor = deterministic::Runner::default();
-        executor.start(|context| async move {
-            let (tx, rx) = mpsc::channel(10);
-            let mut mailbox = Mailbox::<TestBlock>::new(tx);
+    fn sample_context(seed: u64) -> Context<Digest, PublicKey> {
+        let epoch = Epoch::new(1);
+        let view = View::new(0);
+        let round = Round::new(epoch, view);
+        let parent_digest = Digest::from([seed as u8; 32]);
+        let parent_view = View::new(0);
+        let private_key = PrivateKey::from_seed(seed);
+        let leader = private_key.public_key();
 
-            // Spawn actor to handle messages
-            let height = Arc::new(AtomicU64::new(0));
-            let app = Arc::new(MockApp);
-            let actor = MailboxActor::new(rx, height, app);
-            context.spawn(|_ctx| actor.run());
-
-            // Call genesis twice with same epoch
-            let d1 = mailbox.genesis(Epoch::new(1)).await;
-            let d2 = mailbox.genesis(Epoch::new(1)).await;
-
-            // Should return same digest
-            assert_eq!(d1, d2);
-        });
+        Context {
+            round,
+            leader,
+            parent: (parent_view, parent_digest),
+        }
     }
 
-    #[test]
-    fn test_propose_returns_digest() {
-        let executor = deterministic::Runner::default();
-        executor.start(|context| async move {
-            let (tx, rx) = mpsc::channel(10);
-            let mut mailbox = Mailbox::<TestBlock>::new(tx);
+    #[tokio::test]
+    async fn test_genesis_returns_deterministic_digest() {
+        let (tx, rx) = mpsc::channel(10);
+        let mut mailbox = Mailbox::<TestBlock>::new(tx);
 
-            // Spawn actor to handle messages
-            let height = Arc::new(AtomicU64::new(0));
-            let app = Arc::new(MockApp);
-            let actor = MailboxActor::new(rx, height, app);
-            context.spawn(|_ctx| actor.run());
+        let height = Arc::new(AtomicU64::new(0));
+        let app = Arc::new(MockApp);
+        tokio::spawn(MailboxActor::new(rx, height, app).run());
 
-            // Create a valid Context
-            let epoch = Epoch::new(1);
-            let view = View::new(5);
-            let round = Round::new(epoch, view);
-            let parent_digest = Digest::from([42u8; 32]);
-            let parent_view = View::new(4);
-
-            // Generate a keypair for the leader
-            let mut rng = test_rng();
-            let private_key = PrivateKey::random(&mut rng);
-            let leader = private_key.public_key();
-
-            let ctx = Context {
-                round,
-                leader,
-                parent: (parent_view, parent_digest),
-            };
-
-            // Propose should return a receiver
-            let receiver = mailbox.propose(ctx).await;
-
-            // Should be able to receive a digest
-            let digest = receiver.await;
-            assert!(digest.is_ok());
-        });
+        let d1 = mailbox.genesis(Epoch::new(1)).await;
+        let d2 = mailbox.genesis(Epoch::new(1)).await;
+        assert_eq!(d1, d2);
     }
 
-    #[test]
-    fn test_verify_valid_payload_returns_true() {
-        let executor = deterministic::Runner::default();
-        executor.start(|context| async move {
-            let (tx, rx) = mpsc::channel(10);
-            let mut mailbox = Mailbox::<TestBlock>::new(tx);
+    #[tokio::test]
+    async fn test_propose_returns_digest() {
+        let (tx, rx) = mpsc::channel(10);
+        let mut mailbox = Mailbox::<TestBlock>::new(tx);
 
-            // Spawn actor to handle messages
-            let height = Arc::new(AtomicU64::new(0));
-            let app = Arc::new(MockApp);
-            let actor = MailboxActor::new(rx, height, app);
-            context.spawn(|_ctx| actor.run());
+        let height = Arc::new(AtomicU64::new(0));
+        let app = Arc::new(MockApp);
+        tokio::spawn(MailboxActor::new(rx, height, app).run());
 
-            // Create a valid Context
-            let epoch = Epoch::new(1);
-            let view = View::new(0);
-            let round = Round::new(epoch, view);
-            let parent_digest = Digest::from([0u8; 32]);
-            let parent_view = View::new(0);
-
-            // Generate a keypair for the leader
-            let mut rng = test_rng();
-            let private_key = PrivateKey::random(&mut rng);
-            let leader = private_key.public_key();
-
-            let ctx = Context {
-                round,
-                leader,
-                parent: (parent_view, parent_digest),
-            };
-
-            let genesis = TestBlock::genesis();
-            let valid_digest = Digest::from(CoreBlock::id(&genesis));
-
-            // Verify should return true for valid block
-            let receiver = mailbox.verify(ctx, valid_digest).await;
-            let valid = receiver.await.unwrap();
-            assert!(valid);
-        });
+        let receiver = mailbox.propose(sample_context(1)).await;
+        let digest: Result<Digest, _> = receiver.await;
+        assert!(digest.is_ok());
     }
 
-    #[test]
-    fn test_verify_invalid_payload_returns_false() {
-        let executor = deterministic::Runner::default();
-        executor.start(|context| async move {
-            let (tx, rx) = mpsc::channel(10);
-            let mut mailbox = Mailbox::<TestBlock>::new(tx);
+    #[tokio::test]
+    async fn test_verify_valid_payload_returns_true() {
+        let (tx, rx) = mpsc::channel(10);
+        let mut mailbox = Mailbox::<TestBlock>::new(tx);
 
-            // Spawn actor to handle messages
-            let height = Arc::new(AtomicU64::new(0));
-            let app = Arc::new(MockApp);
-            let actor = MailboxActor::new(rx, height, app);
-            context.spawn(|_ctx| actor.run());
+        let height = Arc::new(AtomicU64::new(0));
+        let app = Arc::new(MockApp);
+        tokio::spawn(MailboxActor::new(rx, height, app).run());
 
-            // Create a valid Context
-            let epoch = Epoch::new(1);
-            let view = View::new(0);
-            let round = Round::new(epoch, view);
-            let parent_digest = Digest::from([0u8; 32]);
-            let parent_view = View::new(0);
-
-            // Generate a keypair for the leader
-            let mut rng = test_rng();
-            let private_key = PrivateKey::random(&mut rng);
-            let leader = private_key.public_key();
-
-            let ctx = Context {
-                round,
-                leader,
-                parent: (parent_view, parent_digest),
-            };
-
-            let garbage_digest = Digest::from([255u8; 32]); // Invalid digest
-
-            // Verify should return false for invalid payload
-            let receiver = mailbox.verify(ctx, garbage_digest).await;
-            let valid = receiver.await.unwrap();
-            assert!(!valid);
-        });
+        let genesis = TestBlock::genesis();
+        let valid_digest = compute_digest(&genesis);
+        let receiver = mailbox.verify(sample_context(2), valid_digest).await;
+        let valid: Result<bool, _> = receiver.await;
+        assert!(valid.unwrap());
     }
 
-    #[test]
-    fn test_relay_broadcast_completes() {
-        let executor = deterministic::Runner::default();
-        executor.start(|context| async move {
-            let (tx, rx) = mpsc::channel(10);
-            let mut mailbox = Mailbox::<TestBlock>::new(tx);
+    #[tokio::test]
+    async fn test_verify_invalid_payload_returns_false() {
+        let (tx, rx) = mpsc::channel(10);
+        let mut mailbox = Mailbox::<TestBlock>::new(tx);
 
-            // Spawn actor (though broadcast doesn't use it)
-            let height = Arc::new(AtomicU64::new(0));
-            let app = Arc::new(MockApp);
-            let actor = MailboxActor::new(rx, height, app);
-            context.spawn(|_ctx| actor.run());
+        let height = Arc::new(AtomicU64::new(0));
+        let app = Arc::new(MockApp);
+        tokio::spawn(MailboxActor::new(rx, height, app).run());
 
-            let digest = Digest::from([1u8; 32]);
-
-            // Broadcast should complete (no-op for single node)
-            mailbox.broadcast(digest).await;
-            // If we reach here, broadcast completed successfully
-        });
+        let garbage_digest = Digest::from([255u8; 32]);
+        let receiver = mailbox.verify(sample_context(3), garbage_digest).await;
+        let valid: Result<bool, _> = receiver.await;
+        assert!(!valid.unwrap());
     }
 
-    #[test]
-    fn test_mailbox_clone_shares_channel() {
-        let executor = deterministic::Runner::default();
-        executor.start(|context| async move {
-            let (tx, rx) = mpsc::channel::<Message>(10);
-            let mailbox1 = Mailbox::<TestBlock>::new(tx);
-            let mailbox2 = mailbox1.clone();
+    #[tokio::test]
+    async fn test_relay_broadcast_completes() {
+        let (tx, rx) = mpsc::channel(10);
+        let mut mailbox = Mailbox::<TestBlock>::new(tx);
 
-            // Spawn actor
-            let height = Arc::new(AtomicU64::new(0));
-            let app = Arc::new(MockApp);
-            let actor = MailboxActor::new(rx, height, app);
-            let ctx_clone = context.clone();
-            ctx_clone.spawn(|_ctx| actor.run());
+        let height = Arc::new(AtomicU64::new(0));
+        let app = Arc::new(MockApp);
+        tokio::spawn(MailboxActor::new(rx, height, app).run());
 
-            // Drop senders - actor should stop
-            drop(mailbox1);
-            drop(mailbox2);
-
-            // Give async runtime time to process
-            context.sleep(std::time::Duration::from_millis(10)).await;
-        });
+        mailbox.broadcast(Digest::from([1u8; 32])).await;
     }
-}
 
-#[cfg(test)]
-#[test]
-fn test_mailbox_simple() {
-    assert_eq!(1 + 1, 2);
+    #[tokio::test]
+    async fn test_mailbox_clone_shares_channel() {
+        let (tx, rx) = mpsc::channel::<Message>(10);
+        let mailbox1 = Mailbox::<TestBlock>::new(tx);
+        let mailbox2 = mailbox1.clone();
+
+        let height = Arc::new(AtomicU64::new(0));
+        let app = Arc::new(MockApp);
+        tokio::spawn(MailboxActor::new(rx, height, app).run());
+
+        drop(mailbox1);
+        drop(mailbox2);
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
 }

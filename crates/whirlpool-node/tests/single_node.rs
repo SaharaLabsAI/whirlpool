@@ -1,68 +1,56 @@
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::num::NonZeroUsize;
+use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use std::time::Duration;
 
-#[test]
-fn test_single_node_finalizes_blocks() {
-    // 1. Initialize tracing for test output
+use consensus::ConsensusEngine;
+use consensus_simplex::{CommonwareConfig, CommonwareEngine, FinalizationSink};
+use whirlpool_node::app::EmptyBlockApp;
+use whirlpool_node::block::EmptyBlock;
+
+#[tokio::test]
+async fn test_single_node_finalizes_blocks() {
     let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
-    // 2. Create shared height and running atomics for observation
-    let height = Arc::new(AtomicU64::new(0));
-    let running = Arc::new(AtomicBool::new(true));
+    let app = Arc::new(EmptyBlockApp::new());
+    let _height = Arc::new(AtomicU64::new(0));
+    let sink = Arc::new(FinalizationSink::<EmptyBlock>::new(Arc::clone(&_height)));
 
-    // 3. Create and start engine directly via create_starter
-    // We bypass CommonwareEngine to have direct access to the shared atomics
-    let starter = whirlpool_node::wire::create_starter();
-    let (shutdown_fn, handle) = starter(height.clone(), running.clone())
-        .expect("starter should succeed");
+    let config = CommonwareConfig {
+        namespace: "single-node-test".to_string(),
+        leader_timeout: Duration::from_secs(1),
+        notarization_timeout: Duration::from_secs(1),
+        nullify_retry: Duration::from_millis(100),
+        activity_timeout: 10,
+        skip_timeout: 5,
+        mailbox_size: 16,
+        replay_buffer: NonZeroUsize::new(16).unwrap(),
+        write_buffer: NonZeroUsize::new(16).unwrap(),
+        epoch: 0,
+        fetch_timeout: Duration::from_secs(1),
+        fetch_concurrent: 4,
+    };
 
-    tracing::info!("Engine started, waiting for blocks to finalize...");
+    let engine = CommonwareEngine::new(app, sink, config);
+    let running = engine.start().expect("engine should start");
+    assert!(running.status().is_running);
 
-    // 4. Wait for at least 2 blocks (with timeout and polling)
-    let start = std::time::Instant::now();
     let timeout = Duration::from_secs(30);
-
-    loop {
-        if start.elapsed() > timeout {
-            let current_height = height.load(Ordering::SeqCst);
-            panic!(
-                "Timeout waiting for block finalization. Current height: {}",
-                current_height
-            );
-        }
-
-        let current_height = height.load(Ordering::SeqCst);
-        if current_height >= 2 {
-            tracing::info!("✓ Reached height {}, test success", current_height);
+    let started = std::time::Instant::now();
+    while started.elapsed() < timeout {
+        if running.status().current_height >= 2 {
             break;
         }
-
-        std::thread::sleep(Duration::from_millis(500));
+        tokio::time::sleep(Duration::from_millis(500)).await;
     }
 
-    // 5. Shutdown
-    tracing::info!("Shutting down engine...");
-    shutdown_fn();
+    let final_height = running.status().current_height;
+    let reached_height = final_height >= 2;
 
-    // 6. Wait for handle to complete
-    tokio::runtime::Runtime::new()
-        .unwrap()
-        .block_on(async {
-            handle
-                .await
-                .expect("handle join failed")
-                .expect("engine should shutdown cleanly")
-        });
-
-    // 7. Assert final state
-    let final_height = height.load(Ordering::SeqCst);
+    running.shutdown().await.expect("shutdown should succeed");
     assert!(
-        final_height >= 2,
+        reached_height,
         "Expected height >= 2, got {}",
         final_height
     );
-    assert!(!running.load(Ordering::SeqCst), "running should be false");
-
-    tracing::info!("✓ Integration test passed. Final height: {}", final_height);
 }

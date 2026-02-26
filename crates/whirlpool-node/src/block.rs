@@ -2,7 +2,7 @@
 
 use bytes::{Buf, BufMut};
 use commonware_codec::{EncodeSize, Error as CodecError, Read as CodecRead, Write as CodecWrite};
-use commonware_consensus::Heightable;
+use commonware_consensus::{Block as VendorBlock, Heightable};
 use commonware_cryptography::{Committable, Digestible};
 use consensus::Block as CoreBlock;
 use sha2::{Digest as Sha2Digest, Sha256};
@@ -100,10 +100,15 @@ impl Committable for EmptyBlock {
     }
 }
 
-// commonware_consensus traits
 impl Heightable for EmptyBlock {
     fn height(&self) -> commonware_consensus::types::Height {
         commonware_consensus::types::Height::new(self.height)
+    }
+}
+
+impl VendorBlock for EmptyBlock {
+    fn parent(&self) -> Self::Commitment {
+        BlockDigest::from(self.parent_id)
     }
 }
 

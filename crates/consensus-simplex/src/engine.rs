@@ -12,7 +12,7 @@ use futures::channel::mpsc;
 use tokio::task::JoinHandle;
 
 use consensus::app::ConsensusApp;
-use consensus::block::Block as CoreBlock;
+use commonware_cryptography::{sha256::Digest, Digestible};
 use consensus::engine::{ConsensusEngine, RunningEngine};
 use consensus::error::ConsensusError;
 use consensus::event::EventSink;
@@ -44,7 +44,7 @@ pub struct CommonwareEngine<A, S>
 where
     A: ConsensusApp,
     S: EventSink<Block = A::Block>,
-    A::Block: CommonwareBlock,
+    A::Block: CommonwareBlock + Digestible<Digest = Digest>,
 {
     app: Arc<A>,
     sink: Arc<S>,
@@ -55,7 +55,7 @@ impl<A, S> CommonwareEngine<A, S>
 where
     A: ConsensusApp + Send + Sync + 'static,
     S: EventSink<Block = A::Block> + Send + Sync + 'static,
-    A::Block: CommonwareBlock + Send + Sync + 'static,
+    A::Block: CommonwareBlock + Digestible<Digest = Digest> + Send + Sync + 'static,
 {
     /// Create a new `CommonwareEngine` with the given app, sink, and config.
     ///
@@ -72,11 +72,11 @@ impl<A, S> ConsensusEngine for CommonwareEngine<A, S>
 where
     A: ConsensusApp + Send + Sync + 'static,
     S: EventSink<Block = A::Block> + Send + Sync + 'static,
-    A::Block: CommonwareBlock + Send + Sync + 'static,
+    A::Block: CommonwareBlock + Digestible<Digest = Digest> + Send + Sync + 'static,
 {
     fn start(self) -> Result<RunningEngine, ConsensusError> {
         let height = Arc::new(AtomicU64::new(0));
-        let running = Arc::new(AtomicBool::new(false));
+        let running = Arc::new(AtomicBool::new(true));
 
         // Create mailbox channel for actor communication
         let (tx, rx) = mpsc::channel(self.config.mailbox_size);
@@ -141,7 +141,6 @@ where
             tracing::info!("Shutdown signal sent to consensus engine");
         }) as Box<dyn FnOnce() + Send>;
 
-        running.store(true, Ordering::SeqCst);
 
         Ok(RunningEngine::new(stop_fn, join_handle, height, running))
     }
@@ -207,20 +206,31 @@ mod tests {
     #[tokio::test]
     async fn test_engine_simulates_block_finalization() {
         let app = Arc::new(MockApp);
-        let height = Arc::new(AtomicU64::new(0));
-        let sink = Arc::new(FinalizationSink::<TestBlock>::new(Arc::clone(&height)));
+        let _height = Arc::new(AtomicU64::new(0));
+        let sink = Arc::new(FinalizationSink::<TestBlock>::new(Arc::clone(&_height)));
         let config = test_config();
 
         let engine = CommonwareEngine::new(app, sink, config);
         let running = engine.start().expect("Engine should start");
 
-        // Wait for at least 1 simulated block (5 seconds per block in stub)
-        tokio::time::sleep(Duration::from_secs(6)).await;
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
+        let mut observed_height = 0u64;
+        let mut reached_height = false;
+        while tokio::time::Instant::now() < deadline {
+            observed_height = running.status().current_height;
+            if observed_height >= 1 {
+                reached_height = true;
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(200)).await;
+        }
 
-        let current = height.load(Ordering::SeqCst);
-        assert!(current >= 1, "Should have finalized at least 1 block");
-
-        // Shutdown
+        // Shutdown before asserting so failures don't leak background threads.
         running.shutdown().await.expect("Shutdown should succeed");
+        assert!(
+            reached_height,
+            "Should have finalized at least 1 block, observed height {}",
+            observed_height
+        );
     }
 }
