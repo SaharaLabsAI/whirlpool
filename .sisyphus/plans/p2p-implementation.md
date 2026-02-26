@@ -432,7 +432,7 @@ Wave 3 (Integration — depends on Wave 2):
 
   **Commit**: YES | Message: `feat(p2p-commonware): add CommonwarePeerId newtype and error mapping` | Files: `crates/p2p-commonware/`
 
-- [ ] 4. Add CommonwareSender and CommonwareReceiver to `p2p-commonware` (TDD)
+- [x] 4. Add CommonwareSender and CommonwareReceiver to `p2p-commonware` (TDD)
 
   **What to do**:
   1. Write RED tests in `crates/p2p-commonware/src/tests.rs` (append):
