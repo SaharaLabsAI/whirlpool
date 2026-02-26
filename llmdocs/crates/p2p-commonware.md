@@ -4,7 +4,27 @@
 
 Bridges vendor-agnostic `p2p` trait system to Commonware P2P implementation. Provides multiplexing adapters that route messages across multiple logical channels through unified Commonware sender/receiver abstractions.
 
-## Core Types
+# Core Types
+
+### CommonwareNetworkProviderBuilder
+
+Builder for constructing a discovery-backed network provider from high-level inputs.
+
+- **Method**: `new(signer: C, namespace: impl Into<Vec<u8>>) -> Self` — Initialize builder with signer and namespace.
+- **Method**: `listen_addr(addr: SocketAddr) -> Self` — Set local listen address.
+- **Method**: `dialable_addr(addr: SocketAddr) -> Self` — Set address other peers can use to dial this node.
+- **Method**: `bootstrappers(bootstrappers: Vec<Bootstrapper<C::PublicKey>>) -> Self` — Set initial bootstrapper nodes.
+- **Method**: `max_message_size(size: u32) -> Self` — Set maximum allowed message size (default 1MB).
+- **Method**: `channel_config(config: ChannelConfig) -> Self` — Set channel-specific configuration (e.g. backlog).
+- **Method**: `build<Ctx>(self, context: Ctx) -> (CommonwareNetworkProvider<Ctx, C>, OracleHandle<C::PublicKey>)` — Construct the provider and a handle for oracle updates. Requires a context implementing `Spawner + Clock + Network + ...`.
+
+### OracleHandle
+
+Handle for updating the validator set after construction.
+
+- **Method**: `update_validators(epoch: u64, validators: impl IntoIterator<Item = PK>)` — Updates the set of peers allowed to connect for a given epoch.
+
+### MultiplexSender
 
 ### MultiplexSender
 

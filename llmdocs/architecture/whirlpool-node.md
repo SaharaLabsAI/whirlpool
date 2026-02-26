@@ -1,5 +1,20 @@
 # Whirlpool Node Architecture: LLM Retrieval Map
 
+## Overview
+
+The Whirlpool node binary provides a minimal consensus node implementation, delegating consensus wiring to the consensus-simplex library. The node focuses purely on business logic: EmptyBlock definition and EmptyBlockApp verification rules. It uses the `p2p-commonware` bridge for networking.
+
+## Dependency Graph
+
+- **whirlpool-node** → `consensus-simplex`: Consensus engine and mailbox infrastructure.
+- **whirlpool-node** → `p2p-commonware`: Builder-based network provider construction.
+- **p2p-commonware** → `commonware-p2p`: Vendor P2P implementation.
+- **p2p-commonware** → `p2p`: Vendor-agnostic traits.
+- **whirlpool-node** → `p2p`: Vendor-agnostic traits for app/engine wiring.
+- **consensus-simplex** → `p2p`: Vendor-agnostic traits.
+
+## Type Signatures
+
 The Whirlpool node binary provides a minimal consensus node implementation, delegating consensus wiring to the consensus-simplex library. The node focuses purely on business logic: EmptyBlock definition and EmptyBlockApp verification rules.
 
 ## Type Signatures
@@ -65,7 +80,7 @@ Each test runs inside `tokio::Runner::default().start(|context| async { ... })` 
 | test_two_nodes_discover_and_run | Two nodes on localhost with peer discovery (oracle.update with both public keys, bootstrapper wiring). Both finalize blocks independently |
 | test_real_network_graceful_shutdown | Start + immediate shutdown; sender/receiver drop without panic |
 
-Key wiring: `ed25519::PrivateKey::from_seed(seed)` -> `discovery::Config::local(signer, namespace, listen, dialable, bootstrappers, max_msg_size)` -> `discovery::Network::new(context, cfg)` -> `oracle.update(epoch, Set::from_iter_dedup(peers))` -> `CommonwareNetworkProvider::new(network, oracle)` -> `CommonwareEngine::new(app, sink, config, provider)` -> `engine.start()`
+Key wiring: `ed25519::PrivateKey::from_seed(seed)` -> `CommonwareNetworkProviderBuilder::new(signer, namespace).listen_addr(..).dialable_addr(..).bootstrappers(..).build(context)` -> `(provider, oracle_handle)` -> `oracle_handle.update_validators(epoch, peers)` -> `CommonwareEngine::new(app, sink, config, provider)` -> `engine.start()`
 
 ## Test Statistics
 

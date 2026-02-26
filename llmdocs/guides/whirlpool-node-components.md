@@ -1,5 +1,31 @@
 # Understanding Whirlpool Node Components
 
+## Overview
+
+The Whirlpool node uses a modular architecture where business logic (blocks and app rules) is separated from consensus plumbing (engine) and networking (provider). This guide explains how to wire these components together.
+
+## Network Provider Construction
+
+The node uses the `p2p-commonware` crate to bridge to the Commonware P2P stack. Construction follows a builder pattern:
+
+1.  **Initialize Builder**: Provide the signer (private key) and a unique namespace.
+2.  **Configure Network**: Set the listen address, dialable address, and any bootstrapper nodes.
+3.  **Build**: Pass the runtime context (e.g. `tokio::Runner` context) to `build()`. This returns the `CommonwareNetworkProvider` and an `OracleHandle`.
+4.  **Seed Validators**: Use the `OracleHandle` to set the initial validator set for the network.
+
+Example:
+```rust
+let (provider, mut oracle_handle) = CommonwareNetworkProviderBuilder::new(signer, NAMESPACE)
+    .listen_addr(listen_addr)
+    .dialable_addr(dial_addr)
+    .bootstrappers(bootstrappers)
+    .build(context);
+
+oracle_handle.update_validators(0, validators).await;
+```
+
+## Dual-Trait Conformance in EmptyBlock
+
 This guide explains the core components of the Whirlpool node after the consensus wiring refactor.
 
 ## Dual-Trait Conformance in EmptyBlock

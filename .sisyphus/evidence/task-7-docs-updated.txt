@@ -1,0 +1,3 @@
+llmdocs/architecture/whirlpool-node.md
+llmdocs/crates/p2p-commonware.md
+llmdocs/guides/whirlpool-node-components.md
