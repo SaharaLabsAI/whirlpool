@@ -60,3 +60,42 @@ async fn test_single_node_finalizes_blocks() {
         final_height
     );
 }
+
+#[tokio::test]
+async fn test_network_provider_starts() {
+    use p2p::NetworkProvider;
+    
+    let _ = tracing_subscriber::fmt().with_test_writer().try_init();
+
+    // Test that we can create and start a network provider
+    let peer_id = p2p::mock::MockPeerId(1);
+    let provider = MockNetworkProvider::new(peer_id);
+
+    // Start provider and verify it returns sender/receiver
+    let result = provider.start();
+    assert!(result.is_ok(), "Provider should start successfully");
+
+    let (_sender, _receiver) = result.unwrap();
+    // If we got here, provider started and created channels successfully
+}
+
+#[tokio::test]
+async fn test_network_provider_shutdown() {
+    use p2p::NetworkProvider;
+    
+    let _ = tracing_subscriber::fmt().with_test_writer().try_init();
+
+    // Test that network provider can be cleanly shut down
+    let peer_id = p2p::mock::MockPeerId(2);
+    let provider = MockNetworkProvider::new(peer_id);
+    let (_sender, receiver) = provider.start().expect("Provider should start");
+
+    // Drop handles - should shutdown cleanly
+    drop(_sender);
+    drop(receiver);
+
+    // Give a moment for async cleanup
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    
+    // If we got here without panic, shutdown was clean
+}
