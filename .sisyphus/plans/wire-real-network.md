@@ -151,7 +151,7 @@ Wave 3 (integration): Tasks 5, 6, 7 [provider redesign → main.rs wiring → in
 
   **Commit**: YES | Message: `fix(p2p-commonware): use context-specific error mapping instead of catch-all InvalidRecipients` | Files: `crates/p2p-commonware/src/error.rs`, `crates/p2p-commonware/src/sender.rs`
 
-- [ ] 2. TDD: Write failing tests for MultiplexSender, MultiplexReceiver, and provider
+- [x] 2. TDD: Write failing tests for MultiplexSender, MultiplexReceiver, and provider
 
   **What to do**:
   Write comprehensive test scaffolding in `crates/p2p-commonware/src/tests.rs` that defines the expected behavior of the new multiplexing types. These tests MUST fail initially (RED phase of TDD).
