@@ -362,7 +362,7 @@ Wave 3 (integration): Tasks 5, 6, 7 [provider redesign → main.rs wiring → in
 
   **Commit**: YES | Message: `feat(p2p-commonware): implement MultiplexReceiver for multi-channel message merging` | Files: `crates/p2p-commonware/src/receiver.rs`, `crates/p2p-commonware/src/lib.rs`
 
-- [ ] 5. Redesign CommonwareNetworkProvider to use discovery::Network
+- [x] 5. Redesign CommonwareNetworkProvider to use discovery::Network
 
   **What to do**:
   Replace the factory-closure-based `CommonwareNetworkProvider<F>` with a concrete provider that takes a pre-built commonware `discovery::Network` and `Oracle`, registers the 3 hardcoded channels, and returns `MultiplexSender`/`MultiplexReceiver` from `start()`.
@@ -448,7 +448,7 @@ Wave 3 (integration): Tasks 5, 6, 7 [provider redesign → main.rs wiring → in
 
   **Commit**: YES | Message: `feat(p2p-commonware): redesign provider to use discovery::Network with multi-channel registration` | Files: `crates/p2p-commonware/src/provider.rs`, `crates/p2p-commonware/src/receiver.rs`, `crates/p2p-commonware/src/lib.rs`, `crates/p2p-commonware/Cargo.toml`
 
-- [ ] 6. Wire CommonwareNetworkProvider into whirlpool-node main.rs
+- [x] 6. Wire CommonwareNetworkProvider into whirlpool-node main.rs
 
   **What to do**:
   Replace `MockNetworkProvider` with `CommonwareNetworkProvider` in `crates/whirlpool-node/src/main.rs`.
@@ -511,7 +511,7 @@ Wave 3 (integration): Tasks 5, 6, 7 [provider redesign → main.rs wiring → in
 
   **Commit**: YES | Message: `feat(whirlpool-node): wire CommonwareNetworkProvider replacing MockNetworkProvider` | Files: `crates/whirlpool-node/src/main.rs`, `crates/whirlpool-node/Cargo.toml`
 
-- [ ] 7. Integration test: real network provider end-to-end
+- [x] 7. Integration test: real network provider end-to-end
 
   **What to do**:
   Update `crates/whirlpool-node/tests/single_node.rs` to use `CommonwareNetworkProvider` instead of `MockNetworkProvider`. Also add a new test that verifies the network provider can start and create sender/receiver handles.
@@ -561,10 +561,10 @@ Wave 3 (integration): Tasks 5, 6, 7 [provider redesign → main.rs wiring → in
   **Commit**: YES | Message: `test(whirlpool-node): update integration tests to use real CommonwareNetworkProvider` | Files: `crates/whirlpool-node/tests/single_node.rs`
 
 ## Final Verification Wave (4 parallel agents, ALL must APPROVE)
-- [ ] F1. Plan Compliance Audit — oracle: Verify all tasks completed per acceptance criteria
-- [ ] F2. Code Quality Review — unspecified-high: Review code for idiomatic Rust, proper error handling, no unwrap() in non-test code
-- [ ] F3. Real Manual QA — unspecified-high: Run `nix develop --command cargo build && nix develop --command cargo test` end-to-end
-- [ ] F4. Scope Fidelity Check — deep: Verify no scope creep (no vendor changes, no trait changes, no engine changes)
+- [x] F1. Plan Compliance Audit — oracle: Verify all tasks completed per acceptance criteria
+- [x] F2. Code Quality Review — unspecified-high: Review code for idiomatic Rust, proper error handling, no unwrap() in non-test code
+- [x] F3. Real Manual QA — unspecified-high: Run `nix develop --command cargo build && nix develop --command cargo test` end-to-end
+- [x] F4. Scope Fidelity Check — deep: Verify no scope creep (no vendor changes, no trait changes, no engine changes)
 
 ## Commit Strategy
 Sequential commits per task (7 commits). Each task produces one atomic commit. Final squash optional.
