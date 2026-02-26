@@ -563,7 +563,7 @@ Wave 3 (Integration — depends on Wave 2):
 
   **Commit**: YES | Message: `feat(p2p-commonware): add CommonwareSender and CommonwareReceiver wrappers` | Files: `crates/p2p-commonware/src/sender.rs`, `crates/p2p-commonware/src/receiver.rs`, `crates/p2p-commonware/src/lib.rs`
 
-- [ ] 5. Add CommonwareNetworkProvider to `p2p-commonware` (TDD)
+- [x] 5. Add CommonwareNetworkProvider to `p2p-commonware` (TDD)
 
   **What to do**:
   1. Write RED tests in `crates/p2p-commonware/src/tests.rs`:
