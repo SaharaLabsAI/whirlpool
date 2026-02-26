@@ -220,23 +220,125 @@ mod tests {
     }
 
     // ===== MultiplexReceiver Tests (Task 4) =====
-    // These are left as RED phase tests for now
+
+    /// Mock commonware Receiver backed by a tokio mpsc channel.
+    /// Allows tests to feed `(PublicKey, Bytes)` tuples and control shutdown.
+    #[derive(Debug)]
+    struct MockCwReceiver {
+        rx: tokio::sync::mpsc::UnboundedReceiver<(ed25519::PublicKey, bytes::Bytes)>,
+    }
+
+    impl MockCwReceiver {
+        fn new() -> (
+            tokio::sync::mpsc::UnboundedSender<(ed25519::PublicKey, bytes::Bytes)>,
+            Self,
+        ) {
+            let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+            (tx, Self { rx })
+        }
+    }
+
+    impl commonware_p2p::Receiver for MockCwReceiver {
+        type Error = std::io::Error;
+        type PublicKey = ed25519::PublicKey;
+
+        async fn recv(
+            &mut self,
+        ) -> Result<(Self::PublicKey, bytes::Bytes), Self::Error> {
+            self.rx.recv().await.ok_or_else(|| {
+                std::io::Error::new(std::io::ErrorKind::BrokenPipe, "channel closed")
+            })
+        }
+    }
 
     #[tokio::test]
     async fn test_multiplex_receiver_tags_channel() {
-        // TODO: Implement - should tag with correct channel
-        panic!("not yet implemented - RED phase");
+        use crate::{receiver::CommonwareReceiver, MultiplexReceiver};
+        use p2p::{Channel, NetworkReceiver};
+
+        let pk = create_test_pubkey(42);
+
+        // Single receiver on VOTE channel
+        let (tx, mock) = MockCwReceiver::new();
+        tx.send((pk.clone(), bytes::Bytes::from_static(b"hello")))
+            .unwrap();
+        drop(tx); // close the channel after sending
+
+        let receiver = CommonwareReceiver::new(mock);
+        let mut mux = MultiplexReceiver::new_for_test(vec![(Channel(0), receiver)]);
+
+        let msg = mux.recv().await.expect("should receive a message");
+        assert_eq!(msg.channel, Channel(0));
+        assert_eq!(msg.data, bytes::Bytes::from_static(b"hello"));
     }
 
     #[tokio::test]
     async fn test_multiplex_receiver_merges_channels() {
-        // TODO: Implement - should merge all 3 channels
-        panic!("not yet implemented - RED phase");
+        use crate::{receiver::CommonwareReceiver, MultiplexReceiver};
+        use p2p::{Channel, NetworkReceiver};
+
+        let pk = create_test_pubkey(1);
+
+        // Three receivers, one per channel
+        let (tx0, mock0) = MockCwReceiver::new();
+        let (tx1, mock1) = MockCwReceiver::new();
+        let (tx2, mock2) = MockCwReceiver::new();
+
+        tx0.send((pk.clone(), bytes::Bytes::from_static(b"vote")))
+            .unwrap();
+        tx1.send((pk.clone(), bytes::Bytes::from_static(b"cert")))
+            .unwrap();
+        tx2.send((pk.clone(), bytes::Bytes::from_static(b"resolve")))
+            .unwrap();
+
+        // Close all senders so recv will terminate
+        drop(tx0);
+        drop(tx1);
+        drop(tx2);
+
+        let mut mux = MultiplexReceiver::new_for_test(vec![
+            (Channel(0), CommonwareReceiver::new(mock0)),
+            (Channel(1), CommonwareReceiver::new(mock1)),
+            (Channel(2), CommonwareReceiver::new(mock2)),
+        ]);
+
+        let mut received = std::collections::HashMap::new();
+        while let Some(msg) = mux.recv().await {
+            received.insert(msg.channel, msg.data);
+        }
+
+        assert_eq!(received.len(), 3);
+        assert_eq!(
+            received[&Channel(0)],
+            bytes::Bytes::from_static(b"vote")
+        );
+        assert_eq!(
+            received[&Channel(1)],
+            bytes::Bytes::from_static(b"cert")
+        );
+        assert_eq!(
+            received[&Channel(2)],
+            bytes::Bytes::from_static(b"resolve")
+        );
     }
 
     #[tokio::test]
     async fn test_multiplex_receiver_returns_none_on_shutdown() {
-        // TODO: Implement - should return None when all senders close
-        panic!("not yet implemented - RED phase");
+        use crate::{receiver::CommonwareReceiver, MultiplexReceiver};
+        use p2p::{Channel, NetworkReceiver};
+
+        // Create receivers but immediately drop senders — simulates shutdown
+        let (_tx0, mock0) = MockCwReceiver::new();
+        let (_tx1, mock1) = MockCwReceiver::new();
+        drop(_tx0);
+        drop(_tx1);
+
+        let mut mux = MultiplexReceiver::new_for_test(vec![
+            (Channel(0), CommonwareReceiver::new(mock0)),
+            (Channel(1), CommonwareReceiver::new(mock1)),
+        ]);
+
+        // All senders are gone, should return None
+        assert!(mux.recv().await.is_none());
     }
 }

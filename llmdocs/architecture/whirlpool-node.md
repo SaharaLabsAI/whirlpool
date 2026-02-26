@@ -53,10 +53,26 @@ Mailbox, FinalizationSink, and Wire modules have been moved to consensus-simplex
 4. Sealed engine wiring handles all consensus plumbing
 5. Zero consensus infrastructure remains in whirlpool-node
 
+## Integration Tests (Real Networking)
+
+File: `tests/network_integration.rs` — uses real `CommonwareNetworkProvider` (not mock) backed by commonware discovery p2p.
+
+Each test runs inside `tokio::Runner::default().start(|context| async { ... })` to provide the commonware runtime context required by discovery::Network.
+
+| Test | Validates |
+|------|-----------|
+| test_single_node_real_network_lifecycle | Single node with real network provider starts, finalizes blocks (height >= 1 within 30s), shuts down cleanly |
+| test_two_nodes_discover_and_run | Two nodes on localhost with peer discovery (oracle.update with both public keys, bootstrapper wiring). Both finalize blocks independently |
+| test_real_network_graceful_shutdown | Start + immediate shutdown; sender/receiver drop without panic |
+
+Key wiring: `ed25519::PrivateKey::from_seed(seed)` -> `discovery::Config::local(signer, namespace, listen, dialable, bootstrappers, max_msg_size)` -> `discovery::Network::new(context, cfg)` -> `oracle.update(epoch, Set::from_iter_dedup(peers))` -> `CommonwareNetworkProvider::new(network, oracle)` -> `CommonwareEngine::new(app, sink, config, provider)` -> `engine.start()`
+
 ## Test Statistics
 
 | Module | Test Count |
 |--------|-----------|
 | block.rs | 8 |
 | app.rs | 11 |
-| **Total** | **19** |
+| tests/single_node.rs (mock) | 3 |
+| tests/network_integration.rs (real) | 3 |
+| **Total** | **25** |

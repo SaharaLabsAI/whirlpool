@@ -34,6 +34,7 @@ Structured reference docs optimized for fast LLM lookup. Each contains type sign
 | [architecture/simplex-adapter.md](architecture/simplex-adapter.md) | Adapter bridge: CommonwareBlock, AppAdapter, CommonwareEngine, CommonwareConfig, Mailbox/MailboxActor, FinalizationSink. Sealed engine wiring, vendor trait mapping | `consensus-simplex` |
 | [architecture/whirlpool-node.md](architecture/whirlpool-node.md) | Node binary: EmptyBlock (dual-trait conformance), EmptyBlockApp (5 verification rules). Pure business logic, delegates consensus wiring to consensus-simplex | `whirlpool-node` |
 | [architecture/block-lifecycle.md](architecture/block-lifecycle.md) | End-to-end block data flow across all 3 layers: propose → verify → finalize. Cross-crate type mappings, event propagation chain, observability via atomics | Cross-crate |
+| [crates/p2p-commonware.md](crates/p2p-commonware.md) | Commonware P2P bridge: MultiplexSender, MultiplexReceiver, channel routing, test infrastructure (MockCwReceiver), optional runtime handle design | `p2p-commonware` |
 
 ## Guides
 
@@ -74,4 +75,5 @@ Step-by-step instructions for common tasks and workflows.
 |-------|--------|-----------------|-------|
 | `consensus` | `crates/consensus/src/` | `architecture/consensus-traits.md` | `guides/implementing-consensus-traits.md` |
 | `consensus-simplex` | `crates/consensus-simplex/src/` | `architecture/simplex-adapter.md` | `guides/wiring-simplex-adapter.md` |
+| `p2p-commonware` | `crates/p2p-commonware/src/` | `crates/p2p-commonware.md` | — |
 | `whirlpool-node` | `crates/whirlpool-node/src/` | `architecture/whirlpool-node.md` | `guides/whirlpool-node-components.md` |
