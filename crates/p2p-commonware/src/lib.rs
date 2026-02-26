@@ -23,7 +23,8 @@ pub mod sender;
 pub mod receiver;
 pub use sender::CommonwareSender;
 pub use receiver::CommonwareReceiver;
-pub use provider::CommonwareNetworkProvider;
+pub use provider::{CommonwareNetworkProvider, CommonwareNetworkProviderBuilder, OracleHandle};
+pub use commonware_p2p::authenticated::discovery::Bootstrapper;
 
 // MultiplexSender: routes send() calls to correct per-channel CommonwareSender
 #[derive(Clone)]

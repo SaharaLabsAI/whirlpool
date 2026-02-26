@@ -346,7 +346,7 @@ mod tests {
     async fn test_builder_new() {
         let pk = create_test_pubkey(1);
         let signer = ed25519::PrivateKey::from_seed(1);
-        let builder = CommonwareNetworkProviderBuilder::new(signer, b"test");
+        let builder: CommonwareNetworkProviderBuilder<ed25519::PrivateKey, ()> = CommonwareNetworkProviderBuilder::new(signer, b"test");
         assert!(builder.is_some());
     }
 
@@ -355,7 +355,7 @@ mod tests {
         let pk = create_test_pubkey(2);
         let signer = ed25519::PrivateKey::from_seed(2);
         let addr: std::net::SocketAddr = "127.0.0.1:0".parse().unwrap();
-        let builder = CommonwareNetworkProviderBuilder::new(signer, b"test")
+        let builder: CommonwareNetworkProviderBuilder<ed25519::PrivateKey, ()> = CommonwareNetworkProviderBuilder::new(signer, b"test")
             .listen_addr(addr)
             .dialable_addr(addr);
         assert!(builder.is_some());
@@ -366,7 +366,7 @@ mod tests {
         let pk = create_test_pubkey(3);
         let signer = ed25519::PrivateKey::from_seed(3);
         let addr: std::net::SocketAddr = "127.0.0.1:0".parse().unwrap();
-        let builder = CommonwareNetworkProviderBuilder::new(signer, b"test")
+        let builder: CommonwareNetworkProviderBuilder<ed25519::PrivateKey, ()> = CommonwareNetworkProviderBuilder::new(signer, b"test")
             .listen_addr(addr);
         // Will fail to compile - context type not available
         // let (provider, handle) = builder.build(context);
@@ -383,7 +383,7 @@ mod tests {
     #[tokio::test]
     async fn test_empty_validators() {
         let signer = ed25519::PrivateKey::from_seed(5);
-        let builder = CommonwareNetworkProviderBuilder::new(signer, b"test");
+        let builder: CommonwareNetworkProviderBuilder<ed25519::PrivateKey, ()> = CommonwareNetworkProviderBuilder::new(signer, b"test");
         // Builder should accept initial_validators call
         // let builder = builder.initial_validators(0, vec![]);
     }
@@ -392,7 +392,7 @@ mod tests {
     async fn test_validator_set_with_self() {
         let pk = create_test_pubkey(6);
         let signer = ed25519::PrivateKey::from_seed(6);
-        let builder = CommonwareNetworkProviderBuilder::new(signer, b"test");
+        let builder: CommonwareNetworkProviderBuilder<ed25519::PrivateKey, ()> = CommonwareNetworkProviderBuilder::new(signer, b"test");
         // Builder should accept initial_validators with self in set
         // let builder = builder.initial_validators(0, vec![pk.clone()]);
     }
@@ -402,7 +402,7 @@ mod tests {
         let pk = create_test_pubkey(7);
         let signer = ed25519::PrivateKey::from_seed(7);
         let addr: std::net::SocketAddr = "127.0.0.1:0".parse().unwrap();
-        let builder = CommonwareNetworkProviderBuilder::new(signer, b"test")
+        let builder: CommonwareNetworkProviderBuilder<ed25519::PrivateKey, ()> = CommonwareNetworkProviderBuilder::new(signer, b"test")
             .listen_addr(addr)
             .dialable_addr(addr);
         // Builder should support bootstrapper configuration
@@ -413,7 +413,7 @@ mod tests {
     async fn test_builder_with_config() {
         let pk = create_test_pubkey(8);
         let signer = ed25519::PrivateKey::from_seed(8);
-        let builder = CommonwareNetworkProviderBuilder::new(signer, b"test")
+        let builder: CommonwareNetworkProviderBuilder<ed25519::PrivateKey, ()> = CommonwareNetworkProviderBuilder::new(signer, b"test")
             .max_message_size(1024);
         // Builder should accept max_message_size configuration
         assert!(builder.is_some());

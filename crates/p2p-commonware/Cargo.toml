@@ -8,6 +8,7 @@ p2p = { path = "../p2p" }
 commonware-p2p = { path = "../../vendor/commonware/p2p" }
 commonware-cryptography = { path = "../../vendor/commonware/cryptography" }
 commonware-runtime = { path = "../../vendor/commonware/runtime" }
+commonware-utils = { path = "../../vendor/commonware/utils" }
 commonware-stream = { path = "../../vendor/commonware/stream" }
 thiserror = "2"
 bytes = "1"

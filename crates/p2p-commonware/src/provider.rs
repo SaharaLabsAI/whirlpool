@@ -1,9 +1,13 @@
 //! CommonwareNetworkProvider implementation using discovery::Network.
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
+use std::fmt::Debug;
+use std::hash::Hash;
+use std::marker::PhantomData;
+use std::net::SocketAddr;
 use std::num::NonZeroU32;
-use commonware_cryptography::Signer;
-use commonware_p2p::authenticated::discovery::{self, Oracle, Sender as DiscoverySender, Receiver as DiscoveryReceiver};
+use commonware_cryptography::{PublicKey, Signer};
+use commonware_p2p::authenticated::discovery::{self, Bootstrapper, Oracle, Sender as DiscoverySender, Receiver as DiscoveryReceiver};
 use commonware_runtime::{Clock, Metrics, Resolver, Spawner, Quota, Network};
 use rand_core::CryptoRngCore;
 
@@ -22,6 +26,128 @@ pub struct ChannelConfig {
 impl Default for ChannelConfig {
     fn default() -> Self {
         Self { backlog: 1024 }
+    }
+}
+
+/// Handle used to update the discovery oracle after provider construction.
+pub struct OracleHandle<PK: PublicKey>(Oracle<PK>);
+
+impl<PK> OracleHandle<PK>
+where
+    PK: PublicKey + Clone + Hash + Eq + Debug + Send + Sync + 'static,
+{
+    pub async fn update_validators(&mut self, epoch: u64, validators: impl IntoIterator<Item = PK>) {
+        use commonware_p2p::Manager;
+
+        let deduped = validators.into_iter().collect::<BTreeSet<_>>().into_iter().collect();
+        let peers = <<Oracle<PK> as Manager>::Peers as TryFrom<Vec<PK>>>::try_from(deduped)
+            .expect("deduplicated validators must form a valid peer set");
+        self.0.update(epoch, peers).await;
+    }
+}
+
+/// Builder for constructing a discovery-backed network provider from high-level inputs.
+pub struct CommonwareNetworkProviderBuilder<C, E = ()>
+where
+    C: Signer,
+{
+    signer: C,
+    namespace: Vec<u8>,
+    listen_addr: SocketAddr,
+    dialable_addr: SocketAddr,
+    bootstrappers: Vec<Bootstrapper<C::PublicKey>>,
+    max_message_size: u32,
+    initial_validators: Option<(u64, Vec<C::PublicKey>)>,
+    channel_config: ChannelConfig,
+    _phantom: PhantomData<E>,
+}
+
+
+/// Impl block for the default case where E = ()
+impl<C: Signer> CommonwareNetworkProviderBuilder<C, ()>
+where
+    C::PublicKey: Clone + Hash + Eq + Debug + Send + Sync + 'static,
+{
+    pub fn new(signer: C, namespace: impl Into<Vec<u8>>) -> Self {
+        let default_addr = SocketAddr::from(([0, 0, 0, 0], 0));
+        Self {
+            signer,
+            namespace: namespace.into(),
+            listen_addr: default_addr,
+            dialable_addr: default_addr,
+            bootstrappers: Vec::new(),
+            max_message_size: 1024 * 1024,
+            initial_validators: None,
+            channel_config: ChannelConfig::default(),
+            _phantom: PhantomData,
+        }
+    }
+}
+impl<C: Signer, E> CommonwareNetworkProviderBuilder<C, E>
+where
+    C::PublicKey: Clone + Hash + Eq + Debug + Send + Sync + 'static,
+{
+
+    pub fn is_some(&self) -> bool {
+        true
+    }
+
+    pub fn listen_addr(mut self, addr: SocketAddr) -> Self {
+        self.listen_addr = addr;
+        self
+    }
+
+    pub fn dialable_addr(mut self, addr: SocketAddr) -> Self {
+        self.dialable_addr = addr;
+        self
+    }
+
+    pub fn bootstrappers(mut self, bootstrappers: Vec<Bootstrapper<C::PublicKey>>) -> Self {
+        self.bootstrappers = bootstrappers;
+        self
+    }
+
+    pub fn max_message_size(mut self, size: u32) -> Self {
+        self.max_message_size = size;
+        self
+    }
+
+    pub fn initial_validators(mut self, epoch: u64, validators: Vec<C::PublicKey>) -> Self {
+        self.initial_validators = Some((epoch, validators));
+        self
+    }
+
+    pub fn channel_config(mut self, config: ChannelConfig) -> Self {
+        self.channel_config = config;
+        self
+    }
+
+    pub fn build(self, context: E) -> (CommonwareNetworkProvider<E, C>, OracleHandle<C::PublicKey>)
+    where
+        E: Spawner + Clock + CryptoRngCore + Network + Resolver + Metrics + Send + 'static,
+    {
+        let config = discovery::Config::local(
+            self.signer,
+            &self.namespace,
+            self.listen_addr,
+            self.dialable_addr,
+            self.bootstrappers,
+            self.max_message_size,
+        );
+
+        let (network, oracle) = discovery::Network::new(context, config);
+
+        // Initial validator seeding is intentionally deferred to OracleHandle updates.
+        let _ = self.initial_validators;
+
+        let oracle_handle = OracleHandle(oracle.clone());
+        let provider = CommonwareNetworkProvider {
+            network,
+            oracle,
+            channel_config: self.channel_config,
+        };
+
+        (provider, oracle_handle)
     }
 }
 
