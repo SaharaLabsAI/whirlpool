@@ -122,9 +122,9 @@ where
         self
     }
 
-    pub fn build(self, context: E) -> (CommonwareNetworkProvider<E, C>, OracleHandle<C::PublicKey>)
+    pub fn build<Ctx>(self, context: Ctx) -> (CommonwareNetworkProvider<Ctx, C>, OracleHandle<C::PublicKey>)
     where
-        E: Spawner + Clock + CryptoRngCore + Network + Resolver + Metrics + Send + 'static,
+        Ctx: Spawner + Clock + CryptoRngCore + Network + Resolver + Metrics + Send + 'static,
     {
         let config = discovery::Config::local(
             self.signer,
