@@ -1,6 +1,6 @@
 # Whirlpool Node Architecture: LLM Retrieval Map
 
-The Whirlpool node binary implements the core execution engine for the Sahara Chain, providing a minimal consensus node implementation.
+The Whirlpool node binary provides a minimal consensus node implementation, delegating consensus wiring to the consensus-simplex library. The node focuses purely on business logic: EmptyBlock definition and EmptyBlockApp verification rules.
 
 ## Type Signatures
 
@@ -18,17 +18,11 @@ The Whirlpool node binary implements the core execution engine for the Sahara Ch
 - async fn EmptyBlockApp::propose(&self, parent: &EmptyBlock, height: u64) -> Option<EmptyBlock>;
 - async fn EmptyBlockApp::verify(&self, parent: &EmptyBlock, block: &EmptyBlock) -> Result<(), ConsensusError>;
 
-### sink.rs
-- pub struct FinalizationSink { height: Arc<AtomicU64> }
-- pub fn FinalizationSink::new(height: Arc<AtomicU64>) -> Self;
-- pub fn FinalizationSink::current_height(&self) -> u64;
-
-### mailbox.rs
-- pub enum Message { Genesis { epoch: Epoch, response: oneshot::Sender<Digest> }, Propose { response: oneshot::Sender<Digest> }, Verify { digest: Digest, response: oneshot::Sender<bool> } }
-- pub struct Mailbox { sender: mpsc::Sender<Message> }
-- pub struct MailboxActor { receiver: mpsc::Receiver<Message>, height: Arc<AtomicU64> }
-- pub fn MailboxActor::new(receiver, height) -> Self;
-- pub async fn MailboxActor::run(mut self);
+### config.rs
+- pub const NAMESPACE: &[u8];
+- pub const BLOCK_INTERVAL: Duration;
+- pub const VALIDATOR_SEED: [u8; 32];
+- pub const BIND_ADDR: &str;
 
 ## Dual-Trait Conformance: EmptyBlock
 
@@ -50,30 +44,19 @@ The Whirlpool node binary implements the core execution engine for the Sahara Ch
 4. Genesis parent zero: height 0 blocks must have parent_id == [0u8; 32]
 5. Implicit genesis validity: Covered by rules above
 
-## CFG Gating
+## Architecture Changes (Post-Refactor)
 
-- mailbox.rs: #[cfg(any(test, feature = "never_enable_this"))]
-- sink.rs: #[cfg(any(test, feature = "never_enable_this"))]
-
-These modules only compile during tests or when the specific feature is enabled.
-
-## Stub Status
-
-### wire.rs (STUB)
-- Current: Spawns std::thread polling running flag every 100ms.
-- Missing: No wiring for simplex engine, P2P, mailbox actor, or app adapter.
-- Signature: pub fn create_starter() -> impl FnOnce(Arc<AtomicU64>, Arc<AtomicBool>) -> Result<...> + Send + 'static
-
-### main.rs (STUB)
-- Current: Only prints "Sahara Chain Binary".
-- Missing: No tracing setup, engine creation, Ctrl-C handler, or shutdown logic.
+Mailbox, FinalizationSink, and Wire modules have been moved to consensus-simplex. The node now:
+1. Defines EmptyBlock and EmptyBlockApp (business logic only)
+2. Imports CommonwareEngine from consensus-simplex
+3. Constructs engine with app, sink, config in main/tests
+4. Sealed engine wiring handles all consensus plumbing
+5. Zero consensus infrastructure remains in whirlpool-node
 
 ## Test Statistics
 
 | Module | Test Count |
-|---|---|
+|--------|-----------|
 | block.rs | 8 |
 | app.rs | 11 |
-| sink.rs | 6 |
-| mailbox.rs | 7 |
-| **Total** | **32** |
+| **Total** | **19** |

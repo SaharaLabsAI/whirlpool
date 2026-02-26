@@ -1,111 +1,72 @@
 # Wiring the Simplex Adapter
 
-The Simplex Adapter Bridge requires several components to work together. This guide explains how to define your block type, set up the adapter, and initialize the engine.
+The Simplex Adapter Bridge is now sealed inside CommonwareEngine. This guide explains how to use the new API after the consensus wiring refactor.
 
 ## 1. Define your Block type
 
-Your block must implement both the internal `CoreBlock` trait and the vendor's `VendorBlock` trait. It also needs to implement several codec and cryptography traits from the Commonware ecosystem. A simple approach is ensuring your type satisfies the bounds of the `CommonwareBlock` trait.
+Your block must implement both the internal `CoreBlock` trait and the vendor's `VendorBlock` trait, plus codec and cryptography traits from Commonware. A simple approach is ensuring your type satisfies `CommonwareBlock` bounds.
 
 ### Example: TestBlock Reference
 
-The following `TestBlock` implementation from the test suite demonstrates the required trait implementations.
+The `TestBlock` implementation in consensus-simplex/src/tests.rs demonstrates required trait implementations:
+- `Block` trait: id(), parent_id(), height()
+- `VendorBlock` trait: parent() → commitment
+- `Heightable`: Maps height to vendor Height type
+- `Digestible`: Computes Digest from block data
+- `Committable`: Returns commitment for consensus
+- `Write`/`Read`: Codec serialization (40 bytes typical)
+
+## 2. Implement ConsensusApp
+
+Your app must implement the `ConsensusApp` trait with three methods:
 
 ```rust
-#[derive(Clone, Debug)]
-struct TestBlock {
-    id: [u8; 32],
-    parent: TestDigest,
-    height: u64,
-}
-
-// Internal CoreBlock implementation
-impl CoreBlock for TestBlock {
-    type Id = [u8; 32];
-
-    fn id(&self) -> Self::Id {
-        self.id
-    }
-
-    fn parent_id(&self) -> Self::Id {
-        let commitment = self.parent;
-        let bytes: &[u8] = commitment.as_ref();
-        let mut arr = [0u8; 32];
-        arr.copy_from_slice(&bytes[..32]);
-        arr
-    }
-
-    fn height(&self) -> u64 {
-        self.height
-    }
-}
-
-// Vendor Block implementation
-impl VendorBlock for TestBlock {
-    fn parent(&self) -> Self::Commitment {
-        self.parent
-    }
-}
-
-// Required commonware-consensus traits
-impl Heightable for TestBlock {
-    fn height(&self) -> commonware_consensus::types::Height {
-        commonware_consensus::types::Height::new(self.height)
-    }
-}
-
-// Required commonware-cryptography traits
-impl Digestible for TestBlock {
-    type Digest = TestDigest;
-    fn digest(&self) -> Self::Digest {
-        TestDigest::from(self.id)
-    }
-}
-
-impl Committable for TestBlock {
-    type Commitment = TestDigest;
-    fn commitment(&self) -> Self::Commitment {
-        self.digest()
-    }
-}
-```
-
-## 2. Wire the AppAdapter
-
-Once your block type is ready, you can create the `AppAdapter`. This component wraps your `ConsensusApp` and `EventSink`. It handles the translation between the vendor's application traits and your internal logic.
-
-```rust
-let app = Arc::new(MyConsensusApp::new());
-let sink = Arc::new(MyEventSink::new());
-
-let adapter = AppAdapter::new(app, sink);
-```
-
-The adapter automatically implements the `Application`, `VerifyingApplication`, and `Reporter` traits required by the Commonware stack.
-
-## 3. Create the CommonwareEngine
-
-The `CommonwareEngine` uses a starter closure to initialize the vendor stack. This closure receives shared atomic variables for tracking the engine's height and running status.
-
-```rust
-let engine = CommonwareEngine::new(|height: Arc<AtomicU64>, running: Arc<AtomicBool>| {
-    // 1. Initialize vendor components (Network, Storage, etc.)
-    // 2. Set up the Commonware Simplex stack using the AppAdapter
-    // 3. Spawn the vendor event loop
-    // 4. Return a shutdown closure and a JoinHandle for the task
+pub struct MyApp;
+impl ConsensusApp for MyApp {
+    type Block = MyBlock;
     
-    let shutdown = Box::new(move || {
-        running.store(false, Ordering::SeqCst);
-    });
-    
-    Ok((shutdown, handle))
-});
+    async fn genesis(&self) -> Self::Block { ... }
+    async fn propose(&self, parent: &Self::Block, height: u64) -> Option<Self::Block> { ... }
+    async fn verify(&self, parent: &Self::Block, block: &Self::Block) -> Result<(), ConsensusError> { ... }
+}
 ```
 
-The engine can then be started using the standard `ConsensusEngine` interface.
+## 3. Implement EventSink
 
-## 4. Configure CommonwareConfig
+Create an event handler for finalized blocks:
 
-The `CommonwareConfig` struct holds the parameters for the Simplex protocol. You'll typically load these from a configuration file or define them as constants.
+```rust
+pub struct MyEventSink;
+impl EventSink for MyEventSink {
+    type Block = MyBlock;
+    async fn handle(&self, event: ConsensusEvent<Self::Block>) { ... }
+}
+```
+
+## 4. Create CommonwareEngine (NEW API)
+
+The engine constructor now takes app, sink, and config directly. It internally wires Mailbox, MailboxActor, AppAdapter, FinalizationSink, and simplex engine:
+
+```rust
+let app = Arc::new(MyApp);
+let sink = Arc::new(MyEventSink);
+let config = CommonwareConfig { ... };
+
+let engine = CommonwareEngine::new(app, sink, config);
+let running = engine.start()?;
+
+// Query height
+let height = running.height();
+
+// Shutdown
+running.shutdown();
+```
+
+**Key change**: No more starter closure. The CommonwareEngine owns the full construction and startup logic internally.
+
+## 5. Configure CommonwareConfig
+
+The config struct holds Simplex protocol parameters:
 
 ```rust
 let config = CommonwareConfig {
@@ -124,4 +85,16 @@ let config = CommonwareConfig {
 };
 ```
 
-These settings control the timing and buffer sizes for the underlying consensus protocol.
+These settings control timing and buffer sizes for the underlying consensus protocol.
+
+## Component Wiring (Internal)
+
+CommonwareEngine internally:
+1. Creates mpsc channel for Mailbox↔MailboxActor
+2. Spawns MailboxActor task delegating to app methods
+3. Wraps app+sink in AppAdapter for vendor traits
+4. Creates FinalizationSink for event handling
+5. Configures and starts simplex engine
+6. Returns RunningEngine with shutdown closure
+
+This sealed design eliminates manual orchestration complexity.

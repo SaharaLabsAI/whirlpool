@@ -1,6 +1,6 @@
 # Understanding Whirlpool Node Components
 
-This guide explains how to use and extend the core components of the Whirlpool node.
+This guide explains the core components of the Whirlpool node after the consensus wiring refactor.
 
 ## Dual-Trait Conformance in EmptyBlock
 
@@ -18,22 +18,27 @@ The `EmptyBlockApp` enforces five rules during block verification to ensure chai
 4.  Genesis parent zero. A block at height 0 must have its parent ID set to 32 zero bytes.
 5.  Implicit genesis validity. The logic that governs genesis block creation ensures it remains valid under these rules.
 
-## Height Tracking with FinalizationSink
+## Using the Node
 
-The `FinalizationSink` tracks the current finalized height using an `Arc<AtomicU64>`. When a block becomes finalized, the sink updates this atomic value using `SeqCst` ordering and logs the finalized block ID. It also handles pre-finalized events and faults, logging warnings when it identifies offending nodes. This allows other parts of the system to read the current height safely without complex locking.
+The node consumes the `CommonwareEngine` API from consensus-simplex:
 
-## Mailbox and MailboxActor Pattern
+1. Create an `EmptyBlockApp` instance
+2. Create an `EventSink` implementation (e.g., FinalizationSink imported from consensus-simplex)
+3. Construct `CommonwareEngine::new(app, sink, config)`
+4. Call `engine.start()` to spawn consensus tasks and return `RunningEngine`
+5. Query `running.height()` for current finalized height
+6. Call `running.shutdown()` for graceful shutdown
 
-The node uses an actor pattern for handling consensus state. The `Mailbox` struct contains a channel sender to send `Message` variants to the `MailboxActor`. The actor runs a loop that processes these messages, which include requests for genesis info, block proposals, and verification results.
+This sealed API simplifies the node to pure business logic \u2014 all consensus wiring is internal to consensus-simplex.
 
-Responses return through `oneshot` channels, ensuring a clean separation between the requestor and the state management logic. This pattern helps manage concurrency and state transitions in a predictable way.
+## Architecture Evolution
 
-## Completing the Implementation
+Previously, whirlpool-node contained Mailbox, FinalizationSink, and Wire modules. These have been moved to consensus-simplex as generic types:
+- Mailbox: Generic over block type, implements Automaton for simplex engine
+- FinalizationSink: Generic EventSink tracking finalized height
+- Engine wiring: Sealed in CommonwareEngine constructor \u2014 no starter closures
 
-The current node implementation includes several placeholders that require additional work:
-
-### wire.rs
-This module is currently a stub. It spawns a simple thread that polls a running flag. To complete it, you must wire the simplex engine, P2P networking layer, mailbox actor, and app adapter together. This will create a functional consensus engine that can communicate with other nodes.
-
-### main.rs
-The entry point currently only prints a message to the console. It lacks tracing setup, engine initialization, Ctrl-C signal handling, and proper shutdown logic. Completing this file will turn the project into a usable binary that can be launched and managed as a service.
+The node now focuses entirely on:
+- EmptyBlock (dual-trait block definition)
+- EmptyBlockApp (verification rules)
+- Config constants (NAMESPACE, BLOCK_INTERVAL, VALIDATOR_SEED, BIND_ADDR)

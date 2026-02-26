@@ -31,8 +31,8 @@ Structured reference docs optimized for fast LLM lookup. Each contains type sign
 | File | Description | Crate |
 |------|-------------|-------|
 | [architecture/consensus-traits.md](architecture/consensus-traits.md) | Core trait layer: Block, ConsensusApp, EventSink, ConsensusEngine, RunningEngine, ConsensusError. All public signatures, cross-trait relationships, mock implementations | `consensus` |
-| [architecture/simplex-adapter.md](architecture/simplex-adapter.md) | Adapter bridge: CommonwareBlock, AppAdapter, CommonwareEngine, CommonwareConfig. Vendor trait mapping table, data flow, starter closure contract | `consensus-simplex` |
-| [architecture/whirlpool-node.md](architecture/whirlpool-node.md) | Node binary: EmptyBlock (dual-trait conformance), EmptyBlockApp (5 verification rules), FinalizationSink, Mailbox/MailboxActor. cfg gating, stub status of wire.rs/main.rs | `whirlpool-node` |
+| [architecture/simplex-adapter.md](architecture/simplex-adapter.md) | Adapter bridge: CommonwareBlock, AppAdapter, CommonwareEngine, CommonwareConfig, Mailbox/MailboxActor, FinalizationSink. Sealed engine wiring, vendor trait mapping | `consensus-simplex` |
+| [architecture/whirlpool-node.md](architecture/whirlpool-node.md) | Node binary: EmptyBlock (dual-trait conformance), EmptyBlockApp (5 verification rules). Pure business logic, delegates consensus wiring to consensus-simplex | `whirlpool-node` |
 | [architecture/block-lifecycle.md](architecture/block-lifecycle.md) | End-to-end block data flow across all 3 layers: propose → verify → finalize. Cross-crate type mappings, event propagation chain, observability via atomics | Cross-crate |
 
 ## Guides
@@ -42,8 +42,8 @@ Step-by-step instructions for common tasks and workflows.
 | File | Description |
 |------|-------------|
 | [guides/implementing-consensus-traits.md](guides/implementing-consensus-traits.md) | How to implement Block, ConsensusApp, EventSink, and ConsensusEngine traits with code examples and mock references |
-| [guides/wiring-simplex-adapter.md](guides/wiring-simplex-adapter.md) | How to create a CommonwareBlock type, wire AppAdapter, build CommonwareEngine, and configure CommonwareConfig |
-| [guides/whirlpool-node-components.md](guides/whirlpool-node-components.md) | Understanding EmptyBlock dual-trait conformance, verification rules, FinalizationSink, Mailbox pattern, and what needs completing in wire.rs/main.rs |
+| [guides/wiring-simplex-adapter.md](guides/wiring-simplex-adapter.md) | How to wire CommonwareEngine using sealed API: define block type, implement ConsensusApp/EventSink, construct engine, configure CommonwareConfig |
+| [guides/whirlpool-node-components.md](guides/whirlpool-node-components.md) | Understanding EmptyBlock dual-trait conformance, EmptyBlockApp verification rules, using CommonwareEngine API from consensus-simplex |
 | [guides/block-lifecycle-walkthrough.md](guides/block-lifecycle-walkthrough.md) | Traces a block from proposal through verification to finalization across all 3 layers with exact method names |
 
 ## Reference
