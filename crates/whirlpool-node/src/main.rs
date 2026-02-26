@@ -1,5 +1,6 @@
 use consensus::ConsensusEngine;
 use consensus_simplex::{CommonwareConfig, CommonwareEngine, FinalizationSink};
+use p2p::mock::MockNetworkProvider;
 use std::num::NonZeroUsize;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
@@ -39,20 +40,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         fetch_concurrent: 4,
     };
 
-    // 4. Create and start the engine
-    let engine = CommonwareEngine::new(app, sink, config);
+    // 4. Create network provider
+    // TODO: Replace MockNetworkProvider with CommonwareNetworkProvider once network infrastructure is set up
+    let peer_id = p2p::mock::MockPeerId(0);
+    let network = MockNetworkProvider::new(peer_id);
+
+    // 5. Create and start the engine
+    let engine = CommonwareEngine::new(app, sink, config, network);
     let running = engine.start().expect("failed to start consensus engine");
 
     tracing::info!("consensus engine started, press Ctrl-C to stop");
 
-    // 5. Wait for Ctrl-C
+    // 6. Wait for Ctrl-C
     tokio::signal::ctrl_c()
         .await
         .expect("failed to listen for ctrl-c");
 
     tracing::info!("shutting down...");
 
-    // 6. Shutdown gracefully
+    // 7. Shutdown gracefully
     running.shutdown().await.expect("failed to shutdown engine");
 
     tracing::info!("whirlpool-node stopped");

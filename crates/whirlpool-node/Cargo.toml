@@ -6,6 +6,7 @@ edition.workspace = true
 [dependencies]
 consensus = { path = "../consensus" }
 consensus-simplex = { path = "../consensus-simplex" }
+p2p = { path = "../p2p", features = ["mock"] }
 commonware-consensus = { path = "../../vendor/commonware/consensus" }
 commonware-codec = { path = "../../vendor/commonware/codec" }
 commonware-cryptography = { path = "../../vendor/commonware/cryptography" }

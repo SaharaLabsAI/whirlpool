@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use consensus::ConsensusEngine;
 use consensus_simplex::{CommonwareConfig, CommonwareEngine, FinalizationSink};
+use p2p::mock::MockNetworkProvider;
 use whirlpool_node::app::EmptyBlockApp;
 use whirlpool_node::block::EmptyBlock;
 
@@ -31,7 +32,12 @@ async fn test_single_node_finalizes_blocks() {
         fetch_concurrent: 4,
     };
 
-    let engine = CommonwareEngine::new(app, sink, config);
+
+    // Create network provider (mock for now)
+    let peer_id = p2p::mock::MockPeerId(0);
+    let network = MockNetworkProvider::new(peer_id);
+
+    let engine = CommonwareEngine::new(app, sink, config, network);
     let running = engine.start().expect("engine should start");
     assert!(running.status().is_running);
 
