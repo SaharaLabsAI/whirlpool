@@ -1,20 +1,17 @@
 //! Whirlpool consensus node binary.
 
 use commonware_cryptography::Signer;
-use commonware_p2p::Manager;
 use commonware_cryptography::ed25519;
-use commonware_p2p::authenticated::discovery;
 use commonware_runtime::{tokio, Runner, Metrics};
-use commonware_utils::ordered::Set;
 use consensus::ConsensusEngine;
 use consensus_simplex::{CommonwareConfig, CommonwareEngine, FinalizationSink};
-use p2p_commonware::CommonwareNetworkProvider;
+use p2p_commonware::CommonwareNetworkProviderBuilder;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
 use std::num::NonZeroUsize;
 use std::time::Duration;
-use tracing::{debug, info};
+use tracing::info;
 use whirlpool_node::app::EmptyBlockApp;
 use whirlpool_node::config;
 
@@ -47,32 +44,16 @@ fn main() {
 
         // Create ed25519 signer from deterministic seed (development only)
         let signer = ed25519::PrivateKey::from_seed(config::VALIDATOR_SEED);
-        info!("Created ed25519 signer");
 
-        // Create discovery network configuration (single-node local dev setup)
+        // Create local addresses for network setup
         let listen_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0); // OS assigns port
         let dialable_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
-        
-        let p2p_cfg = discovery::Config::local(
-            signer,
-            APPLICATION_NAMESPACE,
-            listen_addr,
-            dialable_addr,
-            vec![], // Empty bootstrappers for single-node dev
-            MAX_MESSAGE_SIZE,
-        );
 
-        // Create discovery network and oracle
-        let (network, mut oracle) = discovery::Network::new(context.with_label("network"), p2p_cfg);
-        info!("Discovery network created");
-
-        // Update oracle with empty peer set (single-node dev setup)
-        oracle.update(0, Set::from_iter_dedup(vec![])).await;
-        debug!("Oracle updated with empty peer set");
-
-        // Create network provider
-        let network_provider = CommonwareNetworkProvider::new(network, oracle);
-        info!("Network provider initialized");
+        let (network_provider, _oracle_handle) = CommonwareNetworkProviderBuilder::new(signer, APPLICATION_NAMESPACE)
+            .listen_addr(listen_addr)
+            .dialable_addr(dialable_addr)
+            .max_message_size(MAX_MESSAGE_SIZE)
+            .build(context.with_label("network"));
 
         // Configure consensus engine config
         let engine_config = CommonwareConfig {
