@@ -16,14 +16,11 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use commonware_cryptography::{ed25519, Signer};
-use commonware_p2p::authenticated::discovery;
-use commonware_p2p::Manager;
 use commonware_runtime::{tokio as cw_tokio, Metrics, Runner};
-use commonware_utils::ordered::Set;
 
 use consensus::ConsensusEngine;
 use consensus_simplex::{CommonwareConfig, CommonwareEngine, FinalizationSink};
-use p2p_commonware::CommonwareNetworkProvider;
+use p2p_commonware::CommonwareNetworkProviderBuilder;
 use whirlpool_node::app::EmptyBlockApp;
 
 /// Namespace shared by all test nodes so they can discover each other.
@@ -73,28 +70,13 @@ fn test_single_node_real_network_lifecycle() {
             let signer = ed25519::PrivateKey::from_seed(100);
             let public_key = signer.public_key();
 
-            // Build discovery config – no bootstrappers for single-node
             let listen = localhost_ephemeral();
-            let p2p_cfg = discovery::Config::local(
-                signer,
-                TEST_NAMESPACE,
-                listen,
-                listen,
-                vec![],
-                MAX_MESSAGE_SIZE,
-            );
-
-            // Create network and oracle
-            let (network, mut oracle) =
-                discovery::Network::new(context.with_label("network"), p2p_cfg);
-
-            // Register ourselves as the sole validator
-            oracle
-                .update(0, Set::from_iter_dedup(vec![public_key]))
-                .await;
-
-            // Build the provider and engine
-            let network_provider = CommonwareNetworkProvider::new(network, oracle);
+            let (network_provider, _oracle_handle) =
+                CommonwareNetworkProviderBuilder::new(signer, TEST_NAMESPACE)
+                    .listen_addr(listen)
+                    .max_message_size(MAX_MESSAGE_SIZE)
+                    .initial_validators(0, vec![public_key])
+                    .build(context.with_label("network"));
             let app = Arc::new(EmptyBlockApp);
             let sink = Arc::new(FinalizationSink::new(Arc::new(AtomicU64::new(0))));
             let config = test_engine_config();
@@ -160,23 +142,16 @@ fn test_two_nodes_discover_and_run() {
             let pk_0 = signer_0.public_key();
             let pk_1 = signer_1.public_key();
 
-            let all_validators = Set::from_iter_dedup(vec![pk_0.clone(), pk_1.clone()]);
+            let all_validators = vec![pk_0.clone(), pk_1.clone()];
 
             // --- Node 0 (bootstrapper) ---
             let listen_0 = localhost_ephemeral();
-            let cfg_0 = discovery::Config::local(
-                signer_0,
-                TEST_NAMESPACE,
-                listen_0,
-                listen_0,
-                vec![], // node 0 has no bootstrappers
-                MAX_MESSAGE_SIZE,
-            );
-            let (network_0, mut oracle_0) =
-                discovery::Network::new(context.with_label("node_0"), cfg_0);
-            oracle_0.update(0, all_validators.clone()).await;
-
-            let provider_0 = CommonwareNetworkProvider::new(network_0, oracle_0);
+            let (provider_0, _oracle_handle_0) =
+                CommonwareNetworkProviderBuilder::new(signer_0, TEST_NAMESPACE)
+                    .listen_addr(listen_0)
+                    .max_message_size(MAX_MESSAGE_SIZE)
+                    .initial_validators(0, all_validators.clone())
+                    .build(context.with_label("node_0"));
             let app_0 = Arc::new(EmptyBlockApp);
             let sink_0 = Arc::new(FinalizationSink::new(Arc::new(AtomicU64::new(0))));
             let engine_0 =
@@ -188,19 +163,12 @@ fn test_two_nodes_discover_and_run() {
             // So node 1 also uses no bootstrappers — both nodes rely on the
             // oracle peer-set for discovery on localhost.
             let listen_1 = localhost_ephemeral();
-            let cfg_1 = discovery::Config::local(
-                signer_1,
-                TEST_NAMESPACE,
-                listen_1,
-                listen_1,
-                vec![], // discovery via oracle peer-set
-                MAX_MESSAGE_SIZE,
-            );
-            let (network_1, mut oracle_1) =
-                discovery::Network::new(context.with_label("node_1"), cfg_1);
-            oracle_1.update(0, all_validators).await;
-
-            let provider_1 = CommonwareNetworkProvider::new(network_1, oracle_1);
+            let (provider_1, _oracle_handle_1) =
+                CommonwareNetworkProviderBuilder::new(signer_1, TEST_NAMESPACE)
+                    .listen_addr(listen_1)
+                    .max_message_size(MAX_MESSAGE_SIZE)
+                    .initial_validators(0, all_validators)
+                    .build(context.with_label("node_1"));
             let app_1 = Arc::new(EmptyBlockApp);
             let sink_1 = Arc::new(FinalizationSink::new(Arc::new(AtomicU64::new(0))));
             let engine_1 =
@@ -279,22 +247,12 @@ fn test_real_network_graceful_shutdown() {
             let public_key = signer.public_key();
 
             let listen = localhost_ephemeral();
-            let p2p_cfg = discovery::Config::local(
-                signer,
-                TEST_NAMESPACE,
-                listen,
-                listen,
-                vec![],
-                MAX_MESSAGE_SIZE,
-            );
-
-            let (network, mut oracle) =
-                discovery::Network::new(context.with_label("network"), p2p_cfg);
-            oracle
-                .update(0, Set::from_iter_dedup(vec![public_key]))
-                .await;
-
-            let provider = CommonwareNetworkProvider::new(network, oracle);
+            let (provider, _oracle_handle) =
+                CommonwareNetworkProviderBuilder::new(signer, TEST_NAMESPACE)
+                    .listen_addr(listen)
+                    .max_message_size(MAX_MESSAGE_SIZE)
+                    .initial_validators(0, vec![public_key])
+                    .build(context.with_label("network"));
             let app = Arc::new(EmptyBlockApp);
             let sink = Arc::new(FinalizationSink::new(Arc::new(AtomicU64::new(0))));
             let engine = CommonwareEngine::new(app, sink, test_engine_config(), provider);
