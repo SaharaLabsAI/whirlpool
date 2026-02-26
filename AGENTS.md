@@ -20,6 +20,7 @@ Follow this sequence and stop once you have enough context for the task:
 - Keep changes small, focused, and aligned with local formatting/lint/test expectations.
 - Never commit secrets.
 - Before marking any todo item or task complete, `cargo build` and `cargo test` must both pass. Fix any failures introduced by your changes before proceeding.
+- Todo items must be implemented in their listed order. Do not skip ahead or work on items out of sequence.
 - After completing code changes, always use the `ctx-update-doc` skill to generate/update llmdocs for the affected crates.
 
 ## User interaction
