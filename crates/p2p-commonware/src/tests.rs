@@ -172,4 +172,52 @@ mod tests {
     }
 }
 
+    #[tokio::test]
+    async fn test_multiplex_sender_routes_vote_channel() {
+        // TODO: Implement - should route to channel 0
+        panic!("not yet implemented - RED phase");
+    }
+
+    #[tokio::test]
+    async fn test_multiplex_sender_routes_certificate_channel() {
+        // TODO: Implement - should route to channel 1
+        panic!("not yet implemented - RED phase");
+    }
+
+    #[tokio::test]
+    async fn test_multiplex_sender_routes_resolver_channel() {
+        // TODO: Implement - should route to channel 2
+        panic!("not yet implemented - RED phase");
+    }
+
+    #[tokio::test]
+    async fn test_multiplex_sender_invalid_channel() {
+        // TODO: Implement - should return InvalidChannel error
+        panic!("not yet implemented - RED phase");
+    }
+
+    #[tokio::test]
+    async fn test_multiplex_sender_clone() {
+        // TODO: Implement - cloned sender should work independently
+        panic!("not yet implemented - RED phase");
+    }
+
+    #[tokio::test]
+    async fn test_multiplex_receiver_tags_channel() {
+        // TODO: Implement - should tag with correct channel
+        panic!("not yet implemented - RED phase");
+    }
+
+    #[tokio::test]
+    async fn test_multiplex_receiver_merges_channels() {
+        // TODO: Implement - should merge all 3 channels
+        panic!("not yet implemented - RED phase");
+    }
+
+    #[tokio::test]
+    async fn test_multiplex_receiver_returns_none_on_shutdown() {
+        // TODO: Implement - should return None when all senders close
+        panic!("not yet implemented - RED phase");
+    }
+
 

@@ -19,3 +19,13 @@ pub mod receiver;
 pub use sender::CommonwareSender;
 pub use receiver::CommonwareReceiver;
 pub use provider::CommonwareNetworkProvider;
+
+// TODO: Implement in Task 3
+pub struct MultiplexSender<S> {
+    _phantom: std::marker::PhantomData<S>,
+}
+
+// TODO: Implement in Task 4  
+pub struct MultiplexReceiver<R> {
+    _phantom: std::marker::PhantomData<R>,
+}
