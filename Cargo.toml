@@ -4,6 +4,7 @@ resolver = "2"
 members = [
     "crates/consensus",
     "crates/consensus-simplex",
+    "crates/p2p",
     "crates/whirlpool-node",
 ]
 

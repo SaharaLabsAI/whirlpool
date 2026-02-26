@@ -1,0 +1,16 @@
+[package]
+name = "p2p"
+version = "0.1.0"
+edition = "2021"
+authors = ["Whirlpool Contributors"]
+description = "Vendor-agnostic P2P networking abstractions for Whirlpool"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+bytes = "1.5"
+serde = { version = "1.0", features = ["derive"] }
+thiserror = "1.0"
+tokio = { version = "1.42", features = ["sync", "macros", "rt"] }
+
+[features]
+mock = []
