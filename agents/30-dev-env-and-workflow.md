@@ -4,6 +4,16 @@
 
 Use the Nix flake shell when needed. The repository includes `flake.nix` with Rust tooling (including `cargo-nextest`).
 
+`cargo` is **not** on `PATH` — it is only available inside the Nix dev shell. Always run cargo commands via `nix develop`:
+
+```bash
+nix develop --command cargo build
+nix develop --command cargo test
+nix develop --command cargo nextest run
+```
+
+Do **not** run bare `cargo` commands — they will fail with `command not found`.
+
 ## When in doubt
 
 1. Follow the target subproject's own `AGENTS.md` and `llmdocs/`.
