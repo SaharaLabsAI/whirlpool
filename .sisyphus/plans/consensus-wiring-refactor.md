@@ -448,7 +448,7 @@ Wave 3 (Integration + Cleanup — depends on Wave 2): Tasks 4, 5, 6
 
   **Commit**: YES | Message: `chore(whirlpool-node): clean up dependencies after consensus wiring move` | Files: `crates/whirlpool-node/Cargo.toml`, `crates/consensus-simplex/Cargo.toml`
 
-- [ ] 6. Update llmdocs Documentation
+- [x] 6. Update llmdocs Documentation
 
   **What to do**:
   1. Use the `ctx-update-doc` skill to regenerate/update llmdocs for both affected crates:

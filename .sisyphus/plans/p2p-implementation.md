@@ -671,7 +671,7 @@ Wave 3 (Integration — depends on Wave 2):
 
   **Commit**: YES | Message: `feat(p2p-commonware): add CommonwareNetworkProvider with channel factory` | Files: `crates/p2p-commonware/src/provider.rs`, `crates/p2p-commonware/src/lib.rs`
 
-- [ ] 6. Modify `consensus-simplex` CommonwareEngine to accept NetworkProvider (TDD)
+- [x] 6. Modify `consensus-simplex` CommonwareEngine to accept NetworkProvider (TDD)
 
   **What to do**:
   1. Write RED tests first in `crates/consensus-simplex/src/tests.rs` (update existing):
@@ -760,7 +760,7 @@ Wave 3 (Integration — depends on Wave 2):
 
   **Commit**: YES | Message: `feat(consensus-simplex): add NetworkProvider generic to CommonwareEngine` | Files: `crates/consensus-simplex/src/engine.rs`, `crates/consensus-simplex/src/tests.rs`, `crates/consensus-simplex/Cargo.toml`
 
-- [ ] 7. Update `whirlpool-node` to wire CommonwareNetworkProvider
+- [x] 7. Update `whirlpool-node` to wire CommonwareNetworkProvider
 
   **What to do**:
   1. Add dependencies to `crates/whirlpool-node/Cargo.toml`:
@@ -820,7 +820,7 @@ Wave 3 (Integration — depends on Wave 2):
 
   **Commit**: YES | Message: `feat(whirlpool-node): wire MockNetworkProvider into engine construction` | Files: `crates/whirlpool-node/src/main.rs`, `crates/whirlpool-node/Cargo.toml`
 
-- [ ] 8. Update workspace Cargo.toml and final cleanup
+- [x] 8. Update workspace Cargo.toml and final cleanup
 
   **What to do**:
   1. Add new crates to workspace members in `Cargo.toml`:
@@ -886,19 +886,19 @@ Wave 3 (Integration — depends on Wave 2):
 <!-- TASKS_END -->
 
 ## Final Verification Wave (4 parallel agents, ALL must APPROVE)
-- [ ] F1. Plan Compliance Audit — oracle
+- [x] F1. Plan Compliance Audit — oracle
   - Verify all design doc requirements from `docs/design/p2p.md` are addressed
   - Check trait signatures match design doc (with documented Clone vs Copy deviation)
   - Verify all 5 migration phases are covered
-- [ ] F2. Code Quality Review — unspecified-high
+- [x] F2. Code Quality Review — unspecified-high
   - Review all new code for Rust best practices
   - Check generic bounds are minimal and correct
   - Verify error handling is comprehensive
-- [ ] F3. Real Manual QA — unspecified-high
+- [x] F3. Real Manual QA — unspecified-high
   - Run `cargo build --workspace && cargo test --workspace`
   - Verify `p2p` crate has zero commonware deps
   - Test mock round-trip end-to-end
-- [ ] F4. Scope Fidelity Check — deep
+- [x] F4. Scope Fidelity Check — deep
   - Verify no scope creep beyond design doc
   - Check that deferred items (PeerManager, Blocker, authenticated network) are NOT implemented
   - Verify no vendor/ modifications
