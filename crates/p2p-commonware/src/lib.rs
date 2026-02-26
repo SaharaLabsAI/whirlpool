@@ -12,7 +12,7 @@ mod error;
 mod tests;
 
 pub use peer_id::CommonwarePeerId;
-pub use error::map_error;
+pub use error::{map_send_error, map_recv_error};
 
 pub mod sender;
 pub mod receiver;

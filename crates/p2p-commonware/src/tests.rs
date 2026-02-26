@@ -2,8 +2,8 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::CommonwarePeerId;
-    use crate::map_error;
+    use crate::{CommonwarePeerId, map_send_error};
+
     use commonware_cryptography::ed25519;
     use commonware_cryptography::Signer;
     use std::collections::HashSet;
@@ -124,20 +124,20 @@ mod tests {
     }
 
     #[test]
-    fn test_map_error_with_string() {
+    fn test_map_send_error_with_string() {
         let err = std::io::Error::new(std::io::ErrorKind::Other, "test error");
-        let p2p_err = map_error(err);
+        let p2p_err = map_send_error(err);
 
         match p2p_err {
-            p2p::P2pError::InvalidRecipients(msg) => {
+            p2p::P2pError::SendFailed(msg) => {
                 assert!(msg.contains("test error"));
             }
-            _ => panic!("Expected InvalidRecipients error"),
+            _ => panic!("Expected SendFailed error"),
         }
     }
 
     #[test]
-    fn test_map_error_preserves_message() {
+    fn test_map_send_error_preserves_message() {
         #[derive(Debug, Clone)]
         struct TestError(String);
 
@@ -150,13 +150,13 @@ mod tests {
         impl std::error::Error for TestError {}
 
         let err = TestError("my error".to_string());
-        let p2p_err = map_error(err);
+        let p2p_err = map_send_error(err);
 
         match p2p_err {
-            p2p::P2pError::InvalidRecipients(msg) => {
+            p2p::P2pError::SendFailed(msg) => {
                 assert_eq!(msg, "Custom: my error");
             }
-            _ => panic!("Expected InvalidRecipients error"),
+            _ => panic!("Expected SendFailed error"),
         }
     }
 

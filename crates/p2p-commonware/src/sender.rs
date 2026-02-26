@@ -5,7 +5,7 @@ use commonware_p2p::{Recipients as CwRecipients, Sender as CwSender};
 use std::fmt::Debug;
 use std::hash::Hash;
 use p2p::{Channel, NetworkSender, Recipients, P2pError};
-use crate::{CommonwarePeerId, error::map_error};
+use crate::{CommonwarePeerId, error::map_send_error};
 
 /// Adapts a Commonware Sender to implement our vendor-agnostic NetworkSender trait.
 ///
@@ -49,7 +49,7 @@ where
         // Call commonware send (priority=false for now, as channels don't map directly)
         sender.send(cw_recipients, data, false)
             .await
-            .map_err(map_error)?;
+            .map_err(map_send_error)?;
 
         Ok(())
     }

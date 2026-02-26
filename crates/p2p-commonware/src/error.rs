@@ -2,18 +2,30 @@
 
 use p2p::P2pError;
 
-/// Maps an error from Commonware into our vendor-agnostic P2pError.
+/// Maps a send error from Commonware into a P2pError::SendFailed variant.
 ///
-/// This function wraps any error type that implements `Display + Error + Send + Sync + 'static`
-/// into a `P2pError::InvalidRecipients` variant for uniformity.
+/// This function wraps any error type that implements `Display`
+/// into a `P2pError::SendFailed` variant for send operations.
 ///
 /// # Example
 /// ```ignore
 /// let cw_error = some_commonware_function().err();
-/// let p2p_error = map_error(cw_error);
+/// let p2p_error = map_send_error(cw_error);
 /// ```
-pub fn map_error<E: std::fmt::Display + std::error::Error + Send + Sync + 'static>(
-    err: E,
-) -> P2pError {
-    P2pError::InvalidRecipients(err.to_string())
+pub fn map_send_error<E: std::fmt::Display>(e: E) -> P2pError {
+    P2pError::SendFailed(e.to_string())
+}
+
+/// Maps a receive error from Commonware into a P2pError::ReceiveFailed variant.
+///
+/// This function wraps any error type that implements `Display`
+/// into a `P2pError::ReceiveFailed` variant for receive operations.
+///
+/// # Example
+/// ```ignore
+/// let cw_error = some_commonware_function().err();
+/// let p2p_error = map_recv_error(cw_error);
+/// ```
+pub fn map_recv_error<E: std::fmt::Display>(e: E) -> P2pError {
+    P2pError::ReceiveFailed(e.to_string())
 }
