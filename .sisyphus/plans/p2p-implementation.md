@@ -347,7 +347,7 @@ Wave 3 (Integration — depends on Wave 2):
 
   **Commit**: YES | Message: `feat(p2p): add mock sender, receiver, and provider for testing` | Files: `crates/p2p/src/mock/`
 
-- [ ] 3. Create `p2p-commonware` crate — CommonwarePeerId + error mapping (TDD)
+- [x] 3. Create `p2p-commonware` crate — CommonwarePeerId + error mapping (TDD)
 
   **What to do**:
   1. Create `crates/p2p-commonware/Cargo.toml` with deps: `p2p = { path = "../p2p" }`, `commonware-p2p = { path = "../../vendor/commonware/p2p" }`, `commonware-cryptography = { path = "../../vendor/commonware/cryptography" }`, `thiserror = "2"`, `bytes = "1"`, `tracing = "0.1"`. Edition 2021, version 0.1.0.
