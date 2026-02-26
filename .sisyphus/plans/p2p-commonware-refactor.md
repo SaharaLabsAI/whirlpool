@@ -305,7 +305,7 @@ Wave 4: Cleanup (2 tasks — parallel)
 
   **Commit**: YES | Message: `feat(p2p-commonware): export builder types and add commonware-utils dependency` | Files: `crates/p2p-commonware/Cargo.toml`, `crates/p2p-commonware/src/lib.rs`
 
-- [ ] 4. Refactor whirlpool-node main.rs to Use Builder
+- [x] 4. Refactor whirlpool-node main.rs to Use Builder
 
   **What to do**: Replace the manual discovery setup in `crates/whirlpool-node/src/main.rs` with the new builder API.
 
@@ -370,7 +370,7 @@ Wave 4: Cleanup (2 tasks — parallel)
 
   **Commit**: YES | Message: `refactor(whirlpool-node): use p2p-commonware builder instead of direct discovery setup` | Files: `crates/whirlpool-node/src/main.rs`
 
-- [ ] 5. Refactor whirlpool-node Integration Tests to Use Builder
+- [x] 5. Refactor whirlpool-node Integration Tests to Use Builder
 
   **What to do**: Replace manual discovery setup in all 3 tests in `crates/whirlpool-node/tests/network_integration.rs` with the builder API.
 
