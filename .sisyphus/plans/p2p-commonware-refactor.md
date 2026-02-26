@@ -491,7 +491,7 @@ Wave 4: Cleanup (2 tasks — parallel)
 
   **Commit**: YES | Message: `refactor(whirlpool-node): remove direct commonware-p2p and commonware-utils dependencies` | Files: `crates/whirlpool-node/Cargo.toml`
 
-- [ ] 7. Update llmdocs for Affected Crates
+- [x] 7. Update llmdocs for Affected Crates
 
   **What to do**: Use the `ctx-update-doc` skill to update llmdocs for both `p2p-commonware` and `whirlpool-node` crates. The documentation should reflect:
   - New `CommonwareNetworkProviderBuilder` and `OracleHandle` types in p2p-commonware
