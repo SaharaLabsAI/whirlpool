@@ -1825,6 +1825,7 @@ dependencies = [
  "bytes",
  "commonware-cryptography",
  "commonware-p2p",
+ "commonware-runtime",
  "p2p",
  "thiserror 2.0.18",
  "tokio",

@@ -11,3 +11,8 @@ mod tests;
 
 pub use peer_id::CommonwarePeerId;
 pub use error::map_error;
+
+pub mod sender;
+pub mod receiver;
+pub use sender::CommonwareSender;
+pub use receiver::CommonwareReceiver;
