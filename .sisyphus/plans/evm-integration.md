@@ -202,12 +202,12 @@ Wave 5 (Final Verification): F1-F4 — Plan compliance, code review, manual QA, 
   - Design: `docs/design/evm-integration/WORKSPACE.md` — dependency graph
 
   **Acceptance Criteria** (agent-executable only):
-  - [ ] Root `Cargo.toml` lists `state`, `app`, `app-evm` in members
-  - [ ] `crates/state/Cargo.toml` exists with correct deps
-  - [ ] `crates/app/Cargo.toml` exists with correct deps
-  - [ ] `crates/app-evm/Cargo.toml` exists with correct deps
-  - [ ] `nix develop --command cargo check` succeeds (empty stubs compile)
-  - [ ] `nix develop --command cargo build` succeeds
+  - [x] Root `Cargo.toml` lists `state`, `app`, `app-evm` in members
+  - [x] `crates/state/Cargo.toml` exists with correct deps
+  - [x] `crates/app/Cargo.toml` exists with correct deps
+  - [x] `crates/app-evm/Cargo.toml` exists with correct deps
+  - [x] `nix develop --command cargo check` succeeds (empty stubs compile)
+  - [x] `nix develop --command cargo build` succeeds
 
   **QA Scenarios**:
   ```
@@ -277,11 +277,11 @@ Wave 5 (Final Verification): F1-F4 — Plan compliance, code review, manual QA, 
   - CRITICAL: `BundleState` is in `revm::db::states::bundle_state` or `reth-execution-types`. Check exact import path from reth-revm.
 
   **Acceptance Criteria** (agent-executable only):
-  - [ ] `nix develop --command cargo test -p state` — all 18+ tests pass
-  - [ ] `nix develop --command cargo build -p state` — no warnings
-  - [ ] `InMemoryStateDb` implements `Database`, `DatabaseRef`, `Clone`
-  - [ ] `state_root()` is deterministic (same state → same hash regardless of insertion order)
-  - [ ] `commit()` handles Created, Changed, Destroyed account states
+  - [x] `nix develop --command cargo test -p state` — all 18+ tests pass
+  - [x] `nix develop --command cargo build -p state` — no warnings
+  - [x] `InMemoryStateDb` implements `Database`, `DatabaseRef`, `Clone`
+  - [x] `state_root()` is deterministic (same state → same hash regardless of insertion order)
+  - [x] `commit()` handles Created, Changed, Destroyed account states
 
   **QA Scenarios**:
   ```
@@ -390,11 +390,11 @@ Wave 5 (Final Verification): F1-F4 — Plan compliance, code review, manual QA, 
   - CRITICAL: The exact import paths for commonware traits vary. Check `crates/whirlpool-node/src/block.rs` use statements for correct imports.
 
   **Acceptance Criteria** (agent-executable only):
-  - [ ] `nix develop --command cargo test -p app` — all 6+ tests pass
-  - [ ] `nix develop --command cargo build -p app` — no errors
-  - [ ] `EvmBlock` implements `consensus::Block`, `CodecWrite`, `CodecRead`, `EncodeSize`, `Digestible`, `Committable`, `Heightable`, `VendorBlock`
-  - [ ] `ApplicationAdapter` implements `ConsensusApp`
-  - [ ] Application trait uses RPITIT (no async-trait macro)
+  - [x] `nix develop --command cargo test -p app` — all 6+ tests pass
+  - [x] `nix develop --command cargo build -p app` — no errors
+  - [x] `EvmBlock` implements `consensus::Block`, `CodecWrite`, `CodecRead`, `EncodeSize`, `Digestible`, `Committable`, `Heightable`, `VendorBlock`
+  - [x] `ApplicationAdapter` implements `ConsensusApp`
+  - [x] Application trait uses RPITIT (no async-trait macro)
 
   **QA Scenarios**:
   ```
@@ -487,10 +487,10 @@ Wave 5 (Final Verification): F1-F4 — Plan compliance, code review, manual QA, 
   - Types: `reth_chainspec::{ChainSpec, ChainSpecBuilder, Chain}`, `reth_ethereum_primitives::EthPrimitives`
 
   **Acceptance Criteria** (agent-executable only):
-  - [ ] `nix develop --command cargo test -p app-evm` — all 3+ tests pass
-  - [ ] `nix develop --command cargo build -p app-evm` — no errors
-  - [ ] `build_sahara_chain_spec()` returns ChainSpec with chain_id=313371, Cancun hardforks active
-  - [ ] `WhirlpoolEvmConfig` implements `ConfigureEvm`
+  - [x] `nix develop --command cargo test -p app-evm` — all 3+ tests pass
+  - [x] `nix develop --command cargo build -p app-evm` — no errors
+  - [x] `build_sahara_chain_spec()` returns ChainSpec with chain_id=313371, Cancun hardforks active
+  - [x] `WhirlpoolEvmConfig` implements `ConfigureEvm`
 
   **QA Scenarios**:
   ```
@@ -582,11 +582,11 @@ Wave 5 (Final Verification): F1-F4 — Plan compliance, code review, manual QA, 
   - Pattern: `crates/app-evm/src/config.rs` — WhirlpoolEvmConfig (from Task 4)
 
   **Acceptance Criteria** (agent-executable only):
-  - [ ] `nix develop --command cargo test -p app-evm` — all tests pass
-  - [ ] `nix develop --command cargo build -p app-evm` — no errors
-  - [ ] `EvmApplication<InMemoryStateDb>` implements `Application`
-  - [ ] Genesis returns height-0 block with state_root matching state_db.state_root()
-  - [ ] Propose with no txs succeeds (empty block execution)
+  - [x] `nix develop --command cargo test -p app-evm` — all tests pass
+  - [x] `nix develop --command cargo build -p app-evm` — no errors
+  - [x] `EvmApplication<InMemoryStateDb>` implements `Application`
+  - [x] Genesis returns height-0 block with state_root matching state_db.state_root()
+  - [x] Propose with no txs succeeds (empty block execution)
 
   **QA Scenarios**:
   ```
@@ -653,10 +653,10 @@ Wave 5 (Final Verification): F1-F4 — Plan compliance, code review, manual QA, 
   - All crate source: `crates/app/src/**`, `crates/app-evm/src/**`, `crates/state/src/**` — the types being tested
 
   **Acceptance Criteria** (agent-executable only):
-  - [ ] `nix develop --command cargo test -p app-evm` — all unit + integration tests pass
-  - [ ] At least 13 integration tests exist across 3 test files
-  - [ ] Cross-crate flow tests exercise full genesis→propose→verify lifecycle
-  - [ ] Error propagation test confirms tampered state_root is caught
+  - [x] `nix develop --command cargo test -p app-evm` — all unit + integration tests pass
+  - [x] At least 13 integration tests exist across 3 test files
+  - [x] Cross-crate flow tests exercise full genesis→propose→verify lifecycle
+  - [x] Error propagation test confirms tampered state_root is caught
 
   **QA Scenarios**:
   ```
@@ -745,11 +745,11 @@ Wave 5 (Final Verification): F1-F4 — Plan compliance, code review, manual QA, 
   - CRITICAL: Check if `CommonwareEngine` expects `Arc<A>` or `A` directly. Current main.rs uses `Arc<EmptyBlockApp>`.
 
   **Acceptance Criteria** (agent-executable only):
-  - [ ] `nix develop --command cargo build` — default features (evm) builds successfully
-  - [ ] `nix develop --command cargo build -p whirlpool-node --no-default-features` — EmptyBlockApp path still compiles
-  - [ ] `nix develop --command cargo test` — all workspace tests pass
-  - [ ] EmptyBlockApp tests in whirlpool-node still pass
-  - [ ] No modifications to consensus/ or consensus-simplex/
+  - [x] `nix develop --command cargo build` — default features (evm) builds successfully
+  - [x] `nix develop --command cargo build -p whirlpool-node --no-default-features` — EmptyBlockApp path still compiles
+  - [x] `nix develop --command cargo test` — all workspace tests pass
+  - [x] EmptyBlockApp tests in whirlpool-node still pass
+  - [x] No modifications to consensus/ or consensus-simplex/
 
   **QA Scenarios**:
   ```
@@ -803,8 +803,8 @@ Wave 5 (Final Verification): F1-F4 — Plan compliance, code review, manual QA, 
   - All source: `crates/state/src/**`, `crates/app/src/**`, `crates/app-evm/src/**`
 
   **Acceptance Criteria** (agent-executable only):
-  - [ ] llmdocs updated for state, app, app-evm crates
-  - [ ] `nix develop --command cargo build` still passes after doc updates
+  - [x] llmdocs updated for state, app, app-evm crates
+  - [x] `nix develop --command cargo build` still passes after doc updates
 
   **QA Scenarios**:
   ```
@@ -836,9 +836,9 @@ Wave 5 (Final Verification): F1-F4 — Plan compliance, code review, manual QA, 
   - Design: `docs/design/evm-integration/BLOCKERS.md` — resolved blockers to confirm
 
   **Acceptance Criteria**:
-  - [ ] All 9 INTENT.md success criteria verified with evidence
-  - [ ] All resolved blockers (B-001, B-002, B-R01, B-R02) confirmed implemented
-  - [ ] No active blockers (B-003, B-004) accidentally in scope
+  - [x] All 9 INTENT.md success criteria verified with evidence
+  - [x] All resolved blockers (B-001, B-002, B-R01, B-R02) confirmed implemented
+  - [x] No active blockers (B-003, B-004) accidentally in scope
 
   **QA Scenarios**:
   ```
@@ -874,9 +874,9 @@ Wave 5 (Final Verification): F1-F4 — Plan compliance, code review, manual QA, 
   - Pattern: `crates/consensus/src/app.rs` — Reference trait patterns
 
   **Acceptance Criteria**:
-  - [ ] `nix develop --command cargo clippy -p state -p app -p app-evm -- -D warnings` passes
-  - [ ] No `unsafe` blocks in new crates
-  - [ ] All public items have doc comments
+  - [x] `nix develop --command cargo clippy -p state -p app -p app-evm -- -D warnings` passes
+  - [x] No `unsafe` blocks in new crates
+  - [x] All public items have doc comments
 
   **QA Scenarios**:
   ```
@@ -912,10 +912,10 @@ Wave 5 (Final Verification): F1-F4 — Plan compliance, code review, manual QA, 
   - Config: `flake.nix` — Nix dev shell
 
   **Acceptance Criteria**:
-  - [ ] `nix develop --command cargo build` succeeds (default features)
-  - [ ] `nix develop --command cargo build -p whirlpool-node --features evm` succeeds
-  - [ ] `nix develop --command cargo test` — all tests pass (default)
-  - [ ] `nix develop --command cargo test -p whirlpool-node --features evm` — all tests pass
+  - [x] `nix develop --command cargo build` succeeds (default features)
+  - [x] `nix develop --command cargo build -p whirlpool-node --features evm` succeeds
+  - [x] `nix develop --command cargo test` — all tests pass (default)
+  - [x] `nix develop --command cargo test -p whirlpool-node --features evm` — all tests pass
 
   **QA Scenarios**:
   ```
@@ -957,11 +957,11 @@ Wave 5 (Final Verification): F1-F4 — Plan compliance, code review, manual QA, 
   - Design: `docs/design/evm-integration/BLOCKERS.md` — B-003, B-004 must NOT be implemented
 
   **Acceptance Criteria**:
-  - [ ] No files in `vendor/` modified (git diff clean)
-  - [ ] No RocksDB/MDBX references in new crates
-  - [ ] No tx pool implementation
-  - [ ] No RPC endpoints
-  - [ ] State root uses flat keccak256 only (no MPT)
+  - [x] No files in `vendor/` modified (git diff clean)
+  - [x] No RocksDB/MDBX references in new crates
+  - [x] No tx pool implementation
+  - [x] No RPC endpoints
+  - [x] State root uses flat keccak256 only (no MPT)
 
   **QA Scenarios**:
   ```
