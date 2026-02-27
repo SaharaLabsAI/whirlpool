@@ -1,10 +1,17 @@
 use std::sync::{Arc, RwLock};
 
 use alloy_primitives::{B256, Bytes, U256};
-use app::{EvmBlock, TxSource};
-use reth_primitives_traits::{Header, SealedHeader};
+use app::{Application, ApplicationError, EvmBlock, ExecutionResult, TxSource};
+use alloy_trie::EMPTY_ROOT_HASH;
 
+use reth_primitives_traits::{Header, SealedHeader};
 use crate::config::WhirlpoolEvmConfig;
+use crate::error::EvmAppError;
+
+/// Trait for accessing state root from a database.
+pub trait StateProvider {
+    fn state_root(&self) -> B256;
+}
 
 /// Converts an `EvmBlock` into an Ethereum `Header`.
 fn build_header_from_evm_block(block: &EvmBlock) -> Header {
@@ -47,6 +54,98 @@ impl<DB> EvmApplication<DB> {
             evm_config,
             state_db,
             tx_source,
+        }
+    }
+}
+
+impl<DB> Application for EvmApplication<DB>
+where
+    DB: StateProvider + Clone + Send + Sync + 'static,
+{
+    type Block = EvmBlock;
+    type Result = ExecutionResult;
+    type Error = EvmAppError;
+
+    fn genesis(&self) -> impl std::future::Future<Output = Self::Block> + Send {
+        async move {
+            let state_root = {
+                let db = self.state_db.read().unwrap();
+                db.state_root()
+            };
+
+            EvmBlock {
+                height: 0,
+                parent_id: [0u8; 32],
+                state_root: state_root.0,
+                transactions_root: EMPTY_ROOT_HASH.0,
+                receipts_root: EMPTY_ROOT_HASH.0,
+                gas_used: 0,
+                timestamp: 0,
+                transactions: vec![],
+            }
+        }
+    }
+
+    fn propose(
+        &self,
+        parent: &Self::Block,
+        height: u64,
+    ) -> impl std::future::Future<Output = Result<(Self::Block, Self::Result), Self::Error>> + Send {
+        async move {
+            // MVP: Empty block execution (no transaction processing)
+            let state_root = {
+                let db = self.state_db.read().unwrap();
+                db.state_root()
+            };
+
+            let block = EvmBlock {
+                height,
+                parent_id: parent.compute_id(),
+                state_root: state_root.0,
+                transactions_root: EMPTY_ROOT_HASH.0,
+                receipts_root: EMPTY_ROOT_HASH.0,
+                gas_used: 0,
+                timestamp: parent.timestamp + 12,
+                transactions: vec![],
+            };
+
+            let result = ExecutionResult {
+                state_root: state_root.0,
+                receipts_root: EMPTY_ROOT_HASH.0,
+                gas_used: 0,
+                receipt_count: 0,
+            };
+
+            Ok((block, result))
+        }
+    }
+
+    fn verify(
+        &self,
+        _parent: &Self::Block,
+        block: &Self::Block,
+    ) -> impl std::future::Future<Output = Result<Self::Result, Self::Error>> + Send {
+        async move {
+            // Compute expected state root
+            let computed_state_root = {
+                let db = self.state_db.read().unwrap();
+                db.state_root()
+            };
+
+            // Verify state root matches
+            if computed_state_root.0 != block.state_root {
+                return Err(EvmAppError::StateRootMismatch {
+                    expected: block.state_root,
+                    computed: computed_state_root.0,
+                });
+            }
+
+            Ok(ExecutionResult {
+                state_root: block.state_root,
+                receipts_root: block.receipts_root,
+                gas_used: block.gas_used,
+                receipt_count: 0,
+            })
         }
     }
 }

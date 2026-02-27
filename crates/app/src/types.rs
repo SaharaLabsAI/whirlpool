@@ -30,7 +30,7 @@ pub struct EvmBlock {
 }
 
 impl EvmBlock {
-    fn compute_id(&self) -> BlockId {
+    pub fn compute_id(&self) -> BlockId {
         let mut hasher = Sha256::new();
         hasher.update(self.height.to_le_bytes());
         hasher.update(self.parent_id);
