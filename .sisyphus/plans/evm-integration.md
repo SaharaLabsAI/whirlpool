@@ -607,7 +607,7 @@ Wave 5 (Final Verification): F1-F4 — Plan compliance, code review, manual QA, 
 
 ---
 
-- [ ] 6. Integration Tests — Application + EVM Execution
+- [x] 6. Integration Tests — Application + EVM Execution
 
   **What to do**:
   1. Create `crates/app-evm/tests/` directory for integration tests
