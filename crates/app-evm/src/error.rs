@@ -1,0 +1,28 @@
+use app::ApplicationError;
+
+#[derive(Debug, thiserror::Error)]
+pub enum EvmAppError {
+    #[error("Execution error: {0}")]
+    Execution(String),
+    #[error("State root mismatch: expected {expected:?}, computed {computed:?}")]
+    StateRootMismatch { expected: [u8; 32], computed: [u8; 32] },
+    #[error("State error: {0}")]
+    State(String),
+    #[error("Invalid block: {0}")]
+    InvalidBlock(String),
+}
+
+impl From<EvmAppError> for ApplicationError {
+    fn from(err: EvmAppError) -> Self {
+        match err {
+            EvmAppError::Execution(message) => ApplicationError::Execution(message),
+            EvmAppError::StateRootMismatch { expected, computed } => ApplicationError::
+                Verification(format!(
+                    "State root mismatch: expected {:?}, computed {:?}",
+                    expected, computed
+                )),
+            EvmAppError::State(message) => ApplicationError::State(message),
+            EvmAppError::InvalidBlock(message) => ApplicationError::Verification(message),
+        }
+    }
+}

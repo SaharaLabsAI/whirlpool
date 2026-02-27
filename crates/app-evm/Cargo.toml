@@ -9,10 +9,13 @@ state = { path = "../state" }
 consensus = { path = "../consensus" }
 reth-evm = { path = "../../vendor/reth/crates/evm/evm" }
 reth-evm-ethereum = { path = "../../vendor/reth/crates/ethereum/evm" }
+reth-ethereum-primitives = { path = "../../vendor/reth/crates/ethereum/primitives" }
 reth-revm = { path = "../../vendor/reth/crates/revm" }
 reth-execution-types = { path = "../../vendor/reth/crates/evm/execution-types" }
 reth-execution-errors = { path = "../../vendor/reth/crates/evm/execution-errors" }
 reth-primitives-traits = { path = "../../vendor/reth/crates/primitives-traits" }
 reth-chainspec = { path = "../../vendor/reth/crates/chainspec" }
+alloy-genesis = "1.0.31"
+alloy-primitives = "1.5.0"
 revm = "34"
 thiserror = "2"

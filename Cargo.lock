@@ -634,9 +634,12 @@ dependencies = [
 name = "app-evm"
 version = "0.1.0"
 dependencies = [
+ "alloy-genesis",
+ "alloy-primitives",
  "app",
  "consensus",
  "reth-chainspec",
+ "reth-ethereum-primitives",
  "reth-evm",
  "reth-evm-ethereum",
  "reth-execution-errors",

@@ -26,3 +26,13 @@
 - cargo check: PASSED (exit 0, 2 non-blocking warnings)
 - cargo build: PASSED (exit 0, "Finished `dev` profile")
 - All 3 new crates scaffold correctly with empty stubs
+
+## [2026-02-27T15:38:08Z] Task 3: App Crate Implementation
+- Commonware trait import paths: `commonware_codec::{EncodeSize, Error as CodecError, Read as CodecRead, Write as CodecWrite}`, `commonware_consensus::{Block as VendorBlock, Heightable}`, `commonware_cryptography::{sha256, Committable, Digestible}`.
+- ConsensusError mapping: `InvalidBlock` (not `Verification`) in `ApplicationAdapter::verify()` for application-level verification failures.
+- RPITIT pattern: `Application` and adapter/consensus bridges use `fn ... -> impl Future<Output = ...> + Send` without `async-trait`; adapter methods wrap delegation in `async move` only where output shape changes (`propose`/`verify`).
+
+## [2026-02-27T15:50:37Z] Task 4: App-EVM Config Implementation
+- ConfigureEvm delegation pattern: WhirlpoolEvmConfig is a newtype wrapper over EthEvmConfig and delegates all required ConfigureEvm methods (`block_executor_factory`, `block_assembler`, `evm_env`, `next_evm_env`, `context_for_block`, `context_for_next_block`) directly to `inner`, while preserving associated types via `<EthEvmConfig as ConfigureEvm>::...`.
+- ChainSpec builder: `ChainSpecBuilder::default().chain(Chain::from_id(313_371)).genesis(Genesis { gas_limit: 30_000_000, difficulty: U256::ZERO, ..Default::default() }).cancun_activated().build()` yields the expected chain id, genesis gas limit, and Cancun active at timestamp 0; Cancun activation check requires bringing `reth_chainspec::EthereumHardforks` trait into scope in tests.
+- Import paths: `alloy_genesis::Genesis`, `alloy_primitives::U256`, `reth_chainspec::{Chain, ChainSpec, ChainSpecBuilder, EthereumHardforks}`, `reth_ethereum_primitives::EthPrimitives`, `reth_evm::{ConfigureEvm, EvmEnvFor, ExecutionCtxFor, NextBlockEnvAttributes}`, `reth_evm_ethereum::EthEvmConfig`, `reth_primitives_traits::{BlockTy, HeaderTy, SealedBlock, SealedHeader}`, `app::ApplicationError`.
