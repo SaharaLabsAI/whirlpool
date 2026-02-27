@@ -65,3 +65,7 @@
 - Cross-crate lifecycle tests can combine direct `Application` calls for executor error typing (`EvmAppError::StateRootMismatch`) with `ApplicationAdapter` calls for consensus mapping assertions (`ConsensusError::InvalidBlock`).
 - For state-corruption resistance checks, forcing a failed `verify()` on a tampered block does not mutate DB-backed state; a subsequent `propose()` from a clean parent still succeeds.
 - Full crate verification target `nix develop --command cargo test -p app-evm` now passes with 18 tests total (4 unit + 4 application integration + 7 cross-crate + 3 execution integration).
+
+- Added optional `revm` and `alloy-primitives` deps to `crates/whirlpool-node/Cargo.toml` and wired them into `evm` feature to satisfy `TestStateDb` trait impl references in `main.rs`.
+- `revm` must be a crates.io dep (`version = "34"`) in this workspace; vendor path `vendor/reth/crates/revm` points to package `reth-revm`, not crate `revm`.
+- `alloy-primitives` version must align with EVM path (`1.5.x`) to avoid `B256` type mismatch between `alloy_primitives` versions.

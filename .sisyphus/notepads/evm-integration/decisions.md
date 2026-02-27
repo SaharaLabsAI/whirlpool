@@ -7,3 +7,6 @@
 
 ## [2026-02-27T17:20Z] Task 8 decision
 - Added `crates/app-evm/tests/cross_crate_flows.rs` as a standalone integration suite to validate app/app-evm/state interactions without modifying existing tests; reused local `TestStateDb` and `build_app()`/`build_adapter()` helpers for consistency.
+
+- Kept `TestStateDb` in `whirlpool-node/src/main.rs` and implemented `StateProvider` with `revm::primitives::B256` to match trait resolution in the active dependency graph.
+- Feature-gated `EmptyBlockApp` import under `#[cfg(not(feature = "evm"))]` to avoid unused-import warnings in default EVM builds while preserving no-feature compile path.

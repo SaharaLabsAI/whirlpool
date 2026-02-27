@@ -1,2 +1,0 @@
-warning: Git tree '/home/dev/sahara/web3/agent/playground/whirlpool' is dirty
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.05s

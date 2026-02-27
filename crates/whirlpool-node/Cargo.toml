@@ -12,11 +12,20 @@ commonware-codec = { path = "../../vendor/commonware/codec" }
 commonware-cryptography = { path = "../../vendor/commonware/cryptography" }
 p2p-commonware = { path = "../p2p-commonware" }
 commonware-runtime = { path = "../../vendor/commonware/runtime" }
+app = { path = "../app", optional = true }
+app-evm = { path = "../app-evm", optional = true }
+state = { path = "../state", optional = true }
+revm = { version = "34", optional = true }
+alloy-primitives = { version = "1.5.0", optional = true }
 sha2 = "0.10"
 bytes = "1"
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[features]
+default = ["evm"]
+evm = ["dep:app", "dep:app-evm", "dep:state", "dep:revm", "dep:alloy-primitives"]
 
 [[bin]]
 name = "whirlpool-node"

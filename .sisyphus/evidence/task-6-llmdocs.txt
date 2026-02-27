@@ -1,5 +1,0 @@
-llmdocs/architecture/simplex-adapter.md
-llmdocs/architecture/whirlpool-node.md
-llmdocs/guides/wiring-simplex-adapter.md
-llmdocs/guides/whirlpool-node-components.md
-llmdocs/index.md

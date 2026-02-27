@@ -677,7 +677,7 @@ Wave 5 (Final Verification): F1-F4 — Plan compliance, code review, manual QA, 
 
 ---
 
-- [ ] 7. Node Wiring — EvmApplication in whirlpool-node
+- [x] 7. Node Wiring — EvmApplication in whirlpool-node
 
   **What to do**:
   1. Add dependencies to `crates/whirlpool-node/Cargo.toml`:

@@ -1,2 +1,0 @@
-    Checking consensus-core v0.1.0 (/home/dev/sahara/web3/agent/playground/whirlpool/crates/consensus-core)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.10s

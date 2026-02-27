@@ -7,3 +7,6 @@
 
 ## [2026-02-27T16:47Z] Task 6 gotcha
 - The task's requested import path `app_evm::EvmApplication` is not exported from crate root; correct path is `app_evm::executor::EvmApplication`.
+
+- Initial attempt using `revm = { path = "../../vendor/reth/crates/revm" }` failed: Cargo reported no matching package `revm` because that path package is named `reth-revm`.
+- Initial attempt with `alloy-primitives = "0.8"` caused compile errors from mixed `alloy_primitives::B256` versions (`0.8.x` vs `1.5.x`) in `StateProvider` return type.

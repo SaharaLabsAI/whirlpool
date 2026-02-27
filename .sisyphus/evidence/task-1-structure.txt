@@ -1,4 +1,0 @@
-crates/consensus-commonware/Cargo.toml
-crates/consensus-commonware/src/lib.rs
-crates/consensus-core/Cargo.toml
-crates/consensus-core/src/lib.rs
