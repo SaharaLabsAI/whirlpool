@@ -56,3 +56,7 @@
 ## [2026-02-27T16:47Z] Task 6: application_integration tests
 - `InMemoryStateDb` does not implement `app_evm::executor::StateProvider`; integration tests need a local wrapper (e.g., `TestStateDb`) that delegates `state_root()` to `InMemoryStateDb`.
 - `cargo test -p app-evm application_integration` is a name filter and can report 0 tests run; use `cargo test -p app-evm --test application_integration` to execute the integration test target explicitly.
+
+## [2026-02-27T17:05Z] Task 7: evm_execution_integration tests
+- `EvmApplication` is imported from `app_evm::executor::EvmApplication`; it is not re-exported at crate root.
+- Empty-block execution contract in current MVP executor: `propose()` returns `ExecutionResult { gas_used: 0, receipt_count: 0 }` and state roots from `StateProvider`; integration coverage should assert these invariants directly.
