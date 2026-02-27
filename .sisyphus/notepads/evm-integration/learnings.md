@@ -52,3 +52,7 @@
 - **Visibility fix**: Made EvmBlock::compute_id() public for use in EvmApplication::propose()
 - **Tests**: All 4 app-evm tests pass (config + header conversion)
 - **Pattern learned**: For ultrabrain tasks with complex type bridging, break into atomic steps OR use manual implementation to avoid timeouts
+
+## [2026-02-27T16:47Z] Task 6: application_integration tests
+- `InMemoryStateDb` does not implement `app_evm::executor::StateProvider`; integration tests need a local wrapper (e.g., `TestStateDb`) that delegates `state_root()` to `InMemoryStateDb`.
+- `cargo test -p app-evm application_integration` is a name filter and can report 0 tests run; use `cargo test -p app-evm --test application_integration` to execute the integration test target explicitly.
