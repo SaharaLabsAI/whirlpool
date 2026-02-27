@@ -43,3 +43,12 @@
 - Required Header fields: non-optional fields on alloy header are `parent_hash`, `ommers_hash`, `beneficiary`, `state_root`, `transactions_root`, `receipts_root`, `logs_bloom`, `difficulty`, `number`, `gas_limit`, `gas_used`, `timestamp`, `mix_hash`, `nonce`, `extra_data`; optional fields are `withdrawals_root`, `base_fee_per_gas`, `blob_gas_used`, `excess_blob_gas`, `parent_beacon_block_root`, `requests_hash` (via extension)
 - Hash computation method: `header.hash_slow()` via `alloy_primitives::Sealable`
 - SealedHeader constructor: `SealedHeader::new(header, hash)` (also available: `SealedHeader::seal_slow(header)`)
+
+## [2026-02-28 Task 5 Complete] EvmApplication Implementation
+- **Resolution**: Manually implemented Application trait with Edit tool to break timeout loop
+- **StateProvider trait**: Abstraction added for DB state_root access, allows generic impl
+- **Application impl**: genesis() uses computed state_root (NOT EMPTY_ROOT_HASH), propose() MVP empty blocks with parent.timestamp+12, verify() checks state_root mismatch
+- **Dependencies resolved**: Added alloy-trie = "0.9" to app-evm/Cargo.toml
+- **Visibility fix**: Made EvmBlock::compute_id() public for use in EvmApplication::propose()
+- **Tests**: All 4 app-evm tests pass (config + header conversion)
+- **Pattern learned**: For ultrabrain tasks with complex type bridging, break into atomic steps OR use manual implementation to avoid timeouts

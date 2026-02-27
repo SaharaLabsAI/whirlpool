@@ -511,7 +511,7 @@ Wave 5 (Final Verification): F1-F4 — Plan compliance, code review, manual QA, 
 
 ---
 
-- [ ] 5. App-EVM Crate — EvmApplication Implementation
+- [x] 5. App-EVM Crate — EvmApplication Implementation
 
   **What to do**:
   1. Implement `crates/app-evm/src/executor.rs`:
