@@ -60,3 +60,8 @@
 ## [2026-02-27T17:05Z] Task 7: evm_execution_integration tests
 - `EvmApplication` is imported from `app_evm::executor::EvmApplication`; it is not re-exported at crate root.
 - Empty-block execution contract in current MVP executor: `propose()` returns `ExecutionResult { gas_used: 0, receipt_count: 0 }` and state roots from `StateProvider`; integration coverage should assert these invariants directly.
+
+## [2026-02-27T17:20Z] Task 8: cross_crate_flows integration tests
+- Cross-crate lifecycle tests can combine direct `Application` calls for executor error typing (`EvmAppError::StateRootMismatch`) with `ApplicationAdapter` calls for consensus mapping assertions (`ConsensusError::InvalidBlock`).
+- For state-corruption resistance checks, forcing a failed `verify()` on a tampered block does not mutate DB-backed state; a subsequent `propose()` from a clean parent still succeeds.
+- Full crate verification target `nix develop --command cargo test -p app-evm` now passes with 18 tests total (4 unit + 4 application integration + 7 cross-crate + 3 execution integration).
