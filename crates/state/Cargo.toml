@@ -7,3 +7,4 @@ edition.workspace = true
 revm = "34"
 sha2 = "0.10"
 thiserror = "2"
+alloy-genesis = "1.5"
