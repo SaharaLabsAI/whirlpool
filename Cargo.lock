@@ -634,11 +634,14 @@ dependencies = [
 name = "app-evm"
 version = "0.1.0"
 dependencies = [
+ "alloy-consensus",
+ "alloy-eips",
  "alloy-genesis",
  "alloy-primitives",
  "alloy-trie",
  "app",
  "consensus",
+ "futures",
  "reth-chainspec",
  "reth-ethereum-primitives",
  "reth-evm",
@@ -650,6 +653,7 @@ dependencies = [
  "revm",
  "state",
  "thiserror 2.0.18",
+ "tokio",
 ]
 
 [[package]]
