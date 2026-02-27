@@ -2,15 +2,13 @@
 
 ## Summary
 - Total: 6 blockers (2 scope-expansion, 1 information-gap, 1 decision-gap, 2 new)
-- Resolved this round: 4 (B-001 pending, B-003/B-004 new)
+- Resolved this round: 5 (B-003/B-004 remain active)
 ## Active blockers
 
-### [B-001] ChainSpec selection
-- **Type**: `decision-gap`
-- **Severity**: `blocking` (cannot implement without resolution)
-- **Affected crates**: `app-evm`
-- **Description**: `WhirlpoolEvmConfig::new(chain_spec: Arc<ChainSpec>)` requires a `ChainSpec` value. No chain ID, genesis configuration, or hardfork schedule exists anywhere in the Whirlpool workspace (`crates/`). The `ChainSpec` determines chain ID, genesis state, and which EVM hardforks are active at which block heights. Reth provides `ChainSpecBuilder` for construction.
-- **Suggested resolution**: Product/team decision required — choose a chain ID for Sahara, decide on genesis allocations, and specify hardfork activation schedule (at minimum Shanghai + Cancun). Once decided, construct via `ChainSpecBuilder::default().chain(SAHARA_CHAIN_ID).genesis(genesis).shanghai_activated().cancun_activated().build()`. Could live in `app-evm` as a constant or be loaded from a config file in `whirlpool-node`.
+### ~~[B-001] ChainSpec selection~~ → RESOLVED
+- **Type**: `decision-gap` → **resolved (round 3)**
+- **Resolution**: `build_sahara_chain_spec()` constructs `ChainSpec` via reth's `ChainSpecBuilder` (grounded: `vendor/reth/crates/chainspec/src/spec.rs::ChainSpecBuilder`). Decisions: chain ID = `313_371`, all hardforks through Cancun activated at genesis (block 0 / timestamp 0), empty genesis allocation (no pre-funded accounts), gas limit 30M, difficulty zero (PoS). Function lives in `app-evm::config` module. Construction: `ChainSpec::builder().chain(Chain::from_id(313_371)).genesis(genesis).cancun_activated().build()`. Chain ID to be registered on chainlist.org before mainnet launch.
+- **Affected docs**: `app-evm/README.md`, `wiring/evm-execution.md`, `architecture/node-startup.md`, `domains/evm-execution.md`, `INTENT.md`
 
 ### ~~[B-002] State database implementation~~ → RESOLVED
 - **Type**: `scope-expansion` → **resolved (round 2)**

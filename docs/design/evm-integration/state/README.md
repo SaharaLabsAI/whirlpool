@@ -97,7 +97,7 @@ impl InMemoryStateDb {
     /// `GenesisAccount` is re-exported from `alloy_genesis::GenesisAccount`
     /// (provides `balance: U256`, `nonce: Option<u64>`, `code: Option<Bytes>`,
     /// `storage: Option<HashMap<B256, B256>>`).
-    /// BLOCKER: depends on ChainSpec resolution (B-001) for genesis definition.
+    /// BLOCKER resolved (round 3): ChainSpec defines genesis via `alloy_genesis::Genesis`. For empty genesis, `with_genesis(Default::default())`. For custom allocations, pass `chain_spec.genesis.alloc.clone()`.
     pub fn with_genesis(alloc: HashMap<Address, alloy_genesis::GenesisAccount>) -> Self { ... }
 
     /// Apply execution diff to state. Called after block execution succeeds.
@@ -140,7 +140,7 @@ No configuration — `InMemoryStateDb` is constructed programmatically via `new(
 | Field | Type | Default | Source | Evidence |
 |---|---|---|---|---|
 | Initial accounts | `HashMap<Address, DbAccount>` | empty | `InMemoryStateDb::new()` | [PROPOSED] |
-| Genesis accounts | `HashMap<Address, GenesisAccount>` | BLOCKER — depends on B-001 | `InMemoryStateDb::with_genesis()` | [PROPOSED] |
+| Genesis accounts | `HashMap<Address, GenesisAccount>` | empty (round 3 decision: empty genesis) | `InMemoryStateDb::with_genesis()` | [PROPOSED] <!-- continuation round 3: B-001 resolved --> |
 
 ## Provider interfaces & swap points
 
@@ -232,7 +232,7 @@ InMemoryStateDb::state_root()
 
 ## Open questions / TODOs
 
-- BLOCKER: Genesis allocation depends on ChainSpec (B-001) — `with_genesis()` cannot be fully defined until chain config is resolved.
+- ~~BLOCKER: Genesis allocation depends on ChainSpec (B-001)~~ — Resolved (round 3). Chain ID `313_371`, empty genesis allocation. `with_genesis(Default::default())` or `with_genesis(chain_spec.genesis.alloc.clone())`. <!-- continuation round 3: B-001 resolved -->
 - BLOCKER: State root algorithm is a placeholder flat hash. Production requires MPT or Verkle trie with proof support.
 - UNKNOWN: Whether `commit()` should take `&BundleState` or `BundleState` (owned). Owned allows consuming the bundle; borrowed allows re-use.
 - UNKNOWN: Thread safety — should `InMemoryStateDb` be `Send + Sync`? HashMap-based impl is `Send + Sync` by default, but `Clone` for concurrent reads may need `Arc<RwLock<...>>` for shared access patterns.

@@ -103,6 +103,6 @@ fn build_next_block(config: &WhirlpoolEvmConfig, parent: &SealedHeader, attrs: N
 
 ## Open questions / TODOs
 
-- BLOCKER: Which `ChainSpec` to use? Options: (a) reuse reth's `ChainSpec` with Sahara-specific chain ID and parameters, (b) define a custom `SaharaChainSpec` implementing `EthChainSpec`. Decision affects `WhirlpoolEvmConfig` construction.
+- ~~BLOCKER: Which `ChainSpec` to use?~~ **Resolved (round 3)**: Reuse reth's `ChainSpec` via `ChainSpecBuilder`. Sahara chain ID = `313_371` [PROPOSED], all hardforks through Cancun activated at genesis (block 0, timestamp 0), empty genesis allocation (no pre-funded accounts), 30M gas limit. Construction: `ChainSpec::builder().chain(Chain::from_id(313_371)).genesis(genesis).cancun_activated().build()`. Grounded on `vendor/reth/crates/chainspec/src/spec.rs::ChainSpecBuilder`. <!-- continuation round 3: B-001 resolved -->
 - UNKNOWN: Whether custom precompiles are needed at this stage. If yes, `EvmFactory` needs customization.
-- UNKNOWN: State database implementation — `State<DB>` requires a `Database` impl. This is out of scope but `app-evm` must define the DB generic parameter boundary.
+- ~~UNKNOWN: State database implementation~~ — Resolved (round 2). `InMemoryStateDb` from `state` crate. See `state/README.md`. <!-- continuation round 2: B-002 resolved -->

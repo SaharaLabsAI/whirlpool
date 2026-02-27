@@ -53,6 +53,7 @@ This mirrors the existing layering pattern: `consensus` (abstract) → `consensu
 6. All proposed interfaces are grounded in evidence from existing reth EVM patterns
 7. `state` crate compiles and provides an in-memory `Database` implementation that `EvmApplication` can use to execute blocks <!-- continuation round 2 -->
 8. State root computation produces deterministic results for identical execution sequences <!-- continuation round 2 -->
+9. `app-evm` provides a `build_sahara_chain_spec()` function that constructs a valid `ChainSpec` with a defined chain ID, hardfork schedule, and genesis configuration <!-- continuation round 3 -->
 
 ## Grounding summary
 

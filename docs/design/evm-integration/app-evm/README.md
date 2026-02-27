@@ -165,25 +165,52 @@ pub enum EvmAppError {
 ### WhirlpoolEvmConfig construction [PROPOSED]
 
 ```rust
-let chain_spec = Arc::new(ChainSpecBuilder::default()
-    .chain(SAHARA_CHAIN_ID.into())
-    .genesis(sahara_genesis())
-    .shanghai_activated()
-    .cancun_activated()
-    .build());
+let chain_spec = Arc::new(build_sahara_chain_spec());
+
+/// Build the Sahara / Whirlpool chain specification.
+/// Uses reth's ChainSpecBuilder with all hardforks through Cancun activated at genesis.
+/// [PROPOSED] — grounded on `vendor/reth/crates/chainspec/src/spec.rs::ChainSpecBuilder`
+pub fn build_sahara_chain_spec() -> ChainSpec {
+    // Chain ID: large random value to avoid collisions with public chains.
+    // Range chosen per EIP-3770 / chainlist.org conventions for private/L2 chains.
+    // TODO: register on chainlist.org once finalized.
+    const SAHARA_CHAIN_ID: u64 = 313_371;  // [PROPOSED] — placeholder, must be finalized
+
+    let genesis = Genesis {
+        // Empty genesis — no pre-funded accounts.
+        // Allocations can be added later via with_genesis() on InMemoryStateDb
+        // or by extending this genesis config.
+        alloc: Default::default(),
+        difficulty: U256::ZERO,  // PoS chain — no PoW difficulty
+        gas_limit: 30_000_000,   // 30M gas limit — standard for modern L2s
+        timestamp: 0,            // genesis timestamp; overridden at actual chain launch
+        extra_data: Bytes::default(),
+        nonce: 0,
+        mix_hash: B256::ZERO,
+        coinbase: Address::ZERO,
+        ..Default::default()
+    };
+
+    ChainSpec::builder()
+        .chain(Chain::from_id(SAHARA_CHAIN_ID))
+        .genesis(genesis)
+        .cancun_activated()  // activates all prior forks (frontier→…→paris→shanghai→cancun) at block/timestamp 0
+        .build()
+}
 
 let evm_config = WhirlpoolEvmConfig::new(chain_spec);
 ```
 
-BLOCKER: `SAHARA_CHAIN_ID` and genesis configuration are not yet defined. Must be provided by a chain configuration module.
+<!-- continuation round 3: B-001 resolved -->
+**Decision (round 3)**: `SAHARA_CHAIN_ID = 313_371` (placeholder, to be registered on chainlist.org). All hardforks through Cancun activated at genesis (block 0, timestamp 0). Empty genesis allocation. `build_sahara_chain_spec()` lives in `app-evm::config` module and is exported as a public function.
 
 ## Config defaults table
 
 | Field | Type | Default | Source | Override path | Evidence |
 |---|---|---|---|---|---|
-| Chain ID | `u64` | `UNKNOWN` | BLOCKER — not yet defined | `ChainSpec::chain()` | — |
-| Hardfork schedule | `ChainHardforks` | Shanghai + Cancun [PROPOSED] | Chain spec builder | `ChainSpecBuilder::shanghai_activated().cancun_activated()` | Pattern: `vendor/reth/crates/chainspec/src/spec.rs` |
-| Genesis state | `Genesis` | `UNKNOWN` | BLOCKER — not yet defined | `ChainSpecBuilder::genesis()` | — |
+| Chain ID | `u64` | `313_371` [PROPOSED] | `build_sahara_chain_spec()` | `ChainSpecBuilder::chain(Chain::from_id(...))` | `vendor/reth/crates/chainspec/src/spec.rs::ChainSpecBuilder` <!-- continuation round 3: B-001 resolved --> |
+| Hardfork schedule | `ChainHardforks` | All through Cancun at genesis (block 0 / timestamp 0) | `build_sahara_chain_spec()` | `ChainSpecBuilder::cancun_activated()` | `vendor/reth/crates/chainspec/src/spec.rs::ChainSpecBuilder::cancun_activated` <!-- continuation round 3 --> |
+| Genesis state | `Genesis` | Empty (`alloc: Default::default()`, `difficulty: U256::ZERO`, `gas_limit: 30_000_000`) | `build_sahara_chain_spec()` | `ChainSpecBuilder::genesis()` | `alloy_genesis::Genesis` <!-- continuation round 3 --> |
 | EVM factory | `EthEvmFactory` | `EthEvmFactory` (ZST) | Hardcoded | — | `alloy_evm::EthEvmFactory` |
 | Receipt builder | `RethReceiptBuilder` | `RethReceiptBuilder` (ZST) | Hardcoded | — | `vendor/reth/crates/ethereum/evm/src/receipt.rs::RethReceiptBuilder` |
 
@@ -261,7 +288,7 @@ WhirlpoolEvmConfig::new(chain_spec)
 
 ## Open questions / TODOs
 
-- BLOCKER: Chain spec (chain ID, genesis, hardforks) — must be defined for Sahara Chain.
+- ~~BLOCKER: Chain spec (chain ID, genesis, hardforks)~~ — Resolved (round 3). `SAHARA_CHAIN_ID = 313_371`, all hardforks through Cancun at genesis, empty allocation. See `build_sahara_chain_spec()` in Config schema section.
 - ~~BLOCKER: State database~~ — Resolved (round 2). `InMemoryStateDb` from `state` crate provides `Database + Clone`. See `state/README.md`.
 - BLOCKER: Transaction source — how `propose()` gets pending txs.
 - UNKNOWN: Whether `WhirlpoolEvmConfig` should diverge from `EthEvmConfig` initially or start as a thin wrapper.

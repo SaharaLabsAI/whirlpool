@@ -25,12 +25,15 @@ fn main():
 ```pseudo
 fn main():
     Runner::start(async {
-        // 1. Chain configuration
+        // 1. Chain configuration  <!-- continuation round 3: B-001 resolved -->
+        //    build_sahara_chain_spec() uses ChainSpecBuilder::cancun_activated()
+        //    with chain ID 313_371, empty genesis, 30M gas limit.
+        //    Grounded: vendor/reth/crates/chainspec/src/spec.rs::ChainSpecBuilder
         chain_spec = Arc::new(build_sahara_chain_spec())
 
         // 2. State database
         // <!-- continuation round 2: B-002 resolved -->
-        state_db = InMemoryStateDb::with_genesis(chain_spec.genesis_alloc())
+        state_db = InMemoryStateDb::with_genesis(chain_spec.genesis.alloc.clone())  // alloy_genesis::Genesis.alloc: BTreeMap<Address, GenesisAccount> <!-- continuation round 3: B-001 resolved -->
         // 3. EVM configuration
         evm_config = WhirlpoolEvmConfig::new(chain_spec)
 
@@ -60,7 +63,7 @@ fn main():
 | App type | `EmptyBlockApp` | `ApplicationAdapter<EvmApplication<DB>>` |
 | Block type | `EmptyBlock` | `EvmBlock` |
 | State database | None (stateless) | `InMemoryStateDb` from `state` crate — initialized via `with_genesis()` |
-| Chain config | None | `Arc<ChainSpec>` via reth-chainspec |
+| Chain config | None | `Arc<ChainSpec>` via `build_sahara_chain_spec()` — chain ID `313_371`, Cancun-activated, empty genesis <!-- continuation round 3: B-001 resolved --> |
 | EVM executor | None | `WhirlpoolEvmConfig` + `EthBlockExecutorFactory` |
 | Event sink | `FinalizationSink` (height counter) | `EvmFinalizationSink` [PROPOSED] (state commitment) |
 

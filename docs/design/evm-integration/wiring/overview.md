@@ -16,7 +16,7 @@ Focus: the new `app` and `app-evm` crates and their integration with existing `c
 
 ## Blockers
 
-- **ChainSpec selection**: `WhirlpoolEvmConfig` needs a chain spec. Decision: reuse reth `ChainSpec` with custom chain ID, or define `SaharaChainSpec`. Affects `app-evm` construction and all `evm_env` / `next_evm_env` methods.
+- ~~**ChainSpec selection**~~: Resolved (round 3). `build_sahara_chain_spec()` in `app-evm::config` constructs `ChainSpec` with chain ID `313_371`, all hardforks through Cancun at genesis, empty allocation. See `app-evm/README.md`. <!-- continuation round 3: B-001 resolved -->
 - ~~**State DB generic**~~: Resolved in round 2 — `InMemoryStateDb` from `state` crate satisfies `Database + Clone`. See `wiring/state-storage.md`.
 - **Transaction source**: `Application::propose()` needs pending transactions. Tx pool is out of scope but the interface must accommodate it.
 

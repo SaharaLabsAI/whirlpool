@@ -71,5 +71,5 @@ Snapshots are achieved through the standard `Clone` trait. Since the state is cu
 
 ## Open wiring questions
 
-- [BLOCKER B-001] **ChainSpec still unresolved**: The exact format of the genesis allocation remains to be defined, which affects how `InMemoryStateDb::with_genesis` is called.
+- ~~[BLOCKER B-001] **ChainSpec still unresolved**~~ — Resolved (round 3). Genesis allocation is empty (`Default::default()`). Chain ID `313_371`, Cancun-activated. `InMemoryStateDb::with_genesis` receives `chain_spec.genesis.alloc.clone()`. <!-- continuation round 3: B-001 resolved -->
 - **State persistence**: Persistence across node restarts is currently out of scope for the MVP. The wiring assumes an in-memory database that is re-initialized from genesis or a snapshot at each start.
