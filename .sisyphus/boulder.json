@@ -1,13 +1,9 @@
 {
-  "active_plan": "/home/dev/sahara/web3/agent/playground/whirlpool/.sisyphus/plans/p2p-implementation.md",
-  "started_at": "2026-02-26T07:24:50.691Z",
+  "active_plan": "/home/dev/sahara/web3/agent/playground/whirlpool/.sisyphus/plans/evm-integration.md",
+  "started_at": "2026-02-27T14:42:34.369Z",
   "session_ids": [
-    "ses_3673141d6fferPgigBaPr6vRQf",
-    "ses_3671cc41cffeTayJG4PViopLsh",
-    "ses_3670b1affffeIyoSNwsVejE2Ge",
-    "ses_36652f179ffe3sLMzCkUrM9qH8",
-    "ses_365782a66ffeGNaNyHm6upJWkX"
+    "ses_360983159ffe1uD2xkunF1uS4A"
   ],
-  "plan_name": "p2p-implementation",
+  "plan_name": "evm-integration",
   "agent": "atlas"
 }

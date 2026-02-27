@@ -1,0 +1,18 @@
+[package]
+name = "app-evm"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+app = { path = "../app" }
+state = { path = "../state" }
+consensus = { path = "../consensus" }
+reth-evm = { path = "../../vendor/reth/crates/evm/evm" }
+reth-evm-ethereum = { path = "../../vendor/reth/crates/ethereum/evm" }
+reth-revm = { path = "../../vendor/reth/crates/revm" }
+reth-execution-types = { path = "../../vendor/reth/crates/evm/execution-types" }
+reth-execution-errors = { path = "../../vendor/reth/crates/evm/execution-errors" }
+reth-primitives-traits = { path = "../../vendor/reth/crates/primitives-traits" }
+reth-chainspec = { path = "../../vendor/reth/crates/chainspec" }
+revm = "34"
+thiserror = "2"

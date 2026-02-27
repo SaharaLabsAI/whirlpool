@@ -1,0 +1,9 @@
+[package]
+name = "state"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+revm = "34"
+sha2 = "0.10"
+thiserror = "2"
