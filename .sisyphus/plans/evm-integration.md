@@ -228,7 +228,7 @@ Wave 5 (Final Verification): F1-F4 — Plan compliance, code review, manual QA, 
 
 ---
 
-- [ ] 2. State Crate — InMemoryStateDb Implementation
+- [x] 2. State Crate — InMemoryStateDb Implementation
 
   **What to do**:
   1. Implement `crates/state/src/error.rs`:
@@ -309,7 +309,7 @@ Wave 5 (Final Verification): F1-F4 — Plan compliance, code review, manual QA, 
 
 ---
 
-- [ ] 3. App Crate — Application Trait + EvmBlock + ApplicationAdapter
+- [x] 3. App Crate — Application Trait + EvmBlock + ApplicationAdapter
 
   **What to do**:
   1. Implement `crates/app/src/error.rs`:
@@ -421,7 +421,7 @@ Wave 5 (Final Verification): F1-F4 — Plan compliance, code review, manual QA, 
 
 ---
 
-- [ ] 4. App-EVM Crate — WhirlpoolEvmConfig + build_sahara_chain_spec()
+- [x] 4. App-EVM Crate — WhirlpoolEvmConfig + build_sahara_chain_spec()
 
   **What to do**:
   1. Implement `crates/app-evm/src/config.rs`:
@@ -771,7 +771,7 @@ Wave 5 (Final Verification): F1-F4 — Plan compliance, code review, manual QA, 
     Expected: All existing EmptyBlockApp tests still pass
     Evidence: .sisyphus/evidence/task-7-existing-tests.txt
 
-  Scenario: No vendor modifications
+  - [x] 8. Documentation — llmdocs Generation with ctx-update-doc Skill
     Tool: Bash
     Steps: git diff --name-only vendor/
     Expected: Empty output
