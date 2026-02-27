@@ -38,8 +38,15 @@ Consensus engine (via `consensus-simplex`) calls `ConsensusApp::propose(parent, 
 ### Stage 5: Block assembly
 - **Owner**: `BasicBlockBuilder::finish()` → `EthBlockAssembler` (vendor)
 - **Input**: `BlockAssemblerInput { evm_env, execution_ctx, parent, transactions, output, bundle_state, state_provider, state_root }`
-- **Action**: Computes state root from trie, assembles `Header` (parent_hash, state_root, transactions_root, receipts_root, gas_used, etc.), creates `BlockBody`
+- **Action**: Assembles `Header` (parent_hash, state_root, transactions_root, receipts_root, gas_used, etc.), creates `BlockBody`
 - **Output**: `BlockBuilderOutcome { block, execution_result, hashed_state, trie_updates }`
+
+<!-- continuation round 2 -->
+**State root in assembly**: `state_root` is an **input** to the assembler, not computed by it. The caller (`EvmApplication`) must:
+1. Extract `BundleState` via `State::take_bundle()` after execution
+2. Call `state_db.commit(&bundle_state)` to apply the diff to `InMemoryStateDb`
+3. Call `state_db.state_root()` to compute the new root
+4. Pass this root into `BlockAssemblerInput.state_root`
 
 ### Stage 6: Conversion to EvmBlock
 - **Owner**: `app-evm::EvmApplication`
@@ -76,14 +83,34 @@ async fn propose(&self, parent: &EvmBlock, height: u64) -> Result<(EvmBlock, Exe
         extra_data: Bytes::default(),
     };
 
-    let state = State::new(self.state_provider.clone());
-    let mut builder = self.evm_config.builder_for_next_block(state, &parent_header, attrs)?;
+    // <!-- continuation round 2: clone-based state isolation with Arc<RwLock> -->
+    // Application trait methods take &self, so state_db is wrapped in Arc<RwLock<InMemoryStateDb>>.
+    // We clone the inner InMemoryStateDb (not the Arc) to get an independent snapshot.
+    let state_snapshot = self.state_db.read().unwrap().clone();  // independent snapshot
+    let state = State::new(state_snapshot.clone());  // revm State wrapper
+    let evm_env = self.evm_config.next_evm_env(&parent_header, attrs.clone())?;
+    let ctx = self.evm_config.context_for_next_block(&parent_header, attrs)?;
+    let mut executor = self.evm_config.executor_factory().create_executor(state);
 
+    // Execute transactions one-by-one against the snapshot state
     for tx in self.pending_transactions() {
-        builder.execute_transaction(tx)?;
+        executor.execute_transaction(tx)?;
     }
 
-    let outcome = builder.finish(&self.state_provider)?;
-    Ok(self.outcome_to_evm_block(outcome, height, parent))
+    // Extract BundleState from executor, commit to snapshot, compute root
+    let BlockExecutionOutput { state: bundle_state, result, .. } = executor.finish();
+    let mut committed_snapshot = state_snapshot;
+    committed_snapshot.commit(&bundle_state);
+    let state_root = committed_snapshot.state_root();
+
+    // Assemble block with computed state_root (assembler receives root as input)
+    let block = self.assemble_block(&parent_header, &evm_env, &ctx, &result, state_root)?;
+
+    // Return block + bundle_state. Canonical state is NOT committed here.
+    // Commitment happens only when consensus finalizes this block,
+    // via EvmFinalizationSink::finalized() which calls:
+    //   self.state_db.write().unwrap().commit(&bundle_state);
+    //   self.state_db.write().unwrap().insert_block_hash(height, block_hash);
+    Ok((block, ExecutionResult { state_root, bundle_state, .. }))
 }
 ```

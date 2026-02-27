@@ -22,11 +22,12 @@ This mirrors the existing layering pattern: `consensus` (abstract) → `consensu
 - `crates/app/` — New crate with abstract application trait(s) for EVM-aware block proposal, execution, and verification
 - `crates/app-evm/` — New crate implementing `app` traits using `reth-evm` and `reth-evm-ethereum`
 - Integration points with existing `consensus::ConsensusApp` trait
+- `crates/state/` — New crate providing concrete in-memory EVM state database implementing `revm::Database`, state commitment (`BundleState` application), and state root computation <!-- continuation round 2: resolves B-002 -->
 - Block type design that carries EVM execution results (state root, receipts, etc.)
 - Design of the `ConfigureEvm` implementation for Whirlpool (`WhirlpoolEvmConfig`)
 
 ### Out of scope
-- State storage / database layer (will use reth-revm `State<DB>` abstractions but DB impl is deferred)
+- ~~State storage / database layer~~ → Moved in-scope (round 2, see `crates/state/`). Persistent storage backends (RocksDB, MDBX) remain out of scope.
 - Transaction pool / mempool
 - RPC / JSON-RPC layer
 - Network-level transaction propagation
@@ -39,6 +40,9 @@ This mirrors the existing layering pattern: `consensus` (abstract) → `consensu
 - `reth-execution-types` (`vendor/reth/crates/evm/execution-types/`) — `ExecutionOutcome`, `BlockExecutionOutput`
 - `reth-execution-errors` (`vendor/reth/crates/evm/execution-errors/`) — `BlockExecutionError`
 
+<!-- continuation round 2 -->
+- `revm` (via `reth-revm` re-exports) — `Database`, `DatabaseCommit`, `DatabaseRef` traits, `CacheDB`, `State<DB>` builder
+
 ## Success criteria
 
 1. `app` crate compiles and defines trait(s) that `EmptyBlockApp` could trivially implement (backwards-compatible abstraction)
@@ -47,6 +51,8 @@ This mirrors the existing layering pattern: `consensus` (abstract) → `consensu
 4. The design preserves the existing consensus ↔ app boundary (`ConsensusApp` trait is not broken)
 5. Clear wiring path from `ConsensusEngine` → `Application` → EVM executor → state updates
 6. All proposed interfaces are grounded in evidence from existing reth EVM patterns
+7. `state` crate compiles and provides an in-memory `Database` implementation that `EvmApplication` can use to execute blocks <!-- continuation round 2 -->
+8. State root computation produces deterministic results for identical execution sequences <!-- continuation round 2 -->
 
 ## Grounding summary
 
@@ -64,3 +70,4 @@ This mirrors the existing layering pattern: `consensus` (abstract) → `consensu
 
 ### Layering pattern in workspace
 - Abstract traits crate → Concrete adapter crate (consensus → consensus-simplex). Same pattern applies: app → app-evm.
+- Abstract traits crate → Concrete adapter crate also applies to state: `app-evm` is generic over `DB: Database` → `state` provides `InMemoryStateDb` as the concrete implementation. <!-- continuation round 2 -->

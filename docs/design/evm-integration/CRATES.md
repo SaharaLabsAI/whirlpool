@@ -11,6 +11,7 @@
 | `whirlpool-node` | `crates/whirlpool-node/` | bin+lib | Node binary, `EmptyBlockApp`, `EmptyBlock`, node config | Grounded |
 | `app` | `crates/app/` | lib | [PROPOSED] Abstract application traits for EVM-aware block execution | Proposed |
 | `app-evm` | `crates/app-evm/` | lib | [PROPOSED] Concrete EVM application using reth-evm | Proposed |
+| `state` | `crates/state/` | lib | [PROPOSED] In-memory EVM state database: `revm::Database` impl, `BundleState` commitment, state root computation | Proposed (round 2) |
 
 ## Vendor crates consumed (read-only)
 
@@ -25,3 +26,4 @@
 | `reth-chainspec` | `vendor/reth/crates/chainspec/` | `ChainSpec`, `EthChainSpec` | `app-evm` [PROPOSED] |
 | `commonware-consensus` | `vendor/commonware/consensus/` | Simplex consensus engine | `consensus-simplex` |
 | `commonware-runtime` | `vendor/commonware/runtime/` | Async runtime abstraction | `whirlpool-node` |
+| `revm` | (cargo dependency) | `Database`, `DatabaseCommit`, `DatabaseRef` traits, `CacheDB<DB>`, `State<DB>` builder, `BundleState` | `state` [PROPOSED], `app-evm` [PROPOSED] |

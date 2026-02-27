@@ -1,9 +1,8 @@
 # Blockers
 
 ## Summary
-- Total: 4 blockers (2 scope-expansion, 1 information-gap, 1 decision-gap)
-- Resolved this round: 2
-
+- Total: 6 blockers (2 scope-expansion, 1 information-gap, 1 decision-gap, 2 new)
+- Resolved this round: 4 (B-001 pending, B-003/B-004 new)
 ## Active blockers
 
 ### [B-001] ChainSpec selection
@@ -13,28 +12,10 @@
 - **Description**: `WhirlpoolEvmConfig::new(chain_spec: Arc<ChainSpec>)` requires a `ChainSpec` value. No chain ID, genesis configuration, or hardfork schedule exists anywhere in the Whirlpool workspace (`crates/`). The `ChainSpec` determines chain ID, genesis state, and which EVM hardforks are active at which block heights. Reth provides `ChainSpecBuilder` for construction.
 - **Suggested resolution**: Product/team decision required — choose a chain ID for Sahara, decide on genesis allocations, and specify hardfork activation schedule (at minimum Shanghai + Cancun). Once decided, construct via `ChainSpecBuilder::default().chain(SAHARA_CHAIN_ID).genesis(genesis).shanghai_activated().cancun_activated().build()`. Could live in `app-evm` as a constant or be loaded from a config file in `whirlpool-node`.
 
-### [B-002] State database implementation
-- **Type**: `scope-expansion`
-- **Severity**: `blocking` (cannot implement without resolution)
-- **Affected crates**: `app-evm`
-- **Description**: `EvmApplication<DB: Database + Clone>` requires a concrete `Database` implementation for EVM state storage. The `Database` trait (from `revm`) provides `basic(Address) -> AccountInfo`, `code_by_hash(B256) -> Bytecode`, `storage(Address, U256) -> U256`, and `block_hash(u64) -> B256`. Reth has `StateProvider`/`StateProviderFactory` abstractions that wrap `Database`, plus various backends (MDBX, in-memory). None of these are in the Whirlpool workspace.
-- **Required interface**: The out-of-scope crate (e.g. `state` or `storage`) must provide:
-  ```rust
-  /// Concrete type implementing revm::Database + Clone.
-  /// Must support:
-  ///   - Reading account info (balance, nonce, code_hash)
-  ///   - Reading storage slots
-  ///   - Reading block hashes for BLOCKHASH opcode
-  ///   - Committing BundleState diffs after finalization
-  pub trait StateDb: revm::Database<Error = StateError> + Clone {
-      /// Commit a BundleState (post-execution state diff) to persistent storage.
-      fn commit(&mut self, bundle: revm::db::BundleState) -> Result<(), StateError>;
-      /// Compute the state root after applying pending changes.
-      fn state_root(&self) -> Result<[u8; 32], StateError>;
-  }
-  ```
-  For initial integration, `revm::db::CacheDB<revm::db::EmptyDB>` can serve as an in-memory placeholder (implements `Database + Clone`), though it lacks persistence and state root computation.
-- **Suggested resolution**: New design round for a `state` crate, or adopt reth's `StateProviderFactory` pattern. For MVP, use `CacheDB<EmptyDB>` with a stub `state_root()`.
+### ~~[B-002] State database implementation~~ → RESOLVED
+- **Type**: `scope-expansion` → **resolved (round 2)**
+- **Resolution**: New `state` crate provides `InMemoryStateDb` implementing `revm::Database + Clone`. Provides `commit(&BundleState)` for state commitment and `state_root() -> B256` for block headers. `EvmApplication<DB>` is instantiated with `DB = InMemoryStateDb`, wrapped in `Arc<RwLock<InMemoryStateDb>>` for interior mutability (`&self` trait compatibility). Speculative execution uses clone-based snapshots; canonical state is committed only on finalization. See `state/README.md`, `wiring/state-storage.md`, `domains/state-storage.md`.
+- **Affected docs**: `state/README.md` (NEW), `app-evm/README.md`, `wiring/state-storage.md` (NEW), `domains/state-storage.md` (NEW), `architecture/block-proposal.md`, `architecture/block-verification.md`, `architecture/node-startup.md`
 
 ## Resolved blockers (this round)
 
@@ -65,3 +46,17 @@
   ```
   `EvmApplication` takes `TxSource` as a generic or field. For MVP / empty-block mode, a `NoopTxSource` (returns empty vec) suffices — this matches the current `EmptyBlockApp` behavior. Full transaction pool integration is a separate scope-expansion concern for a future `tx-pool` crate.
 - **Affected docs**: `app-evm/README.md` (blocker note updated), `architecture/block-proposal.md`
+
+### [B-003] Merkle Patricia Trie for state root computation
+- **Type**: `scope-expansion`
+- **Severity**: `blocking` (for production; MVP uses flat keccak256 hash)
+- **Affected crates**: `state`
+- **Description**: `InMemoryStateDb::state_root()` currently uses a flat keccak256 hash over sorted accounts and storage. This is deterministic and sufficient for consensus agreement, but does NOT produce Ethereum-compatible state roots. Production requires a Merkle Patricia Trie (or Verkle trie) for: state proofs (`eth_getProof`), light client verification, and Ethereum JSON-RPC compatibility.
+- **Suggested resolution**: Integrate an MPT library (e.g., `alloy-trie` or reth's `reth-trie`) into the `state` crate. The `state_root()` method signature is unchanged — only the internal algorithm swaps from flat hash to trie computation.
+
+### [B-004] State persistence (in-memory only)
+- **Type**: `scope-expansion`
+- **Severity**: `blocking` (for production; MVP is in-memory only)
+- **Affected crates**: `state`
+- **Description**: `InMemoryStateDb` stores all state in HashMaps. State is lost on process restart. Production requires a persistent backend (RocksDB, MDBX, or similar) to survive restarts and support nodes joining the network after genesis.
+- **Suggested resolution**: Implement a persistent `Database + Clone` backend (e.g., `RocksDbStateDb`) that can be swapped in via `EvmApplication<DB>` generic. The in-memory implementation remains useful for testing and short-lived nodes.

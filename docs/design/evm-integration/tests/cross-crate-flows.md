@@ -77,3 +77,71 @@ async fn test_error_propagation_through_adapter() {
     assert!(matches!(res, Err(ConsensusError::Verification(_))));
 }
 ```
+
+<!-- continuation round 2 -->
+
+## State Integration
+
+### `test_propose_verify_state_root_consistency`
+- **Layer**: e2e
+- **Crate**: `app-evm`, `state`
+- **Input**: `EvmApplication` with `InMemoryStateDb`, propose a block with transactions
+- **Assert**: The `state_root` in the proposed block matches the root computed during `verify()`. **[PROPOSED]**: Full state lifecycle through `InMemoryStateDb`.
+- **Pseudo-code**:
+```rust
+#[tokio::test]
+async fn test_propose_verify_state_root_consistency() {
+    let state_db = InMemoryStateDb::with_genesis(test_genesis_alloc());
+    let app = EvmApplication::new(state_db, test_chain_spec());
+    let genesis = app.genesis().await;
+    let (block, _) = app.propose(&genesis, 1).await.unwrap();
+    assert_ne!(block.state_root, B256::ZERO); // non-trivial root
+    let result = app.verify(&genesis, &block).await;
+    assert!(result.is_ok()); // roots match
+}
+```
+
+### `test_multi_block_state_accumulation`
+- **Layer**: e2e
+- **Crate**: `app-evm`, `state`
+- **Input**: Genesis → Block 1 → Block 2 sequence
+- **Assert**: State roots change across blocks; each verify succeeds. **[PROPOSED]**.
+- **Pseudo-code**:
+```rust
+#[tokio::test]
+async fn test_multi_block_state_accumulation() {
+    let state_db = InMemoryStateDb::with_genesis(test_genesis_alloc());
+    let app = EvmApplication::new(state_db, test_chain_spec());
+    let genesis = app.genesis().await;
+    let (block1, _) = app.propose(&genesis, 1).await.unwrap();
+    app.verify(&genesis, &block1).await.unwrap();
+    let root1 = block1.state_root;
+    let (block2, _) = app.propose(&block1, 2).await.unwrap();
+    app.verify(&block1, &block2).await.unwrap();
+    assert_ne!(block2.state_root, root1); // state evolved
+}
+```
+
+### `test_failed_verify_does_not_corrupt_state`
+- **Layer**: e2e
+- **Crate**: `app-evm`, `state`
+- **Input**: Valid block, then tampered block
+- **Assert**: After failed verify of tampered block, subsequent valid propose/verify still works. **[PROPOSED]**.
+- **Pseudo-code**:
+```rust
+#[tokio::test]
+async fn test_failed_verify_does_not_corrupt_state() {
+    let state_db = InMemoryStateDb::with_genesis(test_genesis_alloc());
+    let app = EvmApplication::new(state_db, test_chain_spec());
+    let genesis = app.genesis().await;
+    let (block1, _) = app.propose(&genesis, 1).await.unwrap();
+    app.verify(&genesis, &block1).await.unwrap();
+    // Tampered block — state root mismatch
+    let mut bad_block = block1.clone();
+    bad_block.state_root = B256::random();
+    assert!(app.verify(&genesis, &bad_block).await.is_err());
+    // Original state intact — can still propose next block
+    let (block2, _) = app.propose(&block1, 2).await.unwrap();
+    assert!(app.verify(&block1, &block2).await.is_ok());
+}
+```

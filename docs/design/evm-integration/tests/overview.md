@@ -25,6 +25,14 @@ Exercise the full lifecycle of a block from proposal to verification. These test
 3. Proper mapping of execution errors to consensus verification errors.
 4. Validation of the `ApplicationAdapter` forwarding logic.
 
+<!-- continuation round 2 -->
+5. State database correctness: `InMemoryStateDb` implements `Database` correctly, `commit()` applies diffs, `state_root()` is deterministic.
+6. Clone isolation: cloned state databases produce independent snapshots.
+
 ## Grounded vs Proposed
 - **Grounded**: Tests existing traits with `path::Symbol` citations (e.g., `crates/consensus/src/app.rs::ConsensusApp`).
 - **[PROPOSED]**: Tests new implementations such as `EvmApplication` and `WhirlpoolEvmConfig`.
+
+<!-- continuation round 2 -->
+- **Grounded**: Tests `revm::Database` trait contract (method signatures from `revm` cargo dependency).
+- **[PROPOSED]**: Tests `InMemoryStateDb`, `commit()`, `state_root()`, `with_genesis()` from `state` crate.

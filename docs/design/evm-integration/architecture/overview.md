@@ -6,17 +6,17 @@
 ┌─────────────────────────────────────────────────────────────┐
 │                      whirlpool-node                          │
 │  (wires everything, runs consensus engine)                   │
-├──────────┬──────────────┬───────────────┬───────────────────┤
-│consensus-│   app-evm    │ p2p-          │                   │
-│simplex   │  [PROPOSED]  │ commonware    │                   │
-│(BFT      │(EVM exec     │(network       │                   │
-│ adapter) │ backend)     │ adapter)      │                   │
-├──────────┼──────────────┼───────────────┤                   │
-│consensus │    app        │  p2p          │                   │
-│(abstract │  [PROPOSED]  │(abstract      │                   │
-│ traits)  │(abstract     │ traits)       │                   │
-│          │ app trait)   │               │                   │
-├──────────┴──────────────┴───────────────┴───────────────────┤
+├──────────┬──────────────┬──────────┬───────────────────────┤
+│consensus-│   app-evm    │  state   │ p2p-                  │
+│simplex   │  [PROPOSED]  │[PROPOSED]│ commonware            │
+│(BFT      │(EVM exec     │(in-mem   │(network               │
+│ adapter) │ backend)     │ state DB)│ adapter)              │
+├──────────┼──────────────┼──────────┼───────────────────────┤
+│consensus │    app       │   revm   │  p2p                  │
+│(abstract │  [PROPOSED]  │(Database │(abstract              │
+│ traits)  │(abstract     │ trait,   │ traits)               │
+│          │ app trait)   │ cargo)   │                       │
+├──────────┴──────────────┴──────────┴───────────────────────┤
 │                     Vendor (read-only)                        │
 │  reth-evm │ reth-evm-ethereum │ reth-revm │ commonware       │
 └─────────────────────────────────────────────────────────────┘
@@ -38,6 +38,10 @@
 3. **Block identity is deterministic**: `EvmBlock::compute_id()` must be deterministic from block contents (same as `EmptyBlock` pattern).
 4. **State root is authoritative**: Block verification succeeds iff re-execution produces the same state root as the proposed block.
 
+<!-- continuation round 2 -->
+5. **State root is deterministic**: Same genesis + same transaction sequence + same commit order = identical `state_root()`. [PROPOSED — `state` crate]
+6. **State commitment is post-execution**: `BundleState` is committed to `InMemoryStateDb` only after successful execution, never during. Clone-based snapshots ensure failed executions don't corrupt canonical state. [PROPOSED — `state` crate]
+
 ## Glossary
 
 | Term | Definition |
@@ -52,6 +56,9 @@
 | NodePrimitives | Reth trait that bundles Block, Receipt, and other type families for a chain. |
 | EvmBlock | [PROPOSED] Whirlpool block type carrying both consensus identity and EVM execution data. |
 | ApplicationAdapter | [PROPOSED] Adapter that wraps `Application` to satisfy `ConsensusApp`. |
+| InMemoryStateDb | [PROPOSED] HashMap-based `revm::Database` implementation. Provides `commit()` and `state_root()`. (round 2) |
+| BundleState | Reth/revm type representing state diff from block execution — changed accounts, storage, and contracts. |
+| DbAccount | [PROPOSED] Per-account state: `AccountInfo` + `HashMap<U256, U256>` storage. (round 2) |
 
 ## Implementation slices
 
@@ -94,3 +101,13 @@
 - **Changed interfaces**: `main.rs` — add EVM app construction path (feature-gated or config-driven)
 - **Pseudo-code**: `let evm_config = WhirlpoolEvmConfig::new(chain_spec); let app = EvmApplication::new(evm_config, state_db); let adapter = ApplicationAdapter::new(app); engine.start(adapter);`
 - **Acceptance**: Node starts with EVM app, produces genesis block, can propose empty EVM blocks.
+
+<!-- continuation round 2 -->
+
+### Slice 0.5: `state` crate scaffold (round 2 — B-002 resolution)
+- **Goal**: Provide `InMemoryStateDb` so `EvmApplication<DB>` has a concrete `DB` type.
+- **Crates touched**: `state` (new), `Cargo.toml` (workspace)
+- **New types**: `InMemoryStateDb`, `DbAccount`, `StateError`
+- **New interfaces**: `impl Database for InMemoryStateDb`, `impl DatabaseRef for InMemoryStateDb`, `commit(&mut self, &BundleState)`, `state_root(&self) -> B256`, `with_genesis(alloc) -> Self`
+- **Deps**: `revm` (Database trait, types), `alloy-primitives` (Address, B256, U256)
+- **Acceptance**: `cargo build` succeeds. `InMemoryStateDb` satisfies `Database + Clone`. Unit tests for basic/storage/code_by_hash/block_hash lookups, commit round-trip, state root determinism.

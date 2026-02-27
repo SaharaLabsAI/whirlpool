@@ -19,7 +19,8 @@ whirlpool/
 │   ├── p2p-commonware/       # Commonware P2P adapter
 │   ├── whirlpool-node/       # Node binary + EmptyBlockApp
 │   ├── app/                  # [PROPOSED] Abstract application traits (EVM-aware)
-│   └── app-evm/              # [PROPOSED] Concrete EVM application (reth-evm backed)
+│   ├── app-evm/              # [PROPOSED] Concrete EVM application (reth-evm backed)
+│   └── state/                # [PROPOSED] In-memory EVM state database (round 2)
 ├── vendor/
 │   ├── reth/                 # Reth Ethereum client (git submodule, read-only)
 │   │   └── crates/
@@ -42,34 +43,39 @@ whirlpool/
                     ┌──────────────┐
                     │ whirlpool-   │
                     │    node      │
-                    └──┬───┬───┬──┘
-                       │   │   │
-          ┌────────────┘   │   └────────────┐
-          ▼                ▼                 ▼
+                    └──┬───┬───┬───┬──┘
+                       │   │   │   │
+          ┌────────────┘   │   │   └────────────┐
+          ▼                ▼   ▼                 ▼
    ┌──────────┐    ┌──────────────┐   ┌──────────┐
    │consensus-│    │  app-evm     │   │p2p-      │
    │ simplex  │    │  [PROPOSED]  │   │commonware│
-   └────┬─────┘    └──┬───────┬──┘   └────┬─────┘
-        │              │       │           │
-        ▼              ▼       ▼           ▼
-   ┌──────────┐   ┌────────┐ ┌─────┐  ┌──────┐
-   │consensus │   │  app   │ │reth-│  │ p2p  │
-   │          │   │[PROP.] │ │ evm │  │      │
-   └──────────┘   └────────┘ └─────┘  └──────┘
-                       │        │
-                       │        ▼
-                       │   ┌─────────────┐
-                       │   │reth-evm-    │
-                       │   │ethereum     │
-                       │   │(reference)  │
-                       │   └─────────────┘
-                       │
-                       ▼
-                  ┌──────────┐
-                  │consensus │
-                  │(Block    │
-                  │ trait)   │
-                  └──────────┘
+   └────┬─────┘    └──┬───┬───┬──┘   └────┬─────┘
+        │              │   │   │           │
+        ▼              │   │   │           ▼
+   ┌──────────┐        │   │   │      ┌──────┐
+   │consensus │        │   │   │      │ p2p  │
+   │          │        │   │   │      │      │
+   └──────────┘        │   │   │      └──────┘
+                       │   │   │
+          ┌────────────┘   │   └────────────┐
+          ▼                ▼                 ▼
+   ┌────────┐      ┌──────────┐      ┌─────────┐
+   │  app   │      │  state   │      │ reth-   │
+   │[PROP.] │      │ [PROP.]  │      │  evm    │
+   └────┬───┘      └──────────┘      └────┬────┘
+        │              ▲                   │
+        │              │                   ▼
+        ▼              │            ┌─────────────┐
+   ┌──────────┐        │            │reth-evm-    │
+   │consensus │        │            │ethereum     │
+   │(Block    │     revm::         │(reference)  │
+   │ trait)   │     Database       └─────────────┘
+   └──────────┘        │
+                  ┌─────────┐
+                  │  revm   │
+                  │(cargo)  │
+                  └─────────┘
 ```
 
 ## Build entrypoints
@@ -86,3 +92,9 @@ whirlpool/
 3. Study `vendor/reth/crates/evm/evm/src/lib.rs` for `ConfigureEvm` trait
 4. Study `vendor/reth/crates/ethereum/evm/src/lib.rs` for `EthEvmConfig` reference implementation
 5. This design proposes `app/` (abstract) and `app-evm/` (concrete) following the same pattern
+
+<!-- continuation round 2 -->
+
+6. The `state` crate provides `InMemoryStateDb` implementing `revm::Database`, resolving the B-002 blocker
+7. `app-evm` instantiates `EvmApplication<InMemoryStateDb>` — the generic `DB` parameter is now concrete
+8. `whirlpool-node` constructs `InMemoryStateDb` at startup and passes it to `EvmApplication`
