@@ -36,3 +36,10 @@
 - ConfigureEvm delegation pattern: WhirlpoolEvmConfig is a newtype wrapper over EthEvmConfig and delegates all required ConfigureEvm methods (`block_executor_factory`, `block_assembler`, `evm_env`, `next_evm_env`, `context_for_block`, `context_for_next_block`) directly to `inner`, while preserving associated types via `<EthEvmConfig as ConfigureEvm>::...`.
 - ChainSpec builder: `ChainSpecBuilder::default().chain(Chain::from_id(313_371)).genesis(Genesis { gas_limit: 30_000_000, difficulty: U256::ZERO, ..Default::default() }).cancun_activated().build()` yields the expected chain id, genesis gas limit, and Cancun active at timestamp 0; Cancun activation check requires bringing `reth_chainspec::EthereumHardforks` trait into scope in tests.
 - Import paths: `alloy_genesis::Genesis`, `alloy_primitives::U256`, `reth_chainspec::{Chain, ChainSpec, ChainSpecBuilder, EthereumHardforks}`, `reth_ethereum_primitives::EthPrimitives`, `reth_evm::{ConfigureEvm, EvmEnvFor, ExecutionCtxFor, NextBlockEnvAttributes}`, `reth_evm_ethereum::EthEvmConfig`, `reth_primitives_traits::{BlockTy, HeaderTy, SealedBlock, SealedHeader}`, `app::ApplicationError`.
+
+
+## [2026-02-27T16:13:21Z] Task 5 Step 1: Header Conversion Helpers
+- Header type used: `reth_primitives_traits::Header` (re-export alias of `alloy_consensus::Header` from `vendor/reth/crates/primitives-traits/src/header/sealed.rs`)
+- Required Header fields: non-optional fields on alloy header are `parent_hash`, `ommers_hash`, `beneficiary`, `state_root`, `transactions_root`, `receipts_root`, `logs_bloom`, `difficulty`, `number`, `gas_limit`, `gas_used`, `timestamp`, `mix_hash`, `nonce`, `extra_data`; optional fields are `withdrawals_root`, `base_fee_per_gas`, `blob_gas_used`, `excess_blob_gas`, `parent_beacon_block_root`, `requests_hash` (via extension)
+- Hash computation method: `header.hash_slow()` via `alloy_primitives::Sealable`
+- SealedHeader constructor: `SealedHeader::new(header, hash)` (also available: `SealedHeader::seal_slow(header)`)
