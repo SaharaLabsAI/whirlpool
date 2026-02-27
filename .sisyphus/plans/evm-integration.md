@@ -782,7 +782,7 @@ Wave 5 (Final Verification): F1-F4 — Plan compliance, code review, manual QA, 
 
 ---
 
-- [ ] 8. Documentation — Update llmdocs for New Crates
+- [x] 8. Documentation — Update llmdocs for New Crates
 
   **What to do**:
   1. Run `ctx-update-doc` skill for each new crate: state, app, app-evm
