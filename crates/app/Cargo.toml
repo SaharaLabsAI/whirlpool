@@ -5,5 +5,12 @@ edition.workspace = true
 
 [dependencies]
 consensus = { path = "../consensus" }
+commonware-consensus = { path = "../../vendor/commonware/consensus" }
+commonware-codec = { path = "../../vendor/commonware/codec" }
+commonware-cryptography = { path = "../../vendor/commonware/cryptography" }
 sha2 = "0.10"
+bytes = "1"
 thiserror = "2"
+
+[dev-dependencies]
+futures = "0.3"
