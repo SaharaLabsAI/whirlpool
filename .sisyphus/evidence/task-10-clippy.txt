@@ -1,0 +1,50 @@
+warning: use of deprecated method `futures::futures_channel::mpsc::Receiver::<T>::try_next`: please use `try_recv` instead
+   --> vendor/commonware/utils/src/channels/tracked.rs:245:20
+    |
+245 |         self.inner.try_next().ok().flatten()
+    |                    ^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+
+warning: `commonware-utils` (lib) generated 1 warning
+    Checking consensus v0.1.0 (/home/dev/sahara/web3/agent/playground/whirlpool/crates/consensus)
+    Checking state v0.1.0 (/home/dev/sahara/web3/agent/playground/whirlpool/crates/state)
+error: unused import: `std::hash::BuildHasherDefault`
+ --> crates/state/src/db.rs:2:5
+  |
+2 | use std::hash::BuildHasherDefault;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `-D unused-imports` implied by `-D warnings`
+  = help: to override `-D warnings` add `#[allow(unused_imports)]`
+
+    Checking app v0.1.0 (/home/dev/sahara/web3/agent/playground/whirlpool/crates/app)
+error: could not compile `state` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: this function can be simplified using the `async fn` syntax
+  --> crates/app/src/adapter.rs:30:5
+   |
+30 | /     fn propose(
+31 | |         &self,
+32 | |         parent: &Self::Block,
+33 | |         height: u64,
+34 | |     ) -> impl std::future::Future<Output = Option<Self::Block>> + Send {
+   | |______________________________________________________________________^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.93.0/index.html#manual_async_fn
+   = note: `-D clippy::manual-async-fn` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::manual_async_fn)]`
+
+error: this function can be simplified using the `async fn` syntax
+  --> crates/app/src/adapter.rs:43:5
+   |
+43 | /     fn verify(
+44 | |         &self,
+45 | |         parent: &Self::Block,
+46 | |         block: &Self::Block,
+47 | |     ) -> impl std::future::Future<Output = Result<(), ConsensusError>> + Send {
+   | |_____________________________________________________________________________^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.93.0/index.html#manual_async_fn
+
+error: could not compile `app` (lib) due to 2 previous errors

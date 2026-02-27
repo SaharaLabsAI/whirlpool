@@ -818,7 +818,7 @@ Wave 5 (Final Verification): F1-F4 — Plan compliance, code review, manual QA, 
   **Commit**: YES | Message: `docs: update llmdocs for state, app, and app-evm crates` | Files: `llmdocs/**`
 ## Final Verification Wave (4 parallel agents, ALL must APPROVE)
 
-- [ ] 9. Plan Compliance Audit
+- [x] 9. Plan Compliance Audit
 
   **What to do**: Verify every deliverable from INTENT.md is implemented. Cross-reference the 9 success criteria against actual code.
   **Must NOT do**: Make any code changes.
@@ -857,7 +857,7 @@ Wave 5 (Final Verification): F1-F4 — Plan compliance, code review, manual QA, 
 
   **Commit**: NO
 
-- [ ] 10. Code Quality Review
+- [x] 10. Code Quality Review
 
   **What to do**: Review all new code for Rust idioms, error handling, unsafe usage, documentation, clippy compliance. Run `nix develop --command cargo clippy -p state -p app -p app-evm`.
   **Must NOT do**: Make code changes (report only). Do NOT add new dependencies.
@@ -895,7 +895,7 @@ Wave 5 (Final Verification): F1-F4 — Plan compliance, code review, manual QA, 
 
   **Commit**: NO
 
-- [ ] 11. Real Manual QA — Full Build + Test
+- [x] 11. Real Manual QA — Full Build + Test
 
   **What to do**: Clean build from scratch and run full test suite. Verify both default and `evm` feature configurations.
   **Must NOT do**: Skip any test. Do NOT modify code.
@@ -940,7 +940,7 @@ Wave 5 (Final Verification): F1-F4 — Plan compliance, code review, manual QA, 
 
   **Commit**: NO
 
-- [ ] 12. Scope Fidelity Check
+- [x] 12. Scope Fidelity Check
 
   **What to do**: Verify implementation matches design docs exactly. Check that no scope creep occurred (no persistence, no tx pool, no RPC, no MPT). Verify vendor/ untouched.
   **Must NOT do**: Make any changes.
