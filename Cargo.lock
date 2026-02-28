@@ -5995,6 +5995,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "whirlpool-node-simple"
+version = "0.1.0"
+dependencies = [
+ "commonware-cryptography",
+ "commonware-runtime",
+ "consensus",
+ "consensus-simplex",
+ "p2p-commonware",
+ "tokio",
+ "tracing",
+ "tracing-subscriber 0.3.22",
+ "whirlpool-node",
+]
+
+[[package]]
 name = "winapi"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"

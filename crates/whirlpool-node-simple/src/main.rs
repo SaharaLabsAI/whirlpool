@@ -1,4 +1,4 @@
-//! Whirlpool consensus node binary.
+//! Whirlpool simple consensus node (non-EVM) binary.
 
 use commonware_cryptography::Signer;
 use commonware_cryptography::ed25519;
@@ -7,66 +7,17 @@ use consensus::ConsensusEngine;
 use consensus_simplex::{CommonwareConfig, CommonwareEngine, FinalizationSink};
 use p2p_commonware::CommonwareNetworkProviderBuilder;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
 use std::num::NonZeroUsize;
 use std::time::Duration;
 use tracing::info;
-use app::{ApplicationAdapter, NoopTxSource};
-use app_evm::executor::{EvmApplication, StateProvider};
-use app_evm::{WhirlpoolEvmConfig, build_sahara_chain_spec};
-use state::InMemoryStateDb;
+use whirlpool_node::app::EmptyBlockApp;
 use whirlpool_node::config;
 
 // Application namespace for network isolation
 const APPLICATION_NAMESPACE: &[u8] = b"whirlpool-dev";
 const MAX_MESSAGE_SIZE: u32 = 1024 * 1024; // 1 MB
-
-#[derive(Clone)]
-struct TestStateDb(InMemoryStateDb);
-
-impl TestStateDb {
-    fn new() -> Self {
-        Self(InMemoryStateDb::new())
-    }
-}
-
-impl StateProvider for TestStateDb {
-    fn state_root(&self) -> revm::primitives::B256 {
-        self.0.state_root()
-    }
-}
-
-
-impl revm::Database for TestStateDb {
-    type Error = state::StateError;
-
-    fn basic(
-        &mut self,
-        address: revm::primitives::Address,
-    ) -> Result<Option<revm::state::AccountInfo>, Self::Error> {
-        self.0.basic(address)
-    }
-
-    fn code_by_hash(
-        &mut self,
-        code_hash: revm::primitives::B256,
-    ) -> Result<revm::state::Bytecode, Self::Error> {
-        self.0.code_by_hash(code_hash)
-    }
-
-    fn storage(
-        &mut self,
-        address: revm::primitives::Address,
-        index: revm::primitives::U256,
-    ) -> Result<revm::primitives::U256, Self::Error> {
-        self.0.storage(address, index)
-    }
-
-    fn block_hash(&mut self, number: u64) -> Result<revm::primitives::B256, Self::Error> {
-        self.0.block_hash(number)
-    }
-}
 
 fn main() {
     // Initialize tracing
@@ -118,13 +69,7 @@ fn main() {
             fetch_concurrent: 4,
         };
 
-        let state_db = Arc::new(RwLock::new(TestStateDb::new()));
-        let chain_spec = Arc::new(build_sahara_chain_spec());
-        let evm_config = WhirlpoolEvmConfig::new(chain_spec);
-        let tx_source = Arc::new(NoopTxSource);
-        let evm_app = EvmApplication::new(evm_config, state_db, tx_source);
-        let app = Arc::new(ApplicationAdapter::new(evm_app));
-
+        let app = Arc::new(EmptyBlockApp::new());
         let engine = CommonwareEngine::new(app, sink, engine_config, network_provider);
         let _running = engine.start().expect("failed to start consensus engine");
         info!("Consensus engine created and started successfully");

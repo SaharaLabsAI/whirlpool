@@ -1,0 +1,15 @@
+[package]
+name = "whirlpool-node-simple"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+whirlpool-node = { path = "../whirlpool-node" }
+consensus = { path = "../consensus" }
+consensus-simplex = { path = "../consensus-simplex" }
+p2p-commonware = { path = "../p2p-commonware" }
+commonware-cryptography = { path = "../../vendor/commonware/cryptography" }
+commonware-runtime = { path = "../../vendor/commonware/runtime" }
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

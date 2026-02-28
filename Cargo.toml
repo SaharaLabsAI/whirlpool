@@ -7,6 +7,7 @@ members = [
     "crates/p2p",
     "crates/p2p-commonware",
     "crates/whirlpool-node",
+    "crates/whirlpool-node-simple",
     "crates/state",
     "crates/app",
     "crates/app-evm",
