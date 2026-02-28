@@ -32,9 +32,9 @@ Structured reference docs optimized for fast LLM lookup. Each contains type sign
 |------|-------------|-------|
 | [architecture/consensus-traits.md](architecture/consensus-traits.md) | Core trait layer: Block, ConsensusApp, EventSink, ConsensusEngine, RunningEngine, ConsensusError. All public signatures, cross-trait relationships, mock implementations | `consensus` |
 | [architecture/simplex-adapter.md](architecture/simplex-adapter.md) | Adapter bridge: CommonwareBlock, AppAdapter, CommonwareEngine, CommonwareConfig, Mailbox/MailboxActor, FinalizationSink. Sealed engine wiring, vendor trait mapping | `consensus-simplex` |
-| [architecture/whirlpool-node.md](architecture/whirlpool-node.md) | Node binary: EmptyBlock (dual-trait conformance), EmptyBlockApp (5 verification rules). Pure business logic, delegates consensus wiring to consensus-simplex | `whirlpool-node` |
-| [architecture/block-lifecycle.md](architecture/block-lifecycle.md) | End-to-end block data flow across all 3 layers: propose → verify → finalize. Cross-crate type mappings, event propagation chain, observability via atomics | Cross-crate |
-| [crates/p2p-commonware.md](crates/p2p-commonware.md) | Commonware P2P bridge: MultiplexSender, MultiplexReceiver, channel routing, test infrastructure (MockCwReceiver), optional runtime handle design | `p2p-commonware` |
+|| [architecture/whirlpool-node.md](architecture/whirlpool-node.md) | Node library: shared exports (EmptyBlock, EmptyBlockApp, config) for two binaries. Post-refactor architecture, no feature gates | `whirlpool-node` (lib)
+|| [crates/whirlpool-node.md](crates/whirlpool-node.md) | EVM-enabled binary: EvmApplication with state management, contract execution via revm. All EVM dependencies unconditional. 25 tests passing | `whirlpool-node` (bin)
+|| [crates/whirlpool-node-simple.md](crates/whirlpool-node-simple.md) | Non-EVM consensus binary: EmptyBlockApp for minimal consensus testing. Shared library exports, no execution layer | `whirlpool-node-simple`
 
 ## Guides
 
@@ -79,4 +79,5 @@ Step-by-step instructions for common tasks and workflows.
 | `state` | `crates/state/src/` | `crates/state.md` | — |
 | `app` | `crates/app/src/` | `crates/app.md` | — |
 | `app-evm` | `crates/app-evm/src/` | `crates/app-evm.md` | — |
-| `whirlpool-node` | `crates/whirlpool-node/src/` | `architecture/whirlpool-node.md` | `guides/whirlpool-node-components.md` |
+|| `whirlpool-node` | `crates/whirlpool-node/src/` | `architecture/whirlpool-node.md` (lib) + `crates/whirlpool-node.md` (EVM bin) | `guides/whirlpool-node-components.md` |
+|| `whirlpool-node-simple` | `crates/whirlpool-node-simple/src/` | `crates/whirlpool-node-simple.md` | — |

@@ -1,8 +1,8 @@
-# Whirlpool Node Architecture: LLM Retrieval Map
+# Whirlpool Node Library: Shared Types & Config
 
 ## Overview
 
-The Whirlpool node binary provides a minimal consensus node implementation, delegating consensus wiring to the consensus-simplex library. The node focuses purely on business logic: EmptyBlock definition and EmptyBlockApp verification rules. It uses the `p2p-commonware` bridge for networking.
+The `whirlpool-node` crate provides shared library exports for two binaries: `whirlpool-node` (EVM) and `whirlpool-node-simple` (non-EVM). It defines EmptyBlock consensus block type, EmptyBlockApp verification rules, and configuration constants.
 
 ## Dependency Graph
 
@@ -59,15 +59,34 @@ The Whirlpool node binary provides a minimal consensus node implementation, dele
 4. Genesis parent zero: height 0 blocks must have parent_id == [0u8; 32]
 5. Implicit genesis validity: Covered by rules above
 
-## Architecture Changes (Post-Refactor)
+## Library Structure (Shared)
 
-Mailbox, FinalizationSink, and Wire modules have been moved to consensus-simplex. The node now:
-1. Defines EmptyBlock and EmptyBlockApp (business logic only)
-2. Imports CommonwareEngine from consensus-simplex
-3. Constructs engine with app, sink, config in main/tests
-4. Sealed engine wiring handles all consensus plumbing
-5. Zero consensus infrastructure remains in whirlpool-node
+The library (crates/whirlpool-node/src/) contains:
+1. **block.rs**: EmptyBlock dual-trait conformance (Block, Write, Read, EncodeSize, Digestible, Committable, Heightable)
+2. **app.rs**: EmptyBlockApp trait implementations and verification rules
+3. **config.rs**: Constants (NAMESPACE, BLOCK_INTERVAL, VALIDATOR_SEED, BIND_ADDR)
 
+Both binaries (whirlpool-node main and whirlpool-node-simple main) re-export these types from their parent crate. The library itself has no features or cfg gates.
+
+## Binary Variants (Post-Refactor)
+
+Two binaries now use the shared library:
+
+### whirlpool-node (EVM)
+Location: `crates/whirlpool-node/src/main.rs`
+- Uses EvmApplication (requires app-evm, state, revm, alloy-primitives)
+- Executes Solidity contracts in consensus blocks
+- Binary size: 174M
+- Test status: 25 tests passing (19 unit + 6 integration)
+- No feature gates; all EVM deps unconditional
+
+### whirlpool-node-simple (Non-EVM)
+Location: `crates/whirlpool-node-simple/src/main.rs`
+- Uses EmptyBlockApp from whirlpool-node lib
+- Pure consensus without execution layer
+- Binary size: 145M
+- Test status: 0 tests (binary crate only)
+- No feature gates; minimal dependencies
 ## Integration Tests (Real Networking)
 
 File: `tests/network_integration.rs` — uses real `CommonwareNetworkProvider` (not mock) backed by commonware discovery p2p.
