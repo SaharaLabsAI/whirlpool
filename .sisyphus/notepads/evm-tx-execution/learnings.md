@@ -1,0 +1,7 @@
+- `crates/state/src/db.rs` already covered T-10 (`test_commit_storage_changes`), T-11 (`test_commit_destroy_account`), and T-12 (`test_independent_snapshot`); only T-9 needed an explicit named coverage test.
+- Added `test_commit_applies_account_changes` using existing helpers (`address`, `account_info`, `bundle_with_account`) and matching assertion style (`assert_eq!`) to verify nonce and balance updates via `commit()`.
+- Verification run: `nix develop --command cargo test -p state -- db::tests` passed with 19/19 tests and evidence saved to `.sisyphus/evidence/evm-tx-execution/01-state-commit-tests.log`.
+- Build run: `nix develop --command cargo build -p state` succeeds but reports an existing pre-existing warning for unused import `std::hash::BuildHasherDefault` in `crates/state/src/db.rs:2`.
+- decode helper tests: `decode_transactions_valid_rlp`, `decode_transactions_invalid_rlp`, and `decode_transactions_empty_input` now pass with `nix develop --command cargo test -p app-evm -- decode_transactions`.
+- Fix detail: compare signer as `assert_eq!(decoded[0].signer(), expected_signer)` (no extra borrow) because `signer()` yields a reference type already compatible with `Address` in `assert_eq!`.
+- Evidence captured at `.sisyphus/evidence/evm-tx-execution/02-tx-decode-helper.log`; build command `nix develop --command cargo build -p app-evm` succeeds but still emits existing warnings in `app-evm` (dead code/unused fields) and unrelated existing warnings in `state` + `vendor/commonware`.

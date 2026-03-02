@@ -339,6 +339,34 @@ mod tests {
     }
 
     #[test]
+    fn test_commit_applies_account_changes() {
+        let mut db = InMemoryStateDb::new();
+        let addr = address(111);
+
+        db.accounts.insert(
+            addr,
+            DbAccount {
+                info: account_info(1_000, 2, KECCAK_EMPTY),
+                storage: HashMap::new(),
+            },
+        );
+
+        let updated = account_info(3_000, 7, KECCAK_EMPTY);
+        let bundle = bundle_with_account(
+            addr,
+            Some(account_info(1_000, 2, KECCAK_EMPTY)),
+            Some(updated.clone()),
+            AccountStatus::Changed,
+            &[],
+        );
+        db.commit(&bundle);
+
+        let stored = db.basic_ref(addr).unwrap().unwrap();
+        assert_eq!(stored.balance, U256::from(3_000));
+        assert_eq!(stored.nonce, 7);
+    }
+
+    #[test]
     fn test_commit_destroy_account() {
         let mut db = InMemoryStateDb::new();
         let addr = address(12);

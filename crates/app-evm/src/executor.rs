@@ -1,12 +1,16 @@
 use std::sync::{Arc, RwLock};
 
+use alloy_eips::eip2718::Decodable2718;
 use alloy_primitives::{B256, Bytes, U256};
-use app::{Application, ApplicationError, EvmBlock, ExecutionResult, TxSource};
+use app::{Application, EvmBlock, ExecutionResult, TxSource};
 use alloy_trie::EMPTY_ROOT_HASH;
 
-use reth_primitives_traits::{Header, SealedHeader};
+use reth_ethereum_primitives::TransactionSigned;
+use reth_primitives_traits::{Header, Recovered, SealedHeader, SignedTransaction};
 use crate::config::WhirlpoolEvmConfig;
 use crate::error::EvmAppError;
+
+pub type RecoveredTx = Recovered<TransactionSigned>;
 
 /// Trait for accessing state root from a database.
 pub trait StateProvider {
@@ -35,6 +39,23 @@ fn build_sealed_header(block: &EvmBlock) -> SealedHeader {
     let header = build_header_from_evm_block(block);
     let hash = header.hash_slow();
     SealedHeader::new(header, hash)
+}
+
+pub fn decode_transactions(raw_txs: &[Vec<u8>]) -> Result<Vec<RecoveredTx>, EvmAppError> {
+    raw_txs
+        .iter()
+        .map(|raw_tx| {
+            let mut input = raw_tx.as_slice();
+            let tx = TransactionSigned::decode_2718(&mut input)
+                .map_err(|err| EvmAppError::InvalidBlock(err.to_string()))?;
+
+            let signer = tx
+                .try_recover()
+                .map_err(|err| EvmAppError::InvalidBlock(err.to_string()))?;
+
+            Ok(tx.with_signer(signer))
+        })
+        .collect()
 }
 
 #[derive(Clone)]
@@ -153,6 +174,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloy_consensus::{SignableTransaction, TxLegacy};
+    use alloy_eips::eip2718::Encodable2718;
+    use alloy_primitives::{Address, Signature, TxKind};
 
     #[test]
     fn test_header_conversion() {
@@ -180,5 +204,40 @@ mod tests {
         let sealed = build_sealed_header(&evm_block);
         assert_eq!(sealed.number, 42);
         assert_eq!(sealed.hash(), expected_hash);
+    }
+
+    #[test]
+    fn decode_transactions_valid_rlp() {
+        let tx = TxLegacy {
+            chain_id: Some(1),
+            nonce: 0,
+            gas_price: 1_000_000_000,
+            gas_limit: 21_000,
+            to: TxKind::Call(Address::ZERO),
+            value: U256::from(1u64),
+            input: Bytes::default(),
+        };
+        let signed: TransactionSigned = tx.into_signed(Signature::test_signature()).into();
+
+        let mut encoded = Vec::new();
+        signed.encode_2718(&mut encoded);
+
+        let decoded = decode_transactions(&[encoded]).expect("valid tx should decode");
+        assert_eq!(decoded.len(), 1);
+
+        let expected_signer = signed.try_recover().expect("signature should recover");
+        assert_eq!(decoded[0].signer(), expected_signer);
+    }
+
+    #[test]
+    fn decode_transactions_invalid_rlp() {
+        let err = decode_transactions(&[vec![0x01, 0x02, 0x03]]).expect_err("invalid RLP should fail");
+        assert!(matches!(err, EvmAppError::InvalidBlock(_)));
+    }
+
+    #[test]
+    fn decode_transactions_empty_input() {
+        let decoded = decode_transactions(&[]).expect("empty input should be valid");
+        assert!(decoded.is_empty());
     }
 }

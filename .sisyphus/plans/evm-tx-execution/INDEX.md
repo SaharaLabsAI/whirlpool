@@ -3,8 +3,8 @@
 ## Execution Order
 
 ### Wave 1: Foundation (parallel)
-- [ ] [01-state-commit-tests](tasks/01-state-commit-tests.md) — S
-- [ ] [02-tx-decode-helper](tasks/02-tx-decode-helper.md) — S
+- [x] [01-state-commit-tests](tasks/01-state-commit-tests.md) — S
+- [x] [02-tx-decode-helper](tasks/02-tx-decode-helper.md) — S
 
 ### Wave 2: Core Execution (sequential)
 - [ ] [03-propose-execution](tasks/03-propose-execution.md) — L
