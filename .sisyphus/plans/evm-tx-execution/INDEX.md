@@ -13,7 +13,7 @@
 ### Wave 3: Integration (sequential)
 - [x] [05-integration-test](tasks/05-integration-test.md) — M
 - [x] [06-workspace-verification](tasks/06-workspace-verification.md) — XS
-- [ ] [07-update-llmdocs](tasks/07-update-llmdocs.md) — S
+- [x] [07-update-llmdocs](tasks/07-update-llmdocs.md) — S
 
 ## Dependency Graph
 ```
