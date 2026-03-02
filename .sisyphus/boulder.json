@@ -1,10 +1,10 @@
 {
-  "active_plan": "/home/dev/sahara/web3/agent/playground/whirlpool/.sisyphus/plans/split-whirlpool-node.md",
-  "started_at": "2026-02-28T02:41:07.805Z",
+  "active_plan": "/home/dev/sahara/web3/agent/playground/whirlpool/.sisyphus/plans/evm-tx-execution.md",
+  "started_at": "2026-03-02T16:18:34.834Z",
   "session_ids": [
-    "ses_35e22132dffecxseKYUZ06PBrY"
+    "ses_350a832f7ffeIxthk4z4vA7eEH"
   ],
-  "plan_name": "split-whirlpool-node",
-  "worktree_path": "/home/dev/sahara/web3/agent/playground/whirlpool-split",
+  "plan_name": "evm-tx-execution",
+  "worktree_path": "/home/dev/sahara/web3/agent/playground/whirlpool",
   "agent": "atlas"
 }

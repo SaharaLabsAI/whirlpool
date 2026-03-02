@@ -7,7 +7,7 @@ use alloy_trie::{root::ordered_trie_root_with_encoder, EMPTY_ROOT_HASH};
 use app::{Application, EvmBlock, ExecutionResult, TxSource};
 use reth_ethereum_primitives::TransactionSigned;
 use reth_evm::{execute::{BlockBuilder, BlockExecutor}, ConfigureEvm, NextBlockEnvAttributes};
-use reth_primitives_traits::{Header, Recovered, SealedHeader, SignedTransaction, SignerRecoverable};
+use reth_primitives_traits::{Header, Recovered, SealedHeader, SignedTransaction};
 use reth_revm::State;
 use revm::database::states::bundle_state::BundleRetention;
 use revm::database::BundleState;
@@ -186,7 +186,7 @@ where
                 }
             }
 
-            let mut executor = builder.into_executor();
+            let executor = builder.into_executor();
             let (evm, execution_result) = executor
                 .finish()
                 .map_err(|err| EvmAppError::Execution(err.to_string()))?;
@@ -241,17 +241,91 @@ where
 
     fn verify(
         &self,
-        _parent: &Self::Block,
+        parent: &Self::Block,
         block: &Self::Block,
     ) -> impl std::future::Future<Output = Result<Self::Result, Self::Error>> + Send {
         async move {
-            // Compute expected state root
-            let computed_state_root = {
+            // 1. Decode ALL transactions (must succeed or fail entire verification)
+            let decoded_txs = decode_transactions(&block.transactions)
+                .map_err(|_| EvmAppError::InvalidTransaction("Failed to decode all transactions".into()))?;
+
+            // 2. Clone state for isolated re-execution
+            let mut exec_state = {
                 let db = self.state_db.read().unwrap();
-                db.state_root()
+                db.clone()
             };
 
-            // Verify state root matches
+            // 3. Build Header and Env
+            let parent_header = build_sealed_header(parent);
+            let timestamp = block.timestamp; // Use block timestamp
+            
+            // Validate timestamp (optional but good practice)
+            // if timestamp != parent.timestamp + 12 { ... }
+
+            let env_attributes = NextBlockEnvAttributes {
+                timestamp,
+                suggested_fee_recipient: Address::ZERO,
+                prev_randao: B256::ZERO,
+                gas_limit: 30_000_000,
+                parent_beacon_block_root: Some(B256::ZERO),
+                withdrawals: None,
+                extra_data: Bytes::default(),
+            };
+
+            // 4. Build State and Executor
+            let mut state = State::builder()
+                .with_database(&mut exec_state)
+                .with_bundle_update()
+                .without_state_clear()
+                .build();
+
+            let mut builder = self
+                .evm_config
+                .builder_for_next_block(&mut state, &parent_header, env_attributes)
+                .map_err(|err| EvmAppError::Execution(err.to_string()))?;
+
+            builder
+                .apply_pre_execution_changes()
+                .map_err(|err| EvmAppError::Execution(err.to_string()))?;
+
+            // 5. Execute all transactions
+            for tx in decoded_txs {
+                builder.execute_transaction(tx)
+                    .map_err(|err| EvmAppError::Execution(format!("Transaction execution failed: {}", err)))?;
+            }
+
+            // 6. Finish execution
+            let executor = builder.into_executor();
+            let (evm, execution_result) = executor
+                .finish()
+                .map_err(|err| EvmAppError::Execution(err.to_string()))?;
+            
+            drop(evm);
+
+            state.merge_transitions(BundleRetention::Reverts);
+            let bundle = state.take_bundle();
+
+            // 7. Apply bundle to cloned state (NOT canonical)
+            exec_state.commit(&bundle);
+
+            // 8. Compute all 4 fields
+            let computed_state_root = exec_state.state_root();
+            
+            let computed_tx_root = ordered_trie_root_with_encoder(&block.transactions, |tx, out| {
+                out.put_slice(tx.as_slice());
+            });
+            
+            let computed_receipts_root = ordered_trie_root_with_encoder(&execution_result.receipts, |r, out| {
+                r.with_bloom_ref().encode_2718(out);
+            });
+            
+            let computed_gas_used: u64 = execution_result
+                .receipts
+                .iter()
+                .map(|r| r.cumulative_gas_used())
+                .sum();
+
+            // 9. Compare all 4 fields
             if computed_state_root.0 != block.state_root {
                 return Err(EvmAppError::StateRootMismatch {
                     expected: block.state_root,
@@ -259,11 +333,33 @@ where
                 });
             }
 
+            if computed_tx_root.0 != block.transactions_root {
+                return Err(EvmAppError::InvalidBlock(format!(
+                    "Transactions root mismatch: expected {:?}, computed {:?}",
+                    block.transactions_root, computed_tx_root.0
+                )));
+            }
+
+            if computed_receipts_root.0 != block.receipts_root {
+                return Err(EvmAppError::InvalidBlock(format!(
+                    "Receipts root mismatch: expected {:?}, computed {:?}",
+                    block.receipts_root, computed_receipts_root.0
+                )));
+            }
+
+            if computed_gas_used != block.gas_used {
+                return Err(EvmAppError::InvalidBlock(format!(
+                    "Gas used mismatch: expected {}, computed {}",
+                    block.gas_used, computed_gas_used
+                )));
+            }
+
+            // 10. Return ExecutionResult
             Ok(ExecutionResult {
                 state_root: block.state_root,
                 receipts_root: block.receipts_root,
                 gas_used: block.gas_used,
-                receipt_count: 0,
+                receipt_count: execution_result.receipts.len(),
             })
         }
     }
@@ -271,6 +367,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use reth_primitives_traits::SignerRecoverable;
     use super::*;
     use alloy_consensus::{SignableTransaction, TxLegacy};
     use alloy_eips::eip2718::Encodable2718;
@@ -467,5 +564,151 @@ mod tests {
         
         // Should produce empty block, not fail
         assert!(block.transactions.is_empty());
+    }
+
+    #[tokio::test]
+    async fn verify_accepts_valid_block() {
+        // Setup a valid block with a transaction
+        let receiver = Address::with_last_byte(2);
+        let tx = TxLegacy {
+            chain_id: Some(crate::config::SAHARA_CHAIN_ID),
+            nonce: 0,
+            gas_price: 10,
+            gas_limit: 21_000,
+            to: TxKind::Call(receiver),
+            value: U256::from(1000),
+            input: Bytes::default(),
+        };
+        let signature = Signature::test_signature(); 
+        let signed: TransactionSigned = tx.into_signed(signature).into();
+        let mut encoded = Vec::new();
+        signed.encode_2718(&mut encoded);
+
+        let (app, db) = setup_app(vec![encoded]).await;
+        
+        // Fund sender
+        let recovered = signed.recover_signer().unwrap();
+        {
+            let mut db = db.write().unwrap();
+            let info = revm::state::AccountInfo {
+                balance: U256::from(1_000_000_000_000_000_000u64),
+                nonce: 0,
+                ..Default::default()
+            };
+            db.insert_account(recovered, info);
+        }
+
+        // Snapshot state before propose
+        let pre_state = db.read().unwrap().clone();
+
+        let parent = app.genesis().await;
+        let (block, _) = app.propose(&parent, 1).await.unwrap();
+        
+        // Create new app with pre-state to verify
+        let chain_spec = Arc::new(crate::config::build_sahara_chain_spec());
+        let config = WhirlpoolEvmConfig::new(chain_spec);
+        let pre_db = Arc::new(RwLock::new(pre_state));
+        // Source doesn't matter for verify
+        let source = Arc::new(MockTxSource { txs: vec![] });
+        let verifier_app = EvmApplication::new(config, pre_db, source);
+
+        let result = verifier_app.verify(&parent, &block).await;
+        assert!(result.is_ok(), "Verify failed for valid block: {:?}", result.err());
+    }
+
+    #[tokio::test]
+    async fn verify_rejects_wrong_state_root() {
+        let (app, db) = setup_app(vec![]).await;
+        let pre_state = db.read().unwrap().clone();
+        
+        let parent = app.genesis().await;
+        let (mut block, _) = app.propose(&parent, 1).await.unwrap();
+        
+        // Corrupt state root
+        block.state_root = [0xde; 32];
+        
+        // Verifier
+        let chain_spec = Arc::new(crate::config::build_sahara_chain_spec());
+        let config = WhirlpoolEvmConfig::new(chain_spec);
+        let pre_db = Arc::new(RwLock::new(pre_state));
+        let source = Arc::new(MockTxSource { txs: vec![] });
+        let verifier_app = EvmApplication::new(config, pre_db, source);
+
+        let result = verifier_app.verify(&parent, &block).await;
+        assert!(matches!(result, Err(EvmAppError::StateRootMismatch { .. })));
+    }
+
+    #[tokio::test]
+    async fn verify_rejects_undecodable_transactions() {
+        let (app, db) = setup_app(vec![]).await;
+        let pre_state = db.read().unwrap().clone();
+
+        let parent = app.genesis().await;
+        let (mut block, _) = app.propose(&parent, 1).await.unwrap();
+        
+        // Inject invalid RLP
+        block.transactions.push(vec![0xde, 0xad, 0xbe, 0xef]);
+        
+        // Verifier
+        let chain_spec = Arc::new(crate::config::build_sahara_chain_spec());
+        let config = WhirlpoolEvmConfig::new(chain_spec);
+        let pre_db = Arc::new(RwLock::new(pre_state));
+        let source = Arc::new(MockTxSource { txs: vec![] });
+        let verifier_app = EvmApplication::new(config, pre_db, source);
+
+        let result = verifier_app.verify(&parent, &block).await;
+        // Should fail decoding
+        assert!(matches!(result, Err(EvmAppError::InvalidTransaction(_))));
+    }
+
+    #[tokio::test]
+    async fn verify_rejects_wrong_gas_used() {
+        // Need a transaction to have gas used
+        let receiver = Address::with_last_byte(2);
+        let tx = TxLegacy {
+            chain_id: Some(crate::config::SAHARA_CHAIN_ID),
+            nonce: 0,
+            gas_price: 10,
+            gas_limit: 21_000,
+            to: TxKind::Call(receiver),
+            value: U256::from(1000),
+            input: Bytes::default(),
+        };
+        let signature = Signature::test_signature(); 
+        let signed: TransactionSigned = tx.into_signed(signature).into();
+        let mut encoded = Vec::new();
+        signed.encode_2718(&mut encoded);
+
+        let (app, db) = setup_app(vec![encoded]).await;
+        
+        // Fund sender
+        let recovered = signed.recover_signer().unwrap();
+        {
+            let mut db = db.write().unwrap();
+            let info = revm::state::AccountInfo {
+                balance: U256::from(1_000_000_000_000_000_000u64),
+                nonce: 0,
+                ..Default::default()
+            };
+            db.insert_account(recovered, info);
+        }
+
+        let pre_state = db.read().unwrap().clone();
+
+        let parent = app.genesis().await;
+        let (mut block, _) = app.propose(&parent, 1).await.unwrap();
+        
+        // Corrupt gas used
+        block.gas_used += 1;
+        
+        // Verifier
+        let chain_spec = Arc::new(crate::config::build_sahara_chain_spec());
+        let config = WhirlpoolEvmConfig::new(chain_spec);
+        let pre_db = Arc::new(RwLock::new(pre_state));
+        let source = Arc::new(MockTxSource { txs: vec![] });
+        let verifier_app = EvmApplication::new(config, pre_db, source);
+
+        let result = verifier_app.verify(&parent, &block).await;
+        assert!(result.is_err());
     }
 }

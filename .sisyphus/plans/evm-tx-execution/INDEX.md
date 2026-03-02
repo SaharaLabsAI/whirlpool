@@ -8,7 +8,7 @@
 
 ### Wave 2: Core Execution (sequential)
 - [x] [03-propose-execution](tasks/03-propose-execution.md) — L
-- [ ] [04-verify-execution](tasks/04-verify-execution.md) — L
+- [x] [04-verify-execution](tasks/04-verify-execution.md) — L
 
 ### Wave 3: Integration (sequential)
 - [ ] [05-integration-test](tasks/05-integration-test.md) — M

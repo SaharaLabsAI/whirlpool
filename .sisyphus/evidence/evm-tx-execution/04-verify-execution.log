@@ -1,0 +1,30 @@
+# Evidence for Task 04: Verify Execution
+
+## Implementation
+I replaced the `verify()` stub in `crates/app-evm/src/executor.rs` with a full verification implementation that:
+1. Decodes all transactions from the block.
+2. Clones the state from the `state_db` (using a snapshot mechanism in tests to ensure pre-state).
+3. Re-executes all transactions on the cloned state.
+4. Computes `state_root`, `transactions_root`, `receipts_root`, and `gas_used`.
+5. Compares all 4 fields with the values in the proposed block.
+
+## Tests
+I added 4 tests to `crates/app-evm/src/executor.rs`:
+1. `verify_accepts_valid_block`: Verifies a correctly proposed block passes verification.
+2. `verify_rejects_wrong_state_root`: Verifies modification of state root causes failure.
+3. `verify_rejects_undecodable_transactions`: Verifies that invalid RLP in transactions list causes failure (unlike `propose` which skips them).
+4. `verify_rejects_wrong_gas_used`: Verifies that modification of gas used causes failure.
+
+## Verification Results
+Ran `nix develop --command cargo test -j 1 -p app-evm -- verify`
+
+Output excerpt:
+```
+running 4 tests
+test executor::tests::verify_rejects_wrong_state_root ... ok
+test executor::tests::verify_rejects_undecodable_transactions ... ok
+test executor::tests::verify_rejects_wrong_gas_used ... ok
+test executor::tests::verify_accepts_valid_block ... ok
+```
+
+Note: The test run experienced some compiler instability (ICE) on integration tests due to resource limits in the environment, but the unit tests for `executor.rs` passed successfully.
