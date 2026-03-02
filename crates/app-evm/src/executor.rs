@@ -1,20 +1,37 @@
 use std::sync::{Arc, RwLock};
 
-use alloy_eips::eip2718::Decodable2718;
-use alloy_primitives::{B256, Bytes, U256};
+use alloy_consensus::TxReceipt;
+use alloy_eips::eip2718::{Decodable2718, Encodable2718};
+use alloy_primitives::{bytes::BufMut, Address, B256, Bytes, U256};
+use alloy_trie::{root::ordered_trie_root_with_encoder, EMPTY_ROOT_HASH};
 use app::{Application, EvmBlock, ExecutionResult, TxSource};
-use alloy_trie::EMPTY_ROOT_HASH;
-
 use reth_ethereum_primitives::TransactionSigned;
-use reth_primitives_traits::{Header, Recovered, SealedHeader, SignedTransaction};
+use reth_evm::{execute::{BlockBuilder, BlockExecutor}, ConfigureEvm, NextBlockEnvAttributes};
+use reth_primitives_traits::{Header, Recovered, SealedHeader, SignedTransaction, SignerRecoverable};
+use reth_revm::State;
+use revm::database::states::bundle_state::BundleRetention;
+use revm::database::BundleState;
+use state::InMemoryStateDb;
+
 use crate::config::WhirlpoolEvmConfig;
 use crate::error::EvmAppError;
 
 pub type RecoveredTx = Recovered<TransactionSigned>;
 
+impl StateProvider for InMemoryStateDb {
+    fn state_root(&self) -> B256 {
+        self.state_root()
+    }
+    
+    fn commit(&mut self, bundle: &BundleState) {
+        self.commit(bundle)
+    }
+}
+
 /// Trait for accessing state root from a database.
 pub trait StateProvider {
     fn state_root(&self) -> B256;
+    fn commit(&mut self, bundle: &BundleState);
 }
 
 /// Converts an `EvmBlock` into an Ethereum `Header`.
@@ -81,7 +98,7 @@ impl<DB> EvmApplication<DB> {
 
 impl<DB> Application for EvmApplication<DB>
 where
-    DB: StateProvider + Clone + Send + Sync + 'static,
+    DB: StateProvider + Clone + Send + Sync + 'static + revm::Database + std::fmt::Debug,
 {
     type Block = EvmBlock;
     type Result = ExecutionResult;
@@ -113,28 +130,109 @@ where
         height: u64,
     ) -> impl std::future::Future<Output = Result<(Self::Block, Self::Result), Self::Error>> + Send {
         async move {
-            // MVP: Empty block execution (no transaction processing)
-            let state_root = {
+            let raw_pending = self.tx_source.pending();
+            let decoded_pending: Vec<(Vec<u8>, RecoveredTx)> = raw_pending
+                .iter()
+                .filter_map(|raw| {
+                    decode_transactions(std::slice::from_ref(raw))
+                        .ok()
+                        .and_then(|mut decoded| decoded.pop().map(|tx| (raw.clone(), tx)))
+                })
+                .collect();
+
+            let parent_header = build_sealed_header(parent);
+
+            let mut state_snapshot = {
                 let db = self.state_db.read().unwrap();
-                db.state_root()
+                db.clone()
             };
+
+            let timestamp = parent.timestamp + 12;
+            let env_attributes = NextBlockEnvAttributes {
+                timestamp,
+                suggested_fee_recipient: Address::ZERO,
+                prev_randao: B256::ZERO,
+                gas_limit: 30_000_000,
+                parent_beacon_block_root: Some(B256::ZERO),
+                withdrawals: None,
+                extra_data: Bytes::default(),
+            };
+
+            let mut state = State::builder()
+                .with_database(&mut state_snapshot)
+                .with_bundle_update()
+                .without_state_clear()
+                .build();
+
+            let mut builder = self
+                .evm_config
+                .builder_for_next_block(&mut state, &parent_header, env_attributes)
+                .map_err(|err| EvmAppError::Execution(err.to_string()))?;
+
+            builder
+                .apply_pre_execution_changes()
+                .map_err(|err| EvmAppError::Execution(err.to_string()))?;
+
+            let mut executed_raw_txs = Vec::new();
+            for (raw_tx, tx) in decoded_pending {
+                match builder.execute_transaction(tx.clone()) {
+                    Ok(_) => executed_raw_txs.push(raw_tx),
+                    Err(reth_evm::execute::BlockExecutionError::Validation(
+                        reth_evm::execute::BlockValidationError::InvalidTx { .. },
+                    )) => {
+                        continue;
+                    }
+                    Err(err) => return Err(EvmAppError::Execution(err.to_string())),
+                }
+            }
+
+            let mut executor = builder.into_executor();
+            let (evm, execution_result) = executor
+                .finish()
+                .map_err(|err| EvmAppError::Execution(err.to_string()))?;
+            
+            // Drop evm to release borrow on state
+            drop(evm);
+
+            state.merge_transitions(BundleRetention::Reverts);
+            let bundle = state.take_bundle();
+
+            let state_root = {
+                let mut canonical_db = self.state_db.write().unwrap();
+                canonical_db.commit(&bundle);
+                canonical_db.state_root()
+            };
+
+            let transactions_root = ordered_trie_root_with_encoder(&executed_raw_txs, |tx, out| {
+                out.put_slice(tx.as_slice());
+            });
+
+            let receipts_root = ordered_trie_root_with_encoder(&execution_result.receipts, |receipt, out| {
+                receipt.with_bloom_ref().encode_2718(out);
+            });
+
+            let gas_used = execution_result
+                .receipts
+                .iter()
+                .map(TxReceipt::cumulative_gas_used)
+                .sum::<u64>();
 
             let block = EvmBlock {
                 height,
                 parent_id: parent.compute_id(),
                 state_root: state_root.0,
-                transactions_root: EMPTY_ROOT_HASH.0,
-                receipts_root: EMPTY_ROOT_HASH.0,
-                gas_used: 0,
-                timestamp: parent.timestamp + 12,
-                transactions: vec![],
+                transactions_root: transactions_root.0,
+                receipts_root: receipts_root.0,
+                gas_used,
+                timestamp,
+                transactions: executed_raw_txs,
             };
 
             let result = ExecutionResult {
                 state_root: state_root.0,
-                receipts_root: EMPTY_ROOT_HASH.0,
-                gas_used: 0,
-                receipt_count: 0,
+                receipts_root: receipts_root.0,
+                gas_used,
+                receipt_count: execution_result.receipts.len(),
             };
 
             Ok((block, result))
@@ -239,5 +337,135 @@ mod tests {
     fn decode_transactions_empty_input() {
         let decoded = decode_transactions(&[]).expect("empty input should be valid");
         assert!(decoded.is_empty());
+    }
+
+    struct MockTxSource {
+        txs: Vec<Vec<u8>>,
+    }
+
+    impl app::TxSource for MockTxSource {
+        fn pending(&self) -> Vec<Vec<u8>> {
+            self.txs.clone()
+        }
+    }
+
+    async fn setup_app(txs: Vec<Vec<u8>>) -> (EvmApplication<InMemoryStateDb>, Arc<RwLock<InMemoryStateDb>>) {
+        let chain_spec = Arc::new(crate::config::build_sahara_chain_spec());
+        let config = WhirlpoolEvmConfig::new(chain_spec);
+        let db = Arc::new(RwLock::new(InMemoryStateDb::new()));
+        let source = Arc::new(MockTxSource { txs });
+        
+        let app = EvmApplication::new(config, db.clone(), source);
+        (app, db)
+    }
+
+    #[tokio::test]
+    async fn propose_empty_txsource_produces_empty_block() {
+        let (app, _) = setup_app(vec![]).await;
+        let parent = app.genesis().await;
+        
+        let (block, result) = app.propose(&parent, 1).await.unwrap();
+        
+        assert!(block.transactions.is_empty());
+        assert_eq!(block.gas_used, 0);
+        assert_eq!(block.transactions_root, EMPTY_ROOT_HASH.0);
+        assert_eq!(block.receipts_root, EMPTY_ROOT_HASH.0);
+        assert_eq!(result.gas_used, 0);
+    }
+
+    #[tokio::test]
+    async fn propose_executes_transfer_transaction() {
+        let receiver = Address::with_last_byte(2);
+        
+        let tx = TxLegacy {
+            chain_id: Some(crate::config::SAHARA_CHAIN_ID),
+            nonce: 0,
+            gas_price: 10,
+            gas_limit: 21_000,
+            to: TxKind::Call(receiver),
+            value: U256::from(1000),
+            input: Bytes::default(),
+        };
+        let signature = Signature::test_signature(); 
+        let signed: TransactionSigned = tx.into_signed(signature).into();
+        let recovered = signed.recover_signer().unwrap();
+        
+        let mut encoded = Vec::new();
+        signed.encode_2718(&mut encoded);
+
+        let (app, db) = setup_app(vec![encoded]).await;
+
+        // Fund the sender
+        {
+            let mut db = db.write().unwrap();
+            let info = revm::state::AccountInfo {
+                balance: U256::from(1_000_000_000_000_000_000u64),
+                nonce: 0,
+                ..Default::default()
+            };
+            db.insert_account(recovered, info);
+        }
+
+        let parent = app.genesis().await;
+        let (block, _) = app.propose(&parent, 1).await.unwrap();
+
+        assert_eq!(block.transactions.len(), 1);
+        assert!(block.gas_used > 0);
+        assert_ne!(block.transactions_root, EMPTY_ROOT_HASH.0);
+        assert_ne!(block.receipts_root, EMPTY_ROOT_HASH.0);
+        assert_ne!(block.state_root, parent.state_root);
+    }
+
+    #[tokio::test]
+    async fn propose_executes_contract_deployment() {
+         // Simple contract that returns 42
+         let bytecode = Bytes::from(vec![0x60, 0x2a, 0x60, 0x00, 0x52, 0x60, 0x20, 0x60, 0x00, 0xf3]);
+         
+         let tx = TxLegacy {
+            chain_id: Some(crate::config::SAHARA_CHAIN_ID),
+            nonce: 0,
+            gas_price: 10,
+            gas_limit: 100_000,
+            to: TxKind::Create,
+            value: U256::ZERO,
+            input: bytecode,
+        };
+        
+        let signature = Signature::test_signature();
+        let signed: TransactionSigned = tx.into_signed(signature).into();
+        let recovered = signed.recover_signer().unwrap();
+        
+        let mut encoded = Vec::new();
+        signed.encode_2718(&mut encoded);
+
+        let (app, db) = setup_app(vec![encoded]).await;
+        
+        // Fund
+        {
+            let mut db = db.write().unwrap();
+            let info = revm::state::AccountInfo {
+                balance: U256::from(1_000_000_000_000_000_000u64),
+                nonce: 0,
+                ..Default::default()
+            };
+            db.insert_account(recovered, info);
+        }
+        
+        let parent = app.genesis().await;
+        let (block, _) = app.propose(&parent, 1).await.unwrap();
+        
+        assert_eq!(block.transactions.len(), 1);
+        assert!(block.gas_used > 0);
+    }
+
+    #[tokio::test]
+    async fn propose_skips_invalid_transactions() {
+        let (app, _) = setup_app(vec![vec![0xde, 0xad, 0xbe, 0xef]]).await;
+        let parent = app.genesis().await;
+        
+        let (block, _) = app.propose(&parent, 1).await.unwrap();
+        
+        // Should produce empty block, not fail
+        assert!(block.transactions.is_empty());
     }
 }

@@ -128,6 +128,10 @@ impl InMemoryStateDb {
         keccak256(encoded)
     }
 
+    pub fn insert_account(&mut self, address: Address, info: AccountInfo) {
+        self.accounts.insert(address, DbAccount { info, storage: HashMap::new() });
+    }
+
     pub fn insert_block_hash(&mut self, number: u64, hash: B256) {
         self.block_hashes.insert(number, hash);
     }

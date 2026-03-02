@@ -7,7 +7,7 @@
 - [x] [02-tx-decode-helper](tasks/02-tx-decode-helper.md) — S
 
 ### Wave 2: Core Execution (sequential)
-- [ ] [03-propose-execution](tasks/03-propose-execution.md) — L
+- [x] [03-propose-execution](tasks/03-propose-execution.md) — L
 - [ ] [04-verify-execution](tasks/04-verify-execution.md) — L
 
 ### Wave 3: Integration (sequential)

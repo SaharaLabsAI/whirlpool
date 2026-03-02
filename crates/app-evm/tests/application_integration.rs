@@ -1,34 +1,15 @@
 use std::sync::{Arc, RwLock};
 
 use app::{Application, ApplicationAdapter, EvmBlock, NoopTxSource};
-use app_evm::executor::{EvmApplication, StateProvider};
+use app_evm::executor::EvmApplication;
 use app_evm::{WhirlpoolEvmConfig, build_sahara_chain_spec};
 use consensus::{ConsensusApp, ConsensusError};
 use state::InMemoryStateDb;
 
-#[derive(Clone)]
-struct TestStateDb {
-    inner: InMemoryStateDb,
-}
-
-impl TestStateDb {
-    fn new() -> Self {
-        Self {
-            inner: InMemoryStateDb::new(),
-        }
-    }
-}
-
-impl StateProvider for TestStateDb {
-    fn state_root(&self) -> alloy_primitives::B256 {
-        self.inner.state_root()
-    }
-}
-
 fn assert_application_impl<A: Application<Block = EvmBlock>>(_app: &A) {}
 
-fn build_adapter() -> ApplicationAdapter<EvmApplication<TestStateDb>> {
-    let state_db = Arc::new(RwLock::new(TestStateDb::new()));
+fn build_adapter() -> ApplicationAdapter<EvmApplication<InMemoryStateDb>> {
+    let state_db = Arc::new(RwLock::new(InMemoryStateDb::new()));
     let evm_config = WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec()));
     let tx_source = Arc::new(NoopTxSource);
     let evm_app = EvmApplication::new(evm_config, state_db, tx_source);
