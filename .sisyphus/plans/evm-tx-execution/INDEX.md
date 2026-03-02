@@ -11,8 +11,8 @@
 - [x] [04-verify-execution](tasks/04-verify-execution.md) — L
 
 ### Wave 3: Integration (sequential)
-- [ ] [05-integration-test](tasks/05-integration-test.md) — M
-- [ ] [06-workspace-verification](tasks/06-workspace-verification.md) — XS
+- [x] [05-integration-test](tasks/05-integration-test.md) — M
+- [x] [06-workspace-verification](tasks/06-workspace-verification.md) — XS
 - [ ] [07-update-llmdocs](tasks/07-update-llmdocs.md) — S
 
 ## Dependency Graph

@@ -15,6 +15,7 @@ use tracing::info;
 use app::{ApplicationAdapter, NoopTxSource};
 use app_evm::executor::{EvmApplication, StateProvider};
 use app_evm::{WhirlpoolEvmConfig, build_sahara_chain_spec};
+use reth_revm::db::BundleState;
 use state::InMemoryStateDb;
 use whirlpool_node::config;
 
@@ -22,7 +23,7 @@ use whirlpool_node::config;
 const APPLICATION_NAMESPACE: &[u8] = b"whirlpool-dev";
 const MAX_MESSAGE_SIZE: u32 = 1024 * 1024; // 1 MB
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct TestStateDb(InMemoryStateDb);
 
 impl TestStateDb {
@@ -34,6 +35,11 @@ impl TestStateDb {
 impl StateProvider for TestStateDb {
     fn state_root(&self) -> revm::primitives::B256 {
         self.0.state_root()
+    }
+
+    fn commit(&mut self, bundle: &BundleState) -> Result<(), state::StateError> {
+        self.0.commit(bundle);
+        Ok(())
     }
 }
 

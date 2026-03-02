@@ -4,16 +4,9 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-consensus = { path = "../consensus" }
-consensus-simplex = { path = "../consensus-simplex" }
-p2p = { path = "../p2p" }
-commonware-consensus = { path = "../../vendor/commonware/consensus" }
-commonware-codec = { path = "../../vendor/commonware/codec" }
-commonware-cryptography = { path = "../../vendor/commonware/cryptography" }
-p2p-commonware = { path = "../p2p-commonware" }
-commonware-runtime = { path = "../../vendor/commonware/runtime" }
 app = { path = "../app" }
 app-evm = { path = "../app-evm" }
+reth-revm = { path = "../../vendor/reth/crates/revm" }
 state = { path = "../state" }
 revm = { version = "34" }
 alloy-primitives = { version = "1.5.0" }

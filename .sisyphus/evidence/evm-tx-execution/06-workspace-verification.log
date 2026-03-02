@@ -1,0 +1,294 @@
+warning: Git tree '/home/dev/sahara/web3/agent/playground/whirlpool' is dirty
+   Compiling commonware-utils v0.0.65 (/home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/utils)
+   Compiling state v0.1.0 (/home/dev/sahara/web3/agent/playground/whirlpool/crates/state)
+warning: unused import: `std::hash::BuildHasherDefault`
+ --> crates/state/src/db.rs:2:5
+  |
+2 | use std::hash::BuildHasherDefault;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: use of deprecated method `futures::futures_channel::mpsc::Receiver::<T>::try_next`: please use `try_recv` instead
+   --> vendor/commonware/utils/src/channels/tracked.rs:245:20
+    |
+245 |         self.inner.try_next().ok().flatten()
+    |                    ^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+
+warning: `state` (lib) generated 1 warning (run `cargo fix --lib -p state` to apply 1 suggestion)
+warning: `commonware-utils` (lib) generated 1 warning
+   Compiling commonware-math v0.0.65 (/home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/math)
+   Compiling commonware-cryptography v0.0.65 (/home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/cryptography)
+   Compiling commonware-runtime v0.0.65 (/home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime)
+   Compiling commonware-stream v0.0.65 (/home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/stream)
+   Compiling commonware-storage v0.0.65 (/home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/storage)
+   Compiling commonware-p2p v0.0.65 (/home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/p2p)
+   Compiling commonware-resolver v0.0.65 (/home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/resolver)
+   Compiling commonware-broadcast v0.0.65 (/home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/broadcast)
+   Compiling p2p-commonware v0.1.0 (/home/dev/sahara/web3/agent/playground/whirlpool/crates/p2p-commonware)
+   Compiling commonware-consensus v0.0.65 (/home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/consensus)
+   Compiling app v0.1.0 (/home/dev/sahara/web3/agent/playground/whirlpool/crates/app)
+   Compiling consensus-simplex v0.1.0 (/home/dev/sahara/web3/agent/playground/whirlpool/crates/consensus-simplex)
+   Compiling app-evm v0.1.0 (/home/dev/sahara/web3/agent/playground/whirlpool/crates/app-evm)
+warning: field `sink` is never read
+  --> crates/consensus-simplex/src/engine.rs:50:5
+   |
+43 | pub struct CommonwareEngine<A, S, N>
+   |            ---------------- field in this struct
+...
+50 |     sink: Arc<S>,
+   |     ^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `consensus-simplex` (lib) generated 1 warning
+   Compiling whirlpool-node v0.1.0 (/home/dev/sahara/web3/agent/playground/whirlpool/crates/whirlpool-node)
+   Compiling whirlpool-node-simple v0.1.0 (/home/dev/sahara/web3/agent/playground/whirlpool/crates/whirlpool-node-simple)
+error[E0046]: not all trait items implemented, missing: `commit`
+  --> crates/whirlpool-node/src/main.rs:34:1
+   |
+34 | impl StateProvider for TestStateDb {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ missing `commit` in implementation
+   |
+   = help: implement the missing item: `fn commit(&mut self, _: &BundleState) { todo!() }`
+
+error[E0277]: `TestStateDb` doesn't implement `std::fmt::Debug`
+   --> crates/whirlpool-node/src/main.rs:126:28
+    |
+126 |         let app = Arc::new(ApplicationAdapter::new(evm_app));
+    |                            ^^^^^^^^^^^^^^^^^^ the trait `std::fmt::Debug` is not implemented for `TestStateDb`
+    |
+    = note: add `#[derive(Debug)]` to `TestStateDb` or manually `impl std::fmt::Debug for TestStateDb`
+help: the trait `Application` is implemented for `EvmApplication<DB>`
+   --> /home/dev/sahara/web3/agent/playground/whirlpool/crates/app-evm/src/executor.rs:99:1
+    |
+ 99 | / impl<DB> Application for EvmApplication<DB>
+100 | | where
+101 | |     DB: StateProvider + Clone + Send + Sync + 'static + revm::Database + std::fmt::Debug,
+    | |_________________________________________________________________________________________^
+    = note: required for `EvmApplication<TestStateDb>` to implement `Application`
+note: required by a bound in `ApplicationAdapter`
+   --> /home/dev/sahara/web3/agent/playground/whirlpool/crates/app/src/adapter.rs:6:34
+    |
+  6 | pub struct ApplicationAdapter<A: Application<Block = EvmBlock>> {
+    |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `ApplicationAdapter`
+help: consider annotating `TestStateDb` with `#[derive(Debug)]`
+    |
+ 26 + #[derive(Debug)]
+ 27 | struct TestStateDb(InMemoryStateDb);
+    |
+
+error[E0277]: `TestStateDb` doesn't implement `std::fmt::Debug`
+   --> crates/whirlpool-node/src/main.rs:126:28
+    |
+126 |         let app = Arc::new(ApplicationAdapter::new(evm_app));
+    |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `std::fmt::Debug` is not implemented for `TestStateDb`
+    |
+    = note: add `#[derive(Debug)]` to `TestStateDb` or manually `impl std::fmt::Debug for TestStateDb`
+help: the trait `Application` is implemented for `EvmApplication<DB>`
+   --> /home/dev/sahara/web3/agent/playground/whirlpool/crates/app-evm/src/executor.rs:99:1
+    |
+ 99 | / impl<DB> Application for EvmApplication<DB>
+100 | | where
+101 | |     DB: StateProvider + Clone + Send + Sync + 'static + revm::Database + std::fmt::Debug,
+    | |_________________________________________________________________________________________^
+    = note: required for `EvmApplication<TestStateDb>` to implement `Application`
+note: required by a bound in `ApplicationAdapter`
+   --> /home/dev/sahara/web3/agent/playground/whirlpool/crates/app/src/adapter.rs:6:34
+    |
+  6 | pub struct ApplicationAdapter<A: Application<Block = EvmBlock>> {
+    |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `ApplicationAdapter`
+help: consider annotating `TestStateDb` with `#[derive(Debug)]`
+    |
+ 26 + #[derive(Debug)]
+ 27 | struct TestStateDb(InMemoryStateDb);
+    |
+
+error[E0277]: `TestStateDb` doesn't implement `std::fmt::Debug`
+   --> crates/whirlpool-node/src/main.rs:126:19
+    |
+126 |         let app = Arc::new(ApplicationAdapter::new(evm_app));
+    |                   ^^^ the trait `std::fmt::Debug` is not implemented for `TestStateDb`
+    |
+    = note: add `#[derive(Debug)]` to `TestStateDb` or manually `impl std::fmt::Debug for TestStateDb`
+help: the trait `Application` is implemented for `EvmApplication<DB>`
+   --> /home/dev/sahara/web3/agent/playground/whirlpool/crates/app-evm/src/executor.rs:99:1
+    |
+ 99 | / impl<DB> Application for EvmApplication<DB>
+100 | | where
+101 | |     DB: StateProvider + Clone + Send + Sync + 'static + revm::Database + std::fmt::Debug,
+    | |_________________________________________________________________________________________^
+    = note: required for `EvmApplication<TestStateDb>` to implement `Application`
+note: required by a bound in `ApplicationAdapter`
+   --> /home/dev/sahara/web3/agent/playground/whirlpool/crates/app/src/adapter.rs:6:34
+    |
+  6 | pub struct ApplicationAdapter<A: Application<Block = EvmBlock>> {
+    |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `ApplicationAdapter`
+help: consider annotating `TestStateDb` with `#[derive(Debug)]`
+    |
+ 26 + #[derive(Debug)]
+ 27 | struct TestStateDb(InMemoryStateDb);
+    |
+
+error[E0277]: `TestStateDb` doesn't implement `std::fmt::Debug`
+   --> crates/whirlpool-node/src/main.rs:126:19
+    |
+126 |         let app = Arc::new(ApplicationAdapter::new(evm_app));
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `std::fmt::Debug` is not implemented for `TestStateDb`
+    |
+    = note: add `#[derive(Debug)]` to `TestStateDb` or manually `impl std::fmt::Debug for TestStateDb`
+help: the trait `Application` is implemented for `EvmApplication<DB>`
+   --> /home/dev/sahara/web3/agent/playground/whirlpool/crates/app-evm/src/executor.rs:99:1
+    |
+ 99 | / impl<DB> Application for EvmApplication<DB>
+100 | | where
+101 | |     DB: StateProvider + Clone + Send + Sync + 'static + revm::Database + std::fmt::Debug,
+    | |_________________________________________________________________________________________^
+    = note: required for `EvmApplication<TestStateDb>` to implement `Application`
+note: required by a bound in `ApplicationAdapter`
+   --> /home/dev/sahara/web3/agent/playground/whirlpool/crates/app/src/adapter.rs:6:34
+    |
+  6 | pub struct ApplicationAdapter<A: Application<Block = EvmBlock>> {
+    |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `ApplicationAdapter`
+help: consider annotating `TestStateDb` with `#[derive(Debug)]`
+    |
+ 26 + #[derive(Debug)]
+ 27 | struct TestStateDb(InMemoryStateDb);
+    |
+
+error[E0599]: the method `start` exists for struct `CommonwareEngine<ApplicationAdapter<EvmApplication<...>>, ..., ...>`, but its trait bounds were not satisfied
+   --> crates/whirlpool-node/src/main.rs:129:31
+    |
+129 |         let _running = engine.start().expect("failed to start consensus engine");
+    |                               ^^^^^ method cannot be called due to unsatisfied trait bounds
+    |
+   ::: /home/dev/sahara/web3/agent/playground/whirlpool/crates/app-evm/src/executor.rs:79:1
+    |
+ 79 | pub struct EvmApplication<DB> {
+    | ----------------------------- doesn't satisfy `<_ as Application>::Block = EvmBlock` or `EvmApplication<TestStateDb>: Application`
+    |
+   ::: /home/dev/sahara/web3/agent/playground/whirlpool/crates/app/src/adapter.rs:6:1
+    |
+  6 | pub struct ApplicationAdapter<A: Application<Block = EvmBlock>> {
+    | --------------------------------------------------------------- doesn't satisfy `_: ConsensusApp`
+    |
+   ::: /home/dev/sahara/web3/agent/playground/whirlpool/crates/consensus-simplex/src/engine.rs:43:1
+    |
+ 43 | pub struct CommonwareEngine<A, S, N>
+    | ------------------------------------ doesn't satisfy `_: ConsensusEngine`
+    |
+    = note: the following trait bounds were not satisfied:
+            `<EvmApplication<TestStateDb> as Application>::Block = EvmBlock`
+            which is required by `CommonwareEngine<ApplicationAdapter<EvmApplication<TestStateDb>>, FinalizationSink<EvmBlock>, CommonwareNetworkProvider<commonware_runtime::tokio::Context, commonware_cryptography::ed25519::PrivateKey>>: ConsensusEngine`
+            `EvmApplication<TestStateDb>: Application`
+            which is required by `CommonwareEngine<ApplicationAdapter<EvmApplication<TestStateDb>>, FinalizationSink<EvmBlock>, CommonwareNetworkProvider<commonware_runtime::tokio::Context, commonware_cryptography::ed25519::PrivateKey>>: ConsensusEngine`
+            `ApplicationAdapter<EvmApplication<TestStateDb>>: ConsensusApp`
+            which is required by `CommonwareEngine<ApplicationAdapter<EvmApplication<TestStateDb>>, FinalizationSink<EvmBlock>, CommonwareNetworkProvider<commonware_runtime::tokio::Context, commonware_cryptography::ed25519::PrivateKey>>: ConsensusEngine`
+    = note: the full name for the type has been written to '/home/dev/sahara/web3/agent/playground/whirlpool/target/debug/deps/whirlpool_node-69f9c17e48336079.long-type-855534347018422874.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+Some errors have detailed explanations: E0046, E0277, E0599.
+For more information about an error, try `rustc --explain E0046`.
+error: could not compile `whirlpool-node` (bin "whirlpool-node") due to 6 previous errors
+warning: build failed, waiting for other jobs to finish...
+warning: Git tree '/home/dev/sahara/web3/agent/playground/whirlpool' is dirty
+warning: use of deprecated method `futures::futures_channel::mpsc::Receiver::<T>::try_next`: please use `try_recv` instead
+   --> vendor/commonware/utils/src/channels/tracked.rs:245:20
+    |
+245 |         self.inner.try_next().ok().flatten()
+    |                    ^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+
+warning: `commonware-utils` (lib) generated 1 warning
+warning: unused import: `std::hash::BuildHasherDefault`
+ --> crates/state/src/db.rs:2:5
+  |
+2 | use std::hash::BuildHasherDefault;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `state` (lib) generated 1 warning (run `cargo fix --lib -p state` to apply 1 suggestion)
+warning: field `sink` is never read
+  --> crates/consensus-simplex/src/engine.rs:50:5
+   |
+43 | pub struct CommonwareEngine<A, S, N>
+   |            ---------------- field in this struct
+...
+50 |     sink: Arc<S>,
+   |     ^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `consensus-simplex` (lib) generated 1 warning
+   Compiling whirlpool-node v0.1.0 (/home/dev/sahara/web3/agent/playground/whirlpool/crates/whirlpool-node)
+error[E0432]: unresolved import `consensus`
+ --> crates/whirlpool-node/src/app.rs:7:5
+  |
+7 | use consensus::{Block as CoreBlock, ConsensusApp, ConsensusError};
+  |     ^^^^^^^^^ use of unresolved module or unlinked crate `consensus`
+  |
+  = help: if you wanted to use a crate named `consensus`, use `cargo add consensus` to add it to your `Cargo.toml`
+
+error[E0432]: unresolved import `commonware_codec`
+ --> crates/whirlpool-node/src/block.rs:4:5
+  |
+4 | use commonware_codec::{EncodeSize, Error as CodecError, Read as CodecRead, Write as CodecWrite};
+  |     ^^^^^^^^^^^^^^^^ use of unresolved module or unlinked crate `commonware_codec`
+  |
+  = help: if you wanted to use a crate named `commonware_codec`, use `cargo add commonware_codec` to add it to your `Cargo.toml`
+
+error[E0432]: unresolved import `commonware_consensus`
+ --> crates/whirlpool-node/src/block.rs:5:5
+  |
+5 | use commonware_consensus::{Block as VendorBlock, Heightable};
+  |     ^^^^^^^^^^^^^^^^^^^^ use of unresolved module or unlinked crate `commonware_consensus`
+  |
+  = help: if you wanted to use a crate named `commonware_consensus`, use `cargo add commonware_consensus` to add it to your `Cargo.toml`
+
+error[E0432]: unresolved import `commonware_cryptography`
+ --> crates/whirlpool-node/src/block.rs:6:5
+  |
+6 | use commonware_cryptography::{Committable, Digestible};
+  |     ^^^^^^^^^^^^^^^^^^^^^^^ use of unresolved module or unlinked crate `commonware_cryptography`
+  |
+  = help: if you wanted to use a crate named `commonware_cryptography`, use `cargo add commonware_cryptography` to add it to your `Cargo.toml`
+
+error[E0432]: unresolved import `consensus`
+ --> crates/whirlpool-node/src/block.rs:7:5
+  |
+7 | use consensus::Block as CoreBlock;
+  |     ^^^^^^^^^ use of unresolved module or unlinked crate `consensus`
+  |
+  = help: if you wanted to use a crate named `consensus`, use `cargo add consensus` to add it to your `Cargo.toml`
+
+error[E0433]: failed to resolve: use of unresolved module or unlinked crate `commonware_cryptography`
+  --> crates/whirlpool-node/src/block.rs:13:20
+   |
+13 | type BlockDigest = commonware_cryptography::sha256::Digest;
+   |                    ^^^^^^^^^^^^^^^^^^^^^^^ use of unresolved module or unlinked crate `commonware_cryptography`
+   |
+   = help: if you wanted to use a crate named `commonware_cryptography`, use `cargo add commonware_cryptography` to add it to your `Cargo.toml`
+
+error[E0433]: failed to resolve: use of unresolved module or unlinked crate `commonware_consensus`
+   --> crates/whirlpool-node/src/block.rs:104:25
+    |
+104 |     fn height(&self) -> commonware_consensus::types::Height {
+    |                         ^^^^^^^^^^^^^^^^^^^^ use of unresolved module or unlinked crate `commonware_consensus`
+    |
+    = help: if you wanted to use a crate named `commonware_consensus`, use `cargo add commonware_consensus` to add it to your `Cargo.toml`
+
+error[E0433]: failed to resolve: use of unresolved module or unlinked crate `commonware_consensus`
+   --> crates/whirlpool-node/src/block.rs:105:9
+    |
+105 |         commonware_consensus::types::Height::new(self.height)
+    |         ^^^^^^^^^^^^^^^^^^^^ use of unresolved module or unlinked crate `commonware_consensus`
+    |
+    = help: if you wanted to use a crate named `commonware_consensus`, use `cargo add commonware_consensus` to add it to your `Cargo.toml`
+
+Some errors have detailed explanations: E0432, E0433.
+For more information about an error, try `rustc --explain E0432`.
+error: could not compile `whirlpool-node` (lib) due to 8 previous errors
