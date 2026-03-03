@@ -1,6 +1,6 @@
 # Task 1: Write Engine Unit Tests
 
-**Status**: [ ] pending
+**Status**: [x] complete
 **Dependencies**: none
 **Wave**: 1
 **Complexity**: S
