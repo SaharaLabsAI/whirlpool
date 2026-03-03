@@ -1,7 +1,7 @@
 //! Unit tests for the consensus-simplex crate.
 
 use std::num::NonZeroUsize;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -32,6 +32,7 @@ pub(crate) struct TestBlock {
     id: [u8; 32],
     parent: TestDigest,
     height: u64,
+    transactions: Vec<Vec<u8>>,
 }
 
 impl TestBlock {
@@ -40,16 +41,22 @@ impl TestBlock {
             id: [0u8; 32],
             parent: zero_digest(),
             height: 0,
+            transactions: Vec::new(),
         }
     }
 
     pub(crate) fn child(parent: &Self) -> Self {
+        Self::child_with_transactions(parent, Vec::new())
+    }
+
+    pub(crate) fn child_with_transactions(parent: &Self, transactions: Vec<Vec<u8>>) -> Self {
         let mut id = [0u8; 32];
         id[0] = (parent.height + 1) as u8;
         Self {
             id,
             parent: parent.commitment(),
             height: parent.height + 1,
+            transactions,
         }
     }
 }
@@ -78,12 +85,17 @@ impl CodecWrite for TestBlock {
         buf.put_slice(&self.id);
         buf.put_slice(self.parent.as_ref());
         buf.put_u64(self.height);
+        buf.put_u32(self.transactions.len() as u32);
+        for tx in &self.transactions {
+            buf.put_u32(tx.len() as u32);
+            buf.put_slice(tx);
+        }
     }
 }
 
 impl EncodeSize for TestBlock {
     fn encode_size(&self) -> usize {
-        32 + 32 + 8
+        32 + 32 + 8 + 4 + self.transactions.iter().map(|tx| 4 + tx.len()).sum::<usize>()
     }
 }
 
@@ -91,7 +103,7 @@ impl CodecRead for TestBlock {
     type Cfg = ();
 
     fn read_cfg(reader: &mut impl Buf, _cfg: &Self::Cfg) -> Result<Self, CodecError> {
-        if reader.remaining() < 72 {
+        if reader.remaining() < 76 {
             return Err(CodecError::Invalid("TestBlock", "not enough bytes"));
         }
 
@@ -103,10 +115,26 @@ impl CodecRead for TestBlock {
 
         let height = reader.get_u64();
 
+        let tx_count = reader.get_u32() as usize;
+        let mut transactions = Vec::with_capacity(tx_count);
+        for _ in 0..tx_count {
+            if reader.remaining() < 4 {
+                return Err(CodecError::Invalid("TestBlock", "missing transaction length"));
+            }
+            let tx_len = reader.get_u32() as usize;
+            if reader.remaining() < tx_len {
+                return Err(CodecError::Invalid("TestBlock", "missing transaction bytes"));
+            }
+            let mut tx = vec![0u8; tx_len];
+            reader.copy_to_slice(&mut tx);
+            transactions.push(tx);
+        }
+
         Ok(Self {
             id,
             parent: TestDigest::from(digest_bytes),
             height,
+            transactions,
         })
     }
 }
@@ -167,6 +195,34 @@ impl EventSink for CollectorSink {
     }
 }
 
+struct BlockCollectorSink {
+    blocks: Arc<Mutex<Vec<TestBlock>>>,
+}
+
+impl BlockCollectorSink {
+    fn new() -> (Arc<Self>, Arc<Mutex<Vec<TestBlock>>>) {
+        let blocks = Arc::new(Mutex::new(Vec::new()));
+        (
+            Arc::new(Self {
+                blocks: Arc::clone(&blocks),
+            }),
+            blocks,
+        )
+    }
+}
+
+impl EventSink for BlockCollectorSink {
+    type Block = TestBlock;
+
+    fn handle(&self, event: ConsensusEvent<Self::Block>) -> impl std::future::Future<Output = ()> + Send {
+        async move {
+            if let ConsensusEvent::Finalized { block, .. } = event {
+                self.blocks.lock().unwrap().push(block);
+            }
+        }
+    }
+}
+
 pub(crate) struct MockApp;
 
 impl consensus::app::ConsensusApp for MockApp {
@@ -182,6 +238,41 @@ impl consensus::app::ConsensusApp for MockApp {
         _height: u64,
     ) -> impl std::future::Future<Output = Option<Self::Block>> + Send {
         let child = TestBlock::child(parent);
+        async move { Some(child) }
+    }
+
+    fn verify(
+        &self,
+        _parent: &Self::Block,
+        _block: &Self::Block,
+    ) -> impl std::future::Future<Output = Result<(), ConsensusError>> + Send {
+        async { Ok(()) }
+    }
+}
+
+pub(crate) struct MockTxApp {
+    tx_data: Vec<u8>,
+}
+
+impl MockTxApp {
+    fn new(tx_data: Vec<u8>) -> Self {
+        Self { tx_data }
+    }
+}
+
+impl consensus::app::ConsensusApp for MockTxApp {
+    type Block = TestBlock;
+
+    fn genesis(&self) -> impl std::future::Future<Output = Self::Block> + Send {
+        async { TestBlock::genesis() }
+    }
+
+    fn propose(
+        &self,
+        parent: &Self::Block,
+        _height: u64,
+    ) -> impl std::future::Future<Output = Option<Self::Block>> + Send {
+        let child = TestBlock::child_with_transactions(parent, vec![self.tx_data.clone()]);
         async move { Some(child) }
     }
 
@@ -361,17 +452,79 @@ async fn test_collector_sink_captures_events() {
 }
 
 #[tokio::test]
-async fn test_engine_opens_three_channels() {
+async fn test_single_validator_produces_block() {
     let app = Arc::new(MockApp);
     let height = Arc::new(AtomicU64::new(0));
-    let sink = Arc::new(FinalizationSink::<TestBlock>::new(height));
+    let sink = Arc::new(FinalizationSink::<TestBlock>::new(Arc::clone(&height)));
     let network = p2p::mock::MockNetworkProvider::new(p2p::mock::MockPeerId(0));
     let context = test_context().await;
-    let engine = CommonwareEngine::new(app, sink, test_config("engine-channels"), network, context);
+    let engine = CommonwareEngine::new(
+        app,
+        sink,
+        test_config("e2e-single-validator-block"),
+        network,
+        context,
+    );
+
     let running_engine = engine.start().expect("engine should start");
-    
-    // If start() succeeded, all 3 channels were opened successfully
-    // MockNetworkProvider records calls internally
-    
+
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
+    let mut reached_height = false;
+    let mut observed_height = 0u64;
+    while tokio::time::Instant::now() < deadline {
+        observed_height = running_engine.status().current_height;
+        if observed_height >= 1 {
+            reached_height = true;
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(500)).await;
+    }
+
     running_engine.shutdown().await.expect("shutdown should succeed");
+    assert!(
+        reached_height,
+        "expected height >= 1 within 30 seconds, observed {}",
+        observed_height
+    );
+}
+
+#[tokio::test]
+async fn test_single_validator_with_transactions() {
+    let expected_tx = b"tx:e2e-single-validator".to_vec();
+    let app = Arc::new(MockTxApp::new(expected_tx.clone()));
+    let (collector, finalized_blocks) = BlockCollectorSink::new();
+    let network = p2p::mock::MockNetworkProvider::new(p2p::mock::MockPeerId(0));
+    let context = test_context().await;
+    let engine = CommonwareEngine::new(
+        app,
+        collector,
+        test_config("e2e-single-validator-tx"),
+        network,
+        context,
+    );
+
+    let running_engine = engine.start().expect("engine should start");
+
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
+    let mut found_transaction = false;
+    while tokio::time::Instant::now() < deadline {
+        {
+            let blocks = finalized_blocks.lock().unwrap();
+            found_transaction = blocks
+                .iter()
+                .any(|block| block.transactions.iter().any(|tx| tx == &expected_tx));
+        }
+
+        if found_transaction {
+            break;
+        }
+
+        tokio::time::sleep(Duration::from_millis(500)).await;
+    }
+
+    running_engine.shutdown().await.expect("shutdown should succeed");
+    assert!(
+        found_transaction,
+        "expected finalized block to contain transaction data"
+    );
 }

@@ -1,6 +1,6 @@
 # Task 2: Write E2E Consensus Integration Tests
 
-**Status**: [ ] pending
+**Status**: [x] complete
 **Dependencies**: none
 **Wave**: 1
 **Complexity**: M
