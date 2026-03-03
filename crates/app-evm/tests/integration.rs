@@ -3,7 +3,7 @@ use std::sync::{Arc, RwLock};
 use alloy_consensus::{SignableTransaction, TxLegacy};
 use alloy_eips::eip2718::Encodable2718;
 use alloy_primitives::{Address, Bytes, Signature, TxKind, U256};
-use app::{Application, TxSource};
+use app::{Application, InMemoryTxPool, TxSource};
 use app_evm::executor::EvmApplication;
 use app_evm::WhirlpoolEvmConfig;
 use reth_ethereum_primitives::TransactionSigned;
@@ -109,4 +109,64 @@ async fn test_full_propose_verify_cycle() {
     // Re-reading `verify` logic: it returns `Result<ExecutionResult, ...>`.
     
     // For this test, ensuring `verify` returns Ok is sufficient to prove the round-trip works.
+}
+
+#[tokio::test]
+async fn test_propose_with_in_memory_pool() {
+    // 1. Setup Environment
+    let chain_spec = Arc::new(app_evm::build_sahara_chain_spec());
+    let config = WhirlpoolEvmConfig::new(chain_spec.clone());
+    let state_db = Arc::new(RwLock::new(InMemoryStateDb::new()));
+
+    // 2. Create a valid transaction (Alice -> Bob)
+    let alice_sk = Signature::test_signature();
+    let bob_addr = Address::with_last_byte(2);
+
+    let tx = TxLegacy {
+        chain_id: Some(app_evm::config::SAHARA_CHAIN_ID),
+        nonce: 0,
+        gas_price: 10,
+        gas_limit: 21_000,
+        to: TxKind::Call(bob_addr),
+        value: U256::from(1000),
+        input: Bytes::default(),
+    };
+
+    let signed: TransactionSigned = tx.into_signed(alice_sk).into();
+    let alice_addr = signed.recover_signer().expect("Should recover signer");
+
+    let mut encoded_tx = Vec::new();
+    signed.encode_2718(&mut encoded_tx);
+
+    // 3. Fund Alice in the state
+    {
+        let mut db = state_db.write().unwrap();
+        let account_info = revm::state::AccountInfo {
+            balance: U256::from(1_000_000_000_000_000_000u64), // 1 ETH
+            nonce: 0,
+            ..Default::default()
+        };
+        db.insert_account(alice_addr, account_info);
+    }
+
+    // 4. Push tx into InMemoryTxPool (the real implementation)
+    let tx_pool = Arc::new(InMemoryTxPool::new());
+    tx_pool.push(encoded_tx);
+
+    // 5. Create app with InMemoryTxPool and propose
+    let app = EvmApplication::new(config, state_db.clone(), tx_pool.clone());
+    let genesis = app.genesis().await;
+    let (block, execution_result) = app
+        .propose(&genesis, 1)
+        .await
+        .expect("Propose should succeed");
+
+    // 6. Assertions
+    assert_eq!(block.height, 1);
+    assert_eq!(block.transactions.len(), 1);
+    assert!(block.gas_used > 0);
+    assert_eq!(block.gas_used, execution_result.gas_used);
+
+    // 7. Pool should be drained after propose
+    assert!(tx_pool.pending().is_empty(), "Pool should be empty after propose");
 }

@@ -1,6 +1,5 @@
 use std::sync::{Arc, RwLock};
 
-use alloy_primitives::B256;
 use app::{Application, NoopTxSource};
 use app_evm::executor::EvmApplication;
 use app_evm::{WhirlpoolEvmConfig, build_sahara_chain_spec};

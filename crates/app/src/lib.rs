@@ -5,5 +5,5 @@ pub mod types;
 
 pub use adapter::ApplicationAdapter;
 pub use error::ApplicationError;
-pub use traits::{Application, NoopTxSource, TxSource};
+pub use traits::{Application, InMemoryTxPool, NoopTxSource, TxSource};
 pub use types::{EvmBlock, ExecutionResult};

@@ -12,7 +12,7 @@ use std::sync::atomic::AtomicU64;
 use std::num::NonZeroUsize;
 use std::time::Duration;
 use tracing::info;
-use app::{ApplicationAdapter, NoopTxSource};
+use app::{ApplicationAdapter, InMemoryTxPool};
 use app_evm::executor::{EvmApplication, StateProvider};
 use app_evm::{WhirlpoolEvmConfig, build_sahara_chain_spec};
 use reth_revm::db::BundleState;
@@ -127,8 +127,8 @@ fn main() {
         let state_db = Arc::new(RwLock::new(TestStateDb::new()));
         let chain_spec = Arc::new(build_sahara_chain_spec());
         let evm_config = WhirlpoolEvmConfig::new(chain_spec);
-        let tx_source = Arc::new(NoopTxSource);
-        let evm_app = EvmApplication::new(evm_config, state_db, tx_source);
+        let tx_pool = Arc::new(InMemoryTxPool::new());
+        let evm_app = EvmApplication::new(evm_config, state_db, tx_pool.clone());
         let app = Arc::new(ApplicationAdapter::new(evm_app));
 
         let engine = CommonwareEngine::new(app, sink, engine_config, network_provider);

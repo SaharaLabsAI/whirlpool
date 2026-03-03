@@ -1,25 +1,33 @@
 # app
 
 ## Purpose
-Abstract application layer bridging consensus to EVM execution. It defines the interface for state transitions and block validation.
+Abstract application layer bridging consensus to EVM execution. It defines interfaces for block proposal/verification and transaction sourcing.
 
 ## Key Types
-- `EvmBlock`: Custom block type implementing `consensus::Block` and several commonware traits (`CodecWrite`, `CodecRead`, `Digestible`, `Committable`, `Heightable`).
-- `ExecutionResult`: Outcome of block execution, containing state roots and gas usage.
-- `ApplicationAdapter`: Adapts the generic `Application` trait to the concrete `consensus::ConsensusApp` trait.
-- `ApplicationError`: Error type for application-layer operations.
-- `NoopTxSource`: A default implementation of `TxSource` that returns no transactions.
+- `EvmBlock`: Block type implementing `consensus::Block` and commonware codec/commitment traits.
+- `ExecutionResult`: Block execution output (state roots, gas usage).
+- `ApplicationAdapter`: Adapts `Application` to `consensus::ConsensusApp`.
+- `ApplicationError`: Application-layer error type.
+- `TxSource`: Transaction source trait exposing `pending()`.
+- `NoopTxSource`: `TxSource` implementation that always returns no transactions.
+- `InMemoryTxPool`: Mutex-backed in-memory `TxSource` implementation that stores raw tx bytes.
 
-## Key Functions
-- `Application::propose()`: Produces a new block and its execution result given a parent and height.
-- `Application::verify()`: Validates a block against its parent and returns the execution result.
-- `ApplicationAdapter::new(app)`: Wraps an `Application` instance for use with the consensus engine.
+## Key Methods
+- `Application::propose(parent, height)`: Produces the next block and execution result.
+- `Application::verify(parent, block)`: Verifies a proposed block and returns execution result.
+- `ApplicationAdapter::new(app)`: Wraps an `Application` implementation for consensus wiring.
+- `InMemoryTxPool::new()`: Creates an empty tx pool.
+- `InMemoryTxPool::push(tx)`: Appends a raw EIP-2718 transaction.
+- `InMemoryTxPool::pending()`: Drains and returns queued transactions (FIFO, at-most-once delivery).
+
+## Exports
+- `crates/app/src/lib.rs:8` re-exports `InMemoryTxPool` with `Application`, `NoopTxSource`, and `TxSource`.
 
 ## Dependencies
 - `consensus`: Core consensus traits (`Block`, `ConsensusApp`).
 - `commonware-codec`: Serialization traits.
 - `commonware-cryptography`: Hashing and commitment traits.
-- `commonware-consensus`: Vendor-specific consensus traits.
+- `commonware-consensus`: Vendor consensus traits.
 
 ## Status
-Complete. Defines the core abstractions for the bridge between consensus and execution layers.
+Complete. Provides consensus/execution bridge traits plus a usable in-memory tx source for node wiring.
