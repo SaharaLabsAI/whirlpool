@@ -9,12 +9,12 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use futures::channel::mpsc;
-use rand::Rng;
 use tokio::task::JoinHandle;
 
 use consensus::app::ConsensusApp;
 use commonware_cryptography::{sha256::Digest, Digestible};
-use commonware_runtime::{Clock, Metrics, Spawner};
+use commonware_runtime::{Clock, Metrics, Spawner, Storage};
+use rand_core::CryptoRngCore;
 use consensus::engine::{ConsensusEngine, RunningEngine};
 use consensus::error::ConsensusError;
 use consensus::event::EventSink;
@@ -47,7 +47,7 @@ where
     A: ConsensusApp,
     S: EventSink<Block = A::Block>,
     A::Block: CommonwareBlock + Digestible<Digest = Digest>,
-    C: Rng + Spawner + Metrics + Clock,
+    C: Clock + CryptoRngCore + Spawner + Storage + Metrics,
 {
     app: Arc<A>,
     sink: Arc<S>,
@@ -62,7 +62,7 @@ where
     S: EventSink<Block = A::Block> + Send + Sync + 'static,
     A::Block: CommonwareBlock + Digestible<Digest = Digest> + Send + Sync + 'static,
     N: p2p::NetworkProvider,
-    C: Rng + Spawner + Metrics + Clock,
+    C: Clock + CryptoRngCore + Spawner + Storage + Metrics,
 {
     /// Create a new `CommonwareEngine` with the given app, sink, config, and network provider.
     ///
@@ -83,7 +83,7 @@ where
     S: EventSink<Block = A::Block> + Send + Sync + 'static,
     A::Block: CommonwareBlock + Digestible<Digest = Digest> + Send + Sync + 'static,
     N: p2p::NetworkProvider,
-    C: Rng + Spawner + Metrics + Clock,
+    C: Clock + CryptoRngCore + Spawner + Storage + Metrics + Send + 'static,
 {
     fn start(self) -> Result<RunningEngine, ConsensusError> {
         // Open P2P network channel

@@ -80,7 +80,7 @@ All verification steps must run via the CLI commands listed in each task. Captur
 - [ ] Task 1: Write Engine Unit Tests [**S**] → [tasks/01-engine-unit-tests.md](tasks/01-engine-unit-tests.md)
 - [ ] Task 2: Write E2E Consensus Integration Tests [**M**] → [tasks/02-e2e-consensus-tests.md](tasks/02-e2e-consensus-tests.md)
 - [x] Task 03.1: Fix Engine Constructor and Test Infrastructure [**S**] → [tasks/03.1-fix-engine-constructor-tests.md](tasks/03.1-fix-engine-constructor-tests.md)
-- [ ] Task 03.2: Change Engine Network Generic to Per-Channel Provider [**S**] → [tasks/03.2-engine-per-channel-network.md](tasks/03.2-engine-per-channel-network.md)
+- [x] Task 03.2: Change Engine Network Generic to Per-Channel Provider [**S**] → [tasks/03.2-engine-per-channel-network.md](tasks/03.2-engine-per-channel-network.md)
 - [ ] Task 03.3: Wire Real Simplex Engine in start() [**M**] → [tasks/03.3-wire-real-simplex-engine.md](tasks/03.3-wire-real-simplex-engine.md)
 - [ ] Task 03.4: Align Test Names and Fix Integration Tests [**M**] → [tasks/03.4-align-tests-integration.md](tasks/03.4-align-tests-integration.md)
 - [ ] Task 4: Close Mailbox/MailboxActor Gaps [**M**] → [tasks/04-close-mailbox-gaps.md](tasks/04-close-mailbox-gaps.md)
