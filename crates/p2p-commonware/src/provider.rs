@@ -314,15 +314,8 @@ mod tests {
     use commonware_cryptography::Signer;
     use commonware_runtime::{deterministic, Clock, Runner};
     use p2p::{NetworkReceiver, NetworkSender, Recipients};
-    use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener};
+    use std::net::SocketAddr;
     use std::time::Duration;
-
-    fn available_loopback() -> SocketAddr {
-        let listener = TcpListener::bind(loopback(0)).expect("bind ephemeral loopback port");
-        let addr = listener.local_addr().expect("read ephemeral loopback port");
-        drop(listener);
-        addr
-    }
 
     #[test]
     fn test_start_per_channel_returns_three_pairs() {
@@ -333,8 +326,8 @@ mod tests {
             let pk_0 = signer_0.public_key();
             let pk_1 = signer_1.public_key();
 
-            let addr_0 = loopback(49000);
-            let addr_1 = loopback(49001);
+            let addr_0 = "127.0.0.1:30001".parse::<SocketAddr>().expect("valid socket");
+            let addr_1 = "127.0.0.1:30002".parse::<SocketAddr>().expect("valid socket");
 
             let (provider_0, mut oracle_0) = CommonwareNetworkProviderBuilder::new(
                 signer_0,
@@ -374,8 +367,8 @@ mod tests {
             let pk_0 = signer_0.public_key();
             let pk_1 = signer_1.public_key();
 
-            let addr_0 = loopback(49100);
-            let addr_1 = loopback(49101);
+            let addr_0 = "127.0.0.1:30011".parse::<SocketAddr>().expect("valid socket");
+            let addr_1 = "127.0.0.1:30012".parse::<SocketAddr>().expect("valid socket");
 
             let (provider_0, mut oracle_0) = CommonwareNetworkProviderBuilder::new(
                 signer_0,
@@ -401,7 +394,7 @@ mod tests {
                 .update_validators(0, vec![pk_0.clone(), pk_1.clone()])
                 .await;
 
-            let mut peer_0 = provider_0.start_per_channel().expect("peer 0 starts");
+            let peer_0 = provider_0.start_per_channel().expect("peer 0 starts");
             let mut peer_1 = provider_1.start_per_channel().expect("peer 1 starts");
 
             context.sleep(Duration::from_secs(2)).await;

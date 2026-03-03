@@ -9,10 +9,12 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use futures::channel::mpsc;
+use rand::Rng;
 use tokio::task::JoinHandle;
 
 use consensus::app::ConsensusApp;
 use commonware_cryptography::{sha256::Digest, Digestible};
+use commonware_runtime::{Clock, Metrics, Spawner};
 use consensus::engine::{ConsensusEngine, RunningEngine};
 use consensus::error::ConsensusError;
 use consensus::event::EventSink;
@@ -40,24 +42,27 @@ use crate::types::CommonwareBlock;
 /// **CURRENT STATUS:** This is a STUB implementation that simulates consensus by
 /// incrementing block height every 5 seconds. Full simplex engine wiring (P2P,
 /// marshal actor, simplex::Engine) is future work pending P2P configuration design.
-pub struct CommonwareEngine<A, S, N>
+pub struct CommonwareEngine<A, S, N, C>
 where
     A: ConsensusApp,
     S: EventSink<Block = A::Block>,
     A::Block: CommonwareBlock + Digestible<Digest = Digest>,
+    C: Rng + Spawner + Metrics + Clock,
 {
     app: Arc<A>,
     sink: Arc<S>,
     config: CommonwareConfig,
     network: N,
+    context: C,
 }
 
-impl<A, S, N> CommonwareEngine<A, S, N>
+impl<A, S, N, C> CommonwareEngine<A, S, N, C>
 where
     A: ConsensusApp + Send + Sync + 'static,
     S: EventSink<Block = A::Block> + Send + Sync + 'static,
     A::Block: CommonwareBlock + Digestible<Digest = Digest> + Send + Sync + 'static,
     N: p2p::NetworkProvider,
+    C: Rng + Spawner + Metrics + Clock,
 {
     /// Create a new `CommonwareEngine` with the given app, sink, config, and network provider.
     ///
@@ -66,24 +71,26 @@ where
     /// - `sink`: The event sink for finalization notifications
     /// - `config`: Configuration for the simplex consensus engine
     /// - `network`: Network provider for P2P communication
-    pub fn new(app: Arc<A>, sink: Arc<S>, config: CommonwareConfig, network: N) -> Self {
-        Self { app, sink, config, network }
+    /// - `context`: Runtime context used for commonware engine operations
+    pub fn new(app: Arc<A>, sink: Arc<S>, config: CommonwareConfig, network: N, context: C) -> Self {
+        Self { app, sink, config, network, context }
     }
 }
 
-impl<A, S, N> ConsensusEngine for CommonwareEngine<A, S, N>
+impl<A, S, N, C> ConsensusEngine for CommonwareEngine<A, S, N, C>
 where
     A: ConsensusApp + Send + Sync + 'static,
     S: EventSink<Block = A::Block> + Send + Sync + 'static,
     A::Block: CommonwareBlock + Digestible<Digest = Digest> + Send + Sync + 'static,
     N: p2p::NetworkProvider,
+    C: Rng + Spawner + Metrics + Clock,
 {
     fn start(self) -> Result<RunningEngine, ConsensusError> {
         // Open P2P network channel
         let (_sender, _receiver) = self.network.start()
             .map_err(|e| ConsensusError::Other(format!("Failed to start network: {}", e).into()))?;
 
-        // TODO: Wire sender/receiver to the consensus engine
+        let _ctx = self.context;
         // The sender can send on VOTE_CHANNEL, CERTIFICATE_CHANNEL, RESOLVER_CHANNEL
         // The receiver receives messages from all channels
 
@@ -164,9 +171,18 @@ mod tests {
     use crate::sink::FinalizationSink;
     use commonware_cryptography::ed25519::PrivateKey;
     use commonware_cryptography::Signer as _;
+    use commonware_runtime::{tokio as commonware_tokio, Runner};
     use std::num::NonZeroUsize;
     use std::sync::Arc;
     use std::time::Duration;
+
+    async fn test_context() -> commonware_tokio::Context {
+        tokio::task::spawn_blocking(|| {
+            commonware_tokio::Runner::default().start(|context| async move { context })
+        })
+        .await
+        .expect("context runtime should initialize")
+    }
 
     fn test_config() -> CommonwareConfig {
         let signer = PrivateKey::from_seed(19);
@@ -196,9 +212,10 @@ mod tests {
         let height = Arc::new(AtomicU64::new(0));
         let sink = Arc::new(FinalizationSink::<TestBlock>::new(height));
         let config = test_config();
+        let context = test_context().await;
 
         let network = p2p::mock::MockNetworkProvider::new(p2p::mock::MockPeerId(0));
-        let _engine = CommonwareEngine::new(app, sink, config, network);
+        let _engine = CommonwareEngine::new(app, sink, config, network, context);
         // Test passes if construction succeeds
     }
 
@@ -208,9 +225,10 @@ mod tests {
         let height = Arc::new(AtomicU64::new(0));
         let sink = Arc::new(FinalizationSink::<TestBlock>::new(height));
         let config = test_config();
+        let context = test_context().await;
 
         let network = p2p::mock::MockNetworkProvider::new(p2p::mock::MockPeerId(0));
-        let engine = CommonwareEngine::new(app, sink, config, network);
+        let engine = CommonwareEngine::new(app, sink, config, network, context);
         let running = engine.start().expect("Engine should start");
 
         // Check status
@@ -228,9 +246,10 @@ mod tests {
         let _height = Arc::new(AtomicU64::new(0));
         let sink = Arc::new(FinalizationSink::<TestBlock>::new(Arc::clone(&_height)));
         let config = test_config();
+        let context = test_context().await;
 
         let network = p2p::mock::MockNetworkProvider::new(p2p::mock::MockPeerId(0));
-        let engine = CommonwareEngine::new(app, sink, config, network);
+        let engine = CommonwareEngine::new(app, sink, config, network, context);
         let running = engine.start().expect("Engine should start");
 
         let deadline = tokio::time::Instant::now() + Duration::from_secs(15);

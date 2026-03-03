@@ -10,6 +10,7 @@ use commonware_codec::{EncodeSize, Error as CodecError, Read as CodecRead, Write
 use commonware_consensus::{Block as VendorBlock, Heightable};
 use commonware_cryptography::ed25519::PrivateKey;
 use commonware_cryptography::{Committable, Digestible, Signer as _};
+use commonware_runtime::{tokio as commonware_tokio, Runner};
 use consensus::block::Block as CoreBlock;
 use consensus::engine::ConsensusEngine;
 use consensus::error::ConsensusError;
@@ -193,6 +194,14 @@ impl consensus::app::ConsensusApp for MockApp {
     }
 }
 
+async fn test_context() -> commonware_tokio::Context {
+    tokio::task::spawn_blocking(|| {
+        commonware_tokio::Runner::default().start(|context| async move { context })
+    })
+    .await
+    .expect("context runtime should initialize")
+}
+
 fn test_config(namespace: &str) -> CommonwareConfig {
     let signer = PrivateKey::from_seed(11);
     let validators = vec![signer.public_key()];
@@ -249,7 +258,8 @@ async fn test_engine_start_and_status() {
     let height = Arc::new(AtomicU64::new(0));
     let sink = Arc::new(FinalizationSink::<TestBlock>::new(height));
     let network = p2p::mock::MockNetworkProvider::new(p2p::mock::MockPeerId(0));
-    let engine = CommonwareEngine::new(app, sink, test_config("engine-start"), network);
+    let context = test_context().await;
+    let engine = CommonwareEngine::new(app, sink, test_config("engine-start"), network, context);
 
     let running_engine = engine.start().expect("engine should start");
     let status = running_engine.status();
@@ -265,7 +275,8 @@ async fn test_engine_shutdown() {
     let height = Arc::new(AtomicU64::new(0));
     let sink = Arc::new(FinalizationSink::<TestBlock>::new(height));
     let network = p2p::mock::MockNetworkProvider::new(p2p::mock::MockPeerId(0));
-    let engine = CommonwareEngine::new(app, sink, test_config("engine-shutdown"), network);
+    let context = test_context().await;
+    let engine = CommonwareEngine::new(app, sink, test_config("engine-shutdown"), network, context);
 
     let running_engine = engine.start().expect("engine should start");
     assert!(running_engine.status().is_running);
@@ -278,7 +289,8 @@ async fn test_engine_height_tracking() {
     let _height = Arc::new(AtomicU64::new(0));
     let sink = Arc::new(FinalizationSink::<TestBlock>::new(Arc::clone(&_height)));
     let network = p2p::mock::MockNetworkProvider::new(p2p::mock::MockPeerId(0));
-    let engine = CommonwareEngine::new(app, sink, test_config("engine-height"), network);
+    let context = test_context().await;
+    let engine = CommonwareEngine::new(app, sink, test_config("engine-height"), network, context);
 
     let running_engine = engine.start().expect("engine should start");
 
@@ -354,8 +366,8 @@ async fn test_engine_opens_three_channels() {
     let height = Arc::new(AtomicU64::new(0));
     let sink = Arc::new(FinalizationSink::<TestBlock>::new(height));
     let network = p2p::mock::MockNetworkProvider::new(p2p::mock::MockPeerId(0));
-    
-    let engine = CommonwareEngine::new(app, sink, test_config("engine-channels"), network);
+    let context = test_context().await;
+    let engine = CommonwareEngine::new(app, sink, test_config("engine-channels"), network, context);
     let running_engine = engine.start().expect("engine should start");
     
     // If start() succeeded, all 3 channels were opened successfully

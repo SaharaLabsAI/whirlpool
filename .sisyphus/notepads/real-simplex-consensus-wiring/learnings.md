@@ -1,3 +1,5 @@
 - In `consensus-simplex`, `CommonwareConfig` now carries BFT identity material directly: `signer` uses `commonware_cryptography::ed25519::PrivateKey` (aliased as `Ed25519Signer`) and `validators` uses `Vec<commonware_cryptography::ed25519::PublicKey>`.
 - TDD red/green sequence worked by adding `test_config_has_signer_and_validators` in `config.rs`; the red failure was missing struct fields, and green was achieved after extending the struct and updating all in-crate test config builders.
 - Adding required fields to `CommonwareConfig` affects every struct literal initializer, including downstream bins (`whirlpool-node`, `whirlpool-node-simple`), so a full workspace build will fail until orchestrated follow-up tasks update those call sites.
+- In deterministic commonware runtime tests, binding `127.0.0.1:0` fails for listeners because localhost ports in the ephemeral range are explicitly rejected; fixed listener ports (outside `32768..61000`) are required.
+- Keeping the discovery network `Handle<()>` inside `PerChannelNetwork` is sufficient to keep all three registered channels alive while tests send/receive over vote, certificate, and resolver streams.

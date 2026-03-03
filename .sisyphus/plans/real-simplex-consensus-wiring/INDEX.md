@@ -7,7 +7,7 @@
 - [x] [02-config-extend](tasks/02-config-extend.md) `S`
 
 ### Wave 2 — Engine Base
-- [ ] [03-engine-constructor](tasks/03-engine-constructor.md) `S`
+- [x] [03-engine-constructor](tasks/03-engine-constructor.md) `S`
 
 ### Wave 3 — Engine Wiring
 - [ ] [04-engine-replace-stub](tasks/04-engine-replace-stub.md) `L`
