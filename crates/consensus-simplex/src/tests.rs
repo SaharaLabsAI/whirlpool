@@ -8,7 +8,8 @@ use std::time::Duration;
 use bytes::{Buf, BufMut};
 use commonware_codec::{EncodeSize, Error as CodecError, Read as CodecRead, Write as CodecWrite};
 use commonware_consensus::{Block as VendorBlock, Heightable};
-use commonware_cryptography::{Committable, Digestible};
+use commonware_cryptography::ed25519::PrivateKey;
+use commonware_cryptography::{Committable, Digestible, Signer as _};
 use consensus::block::Block as CoreBlock;
 use consensus::engine::ConsensusEngine;
 use consensus::error::ConsensusError;
@@ -193,6 +194,9 @@ impl consensus::app::ConsensusApp for MockApp {
 }
 
 fn test_config(namespace: &str) -> CommonwareConfig {
+    let signer = PrivateKey::from_seed(11);
+    let validators = vec![signer.public_key()];
+
     CommonwareConfig {
         namespace: namespace.to_string(),
         leader_timeout: Duration::from_secs(1),
@@ -206,6 +210,8 @@ fn test_config(namespace: &str) -> CommonwareConfig {
         epoch: 0,
         fetch_timeout: Duration::from_secs(1),
         fetch_concurrent: 4,
+        signer,
+        validators,
     }
 }
 

@@ -162,12 +162,16 @@ mod tests {
     use super::*;
     use crate::tests::{MockApp, TestBlock};
     use crate::sink::FinalizationSink;
-    use consensus::engine::ConsensusEngine;
+    use commonware_cryptography::ed25519::PrivateKey;
+    use commonware_cryptography::Signer as _;
     use std::num::NonZeroUsize;
     use std::sync::Arc;
     use std::time::Duration;
 
     fn test_config() -> CommonwareConfig {
+        let signer = PrivateKey::from_seed(19);
+        let validators = vec![signer.public_key()];
+
         CommonwareConfig {
             namespace: "test".to_string(),
             leader_timeout: Duration::from_secs(1),
@@ -181,6 +185,8 @@ mod tests {
             epoch: 0,
             fetch_timeout: Duration::from_secs(1),
             fetch_concurrent: 4,
+            signer,
+            validators,
         }
     }
 

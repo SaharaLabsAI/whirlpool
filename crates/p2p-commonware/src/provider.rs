@@ -151,6 +151,15 @@ where
     }
 }
 
+/// Separate channel pairs for simplex-style consumers that require dedicated
+/// vote/certificate/resolver streams.
+pub struct PerChannelNetwork<S, R> {
+    pub vote: (CommonwareSender<S>, CommonwareReceiver<R>),
+    pub cert: (CommonwareSender<S>, CommonwareReceiver<R>),
+    pub resolver: (CommonwareSender<S>, CommonwareReceiver<R>),
+    pub network_handle: commonware_runtime::Handle<()>,
+}
+
 /// Network provider that uses commonware's discovery::Network.
 /// 
 /// Registers 3 channels (VOTE, CERTIFICATE, RESOLVER) and multiplexes them
@@ -169,6 +178,7 @@ impl<E, C> CommonwareNetworkProvider<E, C>
 where
     E: Spawner + Clock + CryptoRngCore + Network + Resolver + Metrics,
     C: Signer,
+    C::PublicKey: Clone + std::hash::Hash + Eq + std::fmt::Debug + Send + Sync + 'static,
 {
     /// Create a new provider from a discovery network and oracle.
     pub fn new(
@@ -193,6 +203,42 @@ where
             oracle,
             channel_config,
         }
+    }
+
+    /// Start the network and return dedicated channel pairs.
+    pub fn start_per_channel(
+        mut self,
+    ) -> Result<PerChannelNetwork<DiscoverySender<C::PublicKey, E>, DiscoveryReceiver<C::PublicKey>>, P2pError> {
+        let backlog = self.channel_config.backlog;
+        let quota = Quota::per_second(NonZeroU32::new(10000).unwrap());
+
+        let (vote_sender, vote_receiver) = self
+            .network
+            .register(Channel::VOTE.0, quota.clone(), backlog);
+        let (cert_sender, cert_receiver) = self
+            .network
+            .register(Channel::CERTIFICATE.0, quota.clone(), backlog);
+        let (resolver_sender, resolver_receiver) = self
+            .network
+            .register(Channel::RESOLVER.0, quota, backlog);
+
+        let network_handle = self.network.start();
+
+        Ok(PerChannelNetwork {
+            vote: (
+                CommonwareSender::new(vote_sender),
+                CommonwareReceiver::new(vote_receiver),
+            ),
+            cert: (
+                CommonwareSender::new(cert_sender),
+                CommonwareReceiver::new(cert_receiver),
+            ),
+            resolver: (
+                CommonwareSender::new(resolver_sender),
+                CommonwareReceiver::new(resolver_receiver),
+            ),
+            network_handle,
+        })
     }
 
     /// Get a reference to the oracle for peer set management.
@@ -257,5 +303,149 @@ where
         let multiplex_receiver = MultiplexReceiver::new(receivers, handle);
 
         Ok((multiplex_sender, multiplex_receiver))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bytes::Bytes;
+    use commonware_cryptography::ed25519;
+    use commonware_cryptography::Signer;
+    use commonware_runtime::{deterministic, Clock, Runner};
+    use p2p::{NetworkReceiver, NetworkSender, Recipients};
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener};
+    use std::time::Duration;
+
+    fn available_loopback() -> SocketAddr {
+        let listener = TcpListener::bind(loopback(0)).expect("bind ephemeral loopback port");
+        let addr = listener.local_addr().expect("read ephemeral loopback port");
+        drop(listener);
+        addr
+    }
+
+    #[test]
+    fn test_start_per_channel_returns_three_pairs() {
+        let runner = deterministic::Runner::default();
+        runner.start(|context| async move {
+            let signer_0 = ed25519::PrivateKey::from_seed(900);
+            let signer_1 = ed25519::PrivateKey::from_seed(901);
+            let pk_0 = signer_0.public_key();
+            let pk_1 = signer_1.public_key();
+
+            let addr_0 = loopback(49000);
+            let addr_1 = loopback(49001);
+
+            let (provider_0, mut oracle_0) = CommonwareNetworkProviderBuilder::new(
+                signer_0,
+                b"per-channel-test",
+            )
+            .listen_addr(addr_0)
+            .dialable_addr(addr_0)
+            .build(context.with_label("peer_0_network"));
+
+            let (provider_1, mut oracle_1) = CommonwareNetworkProviderBuilder::new(
+                signer_1,
+                b"per-channel-test",
+            )
+            .listen_addr(addr_1)
+            .dialable_addr(addr_1)
+            .bootstrappers(vec![(pk_0.clone(), addr_0.into())])
+            .build(context.with_label("peer_1_network"));
+
+            oracle_0
+                .update_validators(0, vec![pk_0.clone(), pk_1.clone()])
+                .await;
+            oracle_1
+                .update_validators(0, vec![pk_0.clone(), pk_1.clone()])
+                .await;
+
+            let _peer_0 = provider_0.start_per_channel().expect("peer 0 starts");
+            let _peer_1 = provider_1.start_per_channel().expect("peer 1 starts");
+        });
+    }
+
+    #[test]
+    fn test_per_channel_send_receive() {
+        let runner = deterministic::Runner::default();
+        runner.start(|context| async move {
+            let signer_0 = ed25519::PrivateKey::from_seed(910);
+            let signer_1 = ed25519::PrivateKey::from_seed(911);
+            let pk_0 = signer_0.public_key();
+            let pk_1 = signer_1.public_key();
+
+            let addr_0 = loopback(49100);
+            let addr_1 = loopback(49101);
+
+            let (provider_0, mut oracle_0) = CommonwareNetworkProviderBuilder::new(
+                signer_0,
+                b"per-channel-io-test",
+            )
+            .listen_addr(addr_0)
+            .dialable_addr(addr_0)
+            .build(context.with_label("peer_0_network"));
+
+            let (provider_1, mut oracle_1) = CommonwareNetworkProviderBuilder::new(
+                signer_1,
+                b"per-channel-io-test",
+            )
+            .listen_addr(addr_1)
+            .dialable_addr(addr_1)
+            .bootstrappers(vec![(pk_0.clone(), addr_0.into())])
+            .build(context.with_label("peer_1_network"));
+
+            oracle_0
+                .update_validators(0, vec![pk_0.clone(), pk_1.clone()])
+                .await;
+            oracle_1
+                .update_validators(0, vec![pk_0.clone(), pk_1.clone()])
+                .await;
+
+            let mut peer_0 = provider_0.start_per_channel().expect("peer 0 starts");
+            let mut peer_1 = provider_1.start_per_channel().expect("peer 1 starts");
+
+            context.sleep(Duration::from_secs(2)).await;
+
+            peer_0
+                .vote
+                .0
+                .send(
+                    Channel::VOTE,
+                    Bytes::from_static(b"vote-msg"),
+                    Recipients::One(CommonwarePeerId(pk_1.clone())),
+                )
+                .await
+                .expect("vote send should succeed");
+
+            peer_0
+                .cert
+                .0
+                .send(
+                    Channel::CERTIFICATE,
+                    Bytes::from_static(b"cert-msg"),
+                    Recipients::One(CommonwarePeerId(pk_1.clone())),
+                )
+                .await
+                .expect("certificate send should succeed");
+
+            peer_0
+                .resolver
+                .0
+                .send(
+                    Channel::RESOLVER,
+                    Bytes::from_static(b"resolver-msg"),
+                    Recipients::One(CommonwarePeerId(pk_1)),
+                )
+                .await
+                .expect("resolver send should succeed");
+
+            let vote = peer_1.vote.1.recv().await.expect("vote receive");
+            let cert = peer_1.cert.1.recv().await.expect("cert receive");
+            let resolver = peer_1.resolver.1.recv().await.expect("resolver receive");
+
+            assert_eq!(vote.data, Bytes::from_static(b"vote-msg"));
+            assert_eq!(cert.data, Bytes::from_static(b"cert-msg"));
+            assert_eq!(resolver.data, Bytes::from_static(b"resolver-msg"));
+        });
     }
 }
