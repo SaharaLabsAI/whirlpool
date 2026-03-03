@@ -1,10 +1,10 @@
 {
-  "active_plan": "/home/dev/sahara/web3/agent/playground/whirlpool/.sisyphus/plans/evm-tx-execution.md",
-  "started_at": "2026-03-02T16:18:34.834Z",
+  "active_plan": "/home/dev/sahara/web3/agent/playground/whirlpool/.sisyphus/plans/evmblock-txsource.md",
+  "started_at": "2026-03-03T03:22:47.583Z",
   "session_ids": [
-    "ses_350a832f7ffeIxthk4z4vA7eEH"
+    "ses_34ecf7213ffe9EzRx75nNVwEYU"
   ],
-  "plan_name": "evm-tx-execution",
+  "plan_name": "evmblock-txsource",
   "worktree_path": "/home/dev/sahara/web3/agent/playground/whirlpool",
   "agent": "atlas"
 }
