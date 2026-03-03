@@ -12,7 +12,7 @@ use std::sync::atomic::AtomicU64;
 use std::num::NonZeroUsize;
 use std::time::Duration;
 use tracing::info;
-use whirlpool_node::app::EmptyBlockApp;
+use whirlpool_node_simple::app::EmptyBlockApp;
 use whirlpool_node::config;
 
 // Application namespace for network isolation

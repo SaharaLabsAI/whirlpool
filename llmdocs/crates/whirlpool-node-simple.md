@@ -2,7 +2,7 @@
 
 ## Summary
 
-`whirlpool-node-simple` is a consensus node binary for minimal/non-EVM consensus experiments. It runs the Commonware consensus engine with `EmptyBlockApp` (pure consensus without EVM execution).
+`whirlpool-node-simple` is a self-contained consensus node binary for minimal/non-EVM consensus experiments. It runs the Commonware consensus engine with `EmptyBlockApp` (pure consensus without EVM execution).
 
 Location: `crates/whirlpool-node-simple/`
 
@@ -10,33 +10,34 @@ Location: `crates/whirlpool-node-simple/`
 
 - **consensus**: Core trait layer (Block, ConsensusEngine, ConsensusApp)
 - **consensus-simplex**: Sealed adapter (CommonwareEngine, FinalizationSink, CommonwareConfig)
-- **whirlpool-node**: Library exports (EmptyBlockApp, EmptyBlock, config)
+- **whirlpool-node**: Config constants only (NAMESPACE, BLOCK_INTERVAL, etc.)
 - **p2p-commonware**: Commonware network provider bridge
 - **commonware-runtime**: tokio-based async runtime (via commonware)
+- **commonware-codec**: Codec traits (CodecRead, CodecWrite, EncodeSize)
+- **commonware-consensus**: Heightable trait
+- **bytes**: Buffer traits (Buf, BufMut)
+- **sha2**: SHA-256 for block ID computation
 
-## Architecture: No Feature Gates
+## Architecture
 
-Unlike the original whirlpool-node, `whirlpool-node-simple` has no feature gates. It unconditionally uses:
-- `EmptyBlockApp`: Simple consensus app with identity block verification (parent/height/genesis checks only)
+Self-contained crate with local `EmptyBlock` and `EmptyBlockApp` types (previously shared from whirlpool-node). No feature gates. Unconditionally uses:
+- `EmptyBlockApp` (local): Simple consensus app with identity block verification (parent/height/genesis checks only)
+- `EmptyBlock` (local): Minimal block type with SHA-256 ID
 - `CommonwareEngine`: Sealed consensus wiring from consensus-simplex
 - `CommonwareNetworkProviderBuilder`: Real network provider (no mocks)
 
-## main.rs Structure
+## Crate Structure
 
-File: `crates/whirlpool-node-simple/src/main.rs`
-
-1. **Initialization** (lines 23–32): tracing_subscriber setup
-2. **Consensus wiring** (lines 34–37): FinalizationSink, EmptyBlockApp
-3. **Runtime launch** (lines 39–41): tokio::Runner::default().start()
-4. **Network setup** (lines 43–54): ed25519 signer, CommonwareNetworkProviderBuilder
-5. **Engine construction** (lines 56–63): CommonwareEngine with identity app, config
-6. **Engine execution** (lines 64–69): engine.start() loop with finalization tracking
+- `src/lib.rs`: `pub mod app; pub mod block;`
+- `src/block.rs`: `EmptyBlock` struct with dual-trait conformance (consensus::Block + commonware traits)
+- `src/app.rs`: `EmptyBlockApp` implementing `ConsensusApp<EmptyBlock>` with 5 verification rules
+- `src/main.rs`: Binary entry point wiring consensus engine
 
 ## Test Status
 
-- **Unit tests**: 0 (binary crate, no lib)
+- **Unit tests**: 18 (block.rs: 7, app.rs: 11) — embedded in local modules
 - **Integration tests**: None
-- **Binary builds**: ✓ (target/debug/whirlpool-node-simple, 145M)
+- **Binary builds**: ✓
 
 ## Use Cases
 
@@ -47,6 +48,6 @@ File: `crates/whirlpool-node-simple/src/main.rs`
 
 ## Related Documentation
 
-- `crates/whirlpool-node.md`: EVM-enabled variant (same crate, different binary, using app-evm)
-- `architecture/whirlpool-node.md`: Shared library (EmptyBlock, EmptyBlockApp, config)
+- `crates/whirlpool-node.md`: EVM-enabled variant using app-evm
+- `architecture/whirlpool-node.md`: Node library (config exports)
 - `guides/whirlpool-node-components.md`: How to extend or modify the node

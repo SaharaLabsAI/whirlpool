@@ -37,9 +37,8 @@ impl StateProvider for TestStateDb {
         self.0.state_root()
     }
 
-    fn commit(&mut self, bundle: &BundleState) -> Result<(), state::StateError> {
+    fn commit(&mut self, bundle: &BundleState) {
         self.0.commit(bundle);
-        Ok(())
     }
 }
 

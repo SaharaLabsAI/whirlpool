@@ -5978,6 +5978,11 @@ dependencies = [
  "app",
  "app-evm",
  "bytes",
+ "commonware-cryptography",
+ "commonware-runtime",
+ "consensus",
+ "consensus-simplex",
+ "p2p-commonware",
  "reth-revm",
  "revm",
  "sha2 0.10.9",
@@ -5991,11 +5996,15 @@ dependencies = [
 name = "whirlpool-node-simple"
 version = "0.1.0"
 dependencies = [
+ "bytes",
+ "commonware-codec",
+ "commonware-consensus",
  "commonware-cryptography",
  "commonware-runtime",
  "consensus",
  "consensus-simplex",
  "p2p-commonware",
+ "sha2 0.10.9",
  "tokio",
  "tracing",
  "tracing-subscriber 0.3.22",

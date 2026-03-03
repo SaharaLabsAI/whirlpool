@@ -10,7 +10,7 @@ Location: `crates/whirlpool-node/`
 
 - **consensus**: Core trait layer (Block, ConsensusEngine, ConsensusApp)
 - **consensus-simplex**: Sealed adapter (CommonwareEngine, FinalizationSink, CommonwareConfig)
-- **whirlpool-node** (lib): Shared exports (config, EmptyBlock, EmptyBlockApp)
+- **whirlpool-node** (lib): Config constants only (`pub mod config`)
 - **app-evm**: EVM executor and state provider
 - **app**: `ApplicationAdapter` and `InMemoryTxPool` for tx sourcing
 - **state**: In-memory state database
