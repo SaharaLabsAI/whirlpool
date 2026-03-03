@@ -1,41 +1,84 @@
-# real-simplex-consensus-wiring — Execution Plan
+# Real Simplex Consensus Wiring
 
-## Execution Order
+## TL;DR
+**Summary**: Replace the `CommonwareEngine` stub with real vendor `simplex::Engine` wiring, close Mailbox/Actor gaps, and sync the node binary so a single-validator run produces finalized blocks.
+**Deliverables**:
+- Ground the existing unit tests (TC-001 through TC-004) on observable consensus handles.
+- Add failing single-validator E2E tests (TC-007/TC-008) that require real propose→verify→finalize cycles.
+- Wire `CommonwareEngine::start()` to real vendor per-channel networking, the Mailbox Actor path, and the Oracle blocker.
+- Tighten Mailbox/MailboxActor behavior and update `whirlpool-node` to the new engine shape.
+**Effort**: 5 tasks (2×S, 3×M).
+**Parallel**: None — tasks modify the same `tests.rs` harness and workflow, and Waves 3/4/5 need workspace-wide verification.
+**Critical Path**: T1 → T2 → T3 → T4 → T5.
 
-### Wave 1 — Foundation (P2P & Config)
-- [x] [01-p2p-per-channel](tasks/01-p2p-per-channel.md) `M`
-- [x] [02-config-extend](tasks/02-config-extend.md) `S`
+## Context
+- **Design Source**: `docs/design/real-simplex-consensus-wiring/` (flows, tests, strategy).
+- **Design Contracts**:
+  - Engine startup must use `CommonwareNetworkProvider::start_per_channel()` to get three P2P `(Sender, Receiver)` pairs and build vendor `simplex::Config` with signer/validator metadata.
+  - `MailboxActor` must drive `ConsensusApp::{genesis, propose, verify}` and surface finalized height via `FinalizationSink` (no digest heuristics).
+  - `whirlpool-node` must keep the `OracleHandle` alive, pass signer/validator data, and construct the engine with the real blocker.
+  - Guardrails: No `vendor/` edits, no changes to `crates/consensus/` traits (engine/app/event pipeline stays as designed).
+- **Current Implementation Anchors (grounding map)**:
+  - `crates/consensus-simplex/src/engine.rs`: `CommonwareEngine::start()` is a stub that simulates finalization and never hits `simplex::Engine::start()`.
+  - `crates/consensus-simplex/src/mailbox.rs`: `Mailbox` exists but implements `Relay::broadcast` as a no-op and the actor uses simplifications.
+  - `crates/p2p-commonware/src/provider.rs`: `start_per_channel()` and Oracle handle plumbing are implemented and ready for wiring.
+  - `crates/whirlpool-node/src/main.rs`: binary wiring needs updating to match the new constructor and keep the Oracle handle alive.
 
-### Wave 2 — Engine Base
-- [x] [03-engine-constructor](tasks/03-engine-constructor.md) `S`
+## Work Objectives
+**Core Objective**: Transition the Simplex consensus wiring from simulated stubs to a real vendor-backed lifecycle while keeping observable test contracts aligned.
+**Deliverables**:
+- Failure-grounding tests for the stubbed engine path (Task 1 + Task 2).
+- Real per-channel vendor wiring plus actor refinements (Tasks 3 + 4).
+- Updated node binary wiring that honors the real engine builder and blocker (Task 5).
+**Definition of Done**:
+- `nix develop --command cargo build --workspace` passes.
+- `nix develop --command cargo test --workspace` passes.
+**Must Have**:
+- TDD-first flow: failing tests captured before implementing fixes.
+- CLI-based verification captured to evidence (`.sisyphus/evidence/task-N-slug.txt`).
+**Must NOT Have**:
+- No edits under `vendor/`.
+- No changes to `crates/consensus/` trait definitions.
 
-### Wave 3 — Engine Wiring
-- [ ] [04-engine-replace-stub](tasks/04-engine-replace-stub.md) `L`
+## Verification Strategy
+### ZERO HUMAN INTERVENTION
+All verification steps must run via the CLI commands listed in each task. Capture both failing (first) and passing runs to `.sisyphus/evidence/task-N-slug.txt` so reviewers can trace the TDD cycle.
+**Evidence Convention**: Each task writes to `.sisyphus/evidence/task-N-slug.txt` (e.g., `.sisyphus/evidence/task-03-real-simplex-wiring.txt`). Record failing test output before implementation, then append the passing run once the fix is in place.
 
-### Wave 4 — Main Wiring
-- [ ] [05-main-wiring](tasks/05-main-wiring.md) `M`
+## Execution Strategy
+### Parallel Execution Waves
+- **Wave 1**: Task 1, Task 2.
+- **Wave 2**: Task 3. Core wiring depends on the failing tests already in place.
+- **Wave 3**: Task 4, Task 5. Task 4 refines the Mailbox path, and Task 5 relies on the engine wiring, so they both target Wave 3.
 
-### Wave 5 — Verification
-- [ ] [06-integration-tests](tasks/06-integration-tests.md) `M`
+### Dependency Matrix
+| Task | Depends On | Wave |
+|---|---|---|
+| T1 | none | 1 |
+| T2 | none | 1 |
+| T3 | T1, T2 | 2 |
+| T4 | T3 | 3 |
+| T5 | T3 | 3 |
 
+### Agent Dispatch Summary
+| Task | Complexity | Category | Skills | Notes |
+|---|---|---|---|---|
+| T1 | S | quick | ctx-investigate | Harden unit tests around observable engine status/height.
+| T2 | M | unspecified-low | ctx-investigate | Add single-validator integration tests that fail on stub.
+| T3 | M | unspecified-low | ctx-investigate | Wire `CommonwareEngine::start()` to vendor `simplex::Engine` via per-channel networking.
+| T4 | M | unspecified-low | ctx-investigate | Polish `Mailbox`/`MailboxActor` flows so E2E tests pass.
+| T5 | S | quick | ctx-investigate | Sync `whirlpool-node` wiring and validate workspace build/test.
+
+## Task List
 <!-- TASKS_START -->
-1. [01-p2p-per-channel](tasks/01-p2p-per-channel.md)
-2. [02-config-extend](tasks/02-config-extend.md)
-3. [03-engine-constructor](tasks/03-engine-constructor.md)
-4. [04-engine-replace-stub](tasks/04-engine-replace-stub.md)
-5. [05-main-wiring](tasks/05-main-wiring.md)
-6. [06-integration-tests](tasks/06-integration-tests.md)
-<!-- TASKS_END -->
+- [ ] Task 1: Write Engine Unit Tests [**S**] → [tasks/01-engine-unit-tests.md](tasks/01-engine-unit-tests.md)
+- [ ] Task 2: Write E2E Consensus Integration Tests [**M**] → [tasks/02-e2e-consensus-tests.md](tasks/02-e2e-consensus-tests.md)
+- [ ] Task 3: Replace Engine Start Stub with Real Simplex Wiring [**M**] → [tasks/03-real-simplex-wiring.md](tasks/03-real-simplex-wiring.md)
+- [ ] Task 4: Close Mailbox/MailboxActor Gaps [**M**] → [tasks/04-close-mailbox-gaps.md](tasks/04-close-mailbox-gaps.md)
+- [ ] Task 5: Update whirlpool-node Wiring [**S**] → [tasks/05-node-wiring-update.md](tasks/05-node-wiring-update.md)
 
-## Dependency Graph
-```text
-(01) P2P Channel   (02) Config Ext
-      \               |
-       \           (03) Constructor
-        \           /
-         (04) Engine Wiring
-               |
-         (05) Main Wiring
-               |
-         (06) Integration Tests
-```
+## Final Verification
+After Task 5 completes, capture final proofs of the workspace-wide commands:
+- `nix develop --command cargo build --workspace`
+- `nix develop --command cargo test --workspace`
+Record output to `.sisyphus/evidence/final-verification.txt`.
