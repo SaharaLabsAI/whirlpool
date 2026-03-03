@@ -206,17 +206,19 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_engine_can_be_constructed() {
-        let app = Arc::new(MockApp);
-        let height = Arc::new(AtomicU64::new(0));
-        let sink = Arc::new(FinalizationSink::<TestBlock>::new(height));
-        let config = test_config();
-        let context = test_context().await;
+    #[test]
+    fn test_engine_can_be_constructed() {
+        let executor = commonware_runtime::deterministic::Runner::default();
+        executor.start(|context| async move {
+            let app = Arc::new(MockApp);
+            let height = Arc::new(AtomicU64::new(0));
+            let sink = Arc::new(FinalizationSink::<TestBlock>::new(height));
+            let config = test_config();
 
-        let network = p2p::mock::MockNetworkProvider::new(p2p::mock::MockPeerId(0));
-        let _engine = CommonwareEngine::new(app, sink, config, network, context);
-        // Test passes if construction succeeds
+            let network = p2p::mock::MockNetworkProvider::new(p2p::mock::MockPeerId(0));
+            let _engine = CommonwareEngine::new(app, sink, config, network, context);
+            // Test passes if construction succeeds
+        });
     }
 
     #[tokio::test]

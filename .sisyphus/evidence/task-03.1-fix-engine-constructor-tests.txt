@@ -1,0 +1,1761 @@
+warning: Git tree '/home/dev/sahara/web3/agent/playground/whirlpool' is dirty
+warning: use of deprecated method `futures::futures_channel::mpsc::Receiver::<T>::try_next`: please use `try_recv` instead
+   --> vendor/commonware/utils/src/channels/tracked.rs:245:20
+    |
+245 |         self.inner.try_next().ok().flatten()
+    |                    ^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+
+warning: `commonware-utils` (lib) generated 1 warning
+warning: field `sink` is never read
+  --> crates/consensus-simplex/src/engine.rs:53:5
+   |
+45 | pub struct CommonwareEngine<A, S, N, C>
+   |            ---------------- field in this struct
+...
+53 |     sink: Arc<S>,
+   |     ^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `consensus-simplex` (lib) generated 1 warning
+warning: `consensus-simplex` (lib test) generated 1 warning (1 duplicate)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.26s
+     Running unittests src/lib.rs (target/debug/deps/consensus_simplex-85bdea63ee916082)
+
+running 1 test
+test engine::tests::test_engine_can_be_constructed ... FAILED
+
+failures:
+
+---- engine::tests::test_engine_can_be_constructed stdout ----
+
+thread 'engine::tests::test_engine_can_be_constructed' (3208773) panicked at /home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tokio-1.49.0/src/runtime/blocking/shutdown.rs:51:21:
+Cannot drop a runtime in a context where blocking is not allowed. This happens when a runtime is dropped from within an asynchronous context.
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    engine::tests::test_engine_can_be_constructed
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 25 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p consensus-simplex --lib`
+warning: Git tree '/home/dev/sahara/web3/agent/playground/whirlpool' is dirty
+warning: use of deprecated method `futures::futures_channel::mpsc::Receiver::<T>::try_next`: please use `try_recv` instead
+   --> vendor/commonware/utils/src/channels/tracked.rs:245:20
+    |
+245 |         self.inner.try_next().ok().flatten()
+    |                    ^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+
+warning: `commonware-utils` (lib) generated 1 warning
+   Compiling consensus-simplex v0.1.0 (/home/dev/sahara/web3/agent/playground/whirlpool/crates/consensus-simplex)
+warning: field `sink` is never read
+  --> crates/consensus-simplex/src/engine.rs:53:5
+   |
+45 | pub struct CommonwareEngine<A, S, N, C>
+   |            ---------------- field in this struct
+...
+53 |     sink: Arc<S>,
+   |     ^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: Spawner` is not satisfied
+   --> crates/consensus-simplex/src/tests.rs:353:89
+    |
+353 |     let engine = CommonwareEngine::new(app, sink, test_config("engine-start"), network, context);
+    |                  --------------------- required by a bound introduced by this call      ^^^^^^^ the trait `Spawner` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+    |
+help: the following other types implement trait `Spawner`
+   --> /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/utils/cell.rs:107:1
+    |
+107 | / impl<C> crate::Spawner for Cell<C>
+108 | | where
+109 | |     C: crate::Spawner,
+    | |______________________^ `ContextCell<C>`
+    |
+   ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/tokio/runtime.rs:415:1
+    |
+415 |   impl crate::Spawner for Context {
+    |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::tokio::Context`
+    |
+   ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/deterministic.rs:975:1
+    |
+975 |   impl crate::Spawner for Context {
+    |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::deterministic::Context`
+note: required by a bound in `engine::CommonwareEngine::<A, S, N, C>::new`
+   --> crates/consensus-simplex/src/engine.rs:65:14
+    |
+ 65 |     C: Rng + Spawner + Metrics + Clock,
+    |              ^^^^^^^ required by this bound in `CommonwareEngine::<A, S, N, C>::new`
+...
+ 75 |     pub fn new(app: Arc<A>, sink: Arc<S>, config: CommonwareConfig, network: N, context: C) -> Self {
+    |            --- required by a bound in this associated function
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: Metrics` is not satisfied
+    --> crates/consensus-simplex/src/tests.rs:353:89
+     |
+ 353 |     let engine = CommonwareEngine::new(app, sink, test_config("engine-start"), network, context);
+     |                  --------------------- required by a bound introduced by this call      ^^^^^^^ the trait `Metrics` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+     |
+help: the following other types implement trait `Metrics`
+    --> /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/utils/cell.rs:155:1
+     |
+ 155 | / impl<C> crate::Metrics for Cell<C>
+ 156 | | where
+ 157 | |     C: crate::Metrics,
+     | |______________________^ `ContextCell<C>`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/tokio/runtime.rs:540:1
+     |
+ 540 |   impl crate::Metrics for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::tokio::Context`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/deterministic.rs:1090:1
+     |
+1090 |   impl crate::Metrics for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::deterministic::Context`
+note: required by a bound in `engine::CommonwareEngine::<A, S, N, C>::new`
+    --> crates/consensus-simplex/src/engine.rs:65:24
+     |
+  65 |     C: Rng + Spawner + Metrics + Clock,
+     |                        ^^^^^^^ required by this bound in `CommonwareEngine::<A, S, N, C>::new`
+...
+  75 |     pub fn new(app: Arc<A>, sink: Arc<S>, config: CommonwareConfig, network: N, context: C) -> Self {
+     |            --- required by a bound in this associated function
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: Clock` is not satisfied
+    --> crates/consensus-simplex/src/tests.rs:353:89
+     |
+ 353 |     let engine = CommonwareEngine::new(app, sink, test_config("engine-start"), network, context);
+     |                  --------------------- required by a bound introduced by this call      ^^^^^^^ the trait `Clock` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+     |
+help: the following other types implement trait `Clock`
+    --> /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/utils/cell.rs:176:1
+     |
+ 176 | / impl<C> crate::Clock for Cell<C>
+ 177 | | where
+ 178 | |     C: crate::Clock,
+     | |____________________^ `ContextCell<C>`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/tokio/runtime.rs:592:1
+     |
+ 592 |   impl Clock for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::tokio::Context`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/deterministic.rs:1214:1
+     |
+1214 |   impl Clock for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::deterministic::Context`
+note: required by a bound in `engine::CommonwareEngine::<A, S, N, C>::new`
+    --> crates/consensus-simplex/src/engine.rs:65:34
+     |
+  65 |     C: Rng + Spawner + Metrics + Clock,
+     |                                  ^^^^^ required by this bound in `CommonwareEngine::<A, S, N, C>::new`
+...
+  75 |     pub fn new(app: Arc<A>, sink: Arc<S>, config: CommonwareConfig, network: N, context: C) -> Self {
+     |            --- required by a bound in this associated function
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: RngCore` is not satisfied
+   --> crates/consensus-simplex/src/tests.rs:353:18
+    |
+353 |     let engine = CommonwareEngine::new(app, sink, test_config("engine-start"), network, context);
+    |                  ^^^^^^^^^^^^^^^^ the trait `RngCore` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+    |
+note: there are multiple different versions of crate `rand_core` in the dependency graph
+   --> /home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.6.4/src/lib.rs:142:1
+    |
+142 | pub trait RngCore {
+    | ^^^^^^^^^^^^^^^^^ this is the expected trait
+    |
+   ::: /home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.9.5/src/lib.rs:130:1
+    |
+130 | pub trait RngCore {
+    | ----------------- this is the found trait
+    = help: you can use `cargo tree` to explore your dependency tree
+    = help: the following other types implement trait `RngCore`:
+              &'a mut R
+              Box<R>
+              ContextCell<C>
+              OsRng
+              ReadRng<R>
+              ReseedingRng<R, Rsdr>
+              StdRng
+              StepRng
+            and 8 others
+    = note: required for `impl futures::Future<Output = commonware_runtime::tokio::Context>` to implement `Rng`
+note: required by a bound in `engine::CommonwareEngine`
+   --> crates/consensus-simplex/src/engine.rs:50:8
+    |
+ 45 | pub struct CommonwareEngine<A, S, N, C>
+    |            ---------------- required by a bound in this struct
+...
+ 50 |     C: Rng + Spawner + Metrics + Clock,
+    |        ^^^ required by this bound in `CommonwareEngine`
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: Spawner` is not satisfied
+   --> crates/consensus-simplex/src/tests.rs:353:18
+    |
+353 |     let engine = CommonwareEngine::new(app, sink, test_config("engine-start"), network, context);
+    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `Spawner` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+    |
+help: the following other types implement trait `Spawner`
+   --> /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/utils/cell.rs:107:1
+    |
+107 | / impl<C> crate::Spawner for Cell<C>
+108 | | where
+109 | |     C: crate::Spawner,
+    | |______________________^ `ContextCell<C>`
+    |
+   ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/tokio/runtime.rs:415:1
+    |
+415 |   impl crate::Spawner for Context {
+    |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::tokio::Context`
+    |
+   ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/deterministic.rs:975:1
+    |
+975 |   impl crate::Spawner for Context {
+    |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::deterministic::Context`
+note: required by a bound in `engine::CommonwareEngine`
+   --> crates/consensus-simplex/src/engine.rs:50:14
+    |
+ 45 | pub struct CommonwareEngine<A, S, N, C>
+    |            ---------------- required by a bound in this struct
+...
+ 50 |     C: Rng + Spawner + Metrics + Clock,
+    |              ^^^^^^^ required by this bound in `CommonwareEngine`
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: Metrics` is not satisfied
+    --> crates/consensus-simplex/src/tests.rs:353:18
+     |
+ 353 |     let engine = CommonwareEngine::new(app, sink, test_config("engine-start"), network, context);
+     |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `Metrics` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+     |
+help: the following other types implement trait `Metrics`
+    --> /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/utils/cell.rs:155:1
+     |
+ 155 | / impl<C> crate::Metrics for Cell<C>
+ 156 | | where
+ 157 | |     C: crate::Metrics,
+     | |______________________^ `ContextCell<C>`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/tokio/runtime.rs:540:1
+     |
+ 540 |   impl crate::Metrics for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::tokio::Context`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/deterministic.rs:1090:1
+     |
+1090 |   impl crate::Metrics for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::deterministic::Context`
+note: required by a bound in `engine::CommonwareEngine`
+    --> crates/consensus-simplex/src/engine.rs:50:24
+     |
+  45 | pub struct CommonwareEngine<A, S, N, C>
+     |            ---------------- required by a bound in this struct
+...
+  50 |     C: Rng + Spawner + Metrics + Clock,
+     |                        ^^^^^^^ required by this bound in `CommonwareEngine`
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: Clock` is not satisfied
+    --> crates/consensus-simplex/src/tests.rs:353:18
+     |
+ 353 |     let engine = CommonwareEngine::new(app, sink, test_config("engine-start"), network, context);
+     |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `Clock` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+     |
+help: the following other types implement trait `Clock`
+    --> /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/utils/cell.rs:176:1
+     |
+ 176 | / impl<C> crate::Clock for Cell<C>
+ 177 | | where
+ 178 | |     C: crate::Clock,
+     | |____________________^ `ContextCell<C>`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/tokio/runtime.rs:592:1
+     |
+ 592 |   impl Clock for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::tokio::Context`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/deterministic.rs:1214:1
+     |
+1214 |   impl Clock for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::deterministic::Context`
+note: required by a bound in `engine::CommonwareEngine`
+    --> crates/consensus-simplex/src/engine.rs:50:34
+     |
+  45 | pub struct CommonwareEngine<A, S, N, C>
+     |            ---------------- required by a bound in this struct
+...
+  50 |     C: Rng + Spawner + Metrics + Clock,
+     |                                  ^^^^^ required by this bound in `CommonwareEngine`
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: RngCore` is not satisfied
+   --> crates/consensus-simplex/src/tests.rs:353:18
+    |
+353 |     let engine = CommonwareEngine::new(app, sink, test_config("engine-start"), network, context);
+    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `RngCore` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+    |
+note: there are multiple different versions of crate `rand_core` in the dependency graph
+   --> /home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.6.4/src/lib.rs:142:1
+    |
+142 | pub trait RngCore {
+    | ^^^^^^^^^^^^^^^^^ this is the expected trait
+    |
+   ::: /home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.9.5/src/lib.rs:130:1
+    |
+130 | pub trait RngCore {
+    | ----------------- this is the found trait
+    = help: you can use `cargo tree` to explore your dependency tree
+    = help: the following other types implement trait `RngCore`:
+              &'a mut R
+              Box<R>
+              ContextCell<C>
+              OsRng
+              ReadRng<R>
+              ReseedingRng<R, Rsdr>
+              StdRng
+              StepRng
+            and 8 others
+    = note: required for `impl futures::Future<Output = commonware_runtime::tokio::Context>` to implement `Rng`
+note: required by a bound in `engine::CommonwareEngine`
+   --> crates/consensus-simplex/src/engine.rs:50:8
+    |
+ 45 | pub struct CommonwareEngine<A, S, N, C>
+    |            ---------------- required by a bound in this struct
+...
+ 50 |     C: Rng + Spawner + Metrics + Clock,
+    |        ^^^ required by this bound in `CommonwareEngine`
+
+warning: `consensus-simplex` (lib) generated 1 warning
+error[E0599]: the method `start` exists for struct `CommonwareEngine<MockApp, FinalizationSink<TestBlock>, ..., ...>`, but its trait bounds were not satisfied
+   --> crates/consensus-simplex/src/tests.rs:355:33
+    |
+355 |     let running_engine = engine.start().expect("engine should start");
+    |                                 ^^^^^ method cannot be called due to unsatisfied trait bounds
+    |
+   ::: crates/consensus-simplex/src/engine.rs:45:1
+    |
+ 45 | pub struct CommonwareEngine<A, S, N, C>
+    | --------------------------------------- method `start` not found for this struct because it doesn't satisfy `_: ConsensusEngine`
+    |
+note: the following trait bounds were not satisfied:
+      `impl futures::Future<Output = commonware_runtime::tokio::Context>: Clock`
+      `impl futures::Future<Output = commonware_runtime::tokio::Context>: Metrics`
+      `impl futures::Future<Output = commonware_runtime::tokio::Context>: Rng`
+      `impl futures::Future<Output = commonware_runtime::tokio::Context>: Spawner`
+   --> crates/consensus-simplex/src/engine.rs:86:8
+    |
+ 80 | impl<A, S, N, C> ConsensusEngine for CommonwareEngine<A, S, N, C>
+    |                  ---------------     ----------------------------
+...
+ 86 |     C: Rng + Spawner + Metrics + Clock,
+    |        ^^^   ^^^^^^^   ^^^^^^^   ^^^^^ unsatisfied trait bound introduced here
+    |        |     |         |
+    |        |     |         unsatisfied trait bound introduced here
+    |        |     unsatisfied trait bound introduced here
+    |        unsatisfied trait bound introduced here
+    = help: items from traits can only be used if the trait is implemented and in scope
+    = note: the following traits define an item `start`, perhaps you need to implement one of them:
+            candidate #1: `NetworkProvider`
+            candidate #2: `commonware_runtime::Runner`
+            candidate #3: `consensus::ConsensusEngine`
+            candidate #4: `criterion::measurement::Measurement`
+            candidate #5: `opentelemetry::trace::tracer::Tracer`
+            candidate #6: `regex_syntax::ast::visitor::Visitor`
+            candidate #7: `regex_syntax::hir::visitor::Visitor`
+    = note: the full name for the type has been written to '/home/dev/sahara/web3/agent/playground/whirlpool/target/debug/deps/consensus_simplex-85bdea63ee916082.long-type-9660317750207310403.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0282]: type annotations needed
+   --> crates/consensus-simplex/src/tests.rs:360:5
+    |
+360 |     running_engine.shutdown().await.expect("shutdown should succeed");
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ cannot infer type
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: Spawner` is not satisfied
+   --> crates/consensus-simplex/src/tests.rs:370:92
+    |
+370 |     let engine = CommonwareEngine::new(app, sink, test_config("engine-shutdown"), network, context);
+    |                  --------------------- required by a bound introduced by this call         ^^^^^^^ the trait `Spawner` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+    |
+help: the following other types implement trait `Spawner`
+   --> /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/utils/cell.rs:107:1
+    |
+107 | / impl<C> crate::Spawner for Cell<C>
+108 | | where
+109 | |     C: crate::Spawner,
+    | |______________________^ `ContextCell<C>`
+    |
+   ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/tokio/runtime.rs:415:1
+    |
+415 |   impl crate::Spawner for Context {
+    |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::tokio::Context`
+    |
+   ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/deterministic.rs:975:1
+    |
+975 |   impl crate::Spawner for Context {
+    |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::deterministic::Context`
+note: required by a bound in `engine::CommonwareEngine::<A, S, N, C>::new`
+   --> crates/consensus-simplex/src/engine.rs:65:14
+    |
+ 65 |     C: Rng + Spawner + Metrics + Clock,
+    |              ^^^^^^^ required by this bound in `CommonwareEngine::<A, S, N, C>::new`
+...
+ 75 |     pub fn new(app: Arc<A>, sink: Arc<S>, config: CommonwareConfig, network: N, context: C) -> Self {
+    |            --- required by a bound in this associated function
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: Metrics` is not satisfied
+    --> crates/consensus-simplex/src/tests.rs:370:92
+     |
+ 370 |     let engine = CommonwareEngine::new(app, sink, test_config("engine-shutdown"), network, context);
+     |                  --------------------- required by a bound introduced by this call         ^^^^^^^ the trait `Metrics` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+     |
+help: the following other types implement trait `Metrics`
+    --> /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/utils/cell.rs:155:1
+     |
+ 155 | / impl<C> crate::Metrics for Cell<C>
+ 156 | | where
+ 157 | |     C: crate::Metrics,
+     | |______________________^ `ContextCell<C>`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/tokio/runtime.rs:540:1
+     |
+ 540 |   impl crate::Metrics for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::tokio::Context`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/deterministic.rs:1090:1
+     |
+1090 |   impl crate::Metrics for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::deterministic::Context`
+note: required by a bound in `engine::CommonwareEngine::<A, S, N, C>::new`
+    --> crates/consensus-simplex/src/engine.rs:65:24
+     |
+  65 |     C: Rng + Spawner + Metrics + Clock,
+     |                        ^^^^^^^ required by this bound in `CommonwareEngine::<A, S, N, C>::new`
+...
+  75 |     pub fn new(app: Arc<A>, sink: Arc<S>, config: CommonwareConfig, network: N, context: C) -> Self {
+     |            --- required by a bound in this associated function
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: Clock` is not satisfied
+    --> crates/consensus-simplex/src/tests.rs:370:92
+     |
+ 370 |     let engine = CommonwareEngine::new(app, sink, test_config("engine-shutdown"), network, context);
+     |                  --------------------- required by a bound introduced by this call         ^^^^^^^ the trait `Clock` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+     |
+help: the following other types implement trait `Clock`
+    --> /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/utils/cell.rs:176:1
+     |
+ 176 | / impl<C> crate::Clock for Cell<C>
+ 177 | | where
+ 178 | |     C: crate::Clock,
+     | |____________________^ `ContextCell<C>`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/tokio/runtime.rs:592:1
+     |
+ 592 |   impl Clock for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::tokio::Context`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/deterministic.rs:1214:1
+     |
+1214 |   impl Clock for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::deterministic::Context`
+note: required by a bound in `engine::CommonwareEngine::<A, S, N, C>::new`
+    --> crates/consensus-simplex/src/engine.rs:65:34
+     |
+  65 |     C: Rng + Spawner + Metrics + Clock,
+     |                                  ^^^^^ required by this bound in `CommonwareEngine::<A, S, N, C>::new`
+...
+  75 |     pub fn new(app: Arc<A>, sink: Arc<S>, config: CommonwareConfig, network: N, context: C) -> Self {
+     |            --- required by a bound in this associated function
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: RngCore` is not satisfied
+   --> crates/consensus-simplex/src/tests.rs:370:18
+    |
+370 |     let engine = CommonwareEngine::new(app, sink, test_config("engine-shutdown"), network, context);
+    |                  ^^^^^^^^^^^^^^^^ the trait `RngCore` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+    |
+note: there are multiple different versions of crate `rand_core` in the dependency graph
+   --> /home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.6.4/src/lib.rs:142:1
+    |
+142 | pub trait RngCore {
+    | ^^^^^^^^^^^^^^^^^ this is the expected trait
+    |
+   ::: /home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.9.5/src/lib.rs:130:1
+    |
+130 | pub trait RngCore {
+    | ----------------- this is the found trait
+    = help: you can use `cargo tree` to explore your dependency tree
+    = help: the following other types implement trait `RngCore`:
+              &'a mut R
+              Box<R>
+              ContextCell<C>
+              OsRng
+              ReadRng<R>
+              ReseedingRng<R, Rsdr>
+              StdRng
+              StepRng
+            and 8 others
+    = note: required for `impl futures::Future<Output = commonware_runtime::tokio::Context>` to implement `Rng`
+note: required by a bound in `engine::CommonwareEngine`
+   --> crates/consensus-simplex/src/engine.rs:50:8
+    |
+ 45 | pub struct CommonwareEngine<A, S, N, C>
+    |            ---------------- required by a bound in this struct
+...
+ 50 |     C: Rng + Spawner + Metrics + Clock,
+    |        ^^^ required by this bound in `CommonwareEngine`
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: Spawner` is not satisfied
+   --> crates/consensus-simplex/src/tests.rs:370:18
+    |
+370 |     let engine = CommonwareEngine::new(app, sink, test_config("engine-shutdown"), network, context);
+    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `Spawner` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+    |
+help: the following other types implement trait `Spawner`
+   --> /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/utils/cell.rs:107:1
+    |
+107 | / impl<C> crate::Spawner for Cell<C>
+108 | | where
+109 | |     C: crate::Spawner,
+    | |______________________^ `ContextCell<C>`
+    |
+   ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/tokio/runtime.rs:415:1
+    |
+415 |   impl crate::Spawner for Context {
+    |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::tokio::Context`
+    |
+   ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/deterministic.rs:975:1
+    |
+975 |   impl crate::Spawner for Context {
+    |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::deterministic::Context`
+note: required by a bound in `engine::CommonwareEngine`
+   --> crates/consensus-simplex/src/engine.rs:50:14
+    |
+ 45 | pub struct CommonwareEngine<A, S, N, C>
+    |            ---------------- required by a bound in this struct
+...
+ 50 |     C: Rng + Spawner + Metrics + Clock,
+    |              ^^^^^^^ required by this bound in `CommonwareEngine`
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: Metrics` is not satisfied
+    --> crates/consensus-simplex/src/tests.rs:370:18
+     |
+ 370 |     let engine = CommonwareEngine::new(app, sink, test_config("engine-shutdown"), network, context);
+     |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `Metrics` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+     |
+help: the following other types implement trait `Metrics`
+    --> /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/utils/cell.rs:155:1
+     |
+ 155 | / impl<C> crate::Metrics for Cell<C>
+ 156 | | where
+ 157 | |     C: crate::Metrics,
+     | |______________________^ `ContextCell<C>`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/tokio/runtime.rs:540:1
+     |
+ 540 |   impl crate::Metrics for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::tokio::Context`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/deterministic.rs:1090:1
+     |
+1090 |   impl crate::Metrics for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::deterministic::Context`
+note: required by a bound in `engine::CommonwareEngine`
+    --> crates/consensus-simplex/src/engine.rs:50:24
+     |
+  45 | pub struct CommonwareEngine<A, S, N, C>
+     |            ---------------- required by a bound in this struct
+...
+  50 |     C: Rng + Spawner + Metrics + Clock,
+     |                        ^^^^^^^ required by this bound in `CommonwareEngine`
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: Clock` is not satisfied
+    --> crates/consensus-simplex/src/tests.rs:370:18
+     |
+ 370 |     let engine = CommonwareEngine::new(app, sink, test_config("engine-shutdown"), network, context);
+     |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `Clock` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+     |
+help: the following other types implement trait `Clock`
+    --> /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/utils/cell.rs:176:1
+     |
+ 176 | / impl<C> crate::Clock for Cell<C>
+ 177 | | where
+ 178 | |     C: crate::Clock,
+     | |____________________^ `ContextCell<C>`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/tokio/runtime.rs:592:1
+     |
+ 592 |   impl Clock for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::tokio::Context`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/deterministic.rs:1214:1
+     |
+1214 |   impl Clock for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::deterministic::Context`
+note: required by a bound in `engine::CommonwareEngine`
+    --> crates/consensus-simplex/src/engine.rs:50:34
+     |
+  45 | pub struct CommonwareEngine<A, S, N, C>
+     |            ---------------- required by a bound in this struct
+...
+  50 |     C: Rng + Spawner + Metrics + Clock,
+     |                                  ^^^^^ required by this bound in `CommonwareEngine`
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: RngCore` is not satisfied
+   --> crates/consensus-simplex/src/tests.rs:370:18
+    |
+370 |     let engine = CommonwareEngine::new(app, sink, test_config("engine-shutdown"), network, context);
+    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `RngCore` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+    |
+note: there are multiple different versions of crate `rand_core` in the dependency graph
+   --> /home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.6.4/src/lib.rs:142:1
+    |
+142 | pub trait RngCore {
+    | ^^^^^^^^^^^^^^^^^ this is the expected trait
+    |
+   ::: /home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.9.5/src/lib.rs:130:1
+    |
+130 | pub trait RngCore {
+    | ----------------- this is the found trait
+    = help: you can use `cargo tree` to explore your dependency tree
+    = help: the following other types implement trait `RngCore`:
+              &'a mut R
+              Box<R>
+              ContextCell<C>
+              OsRng
+              ReadRng<R>
+              ReseedingRng<R, Rsdr>
+              StdRng
+              StepRng
+            and 8 others
+    = note: required for `impl futures::Future<Output = commonware_runtime::tokio::Context>` to implement `Rng`
+note: required by a bound in `engine::CommonwareEngine`
+   --> crates/consensus-simplex/src/engine.rs:50:8
+    |
+ 45 | pub struct CommonwareEngine<A, S, N, C>
+    |            ---------------- required by a bound in this struct
+...
+ 50 |     C: Rng + Spawner + Metrics + Clock,
+    |        ^^^ required by this bound in `CommonwareEngine`
+
+error[E0599]: the method `start` exists for struct `CommonwareEngine<MockApp, FinalizationSink<TestBlock>, ..., ...>`, but its trait bounds were not satisfied
+   --> crates/consensus-simplex/src/tests.rs:372:33
+    |
+372 |     let running_engine = engine.start().expect("engine should start");
+    |                                 ^^^^^ method cannot be called due to unsatisfied trait bounds
+    |
+   ::: crates/consensus-simplex/src/engine.rs:45:1
+    |
+ 45 | pub struct CommonwareEngine<A, S, N, C>
+    | --------------------------------------- method `start` not found for this struct because it doesn't satisfy `_: ConsensusEngine`
+    |
+note: the following trait bounds were not satisfied:
+      `impl futures::Future<Output = commonware_runtime::tokio::Context>: Clock`
+      `impl futures::Future<Output = commonware_runtime::tokio::Context>: Metrics`
+      `impl futures::Future<Output = commonware_runtime::tokio::Context>: Rng`
+      `impl futures::Future<Output = commonware_runtime::tokio::Context>: Spawner`
+   --> crates/consensus-simplex/src/engine.rs:86:8
+    |
+ 80 | impl<A, S, N, C> ConsensusEngine for CommonwareEngine<A, S, N, C>
+    |                  ---------------     ----------------------------
+...
+ 86 |     C: Rng + Spawner + Metrics + Clock,
+    |        ^^^   ^^^^^^^   ^^^^^^^   ^^^^^ unsatisfied trait bound introduced here
+    |        |     |         |
+    |        |     |         unsatisfied trait bound introduced here
+    |        |     unsatisfied trait bound introduced here
+    |        unsatisfied trait bound introduced here
+    = help: items from traits can only be used if the trait is implemented and in scope
+    = note: the following traits define an item `start`, perhaps you need to implement one of them:
+            candidate #1: `NetworkProvider`
+            candidate #2: `commonware_runtime::Runner`
+            candidate #3: `consensus::ConsensusEngine`
+            candidate #4: `criterion::measurement::Measurement`
+            candidate #5: `opentelemetry::trace::tracer::Tracer`
+            candidate #6: `regex_syntax::ast::visitor::Visitor`
+            candidate #7: `regex_syntax::hir::visitor::Visitor`
+    = note: the full name for the type has been written to '/home/dev/sahara/web3/agent/playground/whirlpool/target/debug/deps/consensus_simplex-85bdea63ee916082.long-type-9660317750207310403.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0282]: type annotations needed
+   --> crates/consensus-simplex/src/tests.rs:374:5
+    |
+374 |     running_engine.shutdown().await.expect("shutdown should succeed");
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ cannot infer type
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: Spawner` is not satisfied
+   --> crates/consensus-simplex/src/tests.rs:384:90
+    |
+384 |     let engine = CommonwareEngine::new(app, sink, test_config("engine-height"), network, context);
+    |                  --------------------- required by a bound introduced by this call       ^^^^^^^ the trait `Spawner` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+    |
+help: the following other types implement trait `Spawner`
+   --> /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/utils/cell.rs:107:1
+    |
+107 | / impl<C> crate::Spawner for Cell<C>
+108 | | where
+109 | |     C: crate::Spawner,
+    | |______________________^ `ContextCell<C>`
+    |
+   ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/tokio/runtime.rs:415:1
+    |
+415 |   impl crate::Spawner for Context {
+    |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::tokio::Context`
+    |
+   ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/deterministic.rs:975:1
+    |
+975 |   impl crate::Spawner for Context {
+    |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::deterministic::Context`
+note: required by a bound in `engine::CommonwareEngine::<A, S, N, C>::new`
+   --> crates/consensus-simplex/src/engine.rs:65:14
+    |
+ 65 |     C: Rng + Spawner + Metrics + Clock,
+    |              ^^^^^^^ required by this bound in `CommonwareEngine::<A, S, N, C>::new`
+...
+ 75 |     pub fn new(app: Arc<A>, sink: Arc<S>, config: CommonwareConfig, network: N, context: C) -> Self {
+    |            --- required by a bound in this associated function
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: Metrics` is not satisfied
+    --> crates/consensus-simplex/src/tests.rs:384:90
+     |
+ 384 |     let engine = CommonwareEngine::new(app, sink, test_config("engine-height"), network, context);
+     |                  --------------------- required by a bound introduced by this call       ^^^^^^^ the trait `Metrics` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+     |
+help: the following other types implement trait `Metrics`
+    --> /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/utils/cell.rs:155:1
+     |
+ 155 | / impl<C> crate::Metrics for Cell<C>
+ 156 | | where
+ 157 | |     C: crate::Metrics,
+     | |______________________^ `ContextCell<C>`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/tokio/runtime.rs:540:1
+     |
+ 540 |   impl crate::Metrics for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::tokio::Context`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/deterministic.rs:1090:1
+     |
+1090 |   impl crate::Metrics for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::deterministic::Context`
+note: required by a bound in `engine::CommonwareEngine::<A, S, N, C>::new`
+    --> crates/consensus-simplex/src/engine.rs:65:24
+     |
+  65 |     C: Rng + Spawner + Metrics + Clock,
+     |                        ^^^^^^^ required by this bound in `CommonwareEngine::<A, S, N, C>::new`
+...
+  75 |     pub fn new(app: Arc<A>, sink: Arc<S>, config: CommonwareConfig, network: N, context: C) -> Self {
+     |            --- required by a bound in this associated function
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: Clock` is not satisfied
+    --> crates/consensus-simplex/src/tests.rs:384:90
+     |
+ 384 |     let engine = CommonwareEngine::new(app, sink, test_config("engine-height"), network, context);
+     |                  --------------------- required by a bound introduced by this call       ^^^^^^^ the trait `Clock` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+     |
+help: the following other types implement trait `Clock`
+    --> /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/utils/cell.rs:176:1
+     |
+ 176 | / impl<C> crate::Clock for Cell<C>
+ 177 | | where
+ 178 | |     C: crate::Clock,
+     | |____________________^ `ContextCell<C>`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/tokio/runtime.rs:592:1
+     |
+ 592 |   impl Clock for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::tokio::Context`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/deterministic.rs:1214:1
+     |
+1214 |   impl Clock for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::deterministic::Context`
+note: required by a bound in `engine::CommonwareEngine::<A, S, N, C>::new`
+    --> crates/consensus-simplex/src/engine.rs:65:34
+     |
+  65 |     C: Rng + Spawner + Metrics + Clock,
+     |                                  ^^^^^ required by this bound in `CommonwareEngine::<A, S, N, C>::new`
+...
+  75 |     pub fn new(app: Arc<A>, sink: Arc<S>, config: CommonwareConfig, network: N, context: C) -> Self {
+     |            --- required by a bound in this associated function
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: RngCore` is not satisfied
+   --> crates/consensus-simplex/src/tests.rs:384:18
+    |
+384 |     let engine = CommonwareEngine::new(app, sink, test_config("engine-height"), network, context);
+    |                  ^^^^^^^^^^^^^^^^ the trait `RngCore` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+    |
+note: there are multiple different versions of crate `rand_core` in the dependency graph
+   --> /home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.6.4/src/lib.rs:142:1
+    |
+142 | pub trait RngCore {
+    | ^^^^^^^^^^^^^^^^^ this is the expected trait
+    |
+   ::: /home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.9.5/src/lib.rs:130:1
+    |
+130 | pub trait RngCore {
+    | ----------------- this is the found trait
+    = help: you can use `cargo tree` to explore your dependency tree
+    = help: the following other types implement trait `RngCore`:
+              &'a mut R
+              Box<R>
+              ContextCell<C>
+              OsRng
+              ReadRng<R>
+              ReseedingRng<R, Rsdr>
+              StdRng
+              StepRng
+            and 8 others
+    = note: required for `impl futures::Future<Output = commonware_runtime::tokio::Context>` to implement `Rng`
+note: required by a bound in `engine::CommonwareEngine`
+   --> crates/consensus-simplex/src/engine.rs:50:8
+    |
+ 45 | pub struct CommonwareEngine<A, S, N, C>
+    |            ---------------- required by a bound in this struct
+...
+ 50 |     C: Rng + Spawner + Metrics + Clock,
+    |        ^^^ required by this bound in `CommonwareEngine`
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: Spawner` is not satisfied
+   --> crates/consensus-simplex/src/tests.rs:384:18
+    |
+384 |     let engine = CommonwareEngine::new(app, sink, test_config("engine-height"), network, context);
+    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `Spawner` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+    |
+help: the following other types implement trait `Spawner`
+   --> /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/utils/cell.rs:107:1
+    |
+107 | / impl<C> crate::Spawner for Cell<C>
+108 | | where
+109 | |     C: crate::Spawner,
+    | |______________________^ `ContextCell<C>`
+    |
+   ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/tokio/runtime.rs:415:1
+    |
+415 |   impl crate::Spawner for Context {
+    |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::tokio::Context`
+    |
+   ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/deterministic.rs:975:1
+    |
+975 |   impl crate::Spawner for Context {
+    |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::deterministic::Context`
+note: required by a bound in `engine::CommonwareEngine`
+   --> crates/consensus-simplex/src/engine.rs:50:14
+    |
+ 45 | pub struct CommonwareEngine<A, S, N, C>
+    |            ---------------- required by a bound in this struct
+...
+ 50 |     C: Rng + Spawner + Metrics + Clock,
+    |              ^^^^^^^ required by this bound in `CommonwareEngine`
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: Metrics` is not satisfied
+    --> crates/consensus-simplex/src/tests.rs:384:18
+     |
+ 384 |     let engine = CommonwareEngine::new(app, sink, test_config("engine-height"), network, context);
+     |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `Metrics` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+     |
+help: the following other types implement trait `Metrics`
+    --> /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/utils/cell.rs:155:1
+     |
+ 155 | / impl<C> crate::Metrics for Cell<C>
+ 156 | | where
+ 157 | |     C: crate::Metrics,
+     | |______________________^ `ContextCell<C>`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/tokio/runtime.rs:540:1
+     |
+ 540 |   impl crate::Metrics for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::tokio::Context`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/deterministic.rs:1090:1
+     |
+1090 |   impl crate::Metrics for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::deterministic::Context`
+note: required by a bound in `engine::CommonwareEngine`
+    --> crates/consensus-simplex/src/engine.rs:50:24
+     |
+  45 | pub struct CommonwareEngine<A, S, N, C>
+     |            ---------------- required by a bound in this struct
+...
+  50 |     C: Rng + Spawner + Metrics + Clock,
+     |                        ^^^^^^^ required by this bound in `CommonwareEngine`
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: Clock` is not satisfied
+    --> crates/consensus-simplex/src/tests.rs:384:18
+     |
+ 384 |     let engine = CommonwareEngine::new(app, sink, test_config("engine-height"), network, context);
+     |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `Clock` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+     |
+help: the following other types implement trait `Clock`
+    --> /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/utils/cell.rs:176:1
+     |
+ 176 | / impl<C> crate::Clock for Cell<C>
+ 177 | | where
+ 178 | |     C: crate::Clock,
+     | |____________________^ `ContextCell<C>`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/tokio/runtime.rs:592:1
+     |
+ 592 |   impl Clock for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::tokio::Context`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/deterministic.rs:1214:1
+     |
+1214 |   impl Clock for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::deterministic::Context`
+note: required by a bound in `engine::CommonwareEngine`
+    --> crates/consensus-simplex/src/engine.rs:50:34
+     |
+  45 | pub struct CommonwareEngine<A, S, N, C>
+     |            ---------------- required by a bound in this struct
+...
+  50 |     C: Rng + Spawner + Metrics + Clock,
+     |                                  ^^^^^ required by this bound in `CommonwareEngine`
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: RngCore` is not satisfied
+   --> crates/consensus-simplex/src/tests.rs:384:18
+    |
+384 |     let engine = CommonwareEngine::new(app, sink, test_config("engine-height"), network, context);
+    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `RngCore` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+    |
+note: there are multiple different versions of crate `rand_core` in the dependency graph
+   --> /home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.6.4/src/lib.rs:142:1
+    |
+142 | pub trait RngCore {
+    | ^^^^^^^^^^^^^^^^^ this is the expected trait
+    |
+   ::: /home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.9.5/src/lib.rs:130:1
+    |
+130 | pub trait RngCore {
+    | ----------------- this is the found trait
+    = help: you can use `cargo tree` to explore your dependency tree
+    = help: the following other types implement trait `RngCore`:
+              &'a mut R
+              Box<R>
+              ContextCell<C>
+              OsRng
+              ReadRng<R>
+              ReseedingRng<R, Rsdr>
+              StdRng
+              StepRng
+            and 8 others
+    = note: required for `impl futures::Future<Output = commonware_runtime::tokio::Context>` to implement `Rng`
+note: required by a bound in `engine::CommonwareEngine`
+   --> crates/consensus-simplex/src/engine.rs:50:8
+    |
+ 45 | pub struct CommonwareEngine<A, S, N, C>
+    |            ---------------- required by a bound in this struct
+...
+ 50 |     C: Rng + Spawner + Metrics + Clock,
+    |        ^^^ required by this bound in `CommonwareEngine`
+
+error[E0599]: the method `start` exists for struct `CommonwareEngine<MockApp, FinalizationSink<TestBlock>, ..., ...>`, but its trait bounds were not satisfied
+   --> crates/consensus-simplex/src/tests.rs:386:33
+    |
+386 |     let running_engine = engine.start().expect("engine should start");
+    |                                 ^^^^^ method cannot be called due to unsatisfied trait bounds
+    |
+   ::: crates/consensus-simplex/src/engine.rs:45:1
+    |
+ 45 | pub struct CommonwareEngine<A, S, N, C>
+    | --------------------------------------- method `start` not found for this struct because it doesn't satisfy `_: ConsensusEngine`
+    |
+note: the following trait bounds were not satisfied:
+      `impl futures::Future<Output = commonware_runtime::tokio::Context>: Clock`
+      `impl futures::Future<Output = commonware_runtime::tokio::Context>: Metrics`
+      `impl futures::Future<Output = commonware_runtime::tokio::Context>: Rng`
+      `impl futures::Future<Output = commonware_runtime::tokio::Context>: Spawner`
+   --> crates/consensus-simplex/src/engine.rs:86:8
+    |
+ 80 | impl<A, S, N, C> ConsensusEngine for CommonwareEngine<A, S, N, C>
+    |                  ---------------     ----------------------------
+...
+ 86 |     C: Rng + Spawner + Metrics + Clock,
+    |        ^^^   ^^^^^^^   ^^^^^^^   ^^^^^ unsatisfied trait bound introduced here
+    |        |     |         |
+    |        |     |         unsatisfied trait bound introduced here
+    |        |     unsatisfied trait bound introduced here
+    |        unsatisfied trait bound introduced here
+    = help: items from traits can only be used if the trait is implemented and in scope
+    = note: the following traits define an item `start`, perhaps you need to implement one of them:
+            candidate #1: `NetworkProvider`
+            candidate #2: `commonware_runtime::Runner`
+            candidate #3: `consensus::ConsensusEngine`
+            candidate #4: `criterion::measurement::Measurement`
+            candidate #5: `opentelemetry::trace::tracer::Tracer`
+            candidate #6: `regex_syntax::ast::visitor::Visitor`
+            candidate #7: `regex_syntax::hir::visitor::Visitor`
+    = note: the full name for the type has been written to '/home/dev/sahara/web3/agent/playground/whirlpool/target/debug/deps/consensus_simplex-85bdea63ee916082.long-type-9660317750207310403.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0282]: type annotations needed
+   --> crates/consensus-simplex/src/tests.rs:400:5
+    |
+400 |     running_engine.shutdown().await.expect("shutdown should succeed");
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ cannot infer type
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: Spawner` is not satisfied
+   --> crates/consensus-simplex/src/tests.rs:466:9
+    |
+461 |     let engine = CommonwareEngine::new(
+    |                  --------------------- required by a bound introduced by this call
+...
+466 |         context,
+    |         ^^^^^^^ the trait `Spawner` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+    |
+help: the following other types implement trait `Spawner`
+   --> /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/utils/cell.rs:107:1
+    |
+107 | / impl<C> crate::Spawner for Cell<C>
+108 | | where
+109 | |     C: crate::Spawner,
+    | |______________________^ `ContextCell<C>`
+    |
+   ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/tokio/runtime.rs:415:1
+    |
+415 |   impl crate::Spawner for Context {
+    |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::tokio::Context`
+    |
+   ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/deterministic.rs:975:1
+    |
+975 |   impl crate::Spawner for Context {
+    |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::deterministic::Context`
+note: required by a bound in `engine::CommonwareEngine::<A, S, N, C>::new`
+   --> crates/consensus-simplex/src/engine.rs:65:14
+    |
+ 65 |     C: Rng + Spawner + Metrics + Clock,
+    |              ^^^^^^^ required by this bound in `CommonwareEngine::<A, S, N, C>::new`
+...
+ 75 |     pub fn new(app: Arc<A>, sink: Arc<S>, config: CommonwareConfig, network: N, context: C) -> Self {
+    |            --- required by a bound in this associated function
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: Metrics` is not satisfied
+    --> crates/consensus-simplex/src/tests.rs:466:9
+     |
+ 461 |     let engine = CommonwareEngine::new(
+     |                  --------------------- required by a bound introduced by this call
+...
+ 466 |         context,
+     |         ^^^^^^^ the trait `Metrics` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+     |
+help: the following other types implement trait `Metrics`
+    --> /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/utils/cell.rs:155:1
+     |
+ 155 | / impl<C> crate::Metrics for Cell<C>
+ 156 | | where
+ 157 | |     C: crate::Metrics,
+     | |______________________^ `ContextCell<C>`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/tokio/runtime.rs:540:1
+     |
+ 540 |   impl crate::Metrics for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::tokio::Context`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/deterministic.rs:1090:1
+     |
+1090 |   impl crate::Metrics for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::deterministic::Context`
+note: required by a bound in `engine::CommonwareEngine::<A, S, N, C>::new`
+    --> crates/consensus-simplex/src/engine.rs:65:24
+     |
+  65 |     C: Rng + Spawner + Metrics + Clock,
+     |                        ^^^^^^^ required by this bound in `CommonwareEngine::<A, S, N, C>::new`
+...
+  75 |     pub fn new(app: Arc<A>, sink: Arc<S>, config: CommonwareConfig, network: N, context: C) -> Self {
+     |            --- required by a bound in this associated function
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: Clock` is not satisfied
+    --> crates/consensus-simplex/src/tests.rs:466:9
+     |
+ 461 |     let engine = CommonwareEngine::new(
+     |                  --------------------- required by a bound introduced by this call
+...
+ 466 |         context,
+     |         ^^^^^^^ the trait `Clock` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+     |
+help: the following other types implement trait `Clock`
+    --> /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/utils/cell.rs:176:1
+     |
+ 176 | / impl<C> crate::Clock for Cell<C>
+ 177 | | where
+ 178 | |     C: crate::Clock,
+     | |____________________^ `ContextCell<C>`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/tokio/runtime.rs:592:1
+     |
+ 592 |   impl Clock for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::tokio::Context`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/deterministic.rs:1214:1
+     |
+1214 |   impl Clock for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::deterministic::Context`
+note: required by a bound in `engine::CommonwareEngine::<A, S, N, C>::new`
+    --> crates/consensus-simplex/src/engine.rs:65:34
+     |
+  65 |     C: Rng + Spawner + Metrics + Clock,
+     |                                  ^^^^^ required by this bound in `CommonwareEngine::<A, S, N, C>::new`
+...
+  75 |     pub fn new(app: Arc<A>, sink: Arc<S>, config: CommonwareConfig, network: N, context: C) -> Self {
+     |            --- required by a bound in this associated function
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: RngCore` is not satisfied
+   --> crates/consensus-simplex/src/tests.rs:461:18
+    |
+461 |     let engine = CommonwareEngine::new(
+    |                  ^^^^^^^^^^^^^^^^ the trait `RngCore` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+    |
+note: there are multiple different versions of crate `rand_core` in the dependency graph
+   --> /home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.6.4/src/lib.rs:142:1
+    |
+142 | pub trait RngCore {
+    | ^^^^^^^^^^^^^^^^^ this is the expected trait
+    |
+   ::: /home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.9.5/src/lib.rs:130:1
+    |
+130 | pub trait RngCore {
+    | ----------------- this is the found trait
+    = help: you can use `cargo tree` to explore your dependency tree
+    = help: the following other types implement trait `RngCore`:
+              &'a mut R
+              Box<R>
+              ContextCell<C>
+              OsRng
+              ReadRng<R>
+              ReseedingRng<R, Rsdr>
+              StdRng
+              StepRng
+            and 8 others
+    = note: required for `impl futures::Future<Output = commonware_runtime::tokio::Context>` to implement `Rng`
+note: required by a bound in `engine::CommonwareEngine`
+   --> crates/consensus-simplex/src/engine.rs:50:8
+    |
+ 45 | pub struct CommonwareEngine<A, S, N, C>
+    |            ---------------- required by a bound in this struct
+...
+ 50 |     C: Rng + Spawner + Metrics + Clock,
+    |        ^^^ required by this bound in `CommonwareEngine`
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: Spawner` is not satisfied
+   --> crates/consensus-simplex/src/tests.rs:461:18
+    |
+461 |       let engine = CommonwareEngine::new(
+    |  __________________^
+462 | |         app,
+463 | |         sink,
+464 | |         test_config("e2e-single-validator-block"),
+465 | |         network,
+466 | |         context,
+467 | |     );
+    | |_____^ the trait `Spawner` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+    |
+help: the following other types implement trait `Spawner`
+   --> /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/utils/cell.rs:107:1
+    |
+107 | / impl<C> crate::Spawner for Cell<C>
+108 | | where
+109 | |     C: crate::Spawner,
+    | |______________________^ `ContextCell<C>`
+    |
+   ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/tokio/runtime.rs:415:1
+    |
+415 |   impl crate::Spawner for Context {
+    |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::tokio::Context`
+    |
+   ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/deterministic.rs:975:1
+    |
+975 |   impl crate::Spawner for Context {
+    |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::deterministic::Context`
+note: required by a bound in `engine::CommonwareEngine`
+   --> crates/consensus-simplex/src/engine.rs:50:14
+    |
+ 45 | pub struct CommonwareEngine<A, S, N, C>
+    |            ---------------- required by a bound in this struct
+...
+ 50 |     C: Rng + Spawner + Metrics + Clock,
+    |              ^^^^^^^ required by this bound in `CommonwareEngine`
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: Metrics` is not satisfied
+    --> crates/consensus-simplex/src/tests.rs:461:18
+     |
+ 461 |       let engine = CommonwareEngine::new(
+     |  __________________^
+ 462 | |         app,
+ 463 | |         sink,
+ 464 | |         test_config("e2e-single-validator-block"),
+ 465 | |         network,
+ 466 | |         context,
+ 467 | |     );
+     | |_____^ the trait `Metrics` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+     |
+help: the following other types implement trait `Metrics`
+    --> /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/utils/cell.rs:155:1
+     |
+ 155 | / impl<C> crate::Metrics for Cell<C>
+ 156 | | where
+ 157 | |     C: crate::Metrics,
+     | |______________________^ `ContextCell<C>`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/tokio/runtime.rs:540:1
+     |
+ 540 |   impl crate::Metrics for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::tokio::Context`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/deterministic.rs:1090:1
+     |
+1090 |   impl crate::Metrics for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::deterministic::Context`
+note: required by a bound in `engine::CommonwareEngine`
+    --> crates/consensus-simplex/src/engine.rs:50:24
+     |
+  45 | pub struct CommonwareEngine<A, S, N, C>
+     |            ---------------- required by a bound in this struct
+...
+  50 |     C: Rng + Spawner + Metrics + Clock,
+     |                        ^^^^^^^ required by this bound in `CommonwareEngine`
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: Clock` is not satisfied
+    --> crates/consensus-simplex/src/tests.rs:461:18
+     |
+ 461 |       let engine = CommonwareEngine::new(
+     |  __________________^
+ 462 | |         app,
+ 463 | |         sink,
+ 464 | |         test_config("e2e-single-validator-block"),
+ 465 | |         network,
+ 466 | |         context,
+ 467 | |     );
+     | |_____^ the trait `Clock` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+     |
+help: the following other types implement trait `Clock`
+    --> /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/utils/cell.rs:176:1
+     |
+ 176 | / impl<C> crate::Clock for Cell<C>
+ 177 | | where
+ 178 | |     C: crate::Clock,
+     | |____________________^ `ContextCell<C>`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/tokio/runtime.rs:592:1
+     |
+ 592 |   impl Clock for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::tokio::Context`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/deterministic.rs:1214:1
+     |
+1214 |   impl Clock for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::deterministic::Context`
+note: required by a bound in `engine::CommonwareEngine`
+    --> crates/consensus-simplex/src/engine.rs:50:34
+     |
+  45 | pub struct CommonwareEngine<A, S, N, C>
+     |            ---------------- required by a bound in this struct
+...
+  50 |     C: Rng + Spawner + Metrics + Clock,
+     |                                  ^^^^^ required by this bound in `CommonwareEngine`
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: RngCore` is not satisfied
+   --> crates/consensus-simplex/src/tests.rs:461:18
+    |
+461 |       let engine = CommonwareEngine::new(
+    |  __________________^
+462 | |         app,
+463 | |         sink,
+464 | |         test_config("e2e-single-validator-block"),
+465 | |         network,
+466 | |         context,
+467 | |     );
+    | |_____^ the trait `RngCore` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+    |
+note: there are multiple different versions of crate `rand_core` in the dependency graph
+   --> /home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.6.4/src/lib.rs:142:1
+    |
+142 | pub trait RngCore {
+    | ^^^^^^^^^^^^^^^^^ this is the expected trait
+    |
+   ::: /home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.9.5/src/lib.rs:130:1
+    |
+130 | pub trait RngCore {
+    | ----------------- this is the found trait
+    = help: you can use `cargo tree` to explore your dependency tree
+    = help: the following other types implement trait `RngCore`:
+              &'a mut R
+              Box<R>
+              ContextCell<C>
+              OsRng
+              ReadRng<R>
+              ReseedingRng<R, Rsdr>
+              StdRng
+              StepRng
+            and 8 others
+    = note: required for `impl futures::Future<Output = commonware_runtime::tokio::Context>` to implement `Rng`
+note: required by a bound in `engine::CommonwareEngine`
+   --> crates/consensus-simplex/src/engine.rs:50:8
+    |
+ 45 | pub struct CommonwareEngine<A, S, N, C>
+    |            ---------------- required by a bound in this struct
+...
+ 50 |     C: Rng + Spawner + Metrics + Clock,
+    |        ^^^ required by this bound in `CommonwareEngine`
+
+error[E0599]: the method `start` exists for struct `CommonwareEngine<MockApp, FinalizationSink<TestBlock>, ..., ...>`, but its trait bounds were not satisfied
+   --> crates/consensus-simplex/src/tests.rs:469:33
+    |
+469 |     let running_engine = engine.start().expect("engine should start");
+    |                                 ^^^^^ method cannot be called due to unsatisfied trait bounds
+    |
+   ::: crates/consensus-simplex/src/engine.rs:45:1
+    |
+ 45 | pub struct CommonwareEngine<A, S, N, C>
+    | --------------------------------------- method `start` not found for this struct because it doesn't satisfy `_: ConsensusEngine`
+    |
+note: the following trait bounds were not satisfied:
+      `impl futures::Future<Output = commonware_runtime::tokio::Context>: Clock`
+      `impl futures::Future<Output = commonware_runtime::tokio::Context>: Metrics`
+      `impl futures::Future<Output = commonware_runtime::tokio::Context>: Rng`
+      `impl futures::Future<Output = commonware_runtime::tokio::Context>: Spawner`
+   --> crates/consensus-simplex/src/engine.rs:86:8
+    |
+ 80 | impl<A, S, N, C> ConsensusEngine for CommonwareEngine<A, S, N, C>
+    |                  ---------------     ----------------------------
+...
+ 86 |     C: Rng + Spawner + Metrics + Clock,
+    |        ^^^   ^^^^^^^   ^^^^^^^   ^^^^^ unsatisfied trait bound introduced here
+    |        |     |         |
+    |        |     |         unsatisfied trait bound introduced here
+    |        |     unsatisfied trait bound introduced here
+    |        unsatisfied trait bound introduced here
+    = help: items from traits can only be used if the trait is implemented and in scope
+    = note: the following traits define an item `start`, perhaps you need to implement one of them:
+            candidate #1: `NetworkProvider`
+            candidate #2: `commonware_runtime::Runner`
+            candidate #3: `consensus::ConsensusEngine`
+            candidate #4: `criterion::measurement::Measurement`
+            candidate #5: `opentelemetry::trace::tracer::Tracer`
+            candidate #6: `regex_syntax::ast::visitor::Visitor`
+            candidate #7: `regex_syntax::hir::visitor::Visitor`
+    = note: the full name for the type has been written to '/home/dev/sahara/web3/agent/playground/whirlpool/target/debug/deps/consensus_simplex-85bdea63ee916082.long-type-9660317750207310403.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0282]: type annotations needed
+   --> crates/consensus-simplex/src/tests.rs:483:5
+    |
+483 |     running_engine.shutdown().await.expect("shutdown should succeed");
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ cannot infer type
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: Spawner` is not satisfied
+   --> crates/consensus-simplex/src/tests.rs:503:9
+    |
+498 |     let engine = CommonwareEngine::new(
+    |                  --------------------- required by a bound introduced by this call
+...
+503 |         context,
+    |         ^^^^^^^ the trait `Spawner` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+    |
+help: the following other types implement trait `Spawner`
+   --> /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/utils/cell.rs:107:1
+    |
+107 | / impl<C> crate::Spawner for Cell<C>
+108 | | where
+109 | |     C: crate::Spawner,
+    | |______________________^ `ContextCell<C>`
+    |
+   ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/tokio/runtime.rs:415:1
+    |
+415 |   impl crate::Spawner for Context {
+    |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::tokio::Context`
+    |
+   ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/deterministic.rs:975:1
+    |
+975 |   impl crate::Spawner for Context {
+    |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::deterministic::Context`
+note: required by a bound in `engine::CommonwareEngine::<A, S, N, C>::new`
+   --> crates/consensus-simplex/src/engine.rs:65:14
+    |
+ 65 |     C: Rng + Spawner + Metrics + Clock,
+    |              ^^^^^^^ required by this bound in `CommonwareEngine::<A, S, N, C>::new`
+...
+ 75 |     pub fn new(app: Arc<A>, sink: Arc<S>, config: CommonwareConfig, network: N, context: C) -> Self {
+    |            --- required by a bound in this associated function
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: Metrics` is not satisfied
+    --> crates/consensus-simplex/src/tests.rs:503:9
+     |
+ 498 |     let engine = CommonwareEngine::new(
+     |                  --------------------- required by a bound introduced by this call
+...
+ 503 |         context,
+     |         ^^^^^^^ the trait `Metrics` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+     |
+help: the following other types implement trait `Metrics`
+    --> /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/utils/cell.rs:155:1
+     |
+ 155 | / impl<C> crate::Metrics for Cell<C>
+ 156 | | where
+ 157 | |     C: crate::Metrics,
+     | |______________________^ `ContextCell<C>`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/tokio/runtime.rs:540:1
+     |
+ 540 |   impl crate::Metrics for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::tokio::Context`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/deterministic.rs:1090:1
+     |
+1090 |   impl crate::Metrics for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::deterministic::Context`
+note: required by a bound in `engine::CommonwareEngine::<A, S, N, C>::new`
+    --> crates/consensus-simplex/src/engine.rs:65:24
+     |
+  65 |     C: Rng + Spawner + Metrics + Clock,
+     |                        ^^^^^^^ required by this bound in `CommonwareEngine::<A, S, N, C>::new`
+...
+  75 |     pub fn new(app: Arc<A>, sink: Arc<S>, config: CommonwareConfig, network: N, context: C) -> Self {
+     |            --- required by a bound in this associated function
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: Clock` is not satisfied
+    --> crates/consensus-simplex/src/tests.rs:503:9
+     |
+ 498 |     let engine = CommonwareEngine::new(
+     |                  --------------------- required by a bound introduced by this call
+...
+ 503 |         context,
+     |         ^^^^^^^ the trait `Clock` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+     |
+help: the following other types implement trait `Clock`
+    --> /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/utils/cell.rs:176:1
+     |
+ 176 | / impl<C> crate::Clock for Cell<C>
+ 177 | | where
+ 178 | |     C: crate::Clock,
+     | |____________________^ `ContextCell<C>`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/tokio/runtime.rs:592:1
+     |
+ 592 |   impl Clock for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::tokio::Context`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/deterministic.rs:1214:1
+     |
+1214 |   impl Clock for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::deterministic::Context`
+note: required by a bound in `engine::CommonwareEngine::<A, S, N, C>::new`
+    --> crates/consensus-simplex/src/engine.rs:65:34
+     |
+  65 |     C: Rng + Spawner + Metrics + Clock,
+     |                                  ^^^^^ required by this bound in `CommonwareEngine::<A, S, N, C>::new`
+...
+  75 |     pub fn new(app: Arc<A>, sink: Arc<S>, config: CommonwareConfig, network: N, context: C) -> Self {
+     |            --- required by a bound in this associated function
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: RngCore` is not satisfied
+   --> crates/consensus-simplex/src/tests.rs:498:18
+    |
+498 |     let engine = CommonwareEngine::new(
+    |                  ^^^^^^^^^^^^^^^^ the trait `RngCore` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+    |
+note: there are multiple different versions of crate `rand_core` in the dependency graph
+   --> /home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.6.4/src/lib.rs:142:1
+    |
+142 | pub trait RngCore {
+    | ^^^^^^^^^^^^^^^^^ this is the expected trait
+    |
+   ::: /home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.9.5/src/lib.rs:130:1
+    |
+130 | pub trait RngCore {
+    | ----------------- this is the found trait
+    = help: you can use `cargo tree` to explore your dependency tree
+    = help: the following other types implement trait `RngCore`:
+              &'a mut R
+              Box<R>
+              ContextCell<C>
+              OsRng
+              ReadRng<R>
+              ReseedingRng<R, Rsdr>
+              StdRng
+              StepRng
+            and 8 others
+    = note: required for `impl futures::Future<Output = commonware_runtime::tokio::Context>` to implement `Rng`
+note: required by a bound in `engine::CommonwareEngine`
+   --> crates/consensus-simplex/src/engine.rs:50:8
+    |
+ 45 | pub struct CommonwareEngine<A, S, N, C>
+    |            ---------------- required by a bound in this struct
+...
+ 50 |     C: Rng + Spawner + Metrics + Clock,
+    |        ^^^ required by this bound in `CommonwareEngine`
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: Spawner` is not satisfied
+   --> crates/consensus-simplex/src/tests.rs:498:18
+    |
+498 |       let engine = CommonwareEngine::new(
+    |  __________________^
+499 | |         app,
+500 | |         collector,
+501 | |         test_config("e2e-single-validator-tx"),
+502 | |         network,
+503 | |         context,
+504 | |     );
+    | |_____^ the trait `Spawner` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+    |
+help: the following other types implement trait `Spawner`
+   --> /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/utils/cell.rs:107:1
+    |
+107 | / impl<C> crate::Spawner for Cell<C>
+108 | | where
+109 | |     C: crate::Spawner,
+    | |______________________^ `ContextCell<C>`
+    |
+   ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/tokio/runtime.rs:415:1
+    |
+415 |   impl crate::Spawner for Context {
+    |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::tokio::Context`
+    |
+   ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/deterministic.rs:975:1
+    |
+975 |   impl crate::Spawner for Context {
+    |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::deterministic::Context`
+note: required by a bound in `engine::CommonwareEngine`
+   --> crates/consensus-simplex/src/engine.rs:50:14
+    |
+ 45 | pub struct CommonwareEngine<A, S, N, C>
+    |            ---------------- required by a bound in this struct
+...
+ 50 |     C: Rng + Spawner + Metrics + Clock,
+    |              ^^^^^^^ required by this bound in `CommonwareEngine`
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: Metrics` is not satisfied
+    --> crates/consensus-simplex/src/tests.rs:498:18
+     |
+ 498 |       let engine = CommonwareEngine::new(
+     |  __________________^
+ 499 | |         app,
+ 500 | |         collector,
+ 501 | |         test_config("e2e-single-validator-tx"),
+ 502 | |         network,
+ 503 | |         context,
+ 504 | |     );
+     | |_____^ the trait `Metrics` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+     |
+help: the following other types implement trait `Metrics`
+    --> /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/utils/cell.rs:155:1
+     |
+ 155 | / impl<C> crate::Metrics for Cell<C>
+ 156 | | where
+ 157 | |     C: crate::Metrics,
+     | |______________________^ `ContextCell<C>`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/tokio/runtime.rs:540:1
+     |
+ 540 |   impl crate::Metrics for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::tokio::Context`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/deterministic.rs:1090:1
+     |
+1090 |   impl crate::Metrics for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::deterministic::Context`
+note: required by a bound in `engine::CommonwareEngine`
+    --> crates/consensus-simplex/src/engine.rs:50:24
+     |
+  45 | pub struct CommonwareEngine<A, S, N, C>
+     |            ---------------- required by a bound in this struct
+...
+  50 |     C: Rng + Spawner + Metrics + Clock,
+     |                        ^^^^^^^ required by this bound in `CommonwareEngine`
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: Clock` is not satisfied
+    --> crates/consensus-simplex/src/tests.rs:498:18
+     |
+ 498 |       let engine = CommonwareEngine::new(
+     |  __________________^
+ 499 | |         app,
+ 500 | |         collector,
+ 501 | |         test_config("e2e-single-validator-tx"),
+ 502 | |         network,
+ 503 | |         context,
+ 504 | |     );
+     | |_____^ the trait `Clock` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+     |
+help: the following other types implement trait `Clock`
+    --> /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/utils/cell.rs:176:1
+     |
+ 176 | / impl<C> crate::Clock for Cell<C>
+ 177 | | where
+ 178 | |     C: crate::Clock,
+     | |____________________^ `ContextCell<C>`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/tokio/runtime.rs:592:1
+     |
+ 592 |   impl Clock for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::tokio::Context`
+     |
+    ::: /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/deterministic.rs:1214:1
+     |
+1214 |   impl Clock for Context {
+     |   ^^^^^^^^^^^^^^^^^^^^^^ `commonware_runtime::deterministic::Context`
+note: required by a bound in `engine::CommonwareEngine`
+    --> crates/consensus-simplex/src/engine.rs:50:34
+     |
+  45 | pub struct CommonwareEngine<A, S, N, C>
+     |            ---------------- required by a bound in this struct
+...
+  50 |     C: Rng + Spawner + Metrics + Clock,
+     |                                  ^^^^^ required by this bound in `CommonwareEngine`
+
+error[E0277]: the trait bound `impl futures::Future<Output = commonware_runtime::tokio::Context>: RngCore` is not satisfied
+   --> crates/consensus-simplex/src/tests.rs:498:18
+    |
+498 |       let engine = CommonwareEngine::new(
+    |  __________________^
+499 | |         app,
+500 | |         collector,
+501 | |         test_config("e2e-single-validator-tx"),
+502 | |         network,
+503 | |         context,
+504 | |     );
+    | |_____^ the trait `RngCore` is not implemented for `impl futures::Future<Output = commonware_runtime::tokio::Context>`
+    |
+note: there are multiple different versions of crate `rand_core` in the dependency graph
+   --> /home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.6.4/src/lib.rs:142:1
+    |
+142 | pub trait RngCore {
+    | ^^^^^^^^^^^^^^^^^ this is the expected trait
+    |
+   ::: /home/dev/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.9.5/src/lib.rs:130:1
+    |
+130 | pub trait RngCore {
+    | ----------------- this is the found trait
+    = help: you can use `cargo tree` to explore your dependency tree
+    = help: the following other types implement trait `RngCore`:
+              &'a mut R
+              Box<R>
+              ContextCell<C>
+              OsRng
+              ReadRng<R>
+              ReseedingRng<R, Rsdr>
+              StdRng
+              StepRng
+            and 8 others
+    = note: required for `impl futures::Future<Output = commonware_runtime::tokio::Context>` to implement `Rng`
+note: required by a bound in `engine::CommonwareEngine`
+   --> crates/consensus-simplex/src/engine.rs:50:8
+    |
+ 45 | pub struct CommonwareEngine<A, S, N, C>
+    |            ---------------- required by a bound in this struct
+...
+ 50 |     C: Rng + Spawner + Metrics + Clock,
+    |        ^^^ required by this bound in `CommonwareEngine`
+
+error[E0599]: the method `start` exists for struct `CommonwareEngine<MockTxApp, BlockCollectorSink, ..., ...>`, but its trait bounds were not satisfied
+   --> crates/consensus-simplex/src/tests.rs:506:33
+    |
+506 |     let running_engine = engine.start().expect("engine should start");
+    |                                 ^^^^^ method cannot be called due to unsatisfied trait bounds
+    |
+   ::: crates/consensus-simplex/src/engine.rs:45:1
+    |
+ 45 | pub struct CommonwareEngine<A, S, N, C>
+    | --------------------------------------- method `start` not found for this struct because it doesn't satisfy `_: ConsensusEngine`
+    |
+note: the following trait bounds were not satisfied:
+      `impl futures::Future<Output = commonware_runtime::tokio::Context>: Clock`
+      `impl futures::Future<Output = commonware_runtime::tokio::Context>: Metrics`
+      `impl futures::Future<Output = commonware_runtime::tokio::Context>: Rng`
+      `impl futures::Future<Output = commonware_runtime::tokio::Context>: Spawner`
+   --> crates/consensus-simplex/src/engine.rs:86:8
+    |
+ 80 | impl<A, S, N, C> ConsensusEngine for CommonwareEngine<A, S, N, C>
+    |                  ---------------     ----------------------------
+...
+ 86 |     C: Rng + Spawner + Metrics + Clock,
+    |        ^^^   ^^^^^^^   ^^^^^^^   ^^^^^ unsatisfied trait bound introduced here
+    |        |     |         |
+    |        |     |         unsatisfied trait bound introduced here
+    |        |     unsatisfied trait bound introduced here
+    |        unsatisfied trait bound introduced here
+    = help: items from traits can only be used if the trait is implemented and in scope
+    = note: the following traits define an item `start`, perhaps you need to implement one of them:
+            candidate #1: `NetworkProvider`
+            candidate #2: `commonware_runtime::Runner`
+            candidate #3: `consensus::ConsensusEngine`
+            candidate #4: `criterion::measurement::Measurement`
+            candidate #5: `opentelemetry::trace::tracer::Tracer`
+            candidate #6: `regex_syntax::ast::visitor::Visitor`
+            candidate #7: `regex_syntax::hir::visitor::Visitor`
+    = note: the full name for the type has been written to '/home/dev/sahara/web3/agent/playground/whirlpool/target/debug/deps/consensus_simplex-85bdea63ee916082.long-type-9236483212499742276.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0282]: type annotations needed
+   --> crates/consensus-simplex/src/tests.rs:525:5
+    |
+525 |     running_engine.shutdown().await.expect("shutdown should succeed");
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ cannot infer type
+
+Some errors have detailed explanations: E0277, E0282, E0599.
+For more information about an error, try `rustc --explain E0277`.
+error: could not compile `consensus-simplex` (lib test) due to 50 previous errors
+
+---
+POST-FIX VERIFICATION
+Command: nix develop --command cargo test -p consensus-simplex -- test_engine_can_be_constructed
+
+warning: Git tree '/home/dev/sahara/web3/agent/playground/whirlpool' is dirty
+warning: use of deprecated method `futures::futures_channel::mpsc::Receiver::<T>::try_next`: please use `try_recv` instead
+warning: `commonware-utils` (lib) generated 1 warning
+warning: field `sink` is never read
+warning: `consensus-simplex` (lib) generated 1 warning
+warning: `consensus-simplex` (lib test) generated 1 warning (1 duplicate)
+
+running 1 test
+test engine::tests::test_engine_can_be_constructed ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 25 filtered out; finished in 0.00s
+
+warning: Git tree '/home/dev/sahara/web3/agent/playground/whirlpool' is dirty
+warning: use of deprecated method `futures::futures_channel::mpsc::Receiver::<T>::try_next`: please use `try_recv` instead
+   --> vendor/commonware/utils/src/channels/tracked.rs:245:20
+    |
+245 |         self.inner.try_next().ok().flatten()
+    |                    ^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+
+warning: `commonware-utils` (lib) generated 1 warning
+   Compiling consensus-simplex v0.1.0 (/home/dev/sahara/web3/agent/playground/whirlpool/crates/consensus-simplex)
+warning: field `sink` is never read
+  --> crates/consensus-simplex/src/engine.rs:53:5
+   |
+45 | pub struct CommonwareEngine<A, S, N, C>
+   |            ---------------- field in this struct
+...
+53 |     sink: Arc<S>,
+   |     ^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `consensus-simplex` (lib) generated 1 warning
+warning: `consensus-simplex` (lib test) generated 1 warning (1 duplicate)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.34s
+     Running unittests src/lib.rs (target/debug/deps/consensus_simplex-85bdea63ee916082)
+
+running 1 test
+test engine::tests::test_engine_can_be_constructed ... FAILED
+
+failures:
+
+---- engine::tests::test_engine_can_be_constructed stdout ----
+
+thread 'engine::tests::test_engine_can_be_constructed' (3217593) panicked at /home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime/src/deterministic.rs:594:9:
+executor still has weak references
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    engine::tests::test_engine_can_be_constructed
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 25 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p consensus-simplex --lib`
