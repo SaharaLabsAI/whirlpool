@@ -1,13 +1,13 @@
 # Task 5: Update whirlpool-node Wiring
 
 **Status**: [ ] pending
-**Dependencies**: Task 3
+**Dependencies**: Task 03.4
 **Wave**: 3
 **Complexity**: S
 
 ## Pre-Task Gate
 - Run: `nix develop --command cargo test -p consensus-simplex -- test_engine_can_be_constructed test_engine_starts_with_real_simplex test_engine_shutdown_aborts_handle test_engine_status_tracks_height`
-- Expected: exit 0
+- Expected: exit 0 (Task 03.4 must have renamed and fixed these tests)
 - If any gate command fails: **STOP. Do NOT start this task.**
 
 ## Context

@@ -7,9 +7,9 @@
 - Add failing single-validator E2E tests (TC-007/TC-008) that require real propose→verify→finalize cycles.
 - Wire `CommonwareEngine::start()` to real vendor per-channel networking, the Mailbox Actor path, and the Oracle blocker.
 - Tighten Mailbox/MailboxActor behavior and update `whirlpool-node` to the new engine shape.
-**Effort**: 5 tasks (2×S, 3×M).
+**Effort**: 8 tasks (3×S, 5×M) — original Task 3 decomposed into 4 sub-tasks (03.1–03.4).
 **Parallel**: None — tasks modify the same `tests.rs` harness and workflow, and Waves 3/4/5 need workspace-wide verification.
-**Critical Path**: T1 → T2 → T3 → T4 → T5.
+**Critical Path**: T1 → T2 → T03.1 → T03.2 → T03.3 → T03.4 → T4 → T5.
 
 ## Context
 - **Design Source**: `docs/design/real-simplex-consensus-wiring/` (flows, tests, strategy).
@@ -48,24 +48,30 @@ All verification steps must run via the CLI commands listed in each task. Captur
 ## Execution Strategy
 ### Parallel Execution Waves
 - **Wave 1**: Task 1, Task 2.
-- **Wave 2**: Task 3. Core wiring depends on the failing tests already in place.
-- **Wave 3**: Task 4, Task 5. Task 4 refines the Mailbox path, and Task 5 relies on the engine wiring, so they both target Wave 3.
+- **Wave 2**: Task 03.1, Task 03.2, Task 03.3, Task 03.4 (decomposed from original Task 3). Core wiring depends on the failing tests already in place.
+- **Wave 3**: Task 4, Task 5. Task 4 refines the Mailbox path, and Task 5 relies on the engine wiring, so they both target Wave 3. Both depend on Task 03.4 (last sub-task of decomposed Task 3).
 
 ### Dependency Matrix
 | Task | Depends On | Wave |
 |---|---|---|
 | T1 | none | 1 |
 | T2 | none | 1 |
-| T3 | T1, T2 | 2 |
-| T4 | T3 | 3 |
-| T5 | T3 | 3 |
+| T03.1 | T1, T2 | 2 |
+| T03.2 | T03.1 | 2 |
+| T03.3 | T03.2 | 2 |
+| T03.4 | T03.3 | 2 |
+| T4 | T03.4 | 3 |
+| T5 | T03.4 | 3 |
 
 ### Agent Dispatch Summary
 | Task | Complexity | Category | Skills | Notes |
 |---|---|---|---|---|
 | T1 | S | quick | ctx-investigate | Harden unit tests around observable engine status/height.
 | T2 | M | unspecified-low | ctx-investigate | Add single-validator integration tests that fail on stub.
-| T3 | M | unspecified-low | ctx-investigate | Wire `CommonwareEngine::start()` to vendor `simplex::Engine` via per-channel networking.
+| T03.1 | S | quick | ctx-investigate | Fix engine constructor tokio runtime panic in tests.
+| T03.2 | S | quick | ctx-investigate | Change engine network generic to per-channel provider.
+| T03.3 | M | unspecified-low | ctx-investigate | Wire `CommonwareEngine::start()` to vendor `simplex::Engine` via per-channel networking.
+| T03.4 | M | unspecified-low | ctx-investigate | Align test names to AC and fix integration tests for real engine.
 | T4 | M | unspecified-low | ctx-investigate | Polish `Mailbox`/`MailboxActor` flows so E2E tests pass.
 | T5 | S | quick | ctx-investigate | Sync `whirlpool-node` wiring and validate workspace build/test.
 
@@ -73,7 +79,10 @@ All verification steps must run via the CLI commands listed in each task. Captur
 <!-- TASKS_START -->
 - [ ] Task 1: Write Engine Unit Tests [**S**] → [tasks/01-engine-unit-tests.md](tasks/01-engine-unit-tests.md)
 - [ ] Task 2: Write E2E Consensus Integration Tests [**M**] → [tasks/02-e2e-consensus-tests.md](tasks/02-e2e-consensus-tests.md)
-- [ ] Task 3: Replace Engine Start Stub with Real Simplex Wiring [**M**] → [tasks/03-real-simplex-wiring.md](tasks/03-real-simplex-wiring.md)
+- [ ] Task 03.1: Fix Engine Constructor and Test Infrastructure [**S**] → [tasks/03.1-fix-engine-constructor-tests.md](tasks/03.1-fix-engine-constructor-tests.md)
+- [ ] Task 03.2: Change Engine Network Generic to Per-Channel Provider [**S**] → [tasks/03.2-engine-per-channel-network.md](tasks/03.2-engine-per-channel-network.md)
+- [ ] Task 03.3: Wire Real Simplex Engine in start() [**M**] → [tasks/03.3-wire-real-simplex-engine.md](tasks/03.3-wire-real-simplex-engine.md)
+- [ ] Task 03.4: Align Test Names and Fix Integration Tests [**M**] → [tasks/03.4-align-tests-integration.md](tasks/03.4-align-tests-integration.md)
 - [ ] Task 4: Close Mailbox/MailboxActor Gaps [**M**] → [tasks/04-close-mailbox-gaps.md](tasks/04-close-mailbox-gaps.md)
 - [ ] Task 5: Update whirlpool-node Wiring [**S**] → [tasks/05-node-wiring-update.md](tasks/05-node-wiring-update.md)
 
