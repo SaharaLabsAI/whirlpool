@@ -6,6 +6,7 @@ edition.workspace = true
 [dependencies]
 consensus = { path = "../consensus" }
 p2p = { path = "../p2p", features = ["mock"] }
+p2p-commonware = { path = "../p2p-commonware" }
 commonware-consensus = { path = "../../vendor/commonware/consensus" }
 commonware-broadcast = { path = "../../vendor/commonware/broadcast" }
 commonware-cryptography = { path = "../../vendor/commonware/cryptography" }
@@ -14,6 +15,7 @@ commonware-runtime = { path = "../../vendor/commonware/runtime" }
 commonware-storage = { path = "../../vendor/commonware/storage" }
 commonware-codec = { path = "../../vendor/commonware/codec" }
 commonware-utils = { path = "../../vendor/commonware/utils" }
+commonware-parallel = { path = "../../vendor/commonware/parallel" }
 
 tokio = { version = "1", features = ["rt", "sync", "macros"] }
 tracing = "0.1"

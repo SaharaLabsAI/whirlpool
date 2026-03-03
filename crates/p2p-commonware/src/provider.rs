@@ -153,10 +153,13 @@ where
 
 /// Separate channel pairs for simplex-style consumers that require dedicated
 /// vote/certificate/resolver streams.
+///
+/// Exposes raw vendor types (S, R) to preserve trait implementations required
+/// by vendor `simplex::Engine::start()`. No wrappers are applied here.
 pub struct PerChannelNetwork<S, R> {
-    pub vote: (CommonwareSender<S>, CommonwareReceiver<R>),
-    pub cert: (CommonwareSender<S>, CommonwareReceiver<R>),
-    pub resolver: (CommonwareSender<S>, CommonwareReceiver<R>),
+    pub vote: (S, R),
+    pub cert: (S, R),
+    pub resolver: (S, R),
     pub network_handle: commonware_runtime::Handle<()>,
 }
 
@@ -224,19 +227,12 @@ where
 
         let network_handle = self.network.start();
 
+        // Return raw vendor types (no wrappers) to preserve trait implementations
+        // required by vendor simplex::Engine::start()
         Ok(PerChannelNetwork {
-            vote: (
-                CommonwareSender::new(vote_sender),
-                CommonwareReceiver::new(vote_receiver),
-            ),
-            cert: (
-                CommonwareSender::new(cert_sender),
-                CommonwareReceiver::new(cert_receiver),
-            ),
-            resolver: (
-                CommonwareSender::new(resolver_sender),
-                CommonwareReceiver::new(resolver_receiver),
-            ),
+            vote: (vote_sender, vote_receiver),
+            cert: (cert_sender, cert_receiver),
+            resolver: (resolver_sender, resolver_receiver),
             network_handle,
         })
     }

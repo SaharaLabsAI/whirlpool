@@ -6,19 +6,26 @@
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
+use std::num::{NonZeroUsize, NonZeroU16};
 
 use futures::channel::mpsc;
 use tokio::task::JoinHandle;
 
 use consensus::app::ConsensusApp;
-use commonware_cryptography::{sha256::Digest, Digestible};
+use commonware_cryptography::{sha256::{Digest, Sha256}, Digestible, Committable};
+use commonware_cryptography::ed25519;
 use commonware_runtime::{Clock, Metrics, Spawner, Storage};
+use commonware_consensus::types::{Epoch, ViewDelta};
+use commonware_consensus::simplex::{self, elector::RoundRobin};
+use commonware_runtime::buffer::PoolRef;
+use commonware_parallel::Sequential;
+use commonware_utils::ordered::Set;
 use rand_core::CryptoRngCore;
 use consensus::engine::{ConsensusEngine, RunningEngine};
 use consensus::error::ConsensusError;
 use consensus::event::EventSink;
 
+use crate::adapter::AppAdapter;
 use crate::config::CommonwareConfig;
 use crate::mailbox::{Mailbox, MailboxActor};
 use crate::sink::FinalizationSink;
@@ -33,133 +40,154 @@ use crate::types::CommonwareBlock;
 /// # Construction
 ///
 /// ```ignore
-/// let engine = CommonwareEngine::new(app, sink, config);
+/// let engine = CommonwareEngine::new(app, sink, config, network, context);
 /// let running = engine.start()?;
 /// ```
-///
-/// # Stub Implementation
-///
-/// **CURRENT STATUS:** This is a STUB implementation that simulates consensus by
-/// incrementing block height every 5 seconds. Full simplex engine wiring (P2P,
-/// marshal actor, simplex::Engine) is future work pending P2P configuration design.
-pub struct CommonwareEngine<A, S, N, C>
+pub struct CommonwareEngine<A, S, E, C>
 where
     A: ConsensusApp,
     S: EventSink<Block = A::Block>,
     A::Block: CommonwareBlock + Digestible<Digest = Digest>,
-    C: Clock + CryptoRngCore + Spawner + Storage + Metrics,
+    E: Spawner + Clock + CryptoRngCore + commonware_runtime::Network + commonware_runtime::Resolver + Metrics + Storage,
+    C: commonware_cryptography::Signer + Send + Sync + 'static,
+    C::PublicKey: Clone + std::hash::Hash + Eq + std::fmt::Debug + Send + Sync + 'static,
 {
     app: Arc<A>,
     sink: Arc<S>,
     config: CommonwareConfig,
-    network: N,
-    context: C,
+    network: p2p_commonware::CommonwareNetworkProvider<E, C>,
+    context: E,
 }
 
-impl<A, S, N, C> CommonwareEngine<A, S, N, C>
+impl<A, S, E, C> CommonwareEngine<A, S, E, C>
 where
     A: ConsensusApp + Send + Sync + 'static,
     S: EventSink<Block = A::Block> + Send + Sync + 'static,
     A::Block: CommonwareBlock + Digestible<Digest = Digest> + Send + Sync + 'static,
-    N: p2p::NetworkProvider,
-    C: Clock + CryptoRngCore + Spawner + Storage + Metrics,
+    E: Spawner + Clock + CryptoRngCore + commonware_runtime::Network + commonware_runtime::Resolver + Metrics + Storage + Send + Sync + 'static,
+    C: commonware_cryptography::Signer + Send + Sync + 'static,
+    C::PublicKey: Clone + std::hash::Hash + Eq + std::fmt::Debug + Send + Sync + 'static,
 {
-    /// Create a new `CommonwareEngine` with the given app, sink, config, and network provider.
+    /// Create a new `CommonwareEngine` with the given app, sink, config, network provider, and context.
     ///
     /// # Arguments
     /// - `app`: The consensus application (implements ConsensusApp)
     /// - `sink`: The event sink for finalization notifications
     /// - `config`: Configuration for the simplex consensus engine
-    /// - `network`: Network provider for P2P communication
+    /// - `network`: Commonware network provider for P2P communication
     /// - `context`: Runtime context used for commonware engine operations
-    pub fn new(app: Arc<A>, sink: Arc<S>, config: CommonwareConfig, network: N, context: C) -> Self {
+    pub fn new(
+        app: Arc<A>, 
+        sink: Arc<S>, 
+        config: CommonwareConfig, 
+        network: p2p_commonware::CommonwareNetworkProvider<E, C>,
+        context: E
+    ) -> Self {
         Self { app, sink, config, network, context }
     }
 }
 
-impl<A, S, N, C> ConsensusEngine for CommonwareEngine<A, S, N, C>
+impl<A, S, E, C> ConsensusEngine for CommonwareEngine<A, S, E, C>
 where
-    A: ConsensusApp + Send + Sync + 'static,
+    A: ConsensusApp + Clone + Send + Sync + 'static,
     S: EventSink<Block = A::Block> + Send + Sync + 'static,
-    A::Block: CommonwareBlock + Digestible<Digest = Digest> + Send + Sync + 'static,
-    N: p2p::NetworkProvider,
-    C: Clock + CryptoRngCore + Spawner + Storage + Metrics + Send + 'static,
+    A::Block: CommonwareBlock + Digestible<Digest = Digest> + Committable<Commitment = Digest> + Send + Sync + 'static,
+    E: Spawner + Clock + CryptoRngCore + commonware_runtime::Network + commonware_runtime::Resolver + Metrics + Storage + Clone + Send + 'static,
+    C: commonware_cryptography::Signer<PublicKey = ed25519::PublicKey> + Send + Sync + 'static,
+    C::Signature: Send + Sync + 'static,
 {
     fn start(self) -> Result<RunningEngine, ConsensusError> {
-        // Open P2P network channel
-        let (_sender, _receiver) = self.network.start()
+        // Step 1: Clone oracle before consuming network
+        let oracle = self.network.oracle().clone();
+        
+        // Step 2: Start network to get three channel pairs (now returns raw vendor types)
+        let per_channel = self.network.start_per_channel()
             .map_err(|e| ConsensusError::Other(format!("Failed to start network: {}", e).into()))?;
-
-        let _ctx = self.context;
-        // The sender can send on VOTE_CHANNEL, CERTIFICATE_CHANNEL, RESOLVER_CHANNEL
-        // The receiver receives messages from all channels
-
+        
+        // Step 3: Create mailbox channel
+        let (mailbox_tx, mailbox_rx) = mpsc::channel(self.config.mailbox_size);
+        
+        // Step 4: Create Mailbox (Automaton + Relay)
+        let mailbox = Mailbox::<A::Block>::new(mailbox_tx);
+        
+        // Step 5: Create shared height tracker
         let height = Arc::new(AtomicU64::new(0));
         let running = Arc::new(AtomicBool::new(true));
-
-        // Create mailbox channel for actor communication
-        let (tx, rx) = mpsc::channel(self.config.mailbox_size);
         
-        // Create mailbox (implements Automaton/Relay for simplex engine)
-        let _mailbox = Mailbox::<A::Block>::new(tx);
+        // Step 6: Spawn MailboxActor using commonware spawn API (takes closure receiving context)
+        let actor = MailboxActor::new(mailbox_rx, Arc::clone(&height), Arc::clone(&self.app));
+        let height_for_actor = Arc::clone(&height);
+        let _actor_handle = self.context.clone().spawn(|_ctx| async move {
+            actor.run().await;
+            tracing::info!("MailboxActor completed, final height: {}", height_for_actor.load(Ordering::SeqCst));
+            ()
+        });
         
-        // Create mailbox actor (processes messages, delegates to app)
-        let _actor = MailboxActor::new(rx, Arc::clone(&height), Arc::clone(&self.app));
+        // Step 7: Create FinalizationSink
+        let finalization_sink = FinalizationSink::<A::Block>::new(Arc::clone(&height));
         
-        // Create finalization sink
-        let _finalization_sink = FinalizationSink::<A::Block>::new(Arc::clone(&height));
-        // STUB: Simulate block finalization instead of real simplex engine wiring
-        // Real implementation would:
-        // 1. Create AppAdapter wrapping app + sink
-        // 2. Spawn mailbox actor task
-        // 3. Configure simplex engine with mailbox as automaton
-        // 4. Wire P2P channels, marshal actor, broadcast buffer
-        // 5. Start simplex engine and return real shutdown handle
-
-        let running_clone = Arc::clone(&running);
-        let height_clone = Arc::clone(&height);
-
-        let handle = std::thread::spawn(move || {
-            tracing::info!("Consensus engine thread started (stub mode - simulating finalization)");
-
-            let mut current_height = 0u64;
-            let start = std::time::Instant::now();
-
-            // Simple loop checking the running flag and simulating block finalization
-            while running_clone.load(Ordering::SeqCst) {
-                std::thread::sleep(Duration::from_millis(100));
-
-                // Simulate block finalization every 5 seconds
-                let elapsed_secs = start.elapsed().as_secs();
-                let expected_height = elapsed_secs / 5; // 1 block every 5 seconds
-
-                if expected_height > current_height {
-                    current_height = expected_height;
-                    height_clone.store(current_height, Ordering::SeqCst);
-                    tracing::info!("Simulated block finalized at height {}", current_height);
-                }
-            }
-
-            tracing::info!("Consensus engine thread shutting down");
+        // Step 8: Create AppAdapter (Reporter)
+        let reporter = AppAdapter::new(Arc::clone(&self.app), Arc::new(finalization_sink));
+        
+        // Step 9: Create ed25519 Scheme from signer and validators
+        // Use from_iter_dedup which deduplicates and creates Set
+        let participants = Set::from_iter_dedup(self.config.validators.clone());
+        let scheme = simplex::scheme::ed25519::Scheme::signer(
+            self.config.namespace.as_bytes(),
+            participants.clone(),
+            self.config.signer.clone(),
+        ).ok_or_else(|| ConsensusError::Other("signer not in validator set".into()))?;
+        
+        // Step 10: Build simplex::Config
+        let simplex_config = simplex::Config {
+            scheme: scheme.clone(),
+            elector: RoundRobin::<Sha256>::default(), // Pass config, not built elector
+            blocker: oracle,
+            automaton: mailbox.clone(),
+            relay: mailbox,
+            reporter,
+            strategy: Sequential,
+            partition: self.config.namespace.clone(),
+            mailbox_size: self.config.mailbox_size,
+            epoch: Epoch::new(self.config.epoch),
+            replay_buffer: self.config.replay_buffer,
+            write_buffer: self.config.write_buffer,
+            buffer_pool: PoolRef::new(
+                NonZeroU16::new(4096).unwrap(), // page_size
+                NonZeroUsize::new(100).unwrap(),  // capacity
+            ),
+            leader_timeout: self.config.leader_timeout,
+            notarization_timeout: self.config.notarization_timeout,
+            nullify_retry: self.config.nullify_retry,
+            activity_timeout: ViewDelta::new(self.config.activity_timeout),
+            skip_timeout: ViewDelta::new(self.config.skip_timeout),
+            fetch_timeout: self.config.fetch_timeout,
+            fetch_concurrent: self.config.fetch_concurrent,
+        };
+        
+        // Step 11: Validate config (panics on programming errors - acceptable per design)
+        simplex_config.assert();
+        
+        // Step 12: Create vendor Engine
+        let engine = simplex::Engine::new(self.context, simplex_config);
+        
+        // Step 13: Start vendor engine with three channel pairs (raw vendor types - no wrappers)
+        let vendor_handle = engine.start(per_channel.vote, per_channel.cert, per_channel.resolver);
+        
+        // Step 14: Convert vendor Handle to tokio JoinHandle
+        let join_handle: JoinHandle<Result<(), ConsensusError>> = tokio::task::spawn(async move {
+            vendor_handle.await;
             Ok(())
         });
-
-        // Wrap thread handle in tokio JoinHandle
-        let join_handle: JoinHandle<Result<(), ConsensusError>> =
-            tokio::task::spawn_blocking(move || {
-                handle
-                    .join()
-                    .map_err(|e| ConsensusError::Other(format!("Thread panicked: {:?}", e).into()))?
-            });
-
-        // Shutdown function
+        
+        // Step 15: Create shutdown function
         let running_for_shutdown = Arc::clone(&running);
         let stop_fn = Box::new(move || {
             running_for_shutdown.store(false, Ordering::SeqCst);
             tracing::info!("Shutdown signal sent to consensus engine");
         }) as Box<dyn FnOnce() + Send>;
-
-
+        
+        // Step 16: Return RunningEngine
         Ok(RunningEngine::new(stop_fn, join_handle, height, running))
     }
 }
@@ -171,7 +199,9 @@ mod tests {
     use crate::sink::FinalizationSink;
     use commonware_cryptography::ed25519::PrivateKey;
     use commonware_cryptography::Signer as _;
-    use commonware_runtime::{tokio as commonware_tokio, Runner};
+    use commonware_runtime::{tokio as commonware_tokio, Metrics, Runner};
+    use p2p_commonware::CommonwareNetworkProviderBuilder;
+    use std::net::SocketAddr;
     use std::num::NonZeroUsize;
     use std::sync::Arc;
     use std::time::Duration;
@@ -215,7 +245,14 @@ mod tests {
             let sink = Arc::new(FinalizationSink::<TestBlock>::new(height));
             let config = test_config();
 
-            let network = p2p::mock::MockNetworkProvider::new(p2p::mock::MockPeerId(0));
+            let (network, _oracle_handle) = CommonwareNetworkProviderBuilder::new(
+                config.signer.clone(),
+                config.namespace.as_bytes(),
+            )
+            .listen_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
+            .dialable_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
+            .initial_validators(config.epoch, config.validators.clone())
+            .build(context.with_label("network"));
             let _engine = CommonwareEngine::new(app, sink, config, network, context);
             // Test passes if construction succeeds
         });
@@ -229,7 +266,14 @@ mod tests {
         let config = test_config();
         let context = test_context().await;
 
-        let network = p2p::mock::MockNetworkProvider::new(p2p::mock::MockPeerId(0));
+        let (network, _oracle_handle) = CommonwareNetworkProviderBuilder::new(
+            config.signer.clone(),
+            config.namespace.as_bytes(),
+        )
+        .listen_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
+        .dialable_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
+        .initial_validators(config.epoch, config.validators.clone())
+        .build(context.with_label("network"));
         let engine = CommonwareEngine::new(app, sink, config, network, context);
         let running = engine.start().expect("Engine should start");
 
@@ -250,7 +294,14 @@ mod tests {
         let config = test_config();
         let context = test_context().await;
 
-        let network = p2p::mock::MockNetworkProvider::new(p2p::mock::MockPeerId(0));
+        let (network, _oracle_handle) = CommonwareNetworkProviderBuilder::new(
+            config.signer.clone(),
+            config.namespace.as_bytes(),
+        )
+        .listen_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
+        .dialable_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
+        .initial_validators(config.epoch, config.validators.clone())
+        .build(context.with_label("network"));
         let engine = CommonwareEngine::new(app, sink, config, network, context);
         let running = engine.start().expect("Engine should start");
 

@@ -96,12 +96,13 @@ fn main() {
 
         // Create ed25519 signer from deterministic seed (development only)
         let signer = ed25519::PrivateKey::from_seed(config::VALIDATOR_SEED);
+        let validators = vec![signer.public_key()]; // Single validator for development
 
         // Create local addresses for network setup
         let listen_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0); // OS assigns port
         let dialable_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
 
-        let (network_provider, _oracle_handle) = CommonwareNetworkProviderBuilder::new(signer, APPLICATION_NAMESPACE)
+        let (network_provider, oracle_handle) = CommonwareNetworkProviderBuilder::new(signer.clone(), APPLICATION_NAMESPACE)
             .listen_addr(listen_addr)
             .dialable_addr(dialable_addr)
             .max_message_size(MAX_MESSAGE_SIZE)
@@ -121,6 +122,8 @@ fn main() {
             epoch: 0,
             fetch_timeout: Duration::from_secs(5),
             fetch_concurrent: 4,
+            signer,
+            validators,
         };
 
         let state_db = Arc::new(RwLock::new(TestStateDb::new()));
@@ -130,9 +133,12 @@ fn main() {
         let evm_app = EvmApplication::new(evm_config, state_db, tx_pool.clone());
         let app = Arc::new(ApplicationAdapter::new(evm_app));
 
-        let engine = CommonwareEngine::new(app, sink, engine_config, network_provider);
+        let engine = CommonwareEngine::new(app, sink, engine_config, network_provider, context.clone());
         let _running = engine.start().expect("failed to start consensus engine");
         info!("Consensus engine created and started successfully");
+
+        // Keep oracle_handle alive for network health
+        let _ = oracle_handle;
 
         // Wait indefinitely for the engine to run
         // In production, this would integrate with proper signal handling

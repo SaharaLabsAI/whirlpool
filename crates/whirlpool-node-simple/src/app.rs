@@ -12,6 +12,7 @@ use consensus::{Block as CoreBlock, ConsensusApp, ConsensusError};
 /// - Genesis block at height 0 with zero parent
 /// - Block proposals increment height sequentially
 /// - Block verification enforces 5 rules (height, parent_id, self-reference, genesis constraints)
+#[derive(Clone)]
 pub struct EmptyBlockApp;
 
 impl EmptyBlockApp {

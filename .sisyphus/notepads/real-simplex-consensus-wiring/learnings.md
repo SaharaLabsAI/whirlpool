@@ -1,44 +1,60 @@
-## [2026-03-03T09:30] Task 1: Engine Unit Tests
+## [2026-03-03] Task 03.4 Status: Cannot Proceed - Blocked on Task 4
 
-### Test Structure
-- Updated 4 unit tests to check observable engine behavior (status, height tracking)
-- Tests correctly renamed to match test contracts TC-001 through TC-004
-- All tests now assert `RunningEngine::status()` behavior instead of internal fields
+**Status**: ❌ CANNOT START - Pre-Task Gate fails
 
-### Failing Behavior (As Expected)
-- `test_engine_can_be_constructed`: Panics with "Cannot drop a runtime in a context where blocking is not allowed"
-- This is expected because the stub implementation uses tokio runtime incorrectly
-- Evidence captured in `.sisyphus/evidence/task-01-engine-unit-tests.txt`
+**Blocker**: Task 03.4 Pre-Task Gate requires:
+```bash
+nix develop --command cargo test -p consensus-simplex -- test_engine_can_start_and_shutdown
+```
 
-### Test Design Insights
-- `RunningEngine::shutdown()` consumes `self`, so post-shutdown status cannot be checked on the same instance
-- `status()` returns a **Copy** snapshot (not live view), so capturing status before shutdown and checking it after won't work
-- The shutdown test correctly verifies: (1) engine is running before shutdown, (2) shutdown succeeds
+This command FAILS because `consensus-simplex` does not compile due to AppAdapter Reporter type mismatch (1 compilation error remaining from Task 03.3).
 
-### Next Steps
-- Task 2 will add E2E integration tests
-- Task 3 will replace the stub with real simplex::Engine wiring to make these tests pass
+**Root Cause**: Task 03.4 specification (line 11) states:
+> "Expected: exit 0 (Task 03.3 must have wired the real engine)"
+> "If gate fails: **STOP. Task 03.3 is not complete.**"
 
-## [2026-03-03T09:45] Task 2: E2E Consensus Integration Tests
+Task 03.3 implementation is complete BUT compilation is blocked on AppAdapter Reporter fix which belongs to Task 4 scope.
 
-### Test Structure
-- Extended TestBlock with transactions field and updated codec (CodecWrite/CodecRead/EncodeSize)
-- Added BlockCollectorSink to capture finalized blocks for assertions
-- Added MockTxApp that proposes blocks with transaction data
-- Added TC-007: `test_single_validator_produces_block` — polls height for 30s
-- Added TC-008: `test_single_validator_with_transactions` — polls finalized blocks for transactions
+**Dependency Chain**:
+1. Task 03.3: Engine wiring DONE, blocked on AppAdapter (Task 4 scope)
+2. Task 4: Must fix AppAdapter + Mailbox/MailboxActor together
+3. Task 03.3: Will compile after Task 4 completes
+4. Task 03.4: Can run tests and rename them after Task 03.3 compiles
 
-### Failing Behavior (As Expected)
-- Both E2E tests hang/timeout waiting for finalization
-- Tests run for over 60 seconds (exceeding timeout)
-- Stub implementation doesn't drive real consensus, so height never advances beyond 0
-- Evidence captured in `.sisyphus/evidence/task-02-e2e-consensus-tests.txt`
+**Correct Execution Order**: Task 4 → Task 03.3 completion → Task 03.4
 
-### Implementation Notes
-- TestBlock transactions use length-prefixed encoding (count, then len+data per tx)
-- BlockCollectorSink returns both the sink and the shared Vec for test access
-- Tests poll with 500ms sleep intervals to observe state changes
+**Action**: Proceeding with Task 4 (Close Mailbox/MailboxActor Gaps) which unblocks both Task 03.3 compilation and Task 03.4 execution.
 
-### Next Steps
-- Task 3 will replace the stub with real simplex::Engine wiring
-- These E2E tests should pass once Task 3 is complete
+**Files Ready for Renaming** (once compilation works):
+- `crates/consensus-simplex/src/tests.rs`:
+  - Line 347: `test_engine_start_and_status` → `test_engine_starts_with_real_simplex`
+  - Line 364: `test_engine_shutdown` → `test_engine_shutdown_aborts_handle`
+  - Line 378: `test_engine_height_tracking` → `test_engine_status_tracks_height`
+
+## [2026-03-03] Task 4: AppAdapter Reporter Type Fix
+
+### Key Discovery: Marshaled vs Raw Simplex Layers
+The vendor provides TWO consensus layers:
+1. **Raw layer**: `simplex::Engine` uses `Activity<Scheme, Digest>` - protocol-level types
+2. **Marshaled layer**: `Marshaled` wrapper uses `Update<B>` - application-level bridge
+
+Our design (per FLOWS.md) uses **raw `simplex::Engine`**, so:
+- `Activity::Finalization.proposal.payload` is a `Digest` (sha256 hash), NOT a `Block`
+- Blocks must be cached and retrieved using the digest as key
+
+### Solution Pattern
+1. **Constraint unification**: Use `B: Committable<Commitment = Digest>` to enforce block commitments match vendor digest type
+2. **HashMap key**: Use `Digest` directly, not `<B as Committable>::Commitment` (they're equal by constraint)
+3. **Finalization handler**: `proposal.payload` IS the commitment, lookup block from cache
+
+### Type Safety Win
+Adding `Committable<Commitment = Digest>` constraint enforces compile-time guarantee:
+- Block commitment type MUST be sha256::Digest
+- No possible runtime mismatch between cache key and Activity payload
+- Compiler verifies block type compatibility with vendor engine
+
+### Import Requirements
+Both `adapter.rs` and `engine.rs` need:
+```rust
+use commonware_cryptography::{sha256::Digest, Committable};
+```

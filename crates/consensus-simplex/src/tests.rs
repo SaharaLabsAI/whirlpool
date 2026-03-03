@@ -4,13 +4,14 @@ use std::num::NonZeroUsize;
 use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use std::net::SocketAddr;
 
 use bytes::{Buf, BufMut};
 use commonware_codec::{EncodeSize, Error as CodecError, Read as CodecRead, Write as CodecWrite};
 use commonware_consensus::{Block as VendorBlock, Heightable};
 use commonware_cryptography::ed25519::PrivateKey;
 use commonware_cryptography::{Committable, Digestible, Signer as _};
-use commonware_runtime::{tokio as commonware_tokio, Runner};
+use commonware_runtime::{tokio as commonware_tokio, Metrics, Runner};
 use consensus::block::Block as CoreBlock;
 use consensus::engine::ConsensusEngine;
 use consensus::error::ConsensusError;
@@ -20,6 +21,7 @@ use crate::config::CommonwareConfig;
 use crate::engine::CommonwareEngine;
 use crate::sink::FinalizationSink;
 use crate::types::CommonwareBlock;
+use p2p_commonware::CommonwareNetworkProviderBuilder;
 
 type TestDigest = commonware_cryptography::sha256::Digest;
 
@@ -223,6 +225,7 @@ impl EventSink for BlockCollectorSink {
     }
 }
 
+#[derive(Clone)]
 pub(crate) struct MockApp;
 
 impl consensus::app::ConsensusApp for MockApp {
@@ -250,6 +253,7 @@ impl consensus::app::ConsensusApp for MockApp {
     }
 }
 
+#[derive(Clone)]
 pub(crate) struct MockTxApp {
     tx_data: Vec<u8>,
 }
@@ -344,13 +348,21 @@ fn test_adapter_type_bounds_compile() {
 }
 
 #[tokio::test]
-async fn test_engine_start_and_status() {
+async fn test_engine_starts_with_real_simplex() {
     let app = Arc::new(MockApp);
     let height = Arc::new(AtomicU64::new(0));
     let sink = Arc::new(FinalizationSink::<TestBlock>::new(height));
-    let network = p2p::mock::MockNetworkProvider::new(p2p::mock::MockPeerId(0));
+    let config = test_config("engine-start");
     let context = test_context().await;
-    let engine = CommonwareEngine::new(app, sink, test_config("engine-start"), network, context);
+    let (network, _oracle_handle) = CommonwareNetworkProviderBuilder::new(
+        config.signer.clone(),
+        config.namespace.as_bytes(),
+    )
+    .listen_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
+    .dialable_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
+    .initial_validators(config.epoch, config.validators.clone())
+    .build(context.with_label("network"));
+    let engine = CommonwareEngine::new(app, sink, config, network, context);
 
     let running_engine = engine.start().expect("engine should start");
     let status = running_engine.status();
@@ -361,13 +373,21 @@ async fn test_engine_start_and_status() {
 }
 
 #[tokio::test]
-async fn test_engine_shutdown() {
+async fn test_engine_shutdown_aborts_handle() {
     let app = Arc::new(MockApp);
     let height = Arc::new(AtomicU64::new(0));
     let sink = Arc::new(FinalizationSink::<TestBlock>::new(height));
-    let network = p2p::mock::MockNetworkProvider::new(p2p::mock::MockPeerId(0));
+    let config = test_config("engine-shutdown");
     let context = test_context().await;
-    let engine = CommonwareEngine::new(app, sink, test_config("engine-shutdown"), network, context);
+    let (network, _oracle_handle) = CommonwareNetworkProviderBuilder::new(
+        config.signer.clone(),
+        config.namespace.as_bytes(),
+    )
+    .listen_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
+    .dialable_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
+    .initial_validators(config.epoch, config.validators.clone())
+    .build(context.with_label("network"));
+    let engine = CommonwareEngine::new(app, sink, config, network, context);
 
     let running_engine = engine.start().expect("engine should start");
     assert!(running_engine.status().is_running);
@@ -375,13 +395,21 @@ async fn test_engine_shutdown() {
 }
 
 #[tokio::test]
-async fn test_engine_height_tracking() {
+async fn test_engine_status_tracks_height() {
     let app = Arc::new(MockApp);
     let _height = Arc::new(AtomicU64::new(0));
     let sink = Arc::new(FinalizationSink::<TestBlock>::new(Arc::clone(&_height)));
-    let network = p2p::mock::MockNetworkProvider::new(p2p::mock::MockPeerId(0));
+    let config = test_config("engine-height");
     let context = test_context().await;
-    let engine = CommonwareEngine::new(app, sink, test_config("engine-height"), network, context);
+    let (network, _oracle_handle) = CommonwareNetworkProviderBuilder::new(
+        config.signer.clone(),
+        config.namespace.as_bytes(),
+    )
+    .listen_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
+    .dialable_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
+    .initial_validators(config.epoch, config.validators.clone())
+    .build(context.with_label("network"));
+    let engine = CommonwareEngine::new(app, sink, config, network, context);
 
     let running_engine = engine.start().expect("engine should start");
 
@@ -456,15 +484,17 @@ async fn test_single_validator_produces_block() {
     let app = Arc::new(MockApp);
     let height = Arc::new(AtomicU64::new(0));
     let sink = Arc::new(FinalizationSink::<TestBlock>::new(Arc::clone(&height)));
-    let network = p2p::mock::MockNetworkProvider::new(p2p::mock::MockPeerId(0));
+    let config = test_config("e2e-single-validator-block");
     let context = test_context().await;
-    let engine = CommonwareEngine::new(
-        app,
-        sink,
-        test_config("e2e-single-validator-block"),
-        network,
-        context,
-    );
+    let (network, _oracle_handle) = CommonwareNetworkProviderBuilder::new(
+        config.signer.clone(),
+        config.namespace.as_bytes(),
+    )
+    .listen_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
+    .dialable_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
+    .initial_validators(config.epoch, config.validators.clone())
+    .build(context.with_label("network"));
+    let engine = CommonwareEngine::new(app, sink, config, network, context);
 
     let running_engine = engine.start().expect("engine should start");
 
@@ -493,12 +523,20 @@ async fn test_single_validator_with_transactions() {
     let expected_tx = b"tx:e2e-single-validator".to_vec();
     let app = Arc::new(MockTxApp::new(expected_tx.clone()));
     let (collector, finalized_blocks) = BlockCollectorSink::new();
-    let network = p2p::mock::MockNetworkProvider::new(p2p::mock::MockPeerId(0));
+    let config = test_config("e2e-single-validator-tx");
     let context = test_context().await;
+    let (network, _oracle_handle) = CommonwareNetworkProviderBuilder::new(
+        config.signer.clone(),
+        config.namespace.as_bytes(),
+    )
+    .listen_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
+    .dialable_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
+    .initial_validators(config.epoch, config.validators.clone())
+    .build(context.with_label("network"));
     let engine = CommonwareEngine::new(
         app,
         collector,
-        test_config("e2e-single-validator-tx"),
+        config,
         network,
         context,
     );

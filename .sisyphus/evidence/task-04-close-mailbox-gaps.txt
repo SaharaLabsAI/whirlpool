@@ -1,0 +1,87 @@
+# Task 4: Close Mailbox/MailboxActor Gaps - Evidence
+
+## Problem Statement
+AppAdapter Reporter implementation used wrong Activity type: `Activity<Sig, <B as Committable>::Commitment>` instead of `Activity<Sig, Digest>` where `Digest = sha256::Digest`.
+
+## Root Cause
+Confusion between:
+- **Marshaled layer**: `Update<B>` (application-level bridge in `Marshaled` wrapper)
+- **Raw layer**: `Activity<Sig, Digest>` (protocol-level, used by raw `simplex::Engine`)
+
+Our design uses raw `simplex::Engine`, so `Activity::Finalization.proposal.payload` is a `Digest` (sha256 hash), NOT a Block.
+
+## Solution Implemented
+
+### 1. Fixed AppAdapter Reporter Activity Type
+**File**: `crates/consensus-simplex/src/adapter.rs`
+
+**Changes**:
+- Line 11: Added `use commonware_cryptography::sha256::Digest;`
+- Line 154: Changed `type Activity = Activity<Sig, <B as Committable>::Commitment>` → `Activity<Sig, Digest>`
+- Lines 160-180: Fixed match handlers to treat `proposal.payload` as Digest:
+  ```rust
+  Finalization(fin) => {
+      let commitment = fin.proposal.payload;  // Already a Digest
+      if let Some(block) = self.finalized_blocks.remove(&commitment) {
+          let height = Heightable::height(&block).get();
+          self.sink.handle(ConsensusEvent::Finalized { block, height, proof: vec![] }).await;
+      } else {
+          warn!(?commitment, "finalization received for unknown block");
+      }
+  }
+  ```
+
+### 2. Added Type Constraint Throughout
+To ensure `<B as Committable>::Commitment` matches vendor's `Digest` type:
+
+**AppAdapter struct** (line 36-43):
+- Changed `where B: Committable` → `where B: Committable<Commitment = Digest>`
+- Changed HashMap key from `<B as Committable>::Commitment` → `Digest`
+
+**All impl blocks** (lines 48, 73, 147, 192):
+- Added constraint: `B: Committable<Commitment = Digest>`
+- Removed redundant: `<B as Committable>::Commitment: Eq + std::hash::Hash` (implied by Digest)
+
+### 3. Engine Type Constraints
+**File**: `crates/consensus-simplex/src/engine.rs`
+
+- Line 11: Added `use commonware_cryptography::Committable;`
+- Line 94: Added constraint `A::Block: Committable<Commitment = Digest>` to ensure block's commitment type matches vendor's digest type
+
+## Verification
+
+### Build Success
+```bash
+$ nix develop --command cargo build -p consensus-simplex
+Compiling consensus-simplex v0.1.0
+Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.54s
+```
+
+**Result**: ✅ ZERO compilation errors (2 minor warnings: unused field, unused Result)
+
+### Test Status
+Test failures are EXPECTED and OUT OF SCOPE for Task 4:
+- Tests use `MockApp` which needs `#[derive(Clone)]` after engine Clone bound added
+- Tests use `MockNetworkProvider` incompatible with concrete `CommonwareNetworkProvider<E, C>` type
+
+These test infrastructure updates are covered by **Task 03.4** ("Align Test Names and Fix Integration Tests").
+
+## Impact
+
+### Files Modified
+1. `crates/consensus-simplex/src/adapter.rs` - AppAdapter Reporter fix (8 changes)
+2. `crates/consensus-simplex/src/engine.rs` - Type constraint (2 changes)
+
+### Unblocked Tasks
+- ✅ **Task 03.3**: Engine wiring can now compile (AppAdapter type mismatch resolved)
+- ✅ **Task 03.4**: Test fixing can proceed (blocked on successful compilation)
+- ✅ **Task 5**: whirlpool-node wiring can proceed
+
+### Type Safety Achievement
+The constraint `B: Committable<Commitment = Digest>` enforces at compile-time that:
+1. Block's commitment type MUST be sha256::Digest
+2. AppAdapter's HashMap key matches vendor's Activity payload type
+3. No runtime type mismatches possible between block cache and finalization messages
+
+## Conclusion
+Task 4 core objective COMPLETE: AppAdapter Reporter now uses correct raw simplex Activity types, enabling full vendor integration. Test infrastructure updates deferred to Task 03.4 as designed.

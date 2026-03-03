@@ -10,6 +10,7 @@ use tracing::{info, warn};
 /// This sink implements EventSink for any block type B: Block and updates an atomic height
 /// counter when blocks are finalized. It provides visibility into consensus progress
 /// via structured logging.
+#[derive(Clone)]
 pub struct FinalizationSink<B: Block> {
     height: Arc<AtomicU64>,
     _phantom: PhantomData<B>,
