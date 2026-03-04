@@ -110,6 +110,37 @@ The bounds for the runtime environment `E` include `Rng`, `Spawner`, `Metrics`, 
 *   **Empty Proof**: The adapter currently sets an empty vector for proofs in `Finalized` events as a placeholder.
 *   **Ancestry Ordering**: During proposals, the adapter expects the parent at the head of the stream. During verification, it expects the block followed by the parent.
 
+## Test Infrastructure (consensus-simplex)
+
+The `consensus-simplex` test harness was updated to avoid runtime-lifetime bugs caused by extracting and reusing invalid contexts.
+
+- The broken `test_context()` helper was removed from both `src/tests.rs` and `src/engine.rs`.
+- The `shutdown_with_timeout()` helper was removed from both files.
+- Engine-integration tests now run inside `commonware_tokio::Runner::start()` instead of `#[tokio::test]` with an extracted context.
+- Canonical engine test pattern:
+
+```rust
+#[test]
+fn test_foo() {
+    let runner = commonware_tokio::Runner::default();
+    runner.start(|context| async move {
+        // set up app/sink/network using `context`
+        // construct and run engine
+    });
+}
+```
+
+- Four finalization-progress tests are intentionally ignored:
+  - `test_engine_status_tracks_height`
+  - `test_single_validator_produces_block`
+  - `test_single_validator_with_transactions`
+  - `engine::tests::test_engine_simulates_block_finalization`
+
+  Each uses `#[ignore = "requires multi-node P2P connectivity for consensus progress"]` because they require multi-node connectivity for consensus progress.
+- `test_collector_sink_captures_events` remains `#[tokio::test]` because it is sink-only and does not require engine/runtime network wiring.
+- `engine::tests::test_engine_can_be_constructed` uses `commonware_runtime::deterministic::Runner` for construction-only validation.
+- Unused `AtomicBool` and `Ordering` imports were removed from `src/tests.rs`.
+
 ## File Locations
 
 *   crates/consensus-simplex/src/lib.rs

@@ -80,6 +80,6 @@ whirlpool/
 ## Test Coverage
 
 - **consensus**: 7 tests (trait impls, mock engine lifecycle)
-- **consensus-simplex**: 8 tests (blanket impls, adapter type bounds, engine start/shutdown)
+- **consensus-simplex**: 15 tests (Runner::start engine integration, deterministic construction test, sink/unit tests, and 4 ignored multi-node finalization-progress tests)
 - **whirlpool-node**: 32 tests (block, app, sink, mailbox)
-- **Total**: 48 tests, all passing
+- **Total**: 54 tests (with multi-node consensus-progress cases intentionally ignored in local runs)
