@@ -8,7 +8,6 @@ pub mod engine;
 pub mod mailbox;
 pub mod sink;
 
-pub use traits::CommonwareBlock;
 pub use config::CommonwareConfig;
 pub use adapter::AppAdapter;
 pub use engine::CommonwareEngine;

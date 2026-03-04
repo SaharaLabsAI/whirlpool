@@ -2,7 +2,7 @@ use bytes::{Buf, BufMut};
 use commonware_codec::{EncodeSize, Error as CodecError, Read as CodecRead, Write as CodecWrite};
 use commonware_consensus::{Block as VendorBlock, Heightable};
 use commonware_cryptography::{sha256, Committable, Digestible};
-use consensus::Block as CoreBlock;
+use consensus::traits::Block as CoreBlock;
 use sha2::{Digest as Sha2Digest, Sha256};
 
 pub type BlockId = [u8; 32];
@@ -189,7 +189,7 @@ impl VendorBlock for EvmBlock {
 #[cfg(test)]
 mod tests {
     use super::{EvmBlock, ExecutionResult};
-    use consensus::Block as CoreBlock;
+    use consensus::traits::Block as CoreBlock;
 
     fn sample_block() -> EvmBlock {
         EvmBlock {

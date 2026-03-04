@@ -8,7 +8,7 @@ use futures::StreamExt;
 use rand::Rng;
 use tracing::{debug, warn};
 
-use consensus::{ConsensusApp, ConsensusEvent, EventSink};
+use consensus::{ConsensusEvent, traits::{ConsensusApp, EventSink}};
 use commonware_consensus::{
     marshal::ingress::mailbox::AncestorStream,
     simplex::types::{Activity, Context},

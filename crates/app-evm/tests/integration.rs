@@ -3,7 +3,7 @@ use std::sync::{Arc, RwLock};
 use alloy_consensus::{SignableTransaction, TxLegacy};
 use alloy_eips::eip2718::Encodable2718;
 use alloy_primitives::{Address, Bytes, Signature, TxKind, U256};
-use app::{Application, InMemoryTxPool, TxSource};
+use app::{InMemoryTxPool, traits::{Application, TxSource}};
 use app_evm::executor::EvmApplication;
 use app_evm::WhirlpoolEvmConfig;
 use reth_ethereum_primitives::TransactionSigned;

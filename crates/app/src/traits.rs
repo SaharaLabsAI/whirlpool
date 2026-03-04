@@ -1,7 +1,7 @@
 use std::future::Future;
 
 pub trait Application: Send + Sync + Clone + 'static {
-    type Block: consensus::Block;
+    type Block: consensus::traits::Block;
     type Result: Clone + Send;
     type Error: std::error::Error + Send + Sync;
 

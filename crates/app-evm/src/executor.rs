@@ -4,7 +4,7 @@ use alloy_consensus::TxReceipt;
 use alloy_eips::eip2718::{Decodable2718, Encodable2718};
 use alloy_primitives::{bytes::BufMut, Address, B256, Bytes, U256};
 use alloy_trie::{root::ordered_trie_root_with_encoder, EMPTY_ROOT_HASH};
-use app::{Application, EvmBlock, ExecutionResult, TxSource};
+use app::{EvmBlock, ExecutionResult, traits::{Application, TxSource}};
 use reth_ethereum_primitives::TransactionSigned;
 use reth_evm::{execute::{BlockBuilder, BlockExecutor}, ConfigureEvm, NextBlockEnvAttributes};
 use reth_primitives_traits::{Header, Recovered, SealedHeader, SignedTransaction};
@@ -424,7 +424,7 @@ mod tests {
         txs: Vec<Vec<u8>>,
     }
 
-    impl app::TxSource for MockTxSource {
+    impl TxSource for MockTxSource {
         fn pending(&self) -> Vec<Vec<u8>> {
             self.txs.clone()
         }

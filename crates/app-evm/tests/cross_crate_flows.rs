@@ -1,9 +1,9 @@
 use std::sync::{Arc, RwLock};
 
-use app::{Application, ApplicationAdapter, NoopTxSource};
+use app::{ApplicationAdapter, NoopTxSource, traits::Application};
 use app_evm::executor::EvmApplication;
 use app_evm::{EvmAppError, WhirlpoolEvmConfig, build_sahara_chain_spec};
-use consensus::{ConsensusApp, ConsensusError};
+use consensus::{ConsensusError, traits::ConsensusApp};
 use state::InMemoryStateDb;
 
 fn build_app() -> EvmApplication<InMemoryStateDb> {
