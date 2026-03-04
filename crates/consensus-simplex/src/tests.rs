@@ -20,7 +20,7 @@ use consensus::event::{ConsensusEvent, EventSink};
 use crate::config::CommonwareConfig;
 use crate::engine::CommonwareEngine;
 use crate::sink::FinalizationSink;
-use crate::types::CommonwareBlock;
+use crate::traits::CommonwareBlock;
 use p2p_commonware::CommonwareNetworkProviderBuilder;
 
 type TestDigest = commonware_cryptography::sha256::Digest;

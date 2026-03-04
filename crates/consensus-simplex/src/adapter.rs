@@ -17,7 +17,7 @@ use commonware_consensus::{
 use commonware_cryptography::{certificate::Scheme, sha256::Digest, Committable};
 use commonware_runtime::{Clock, Metrics, Spawner};
 
-use crate::types::CommonwareBlock;
+use crate::traits::CommonwareBlock;
 
 /// Bridges `ConsensusApp` + `EventSink` (consensus-core) to
 /// `Application` + `VerifyingApplication` + `Reporter` (commonware-consensus).

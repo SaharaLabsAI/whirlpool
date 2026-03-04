@@ -29,7 +29,7 @@ use crate::adapter::AppAdapter;
 use crate::config::CommonwareConfig;
 use crate::mailbox::{Mailbox, MailboxActor};
 use crate::sink::FinalizationSink;
-use crate::types::CommonwareBlock;
+use crate::traits::CommonwareBlock;
 
 /// A consensus engine backed by the Commonware Simplex BFT protocol.
 ///
