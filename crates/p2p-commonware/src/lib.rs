@@ -8,6 +8,7 @@ use bytes::Bytes;
 use p2p::{Channel, NetworkSender, Recipients, P2pError, NetworkReceiver, NetworkMessage};
 
 pub mod provider;
+pub mod traits;
 
 
 mod peer_id;
@@ -18,6 +19,7 @@ mod tests;
 
 pub use peer_id::CommonwarePeerId;
 pub use error::{map_send_error, map_recv_error};
+pub use traits::CommonwareTransport;
 
 pub mod sender;
 pub mod receiver;

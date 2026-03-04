@@ -12,6 +12,7 @@ use commonware_runtime::{Clock, Metrics, Resolver, Spawner, Quota, Network};
 use rand_core::CryptoRngCore;
 
 use crate::{
+    traits::CommonwareTransport,
     CommonwareReceiver, CommonwareSender, CommonwarePeerId, MultiplexReceiver, MultiplexSender,
 };
 use p2p::{Channel, NetworkProvider, P2pError};
@@ -240,6 +241,27 @@ where
     /// Get a reference to the oracle for peer set management.
     pub fn oracle(&self) -> &Oracle<C::PublicKey> {
         &self.oracle
+    }
+}
+
+impl<E, C> CommonwareTransport for CommonwareNetworkProvider<E, C>
+where
+    E: Spawner + Clock + CryptoRngCore + Network + Resolver + Metrics,
+    C: Signer,
+    C::PublicKey: Clone + std::hash::Hash + Eq + std::fmt::Debug + Send + Sync + 'static,
+{
+    type PublicKey = C::PublicKey;
+    type Sender = DiscoverySender<C::PublicKey, E>;
+    type Receiver = DiscoveryReceiver<C::PublicKey>;
+
+    fn start_per_channel(
+        self,
+    ) -> Result<PerChannelNetwork<Self::Sender, Self::Receiver>, P2pError> {
+        CommonwareNetworkProvider::start_per_channel(self)
+    }
+
+    fn oracle(&self) -> &Oracle<Self::PublicKey> {
+        CommonwareNetworkProvider::oracle(self)
     }
 }
 
