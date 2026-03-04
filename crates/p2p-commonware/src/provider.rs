@@ -308,8 +308,8 @@ mod tests {
     use bytes::Bytes;
     use commonware_cryptography::ed25519;
     use commonware_cryptography::Signer;
+    use commonware_p2p::{Receiver as _, Recipients, Sender as _};
     use commonware_runtime::{deterministic, Clock, Runner};
-    use p2p::{NetworkReceiver, NetworkSender, Recipients};
     use std::net::SocketAddr;
     use std::time::Duration;
 
@@ -390,7 +390,7 @@ mod tests {
                 .update_validators(0, vec![pk_0.clone(), pk_1.clone()])
                 .await;
 
-            let peer_0 = provider_0.start_per_channel().expect("peer 0 starts");
+            let mut peer_0 = provider_0.start_per_channel().expect("peer 0 starts");
             let mut peer_1 = provider_1.start_per_channel().expect("peer 1 starts");
 
             context.sleep(Duration::from_secs(2)).await;
@@ -399,9 +399,9 @@ mod tests {
                 .vote
                 .0
                 .send(
-                    Channel::VOTE,
+                    Recipients::One(pk_1.clone()),
                     Bytes::from_static(b"vote-msg"),
-                    Recipients::One(CommonwarePeerId(pk_1.clone())),
+                    false,
                 )
                 .await
                 .expect("vote send should succeed");
@@ -410,9 +410,9 @@ mod tests {
                 .cert
                 .0
                 .send(
-                    Channel::CERTIFICATE,
+                    Recipients::One(pk_1.clone()),
                     Bytes::from_static(b"cert-msg"),
-                    Recipients::One(CommonwarePeerId(pk_1.clone())),
+                    false,
                 )
                 .await
                 .expect("certificate send should succeed");
@@ -421,9 +421,9 @@ mod tests {
                 .resolver
                 .0
                 .send(
-                    Channel::RESOLVER,
+                    Recipients::One(pk_1),
                     Bytes::from_static(b"resolver-msg"),
-                    Recipients::One(CommonwarePeerId(pk_1)),
+                    false,
                 )
                 .await
                 .expect("resolver send should succeed");
@@ -432,9 +432,9 @@ mod tests {
             let cert = peer_1.cert.1.recv().await.expect("cert receive");
             let resolver = peer_1.resolver.1.recv().await.expect("resolver receive");
 
-            assert_eq!(vote.data, Bytes::from_static(b"vote-msg"));
-            assert_eq!(cert.data, Bytes::from_static(b"cert-msg"));
-            assert_eq!(resolver.data, Bytes::from_static(b"resolver-msg"));
+            assert_eq!(vote.1, Bytes::from_static(b"vote-msg"));
+            assert_eq!(cert.1, Bytes::from_static(b"cert-msg"));
+            assert_eq!(resolver.1, Bytes::from_static(b"resolver-msg"));
         });
     }
 }
