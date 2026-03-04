@@ -4,7 +4,7 @@
 //! The application is stateless (zero-sized struct) and enforces 5 block verification rules.
 
 use crate::block::EmptyBlock;
-use consensus::{Block as CoreBlock, ConsensusApp, ConsensusError};
+use consensus::{ConsensusError, traits::{Block as CoreBlock, ConsensusApp}};
 
 /// Stateless consensus application for EmptyBlock.
 ///

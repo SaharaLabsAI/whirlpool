@@ -3,7 +3,7 @@
 use commonware_cryptography::Signer;
 use commonware_cryptography::ed25519;
 use commonware_runtime::{tokio, Metrics, Runner};
-use consensus::ConsensusEngine;
+use consensus::traits::ConsensusEngine;
 use consensus_simplex::{CommonwareConfig, CommonwareEngine, FinalizationSink};
 use p2p_commonware::CommonwareNetworkProviderBuilder;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
