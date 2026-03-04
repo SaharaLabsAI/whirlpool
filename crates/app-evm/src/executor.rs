@@ -11,20 +11,23 @@ use reth_primitives_traits::{Header, Recovered, SealedHeader, SignedTransaction}
 use reth_revm::State;
 use revm::database::states::bundle_state::BundleRetention;
 use revm::database::BundleState;
-use state::InMemoryStateDb;
+use state::traits::StateDb;
 
 use crate::config::WhirlpoolEvmConfig;
 use crate::error::EvmAppError;
 
 pub type RecoveredTx = Recovered<TransactionSigned>;
 
-impl StateProvider for InMemoryStateDb {
+impl<T> StateProvider for T
+where
+    T: StateDb,
+{
     fn state_root(&self) -> B256 {
-        self.state_root()
+        StateDb::state_root(self)
     }
-    
+
     fn commit(&mut self, bundle: &BundleState) {
-        self.commit(bundle)
+        StateDb::commit(self, bundle)
     }
 }
 

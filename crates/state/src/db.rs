@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::hash::BuildHasherDefault;
 
 use alloy_genesis::GenesisAccount;
 use revm::database::BundleState;
@@ -8,6 +7,7 @@ use revm::state::{AccountInfo, Bytecode};
 use revm::{Database, DatabaseRef};
 
 use crate::error::StateError;
+use crate::traits::StateDb;
 
 #[derive(Clone, Debug, Default)]
 pub struct DbAccount {
@@ -28,8 +28,8 @@ impl Default for InMemoryStateDb {
     }
 }
 
-impl InMemoryStateDb {
-    pub fn new() -> Self {
+impl StateDb for InMemoryStateDb {
+    fn new() -> Self {
         Self {
             accounts: HashMap::new(),
             bytecodes: HashMap::new(),
@@ -37,7 +37,7 @@ impl InMemoryStateDb {
         }
     }
 
-    pub fn with_genesis(alloc: HashMap<Address, GenesisAccount>) -> Self {
+    fn with_genesis(alloc: HashMap<Address, GenesisAccount>) -> Self {
         let mut db = Self::new();
 
         for (address, account) in alloc {
@@ -68,7 +68,33 @@ impl InMemoryStateDb {
         db
     }
 
-    pub fn commit(&mut self, bundle: &BundleState) {
+    fn state_root(&self) -> B256 {
+        if self.accounts.is_empty() {
+            return KECCAK_EMPTY;
+        }
+
+        let mut account_items: Vec<_> = self.accounts.iter().collect();
+        account_items.sort_by_key(|(address, _)| *address);
+
+        let mut encoded = Vec::new();
+        for (address, account) in account_items {
+            encoded.extend_from_slice(address.as_slice());
+            encoded.extend_from_slice(&account.info.nonce.to_be_bytes());
+            encoded.extend_from_slice(&account.info.balance.to_be_bytes::<32>());
+            encoded.extend_from_slice(account.info.code_hash.as_slice());
+
+            let mut storage_items: Vec<_> = account.storage.iter().collect();
+            storage_items.sort_by_key(|(key, _)| **key);
+            for (key, value) in storage_items {
+                encoded.extend_from_slice(&key.to_be_bytes::<32>());
+                encoded.extend_from_slice(&value.to_be_bytes::<32>());
+            }
+        }
+
+        keccak256(encoded)
+    }
+
+    fn commit(&mut self, bundle: &BundleState) {
         for (address, bundle_account) in &bundle.state {
             if bundle_account.was_destroyed() {
                 self.accounts.remove(address);
@@ -102,38 +128,57 @@ impl InMemoryStateDb {
         }
     }
 
-    pub fn state_root(&self) -> B256 {
-        if self.accounts.is_empty() {
-            return KECCAK_EMPTY;
-        }
-
-        let mut account_items: Vec<_> = self.accounts.iter().collect();
-        account_items.sort_by_key(|(address, _)| *address);
-
-        let mut encoded = Vec::new();
-        for (address, account) in account_items {
-            encoded.extend_from_slice(address.as_slice());
-            encoded.extend_from_slice(&account.info.nonce.to_be_bytes());
-            encoded.extend_from_slice(&account.info.balance.to_be_bytes::<32>());
-            encoded.extend_from_slice(account.info.code_hash.as_slice());
-
-            let mut storage_items: Vec<_> = account.storage.iter().collect();
-            storage_items.sort_by_key(|(key, _)| **key);
-            for (key, value) in storage_items {
-                encoded.extend_from_slice(&key.to_be_bytes::<32>());
-                encoded.extend_from_slice(&value.to_be_bytes::<32>());
-            }
-        }
-
-        keccak256(encoded)
+    fn get_account(&self, address: Address) -> Option<AccountInfo> {
+        self.accounts.get(&address).map(|account| account.info.clone())
     }
 
-    pub fn insert_account(&mut self, address: Address, info: AccountInfo) {
+    fn get_code_by_hash(&self, code_hash: B256) -> Bytecode {
+        self.bytecodes.get(&code_hash).cloned().unwrap_or_default()
+    }
+
+    fn get_storage(&self, address: Address, index: U256) -> U256 {
+        self.accounts
+            .get(&address)
+            .and_then(|account| account.storage.get(&index).copied())
+            .unwrap_or(U256::ZERO)
+    }
+
+    fn get_block_hash(&self, number: u64) -> B256 {
+        self.block_hashes.get(&number).copied().unwrap_or(B256::ZERO)
+    }
+
+    fn insert_account(&mut self, address: Address, info: AccountInfo) {
         self.accounts.insert(address, DbAccount { info, storage: HashMap::new() });
     }
 
-    pub fn insert_block_hash(&mut self, number: u64, hash: B256) {
+    fn insert_block_hash(&mut self, number: u64, hash: B256) {
         self.block_hashes.insert(number, hash);
+    }
+}
+
+impl InMemoryStateDb {
+    pub fn new() -> Self {
+        <Self as StateDb>::new()
+    }
+
+    pub fn with_genesis(alloc: HashMap<Address, GenesisAccount>) -> Self {
+        <Self as StateDb>::with_genesis(alloc)
+    }
+
+    pub fn commit(&mut self, bundle: &BundleState) {
+        <Self as StateDb>::commit(self, bundle)
+    }
+
+    pub fn state_root(&self) -> B256 {
+        <Self as StateDb>::state_root(self)
+    }
+
+    pub fn insert_account(&mut self, address: Address, info: AccountInfo) {
+        <Self as StateDb>::insert_account(self, address, info)
+    }
+
+    pub fn insert_block_hash(&mut self, number: u64, hash: B256) {
+        <Self as StateDb>::insert_block_hash(self, number, hash)
     }
 }
 
