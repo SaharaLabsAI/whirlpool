@@ -16,6 +16,7 @@ pub use event::{ConsensusEvent, EventSink};
 pub mod engine;
 pub use engine::{ConsensusEngine, ConsensusStatus, RunningEngine};
 
+pub mod traits;
 
 #[cfg(any(test, feature = "mock"))]
 pub mod mock;
