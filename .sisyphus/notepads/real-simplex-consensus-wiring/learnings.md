@@ -58,3 +58,45 @@ Both `adapter.rs` and `engine.rs` need:
 ```rust
 use commonware_cryptography::{sha256::Digest, Committable};
 ```
+
+## [2026-03-04] Test Timeout Fix: Orphaned Runtime Context
+
+### Root Cause
+`test_context()` helper was fundamentally broken:
+```rust
+async fn test_context() -> commonware_tokio::Context {
+    tokio::task::spawn_blocking(|| {
+        commonware_tokio::Runner::default().start(|context| async move { context })
+    }).await.expect("...")
+}
+```
+`Runner::start()` creates a tokio Runtime, runs the closure, returns the output, then **shuts down the runtime**. The returned `Context` is an orphan — its `executor.runtime` is dropped. Any subsequent `context.spawn()` or engine operations silently hang because no runtime is driving the futures.
+
+### Key Insight
+The vendor `Runner::start()` owns the runtime lifecycle (see `vendor/commonware/runtime/src/tokio/runtime.rs:356`). The runtime only lives for the duration of the closure. You cannot extract a `Context` and use it outside — it's a use-after-free of the async runtime.
+
+### Correct Pattern
+ALL test logic must run INSIDE `Runner::start()`:
+```rust
+#[test]
+fn test_foo() {
+    let runner = commonware_tokio::Runner::default();
+    runner.start(|context| async move {
+        // ALL setup, engine start, assertions, shutdown — everything here
+        // Use context.sleep() instead of tokio::time::sleep
+        // Use std::time::Instant instead of tokio::time::Instant
+    });
+}
+```
+
+### What Changed
+- Removed `test_context()` and `shutdown_with_timeout()` from both `tests.rs` and `engine.rs`
+- Converted 7 `#[tokio::test] async fn` → `#[test] fn` with `Runner::start()` wrapper
+- Replaced `tokio::time::sleep`/`tokio::time::Instant` with `context.sleep()`/`std::time::Instant`
+- Construction-only test (`test_engine_can_be_constructed`) correctly uses `deterministic::Runner` — no engine start needed
+
+### Separate Issue: Finalization Tests
+4 tests expecting block production (height >= 1) still fail — not a timeout issue but a connectivity issue. A single-validator engine bound to `127.0.0.1:0` with no peer connections cannot progress consensus. These are marked `#[ignore]` pending proper multi-node P2P test infrastructure.
+
+### Rule of Thumb
+When using commonware runtimes: **never extract the Context**. Always move your logic inside `Runner::start()`. This applies to both `commonware_tokio::Runner` and `deterministic::Runner`.
