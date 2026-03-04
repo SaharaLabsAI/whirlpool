@@ -1,33 +1,27 @@
 # app
 
 ## Purpose
-Abstract application layer bridging consensus to EVM execution. It defines interfaces for block proposal/verification and transaction sourcing.
+Application-facing interfaces and adapters that bridge execution logic to consensus.
+
+## Interface/Implementation Split
+- Interface module: `crates/app/src/traits.rs`
+  - `Application`
+  - `TxSource`
+- Implementation module: `crates/app/src/tx_source.rs`
+  - `NoopTxSource`
+  - `InMemoryTxPool`
+- Adapter module: `crates/app/src/adapter.rs`
+  - `ApplicationAdapter` maps `Application` to `consensus::traits::ConsensusApp`.
+
+## Canonical Imports
+- Consensus traits: `consensus::traits::{Block, ConsensusApp, EventSink, ConsensusEngine}`
+- App traits: `app::traits::{Application, TxSource}`
+- Tx source implementations: `app::{InMemoryTxPool, NoopTxSource}`
 
 ## Key Types
-- `EvmBlock`: Block type implementing `consensus::Block` and commonware codec/commitment traits.
-- `ExecutionResult`: Block execution output (state roots, gas usage).
-- `ApplicationAdapter`: Adapts `Application` to `consensus::ConsensusApp`.
-- `ApplicationError`: Application-layer error type.
-- `TxSource`: Transaction source trait exposing `pending()`.
-- `NoopTxSource`: `TxSource` implementation that always returns no transactions.
-- `InMemoryTxPool`: Mutex-backed in-memory `TxSource` implementation that stores raw tx bytes.
-
-## Key Methods
-- `Application::propose(parent, height)`: Produces the next block and execution result.
-- `Application::verify(parent, block)`: Verifies a proposed block and returns execution result.
-- `ApplicationAdapter::new(app)`: Wraps an `Application` implementation for consensus wiring.
-- `InMemoryTxPool::new()`: Creates an empty tx pool.
-- `InMemoryTxPool::push(tx)`: Appends a raw EIP-2718 transaction.
-- `InMemoryTxPool::pending()`: Drains and returns queued transactions (FIFO, at-most-once delivery).
-
-## Exports
-- `crates/app/src/lib.rs:8` re-exports `InMemoryTxPool` with `Application`, `NoopTxSource`, and `TxSource`.
-
-## Dependencies
-- `consensus`: Core consensus traits (`Block`, `ConsensusApp`).
-- `commonware-codec`: Serialization traits.
-- `commonware-cryptography`: Hashing and commitment traits.
-- `commonware-consensus`: Vendor consensus traits.
+- `EvmBlock`: block type used by the app layer.
+- `ExecutionResult`: execution output returned by `Application::propose`/`Application::verify`.
+- `ApplicationError`: app-layer error type.
 
 ## Status
-Complete. Provides consensus/execution bridge traits plus a usable in-memory tx source for node wiring.
+Complete. Traits are isolated in `traits.rs`; concrete tx sources live in `tx_source.rs`.

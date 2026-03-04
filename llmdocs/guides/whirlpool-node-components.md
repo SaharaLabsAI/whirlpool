@@ -30,7 +30,7 @@ This guide explains the core components of the Whirlpool node after the consensu
 
 ## Dual-Trait Conformance in EmptyBlock
 
-The `EmptyBlock` struct serves two purposes by implementing both local and vendor traits. It satisfies the `consensus::Block` trait for internal use while also implementing codec and cryptography traits from the `commonware` ecosystem.
+The `EmptyBlock` struct serves two purposes by implementing both local and vendor traits. It satisfies the `consensus::traits::Block` trait for internal use while also implementing codec and cryptography traits from the `commonware` ecosystem.
 
 Specifically, it implements `commonware_codec::Write` and `Read` to handle its 40-byte payload. For cryptographic operations, it implements `Digestible` and `Committable`, wrapping a SHA-256 hash of its height and parent ID. This allows the block to work seamlessly with different consensus and networking layers.
 

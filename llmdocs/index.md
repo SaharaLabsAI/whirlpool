@@ -7,6 +7,7 @@ Read this file first, then follow links to relevant sections based on your task.
 
 Whirlpool is a modular consensus framework for the Sahara Chain, built in Rust.
 It uses a 3-layer architecture: abstract consensus traits -> Simplex BFT adapter -> node binary.
+Canonical interface imports use `crate::traits::...` paths across crates after interface/implementation split refactoring.
 The vendor layer (commonware) is a git submodule under `vendor/` — **do not modify**.
 
 ## Reading Order
