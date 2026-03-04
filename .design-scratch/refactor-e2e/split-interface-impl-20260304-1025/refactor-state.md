@@ -6,7 +6,7 @@
 - auto_approve: true
 
 ## Current Phase
-design
+plan
 
 ## Intent
 Split interface (trait definitions) from implementation for crates: app, consensus, p2p, state, consensus-simplex, p2p-commonware, and app-evm. Each crate should have clean trait/interface modules separate from their concrete implementations.
@@ -16,7 +16,7 @@ Split interface (trait definitions) from implementation for crates: app, consens
 - instance_root: .design-scratch/refactor-e2e/split-interface-impl-20260304-1025
 - docs_root: docs/refactor/split-interface-implementation
 - scratch_root: .design-scratch/refactor-e2e/split-interface-impl-20260304-1025
-- plan_root: (pending)
+- plan_root: .sisyphus/plans/split-interface-from-implementation
 
 ## Depth
 structural
@@ -35,13 +35,13 @@ app, consensus, p2p, state, consensus-simplex, p2p-commonware, app-evm
 - completed_at: 2026-03-05
 
 ### Plan
-- status: pending
-- last_attempt_session_id:
-- verdict:
-- task_count:
-- wave_count:
-- rollback_coverage:
-- completed_at:
+- status: complete
+- last_attempt_session_id: ses_346431231ffe2NC97DRaNhmjmj
+- verdict: PASS
+- task_count: 9
+- wave_count: 3
+- rollback_coverage: complete
+- completed_at: 2026-03-05
 
 ### Execute
 - status: pending
