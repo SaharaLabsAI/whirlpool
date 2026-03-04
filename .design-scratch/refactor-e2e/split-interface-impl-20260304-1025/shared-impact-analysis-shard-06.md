@@ -1,0 +1,36 @@
+# Shared Impact Analysis (Shard 06)
+
+## Scope
+- Symbols in focus: `NetworkReceiver`, `NetworkProvider` (the only traits moving in this shard).
+- Crates in structural scope: `app`, `consensus`, `p2p`, `state`, `consensus-simplex`, `p2p-commonware`, `app-evm` plus their 1-hop reverse dependents (`p2p-commonware` itself, the builder-consuming consensus/simplex engines, and the design/refactor documentation modules).
+- Coverage includes code (definitions, imports, impls, mocks) and doc/comment references (design docs, refactor plan, llmdocs).
+
+## Summary Table
+| Symbol | Core locations | Cross-crate exposure & notes |
+| --- | --- | --- |
+| `NetworkReceiver` | `crates/p2p/src/traits.rs` (public trait), `crates/p2p/src/mock.rs` (mock impl), `crates/p2p-commonware/{lib.rs,receiver.rs,tests.rs}` (adapter/multiplex implementations and tests), docs (`docs/design/p2p.md`, `docs/refactor/split-interface-implementation/INTENT.md`), llmdocs (`llmdocs/crates/p2p-commonware.md`) | Re-exported via `p2p::traits`, implemented by `p2p-commonware` adapters and mocks, and documented as the inbound counterpart to `NetworkProvider`. No hits were found in `app`, `state`, `consensus`, `consensus-simplex`, or `app-evm` beyond the referenced docs. |
+| `NetworkProvider` | `crates/p2p/src/traits.rs` (public trait), `crates/p2p/src/mock.rs` (mock provider), `crates/p2p-commonware/src/provider.rs` (primary implementation + helper methods), docs (`docs/design/p2p.md`, `docs/refactor/split-interface-implementation/INTENT.md`), `crates/consensus-simplex/src/engine.rs` + node mains via `CommonwareNetworkProviderBuilder` | Re-exported via `p2p::traits`, implemented by `CommonwareNetworkProvider` (used by consensus/simplex builders), and injected into `CommonwareEngine`/`EventSink` as documented. No additional trait references exist in the other in-scope crates. |
+
+## Detailed Usages
+
+### NetworkReceiver
+- `crates/p2p/src/traits.rs:51-65` – Defines `pub trait NetworkReceiver: Send + 'static { type PeerId: PeerId; async fn recv(&mut self) -> Option<NetworkMessage<Self::PeerId>>; }`. This public trait is the canonical inbound interface for all P2P implementations.
+- `crates/p2p/src/lib.rs:42-52` – `pub use traits::{NetworkProvider, NetworkReceiver, NetworkSender, PeerId};` exposes the trait for downstream crates (any consumer can `use p2p::NetworkReceiver`).
+- `crates/p2p/src/mock.rs:8-71` – Imports the trait (`use crate::traits::{NetworkProvider, NetworkReceiver, ...};`) and implements it for `MockReceiver` (`async fn recv(&mut self) -> Option<NetworkMessage<Self::PeerId>> { ... }`). `MockReceiver` is a public struct backed by tokio mpsc channels, making the trait available for in-process testing.
+- `crates/p2p-commonware/src/lib.rs:8, 65-127` – Imports `NetworkReceiver` and declares `pub struct MultiplexReceiver` plus `impl<R> NetworkReceiver for MultiplexReceiver<R>` (lines 87-128) to merge vendor receivers into a single stream tagged with the original `Channel`.
+- `crates/p2p-commonware/src/receiver.rs:3-41` – `pub struct CommonwareReceiver<R>` and `impl<R> NetworkReceiver for CommonwareReceiver<R>` adapt a vendor `commonware_p2p::Receiver` to the public trait (the adapter itself is public so other modules can wrap receiver halves).
+- `crates/p2p-commonware/src/tests.rs:255-343` – Tests repeatedly `use p2p::{Channel, NetworkReceiver};` (lines 255, 277, 299) to exercise `MultiplexReceiver` (channel tagging, merging, shutdown) via the public trait methods, confirming the adapter meets the interface.
+- `docs/design/p2p.md` references the trait in several sections (`:44` lists `receiver.rs` as the trait file, `:163-205` describe `### 3.4 NetworkReceiver`, the trait signature, and how `NetworkChannel` pairs sender + receiver). These doc snippets codify the intended contract for implementations.
+- `docs/refactor/split-interface-implementation/INTENT.md:45-117` lists `NetworkReceiver` as a migration target (`| NetworkReceiver | p2p::traits::NetworkReceiver | ... | [PROPOSED] p2p::traits::NetworkReceiver`), so keepers must continue to import the trait from `p2p::traits` during the split.
+- `llmdocs/crates/p2p-commonware.md:46` documents that the Commonware adapters implement `NetworkReceiver` with `recv() -> Option<NetworkMessage<PeerId>>`, reinforcing the trait’s role for external readers.
+- Searches returned no `NetworkReceiver` occurrences outside `p2p`, its mock, `p2p-commonware`, and the noted documentation modules; the other in-scope crates (`app`, `state`, `consensus`, `consensus-simplex`, `app-evm`) do not reference the trait directly.
+
+### NetworkProvider
+- `crates/p2p/src/traits.rs:72-95` – `pub trait NetworkProvider { type PeerId: PeerId; type Sender: NetworkSender<PeerId=Self::PeerId>; type Receiver: NetworkReceiver<PeerId=Self::PeerId>; fn start(self) -> Result<(Self::Sender, Self::Receiver), P2pError>; }` defines the bootstrapping contract shared across all network implementations.
+- `crates/p2p/src/lib.rs:42-52` – Re-exports the trait via `pub use traits::{NetworkProvider, ...};` making `p2p::NetworkProvider` available to all dependents.
+- `crates/p2p/src/mock.rs:73-99` – `pub struct MockNetworkProvider` and `impl NetworkProvider for MockNetworkProvider` construct paired `MockSender`/`MockReceiver` objects and expose them through `start()`, covering the dev/test surface.
+- `crates/p2p-commonware/src/provider.rs:168-302` – `pub struct CommonwareNetworkProvider<E, C>` registers Commonware discovery channels and `impl<E, C> NetworkProvider for CommonwareNetworkProvider<E, C>` (lines 246-302) to return `MultiplexSender`/`MultiplexReceiver`. The `start()` method creates the channel map, wraps senders/receivers and returns them via the trait, while `start_per_channel()` is a vendor-specific helper that still relies on the interface for multiplexed usage.
+- `crates/consensus-simplex/src/engine.rs` and both `crates/whirlpool-node(-simple)/src/main.rs` (lines 51, 105) rely on `CommonwareNetworkProviderBuilder` to produce the concrete provider consumed by simplex and the node. Even though these consumers grip concrete types, they ultimately rely on the `NetworkProvider` implementation defined above.
+- `docs/design/p2p.md` introduces the trait at `### 3.5 NetworkProvider & NetworkChannel` (`:186-205` includes the signature and describes how consensus calls `open_channel`), shows `MockNetworkProvider` as the test harness (`:283-285`), describes `CommonwareNetworkProvider` implementation (`:403-417`) and highlights that `CommonwareEngine`/`EventSink` constructors inject a generic `N: NetworkProvider` (`:456-476`). These sections capture the intended call sites and layering.
+- `docs/refactor/split-interface-implementation/INTENT.md:46, 114-117` registers `NetworkProvider` as a trait whose interface File stays at `p2p::traits::NetworkProvider` during the split, so downstream code must continue to import it from that path.
+- There were no literal `NetworkProvider` mentions in `app`, `state`, `consensus`, `app-evm`, or `consensus-simplex` beyond the builder-enabled usage of `CommonwareNetworkProvider`, so the trait’s code surface remains limited to `p2p`, its mock, `p2p-commonware`, and the associated documentation.
