@@ -1,9 +1,11 @@
 pub mod adapter;
 pub mod error;
 pub mod traits;
+pub mod tx_source;
 pub mod types;
 
 pub use adapter::ApplicationAdapter;
 pub use error::ApplicationError;
-pub use traits::{Application, InMemoryTxPool, NoopTxSource, TxSource};
+pub use traits::{Application, TxSource};
+pub use tx_source::{InMemoryTxPool, NoopTxSource};
 pub use types::{EvmBlock, ExecutionResult};
