@@ -10,32 +10,12 @@ use reth_evm::{execute::{BlockBuilder, BlockExecutor}, ConfigureEvm, NextBlockEn
 use reth_primitives_traits::{Header, Recovered, SealedHeader, SignedTransaction};
 use reth_revm::State;
 use revm::database::states::bundle_state::BundleRetention;
-use revm::database::BundleState;
-use state::traits::StateDb;
 
 use crate::config::WhirlpoolEvmConfig;
 use crate::error::EvmAppError;
+pub use crate::traits::StateProvider;
 
 pub type RecoveredTx = Recovered<TransactionSigned>;
-
-impl<T> StateProvider for T
-where
-    T: StateDb,
-{
-    fn state_root(&self) -> B256 {
-        StateDb::state_root(self)
-    }
-
-    fn commit(&mut self, bundle: &BundleState) {
-        StateDb::commit(self, bundle)
-    }
-}
-
-/// Trait for accessing state root from a database.
-pub trait StateProvider {
-    fn state_root(&self) -> B256;
-    fn commit(&mut self, bundle: &BundleState);
-}
 
 /// Converts an `EvmBlock` into an Ethereum `Header`.
 fn build_header_from_evm_block(block: &EvmBlock) -> Header {
@@ -370,11 +350,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use reth_primitives_traits::SignerRecoverable;
     use super::*;
     use alloy_consensus::{SignableTransaction, TxLegacy};
     use alloy_eips::eip2718::Encodable2718;
     use alloy_primitives::{Address, Signature, TxKind};
+    use reth_primitives_traits::SignerRecoverable;
+    use state::InMemoryStateDb;
 
     #[test]
     fn test_header_conversion() {
