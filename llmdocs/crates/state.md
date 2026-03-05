@@ -1,13 +1,14 @@
 # state
 
 ## Purpose
-State database abstractions and in-memory implementation for EVM execution.
+State database trait and error types — pure interface crate with no concrete implementations.
 
-## Interface/Implementation Split
-- Interface module: `crates/state/src/traits.rs`
-  - `StateDb`
-- Implementation module: `crates/state/src/db.rs`
-  - `InMemoryStateDb`
+## Crate Split
+`state` is the interface half of the state layer. Concrete implementations live in `state-memory`.
+
+## Modules
+- `crates/state/src/traits.rs` — `StateDb` trait
+- `crates/state/src/error.rs` — `StateError` enum, `DBErrorMarker` impl
 
 ## Trait Boundary
 `StateDb` defines the crate-level database contract:
@@ -16,15 +17,15 @@ State database abstractions and in-memory implementation for EVM execution.
 - queries: `state_root`, account/code/storage/block-hash accessors
 - mutation helpers: `insert_account`, `insert_block_hash`
 
-`InMemoryStateDb` implements `StateDb` and also implements revm database traits used by execution.
-
 ## Canonical Imports
 - `state::traits::StateDb`
-- `state::InMemoryStateDb`
+- `state::StateDb` (re-export)
+- `state::StateError`
 
-## Key Types
-- `DbAccount`: account + storage container.
-- `StateError`: state database error type.
+## Dependencies
+- `revm` (trait parameter types, `DBErrorMarker`)
+- `alloy-genesis` (`GenesisAccount` in trait signature)
+- `thiserror` (error derive)
 
 ## Status
-Complete. Public interface is separated from implementation.
+Complete. Interface-only crate after physical split. See `state-memory` for concrete implementation.

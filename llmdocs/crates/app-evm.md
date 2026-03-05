@@ -17,7 +17,8 @@ EVM configuration and execution integration for Whirlpool applications.
 
 ## Canonical Imports
 - `app_evm::traits::StateProvider`
-- `state::traits::StateDb`
+- `state::traits::StateDb` (interface trait)
+- `state_memory::InMemoryStateDb` (concrete impl, test code only)
 
 ## Key Types
 - `WhirlpoolEvmConfig`: wrapper for EVM configuration.

@@ -10,7 +10,8 @@ Location: `crates/whirlpool-node/`
 - `consensus-simplex`: simplex adapter and engine.
 - `app`: application adapter + tx source implementations.
 - `app-evm`: EVM app implementation + `app_evm::traits::StateProvider`.
-- `state`: `InMemoryStateDb` implementation for state storage.
+- `state`: `StateDb` trait and `StateError` (interface only).
+- `state-memory`: `InMemoryStateDb` implementation for state storage.
 - `p2p-commonware`: network provider bridge.
 
 ## Canonical Trait Imports Used by Node
