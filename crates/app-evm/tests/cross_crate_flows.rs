@@ -4,7 +4,7 @@ use app::{ApplicationAdapter, NoopTxSource, traits::Application};
 use app_evm::executor::EvmApplication;
 use app_evm::{EvmAppError, WhirlpoolEvmConfig, build_sahara_chain_spec};
 use consensus::{ConsensusError, traits::ConsensusApp};
-use state::InMemoryStateDb;
+use state_memory::InMemoryStateDb;
 
 fn build_app() -> EvmApplication<InMemoryStateDb> {
     let state_db = Arc::new(RwLock::new(InMemoryStateDb::new()));

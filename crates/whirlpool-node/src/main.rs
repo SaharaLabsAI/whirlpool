@@ -17,7 +17,7 @@ use app_evm::executor::EvmApplication;
 use app_evm::traits::StateProvider;
 use app_evm::{WhirlpoolEvmConfig, build_sahara_chain_spec};
 use reth_revm::db::BundleState;
-use state::InMemoryStateDb;
+use state_memory::InMemoryStateDb;
 use whirlpool_node::config;
 
 // Application namespace for network isolation

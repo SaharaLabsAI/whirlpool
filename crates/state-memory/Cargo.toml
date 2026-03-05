@@ -1,9 +1,10 @@
 [package]
-name = "state"
+name = "state-memory"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
+state = { path = "../state" }
 revm = "34"
-thiserror = "2"
+sha2 = "0.10"
 alloy-genesis = "1.5"

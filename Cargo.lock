@@ -652,6 +652,7 @@ dependencies = [
  "reth-revm",
  "revm",
  "state",
+ "state-memory",
  "thiserror 2.0.18",
  "tokio",
 ]
@@ -5210,8 +5211,17 @@ version = "0.1.0"
 dependencies = [
  "alloy-genesis",
  "revm",
- "sha2 0.10.9",
  "thiserror 2.0.18",
+]
+
+[[package]]
+name = "state-memory"
+version = "0.1.0"
+dependencies = [
+ "alloy-genesis",
+ "revm",
+ "sha2 0.10.9",
+ "state",
 ]
 
 [[package]]
@@ -5990,6 +6000,7 @@ dependencies = [
  "revm",
  "sha2 0.10.9",
  "state",
+ "state-memory",
  "tokio",
  "tracing",
  "tracing-subscriber 0.3.22",

@@ -8,7 +8,7 @@ use app_evm::executor::EvmApplication;
 use app_evm::WhirlpoolEvmConfig;
 use reth_ethereum_primitives::TransactionSigned;
 use reth_primitives_traits::SignerRecoverable;
-use state::InMemoryStateDb;
+use state_memory::InMemoryStateDb;
 
 /// Simple MockTxSource for integration tests
 struct MockTxSource {

@@ -9,6 +9,7 @@ members = [
     "crates/whirlpool-node",
     "crates/whirlpool-node-simple",
     "crates/state",
+    "crates/state-memory",
     "crates/app",
     "crates/app-evm",
 ]

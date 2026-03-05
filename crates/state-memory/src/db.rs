@@ -6,8 +6,8 @@ use revm::primitives::{keccak256, Address, B256, KECCAK_EMPTY, U256};
 use revm::state::{AccountInfo, Bytecode};
 use revm::{Database, DatabaseRef};
 
-use crate::error::StateError;
-use crate::traits::StateDb;
+use state::error::StateError;
+use state::traits::StateDb;
 
 #[derive(Clone, Debug, Default)]
 pub struct DbAccount {

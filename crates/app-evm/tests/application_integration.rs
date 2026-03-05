@@ -4,7 +4,7 @@ use app::{ApplicationAdapter, EvmBlock, NoopTxSource, traits::Application};
 use app_evm::executor::EvmApplication;
 use app_evm::{WhirlpoolEvmConfig, build_sahara_chain_spec};
 use consensus::{ConsensusError, traits::ConsensusApp};
-use state::InMemoryStateDb;
+use state_memory::InMemoryStateDb;
 
 fn assert_application_impl<A: Application<Block = EvmBlock>>(_app: &A) {}
 

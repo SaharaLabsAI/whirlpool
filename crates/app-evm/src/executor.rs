@@ -355,7 +355,7 @@ mod tests {
     use alloy_eips::eip2718::Encodable2718;
     use alloy_primitives::{Address, Signature, TxKind};
     use reth_primitives_traits::SignerRecoverable;
-    use state::InMemoryStateDb;
+    use state_memory::InMemoryStateDb;
 
     #[test]
     fn test_header_conversion() {

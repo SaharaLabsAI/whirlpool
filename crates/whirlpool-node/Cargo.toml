@@ -8,6 +8,7 @@ app = { path = "../app" }
 app-evm = { path = "../app-evm" }
 reth-revm = { path = "../../vendor/reth/crates/revm" }
 state = { path = "../state" }
+state-memory = { path = "../state-memory" }
 revm = { version = "34" }
 alloy-primitives = { version = "1.5.0" }
 consensus = { path = "../consensus" }
