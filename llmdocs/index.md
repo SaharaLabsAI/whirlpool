@@ -33,8 +33,8 @@ Structured reference docs optimized for fast LLM lookup. Each contains type sign
 |------|-------------|-------|
 | [architecture/consensus-traits.md](architecture/consensus-traits.md) | Core trait layer: Block, ConsensusApp, EventSink, ConsensusEngine, RunningEngine, ConsensusError. Public signatures and trait relationships | `consensus` |
 | [architecture/simplex-adapter.md](architecture/simplex-adapter.md) | Adapter bridge: CommonwareBlock, AppAdapter, CommonwareEngine, CommonwareConfig, Mailbox, FinalizationSink | `consensus-simplex` |
-| [architecture/whirlpool-node.md](architecture/whirlpool-node.md) | Node library exports (config constants) used by EVM and non-EVM binaries | `whirlpool-node` (lib) |
-| [crates/whirlpool-node.md](crates/whirlpool-node.md) | EVM binary wiring: `EvmApplication` + `InMemoryTxPool` tx source + Commonware engine startup | `whirlpool-node` (bin) |
+| [architecture/whirlpool-node.md](architecture/whirlpool-node.md) | Node library exports (config constants) and JSON-RPC architecture | `whirlpool-node` (lib) |
+| [crates/whirlpool-node.md](crates/whirlpool-node.md) | EVM binary wiring: `EvmApplication` + `InMemoryTxPool` tx source + JSON-RPC server | `whirlpool-node` (bin) |
 
 ## Guides
 

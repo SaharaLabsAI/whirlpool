@@ -21,6 +21,7 @@ State database trait and error types — pure interface crate with no concrete i
 - `state::traits::StateDb`
 - `state::StateDb` (re-export)
 - `state::StateError`
+- `state::GenesisAccount` (re-export from `alloy-genesis`)
 
 ## Dependencies
 - `revm` (trait parameter types, `DBErrorMarker`)

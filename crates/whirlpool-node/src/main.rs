@@ -14,11 +14,11 @@ use std::time::Duration;
 use tracing::info;
 use app::{ApplicationAdapter, InMemoryTxPool};
 use app_evm::executor::EvmApplication;
-use app_evm::traits::StateProvider;
-use app_evm::{WhirlpoolEvmConfig, build_sahara_chain_spec};
+use app_evm::{WhirlpoolEvmConfig, build_sahara_chain_spec, SAHARA_CHAIN_ID};
 use reth_revm::db::BundleState;
 use state_memory::InMemoryStateDb;
 use whirlpool_node::config;
+use whirlpool_node::rpc;
 
 // Application namespace for network isolation
 const APPLICATION_NAMESPACE: &[u8] = b"whirlpool-dev";
@@ -33,13 +33,45 @@ impl TestStateDb {
     }
 }
 
-impl StateProvider for TestStateDb {
+impl state::StateDb for TestStateDb {
+    fn new() -> Self {
+        Self(InMemoryStateDb::new())
+    }
+
+    fn with_genesis(alloc: std::collections::HashMap<revm::primitives::Address, state::GenesisAccount>) -> Self {
+        Self(InMemoryStateDb::with_genesis(alloc))
+    }
+
     fn state_root(&self) -> revm::primitives::B256 {
         self.0.state_root()
     }
 
     fn commit(&mut self, bundle: &BundleState) {
         self.0.commit(bundle);
+    }
+
+    fn get_account(&self, address: revm::primitives::Address) -> Option<revm::state::AccountInfo> {
+        self.0.get_account(address)
+    }
+
+    fn get_code_by_hash(&self, code_hash: revm::primitives::B256) -> revm::state::Bytecode {
+        self.0.get_code_by_hash(code_hash)
+    }
+
+    fn get_storage(&self, address: revm::primitives::Address, index: revm::primitives::U256) -> revm::primitives::U256 {
+        self.0.get_storage(address, index)
+    }
+
+    fn get_block_hash(&self, number: u64) -> revm::primitives::B256 {
+        self.0.get_block_hash(number)
+    }
+
+    fn insert_account(&mut self, address: revm::primitives::Address, info: revm::state::AccountInfo) {
+        self.0.insert_account(address, info);
+    }
+
+    fn insert_block_hash(&mut self, number: u64, hash: revm::primitives::B256) {
+        self.0.insert_block_hash(number, hash);
     }
 }
 
@@ -131,12 +163,26 @@ fn main() {
         let chain_spec = Arc::new(build_sahara_chain_spec());
         let evm_config = WhirlpoolEvmConfig::new(chain_spec);
         let tx_pool = Arc::new(InMemoryTxPool::new());
-        let evm_app = EvmApplication::new(evm_config, state_db, tx_pool.clone());
+        let evm_app = EvmApplication::new(evm_config, state_db.clone(), tx_pool.clone());
         let app = Arc::new(ApplicationAdapter::new(evm_app));
 
         let engine = CommonwareEngine::new(app, sink, engine_config, network_provider, context.clone());
         let _running = engine.start().expect("failed to start consensus engine");
         info!("Consensus engine created and started successfully");
+
+        // Start JSON-RPC server
+        let rpc_ctx = rpc::context::EthRpcContext::new(
+            tx_pool,
+            state_db,
+            SAHARA_CHAIN_ID,
+        );
+        let rpc_addr: SocketAddr = config::RPC_BIND_ADDR
+            .parse()
+            .expect("invalid RPC bind address");
+        let _rpc_handle = rpc::server::start_rpc_server(rpc_ctx, rpc_addr)
+            .await
+            .expect("failed to start RPC server");
+        info!("JSON-RPC server started");
 
         // Keep oracle_handle alive for network health
         let _ = oracle_handle;
