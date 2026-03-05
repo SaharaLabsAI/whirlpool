@@ -3,7 +3,7 @@ use state::StateDb;
 use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, RwLock};
 
-use super::receipt_store::ReceiptStore;
+use crate::receipt_store::ReceiptStore;
 
 /// Shared context for the Ethereum JSON-RPC server.
 ///

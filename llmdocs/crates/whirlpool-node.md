@@ -13,8 +13,7 @@ Location: `crates/whirlpool-node/`
 - `state`: `StateDb` trait and `StateError` (interface only).
 - `state-memory`: `InMemoryStateDb` implementation for state storage.
 - `p2p-commonware`: network provider bridge.
-- `jsonrpsee`: JSON-RPC server framework (0.26.0).
-- `alloy-rpc-types`: Ethereum RPC types (1.4.3).
+- `rpc-eth`: Ethereum JSON-RPC server (extracted from former `rpc/` module).
 
 ## Canonical Trait Imports Used by Node
 - `consensus::traits::ConsensusEngine`
@@ -28,23 +27,10 @@ Location: `crates/whirlpool-node/`
 4. Build `WhirlpoolEvmConfig` and `EvmApplication`.
 5. Provide `InMemoryTxPool` as tx source.
 6. Wrap app with `ApplicationAdapter`, construct `CommonwareEngine`, call `start()`.
-7. Initialize `EthRpcContext` and start JSON-RPC server on `RPC_BIND_ADDR`.
+7. Initialize `EthRpcContext` and start JSON-RPC server on `RPC_BIND_ADDR` (via `rpc_eth`).
 
-## RPC Module (`rpc/`)
-- `context.rs`: `EthRpcContext` holds shared `Arc` handles to `InMemoryTxPool`, `StateDb`, and `ReceiptStore`.
-- `eth_api.rs`: `EthApi` trait defining 7 supported `eth_*` methods.
-- `eth_handler.rs`: `EthApiHandler` implements `EthApiServer` for `EthApi`.
-- `receipt_store.rs`: `ReceiptStore` providing in-memory mapping of transaction hash to `TransactionReceipt`.
-- `server.rs`: `start_rpc_server` entry point using `jsonrpsee`.
-
-### Supported RPC Methods
-- `eth_chainId`: returns the configured Sahara chain ID.
-- `eth_gasPrice`: returns hardcoded 1 gwei (v1).
-- `eth_getBalance`: returns balance from `StateDb` for "latest" block.
-- `eth_getTransactionCount`: returns nonce from `StateDb` for "latest" block.
-- `eth_sendRawTransaction`: pushes raw bytes directly into `InMemoryTxPool`.
-- `eth_estimateGas`: returns hardcoded 21,000 gas (v1).
-- `eth_getTransactionReceipt`: retrieves confirmed receipts from `ReceiptStore`.
+## RPC
+The RPC implementation lives in the separate `rpc-eth` crate. See `llmdocs/crates/rpc-eth.md`.
 
 ## Import Migration Rule
 Use canonical `::traits::` paths for interface types; avoid non-canonical crate-root trait imports.

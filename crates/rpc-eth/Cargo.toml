@@ -1,0 +1,19 @@
+[package]
+name = "rpc-eth"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+app = { path = "../app" }
+state = { path = "../state" }
+jsonrpsee = { version = "0.26.0", features = ["server", "macros"] }
+alloy-primitives = { version = "1.5.0" }
+alloy-rpc-types = { version = "1.4.3", features = ["eth"] }
+serde = { version = "1", features = ["derive"] }
+async-trait = "0.1"
+tracing = "0.1"
+
+[dev-dependencies]
+state-memory = { path = "../state-memory" }
+revm = { version = "34" }
+tokio = { version = "1", features = ["full", "test-util"] }

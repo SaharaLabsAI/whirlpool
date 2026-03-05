@@ -5014,6 +5014,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "afab94fb28594581f62d981211a9a4d53cc8130bbcbbb89a0440d9b8e81a7746"
 
 [[package]]
+name = "rpc-eth"
+version = "0.1.0"
+dependencies = [
+ "alloy-primitives",
+ "alloy-rpc-types",
+ "app",
+ "async-trait",
+ "jsonrpsee",
+ "revm",
+ "serde",
+ "state",
+ "state-memory",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "ruint"
 version = "1.17.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6404,7 +6421,6 @@ dependencies = [
  "alloy-signer-local",
  "app",
  "app-evm",
- "async-trait",
  "bytes",
  "commonware-cryptography",
  "commonware-runtime",
@@ -6415,7 +6431,7 @@ dependencies = [
  "reqwest",
  "reth-revm",
  "revm",
- "serde",
+ "rpc-eth",
  "sha2 0.10.9",
  "state",
  "state-memory",

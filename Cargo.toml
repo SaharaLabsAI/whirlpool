@@ -6,6 +6,7 @@ members = [
     "crates/consensus-simplex",
     "crates/p2p",
     "crates/p2p-commonware",
+    "crates/rpc-eth",
     "crates/whirlpool-node",
     "crates/state",
     "crates/state-memory",

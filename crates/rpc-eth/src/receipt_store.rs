@@ -5,7 +5,7 @@ use std::sync::RwLock;
 
 /// In-memory receipt store for confirmed transactions.
 ///
-/// Maps transaction hash → receipt. Thread-safe via `RwLock`.
+/// Maps transaction hash -> receipt. Thread-safe via `RwLock`.
 pub struct ReceiptStore {
     inner: RwLock<HashMap<B256, TransactionReceipt>>,
 }

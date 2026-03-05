@@ -18,7 +18,7 @@ use app_evm::{WhirlpoolEvmConfig, build_sahara_chain_spec, SAHARA_CHAIN_ID};
 use reth_revm::db::BundleState;
 use state_memory::InMemoryStateDb;
 use whirlpool_node::config;
-use whirlpool_node::rpc;
+use rpc_eth as rpc;
 
 // Application namespace for network isolation
 const APPLICATION_NAMESPACE: &[u8] = b"whirlpool-dev";

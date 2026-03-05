@@ -17,28 +17,14 @@ The `whirlpool-node` crate library exports shared configuration constants used b
 
 ## JSON-RPC Server Architecture
 
-The `whirlpool-node` binary starts a `jsonrpsee` server for Ethereum compatibility.
+The JSON-RPC implementation has been extracted to the `rpc-eth` crate. See `llmdocs/crates/rpc-eth.md` for full details.
 
-### Component Map
-- `EthRpcContext`: shared state across all RPC handlers.
-  - `tx_pool`: `Arc<InMemoryTxPool>` for submitting raw transactions.
-  - `state_db`: `Arc<RwLock<S>>` for account balance and nonce queries.
-  - `receipt_store`: `Arc<ReceiptStore>` for retrieving confirmed transaction status.
-  - `chain_id`: current Sahara chain ID (default 313371).
-  - `block_height`: `Arc<AtomicU64>` reflecting the latest consensus height.
-- `EthApiHandler`: implements the standard `eth_*` namespace.
-- `ReceiptStore`: thread-safe `HashMap` mapping transaction hash to receipts.
-
-### V1 Simplifications
-- **Gas**: hardcoded 21,000 for transfers.
-- **Gas Price**: hardcoded 1 gwei (1,000,000,000 wei).
-- **Block ID**: supports "latest" and "pending" tags; specific block heights are not yet supported.
-- **Receipts**: maintained in-memory; not persisted across node restarts.
+The `whirlpool-node` binary wires `rpc-eth` via `rpc_eth::context::EthRpcContext` and `rpc_eth::server::start_rpc_server`.
 
 ## Dependency Graph
 
 - **whirlpool-node** (lib) → used by `whirlpool-node` (bin) for config constants
-- **whirlpool-node** (bin) → `jsonrpsee` + `alloy-rpc-types` for JSON-RPC implementation
+- **whirlpool-node** (bin) → `rpc-eth` for JSON-RPC server
 
 ## Binary: whirlpool-node (EVM)
 

@@ -3,8 +3,8 @@ use alloy_rpc_types::{BlockId, BlockNumberOrTag, TransactionReceipt, Transaction
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::types::ErrorObjectOwned;
 use state::StateDb;
-use super::context::EthRpcContext;
-use super::eth_api::EthApiServer;
+use crate::context::EthRpcContext;
+use crate::eth_api::EthApiServer;
 
 /// Implements the `EthApi` JSON-RPC trait for the Sahara/Whirlpool node.
 pub struct EthApiHandler<S: StateDb> {
@@ -105,7 +105,7 @@ impl<S: StateDb + Send + Sync + 'static> EthApiServer for EthApiHandler<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rpc::context::EthRpcContext;
+    use crate::context::EthRpcContext;
     use app::tx_source::InMemoryTxPool;
     use state_memory::InMemoryStateDb;
     use std::sync::Arc;

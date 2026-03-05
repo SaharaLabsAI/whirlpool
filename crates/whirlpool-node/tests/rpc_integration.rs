@@ -6,8 +6,6 @@ use alloy_primitives::{Address, U256};
 use alloy_provider::{Provider, ProviderBuilder};
 use state_memory::InMemoryStateDb;
 use std::sync::{Arc, RwLock};
-use whirlpool_node::rpc;
-
 /// Spin up an RPC server with a fresh in-memory state and return the provider URL.
 async fn start_test_rpc() -> (
     String,
@@ -16,12 +14,12 @@ async fn start_test_rpc() -> (
     Arc<app::tx_source::InMemoryTxPool>,
 ) {
     use jsonrpsee::server::ServerBuilder;
-    use whirlpool_node::rpc::eth_api::EthApiServer;
-    use whirlpool_node::rpc::eth_handler::EthApiHandler;
+    use rpc_eth::eth_api::EthApiServer;
+    use rpc_eth::eth_handler::EthApiHandler;
 
     let pool = Arc::new(app::tx_source::InMemoryTxPool::new());
     let state_db = Arc::new(RwLock::new(InMemoryStateDb::new()));
-    let ctx = rpc::context::EthRpcContext::new(pool.clone(), state_db.clone(), 313_371);
+    let ctx = rpc_eth::context::EthRpcContext::new(pool.clone(), state_db.clone(), 313_371);
     let handler = EthApiHandler::new(ctx);
 
     let server = ServerBuilder::default()
