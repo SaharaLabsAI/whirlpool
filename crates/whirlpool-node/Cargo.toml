@@ -30,6 +30,7 @@ alloy-network = "1.4.3"
 alloy-signer = "1.4.3"
 alloy-signer-local = "1.4.3"
 alloy-consensus = "1.4.3"
+alloy-eips = "1.4.3"
 alloy-rpc-types = { version = "1.4.3", features = ["eth"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 tokio = { version = "1", features = ["full", "test-util"] }

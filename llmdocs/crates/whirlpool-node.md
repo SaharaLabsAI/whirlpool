@@ -34,3 +34,13 @@ The RPC implementation lives in the separate `rpc-eth` crate. See `llmdocs/crate
 
 ## Import Migration Rule
 Use canonical `::traits::` paths for interface types; avoid non-canonical crate-root trait imports.
+
+## Integration Tests
+File: `tests/rpc_integration.rs`
+
+Tests use `start_test_rpc()` helper that creates `InMemoryTxPool`, `InMemoryStateDb`, `EthRpcContext` (chain_id 313_371), and starts a JSON-RPC server on a random port.
+
+Covered RPC methods:
+- `eth_chainId`, `eth_gasPrice`, `eth_getBalance`, `eth_getTransactionCount`, `eth_estimateGas`, `eth_getTransactionReceipt`, `eth_sendRawTransaction` (transfer).
+
+The transfer test builds a signed `TxLegacy` via `alloy-consensus`/`alloy-signer-local`, EIP-2718 encodes it, sends via `send_raw_transaction`, and verifies both the returned tx hash and pool contents.

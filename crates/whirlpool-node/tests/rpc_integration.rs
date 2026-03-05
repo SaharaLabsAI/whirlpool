@@ -2,8 +2,13 @@
 //!
 //! These tests start a real RPC server and interact with it using alloy.
 
-use alloy_primitives::{Address, U256};
+use alloy_consensus::{SignableTransaction, TxLegacy};
+use alloy_eips::eip2718::Encodable2718;
+use alloy_primitives::{Address, Bytes, TxKind, U256};
 use alloy_provider::{Provider, ProviderBuilder};
+use alloy_signer::SignerSync;
+use alloy_signer_local::PrivateKeySigner;
+use app::traits::TxSource;
 use state_memory::InMemoryStateDb;
 use std::sync::{Arc, RwLock};
 /// Spin up an RPC server with a fresh in-memory state and return the provider URL.
@@ -136,4 +141,66 @@ async fn test_eth_get_transaction_receipt_not_found() {
         .await
         .unwrap();
     assert!(receipt.is_none());
+}
+
+#[tokio::test]
+async fn test_eth_send_raw_transaction_transfer() {
+    let (url, _handle, state, pool) = start_test_rpc().await;
+
+    // Set up a funded sender account.
+    let signer: PrivateKeySigner =
+        "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+            .parse()
+            .unwrap();
+    let sender = signer.address();
+    let recipient = Address::repeat_byte(0xBB);
+    let send_value = U256::from(1_000_000_000_000_000_000u128); // 1 ETH
+
+    // Fund the sender with enough balance to cover value + gas.
+    {
+        let mut db = state.write().unwrap();
+        db.insert_account(
+            sender,
+            revm::state::AccountInfo {
+                balance: U256::from(10_000_000_000_000_000_000u128), // 10 ETH
+                nonce: 0,
+                code_hash: alloy_primitives::B256::ZERO,
+                code: None,
+                ..Default::default()
+            },
+        );
+    }
+
+    // Build a legacy transfer transaction.
+    let tx = TxLegacy {
+        chain_id: Some(313_371),
+        nonce: 0,
+        gas_price: 1_000_000_000, // 1 gwei (matches gas_price RPC)
+        gas_limit: 21_000,
+        to: TxKind::Call(recipient),
+        value: send_value,
+        input: Bytes::default(),
+    };
+
+    // Sign the transaction.
+    let sig = signer.sign_hash_sync(&tx.signature_hash()).unwrap();
+    let signed = tx.into_signed(sig);
+
+    // RLP-encode the signed transaction (EIP-2718 envelope).
+    let mut encoded = Vec::new();
+    signed.encode_2718(&mut encoded);
+
+    // Compute the expected tx hash (keccak256 of the raw bytes).
+    let expected_hash = alloy_primitives::keccak256(&encoded);
+
+    // Send via RPC.
+    let provider = ProviderBuilder::new()
+        .connect_http(url.parse().unwrap());
+    let tx_hash = provider.send_raw_transaction(&encoded).await.unwrap();
+    assert_eq!(*tx_hash.tx_hash(), expected_hash);
+
+    // Verify the transaction was added to the pool.
+    let pending = pool.pending();
+    assert_eq!(pending.len(), 1);
+    assert_eq!(pending[0], encoded);
 }
