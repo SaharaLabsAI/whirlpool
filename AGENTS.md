@@ -6,16 +6,18 @@ This is the top-level entrypoint for AI coding agents in this repository.
 
 Follow this sequence and stop once you have enough context for the task:
 
-1. `agents/00-scope.md`
-2. `agents/05-routing.md` — decision tree to skip docs you don't need
-3. `agents/10-vendor-policy.md`
-4. `agents/20-vendor-llmdocs-workflow.md`
-5. `agents/30-dev-env-and-workflow.md`
+0. `llmdocs/index.md` — **read first** for architecture overview, crate map, and digested code information; often sufficient without reading source
+1. `docs/rules/00-scope.md`
+2. `docs/rules/05-routing.md` — decision tree to skip docs you don't need
+3. `docs/rules/10-vendor-policy.md`
+4. `docs/rules/20-vendor-llmdocs-workflow.md`
+5. `docs/rules/30-dev-env-and-workflow.md`
 
 ## Fast rules
 
+- **Before reading source code in any crate**, check if an `llmdocs/` directory exists for that crate/project and read its `index.md` first. llmdocs provide pre-digested architecture, API surfaces, and key patterns — use them to avoid expensive source-code crawling. Use the `ctx-read-doc` skill for structured llmdocs consumption.
 - Do not change `vendor/**` unless explicitly requested.
-- For vendor investigations, start from each project's `llmdocs/index.md` before reading source code.
+- For vendor investigations, start from each vendor project's `llmdocs/index.md` before reading source code (see `docs/rules/20-vendor-llmdocs-workflow.md` for the full workflow).
 - When designing new business logic or architecture, you must use the `rust-whiteboard-design-docs` skill first.
 - Keep changes small, focused, and aligned with local formatting/lint/test expectations.
 - Never commit secrets.
