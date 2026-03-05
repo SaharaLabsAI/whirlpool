@@ -14,9 +14,13 @@ In-memory state database implementation for EVM execution.
 - `DbAccount`: account info + storage container.
 
 ## Trait Implementations
-- `state::traits::StateDb` — full implementation with genesis loading, commit, state queries
-- `revm::Database` — mutable EVM database access
-- `revm::DatabaseRef` — read-only EVM database access
+- `state::traits::StateDb`: `type Error = Infallible`. All trait methods return `Result<_, Infallible>`.
+- `revm::Database`: mutable EVM database access.
+- `revm::DatabaseRef`: read-only EVM database access.
+
+## Inherent Methods
+`InMemoryStateDb` provides inherent versions of `StateDb` methods that unwrap the `Infallible` result for convenience in tests and callers:
+- `new`, `with_genesis`, `commit`, `state_root`, `insert_account`, `insert_block_hash`, `get_account`, `get_code_by_hash`, `get_storage`, `get_block_hash`
 
 ## Canonical Imports
 - `state_memory::InMemoryStateDb`

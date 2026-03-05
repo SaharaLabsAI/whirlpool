@@ -55,6 +55,7 @@ impl<S: StateDb + Send + Sync + 'static> EthApiServer for EthApiHandler<S> {
         })?;
         let balance = state
             .get_account(address)
+            .map_err(|e| ErrorObjectOwned::owned(-32000, format!("state error: {e}"), None::<()>))?
             .map(|a| a.balance)
             .unwrap_or(U256::ZERO);
         Ok(balance)
@@ -69,7 +70,9 @@ impl<S: StateDb + Send + Sync + 'static> EthApiServer for EthApiHandler<S> {
         let state = self.ctx.state_db.read().map_err(|e| {
             ErrorObjectOwned::owned(-32000, format!("state lock poisoned: {e}"), None::<()>)
         })?;
-        let nonce = state.get_account(address).map(|a| a.nonce).unwrap_or(0);
+        let nonce = state.get_account(address)
+            .map_err(|e| ErrorObjectOwned::owned(-32000, format!("state error: {e}"), None::<()>))?
+            .map(|a| a.nonce).unwrap_or(0);
         Ok(U256::from(nonce))
     }
 

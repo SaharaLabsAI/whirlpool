@@ -10,6 +10,7 @@ rpc-eth = { path = "../rpc-eth" }
 reth-revm = { path = "../../vendor/reth/crates/revm" }
 state = { path = "../state" }
 state-memory = { path = "../state-memory" }
+state-reth = { path = "../state-reth" }
 revm = { version = "34" }
 alloy-primitives = { version = "1.5.0" }
 consensus = { path = "../consensus" }

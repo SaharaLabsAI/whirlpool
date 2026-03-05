@@ -13,12 +13,24 @@ EVM configuration and execution integration for Whirlpool applications.
 
 ## Trait Boundary
 - `StateProvider` is now defined in `app_evm::traits`.
+- `type Error`: fallible operations associated error type.
 - Blanket impl delegates to `state::traits::StateDb`.
+- `state_root` and `commit` return `Result<_, Self::Error>`.
+
+## Error Handling
+- `EvmAppError::State(String)` — wraps database and state-related errors.
+- `From<Infallible>`: trivial conversion for `InMemoryStateDb`.
+- `From<state::StateError>`: generic state error conversion.
+- `From<state_reth::RethStateError>`: persistent state error conversion.
+
+## Execution Implementation
+The `EvmApplication` executor uses `.map_err(Into::into)` on all `StateProvider` calls to convert into `EvmAppError`.
 
 ## Canonical Imports
 - `app_evm::traits::StateProvider`
 - `state::traits::StateDb` (interface trait)
-- `state_memory::InMemoryStateDb` (concrete impl, test code only)
+- `state_reth::RethStateDb` (persistent implementation)
+- `state_memory::InMemoryStateDb` (test code only)
 
 ## Key Types
 - `WhirlpoolEvmConfig`: wrapper for EVM configuration.

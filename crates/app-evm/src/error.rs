@@ -14,6 +14,24 @@ pub enum EvmAppError {
     InvalidTransaction(String),
 }
 
+impl From<core::convert::Infallible> for EvmAppError {
+    fn from(e: core::convert::Infallible) -> Self {
+        match e {}
+    }
+}
+
+impl From<state::StateError> for EvmAppError {
+    fn from(err: state::StateError) -> Self {
+        EvmAppError::State(err.to_string())
+    }
+}
+
+impl From<state_reth::RethStateError> for EvmAppError {
+    fn from(err: state_reth::RethStateError) -> Self {
+        EvmAppError::State(err.to_string())
+    }
+}
+
 impl From<EvmAppError> for ApplicationError {
     fn from(err: EvmAppError) -> Self {
         match err {

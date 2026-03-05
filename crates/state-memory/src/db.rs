@@ -29,6 +29,8 @@ impl Default for InMemoryStateDb {
 }
 
 impl StateDb for InMemoryStateDb {
+    type Error = core::convert::Infallible;
+
     fn new() -> Self {
         Self {
             accounts: HashMap::new(),
@@ -68,9 +70,9 @@ impl StateDb for InMemoryStateDb {
         db
     }
 
-    fn state_root(&self) -> B256 {
+    fn state_root(&self) -> Result<B256, Self::Error> {
         if self.accounts.is_empty() {
-            return KECCAK_EMPTY;
+            return Ok(KECCAK_EMPTY);
         }
 
         let mut account_items: Vec<_> = self.accounts.iter().collect();
@@ -91,10 +93,10 @@ impl StateDb for InMemoryStateDb {
             }
         }
 
-        keccak256(encoded)
+        Ok(keccak256(encoded))
     }
 
-    fn commit(&mut self, bundle: &BundleState) {
+    fn commit(&mut self, bundle: &BundleState) -> Result<(), Self::Error> {
         for (address, bundle_account) in &bundle.state {
             if bundle_account.was_destroyed() {
                 self.accounts.remove(address);
@@ -126,33 +128,37 @@ impl StateDb for InMemoryStateDb {
         for (code_hash, bytecode) in &bundle.contracts {
             self.bytecodes.insert(*code_hash, bytecode.clone());
         }
+
+        Ok(())
     }
 
-    fn get_account(&self, address: Address) -> Option<AccountInfo> {
-        self.accounts.get(&address).map(|account| account.info.clone())
+    fn get_account(&self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
+        Ok(self.accounts.get(&address).map(|account| account.info.clone()))
     }
 
-    fn get_code_by_hash(&self, code_hash: B256) -> Bytecode {
-        self.bytecodes.get(&code_hash).cloned().unwrap_or_default()
+    fn get_code_by_hash(&self, code_hash: B256) -> Result<Bytecode, Self::Error> {
+        Ok(self.bytecodes.get(&code_hash).cloned().unwrap_or_default())
     }
 
-    fn get_storage(&self, address: Address, index: U256) -> U256 {
-        self.accounts
+    fn get_storage(&self, address: Address, index: U256) -> Result<U256, Self::Error> {
+        Ok(self.accounts
             .get(&address)
             .and_then(|account| account.storage.get(&index).copied())
-            .unwrap_or(U256::ZERO)
+            .unwrap_or(U256::ZERO))
     }
 
-    fn get_block_hash(&self, number: u64) -> B256 {
-        self.block_hashes.get(&number).copied().unwrap_or(B256::ZERO)
+    fn get_block_hash(&self, number: u64) -> Result<B256, Self::Error> {
+        Ok(self.block_hashes.get(&number).copied().unwrap_or(B256::ZERO))
     }
 
-    fn insert_account(&mut self, address: Address, info: AccountInfo) {
+    fn insert_account(&mut self, address: Address, info: AccountInfo) -> Result<(), Self::Error> {
         self.accounts.insert(address, DbAccount { info, storage: HashMap::new() });
+        Ok(())
     }
 
-    fn insert_block_hash(&mut self, number: u64, hash: B256) {
+    fn insert_block_hash(&mut self, number: u64, hash: B256) -> Result<(), Self::Error> {
         self.block_hashes.insert(number, hash);
+        Ok(())
     }
 }
 
@@ -166,19 +172,35 @@ impl InMemoryStateDb {
     }
 
     pub fn commit(&mut self, bundle: &BundleState) {
-        <Self as StateDb>::commit(self, bundle)
+        <Self as StateDb>::commit(self, bundle).unwrap_or_else(|e| match e {})
     }
 
     pub fn state_root(&self) -> B256 {
-        <Self as StateDb>::state_root(self)
+        <Self as StateDb>::state_root(self).unwrap_or_else(|e| match e {})
     }
 
     pub fn insert_account(&mut self, address: Address, info: AccountInfo) {
-        <Self as StateDb>::insert_account(self, address, info)
+        <Self as StateDb>::insert_account(self, address, info).unwrap_or_else(|e| match e {})
     }
 
     pub fn insert_block_hash(&mut self, number: u64, hash: B256) {
-        <Self as StateDb>::insert_block_hash(self, number, hash)
+        <Self as StateDb>::insert_block_hash(self, number, hash).unwrap_or_else(|e| match e {})
+    }
+
+    pub fn get_account(&self, address: Address) -> Option<AccountInfo> {
+        <Self as StateDb>::get_account(self, address).unwrap_or_else(|e| match e {})
+    }
+
+    pub fn get_code_by_hash(&self, code_hash: B256) -> Bytecode {
+        <Self as StateDb>::get_code_by_hash(self, code_hash).unwrap_or_else(|e| match e {})
+    }
+
+    pub fn get_storage(&self, address: Address, index: U256) -> U256 {
+        <Self as StateDb>::get_storage(self, address, index).unwrap_or_else(|e| match e {})
+    }
+
+    pub fn get_block_hash(&self, number: u64) -> B256 {
+        <Self as StateDb>::get_block_hash(self, number).unwrap_or_else(|e| match e {})
     }
 }
 

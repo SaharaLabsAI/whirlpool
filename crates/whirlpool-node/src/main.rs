@@ -10,13 +10,12 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::{Arc, RwLock};
 use std::sync::atomic::AtomicU64;
 use std::num::NonZeroUsize;
+use std::path::PathBuf;
 use std::time::Duration;
 use tracing::info;
 use app::{ApplicationAdapter, InMemoryTxPool};
 use app_evm::executor::EvmApplication;
 use app_evm::{WhirlpoolEvmConfig, build_sahara_chain_spec, SAHARA_CHAIN_ID};
-use reth_revm::db::BundleState;
-use state_memory::InMemoryStateDb;
 use whirlpool_node::config;
 use rpc_eth as rpc;
 
@@ -24,87 +23,8 @@ use rpc_eth as rpc;
 const APPLICATION_NAMESPACE: &[u8] = b"whirlpool-dev";
 const MAX_MESSAGE_SIZE: u32 = 1024 * 1024; // 1 MB
 
-#[derive(Clone, Debug)]
-struct TestStateDb(InMemoryStateDb);
-
-impl TestStateDb {
-    fn new() -> Self {
-        Self(InMemoryStateDb::new())
-    }
-}
-
-impl state::StateDb for TestStateDb {
-    fn new() -> Self {
-        Self(InMemoryStateDb::new())
-    }
-
-    fn with_genesis(alloc: std::collections::HashMap<revm::primitives::Address, state::GenesisAccount>) -> Self {
-        Self(InMemoryStateDb::with_genesis(alloc))
-    }
-
-    fn state_root(&self) -> revm::primitives::B256 {
-        self.0.state_root()
-    }
-
-    fn commit(&mut self, bundle: &BundleState) {
-        self.0.commit(bundle);
-    }
-
-    fn get_account(&self, address: revm::primitives::Address) -> Option<revm::state::AccountInfo> {
-        self.0.get_account(address)
-    }
-
-    fn get_code_by_hash(&self, code_hash: revm::primitives::B256) -> revm::state::Bytecode {
-        self.0.get_code_by_hash(code_hash)
-    }
-
-    fn get_storage(&self, address: revm::primitives::Address, index: revm::primitives::U256) -> revm::primitives::U256 {
-        self.0.get_storage(address, index)
-    }
-
-    fn get_block_hash(&self, number: u64) -> revm::primitives::B256 {
-        self.0.get_block_hash(number)
-    }
-
-    fn insert_account(&mut self, address: revm::primitives::Address, info: revm::state::AccountInfo) {
-        self.0.insert_account(address, info);
-    }
-
-    fn insert_block_hash(&mut self, number: u64, hash: revm::primitives::B256) {
-        self.0.insert_block_hash(number, hash);
-    }
-}
-
-
-impl revm::Database for TestStateDb {
-    type Error = state::StateError;
-
-    fn basic(
-        &mut self,
-        address: revm::primitives::Address,
-    ) -> Result<Option<revm::state::AccountInfo>, Self::Error> {
-        self.0.basic(address)
-    }
-
-    fn code_by_hash(
-        &mut self,
-        code_hash: revm::primitives::B256,
-    ) -> Result<revm::state::Bytecode, Self::Error> {
-        self.0.code_by_hash(code_hash)
-    }
-
-    fn storage(
-        &mut self,
-        address: revm::primitives::Address,
-        index: revm::primitives::U256,
-    ) -> Result<revm::primitives::U256, Self::Error> {
-        self.0.storage(address, index)
-    }
-
-    fn block_hash(&mut self, number: u64) -> Result<revm::primitives::B256, Self::Error> {
-        self.0.block_hash(number)
-    }
-}
+/// Default path for the state database.
+const DEFAULT_DB_PATH: &str = "data/state";
 
 fn main() {
     // Initialize tracing
@@ -159,7 +79,12 @@ fn main() {
             validators,
         };
 
-        let state_db = Arc::new(RwLock::new(TestStateDb::new()));
+        // Initialize state database
+        let db_path = PathBuf::from(DEFAULT_DB_PATH);
+        info!(?db_path, "Opening persistent state database");
+        let state_db = Arc::new(RwLock::new(
+            state_reth::open_state_db(&db_path).expect("failed to open state database"),
+        ));
         let chain_spec = Arc::new(build_sahara_chain_spec());
         let evm_config = WhirlpoolEvmConfig::new(chain_spec);
         let tx_pool = Arc::new(InMemoryTxPool::new());

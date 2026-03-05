@@ -36,6 +36,7 @@ Structured reference docs optimized for fast LLM lookup. Each contains type sign
 | [architecture/whirlpool-node.md](architecture/whirlpool-node.md) | Node library exports (config constants) | `whirlpool-node` (lib) |
 | [crates/whirlpool-node.md](crates/whirlpool-node.md) | EVM binary wiring: `EvmApplication` + `InMemoryTxPool` tx source | `whirlpool-node` (bin) |
 | [crates/rpc-eth.md](crates/rpc-eth.md) | Ethereum JSON-RPC server: `eth_*` methods, context, receipt store | `rpc-eth` |
+| [crates/state-reth.md](crates/state-reth.md) | Persistent state implementation: RethStateDb, MDBX, state root | `state-reth` |
 
 ## Guides
 
@@ -80,6 +81,7 @@ Step-by-step instructions for common tasks and workflows.
 | `p2p-commonware` | `crates/p2p-commonware/src/` | `crates/p2p-commonware.md` | — |
 | `state` | `crates/state/src/` | `crates/state.md` | — |
 | `state-memory` | `crates/state-memory/src/` | `crates/state-memory.md` | — |
+| `state-reth` | `crates/state-reth/src/` | `crates/state-reth.md` | — |
 | `app` | `crates/app/src/` | `crates/app.md` | — |
 | `app-evm` | `crates/app-evm/src/` | `crates/app-evm.md` | — |
 | `whirlpool-node` | `crates/whirlpool-node/src/` | `architecture/whirlpool-node.md` (lib) + `crates/whirlpool-node.md` (EVM bin) | `guides/whirlpool-node-components.md` |

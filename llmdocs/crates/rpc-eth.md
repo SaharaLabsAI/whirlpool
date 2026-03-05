@@ -24,8 +24,8 @@ Location: `crates/rpc-eth/`
 ## Supported RPC Methods
 - `eth_chainId`: returns the configured Sahara chain ID.
 - `eth_gasPrice`: returns hardcoded 1 gwei (v1).
-- `eth_getBalance`: returns balance from `StateDb` for "latest" block.
-- `eth_getTransactionCount`: returns nonce from `StateDb` for "latest" block.
+- `eth_getBalance`: returns balance from `StateDb` for "latest" block. Handles `Result` and returns `RpcResult` errors.
+- `eth_getTransactionCount`: returns nonce from `StateDb` for "latest" block. Handles `Result` and returns `RpcResult` errors.
 - `eth_sendRawTransaction`: pushes raw bytes directly into `InMemoryTxPool`.
 - `eth_estimateGas`: returns hardcoded 21,000 gas (v1).
 - `eth_getTransactionReceipt`: retrieves confirmed receipts from `ReceiptStore`.

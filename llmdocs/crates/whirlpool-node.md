@@ -11,7 +11,8 @@ Location: `crates/whirlpool-node/`
 - `app`: application adapter + tx source implementations (`InMemoryTxPool`).
 - `app-evm`: EVM app implementation + `app_evm::traits::StateProvider`.
 - `state`: `StateDb` trait and `StateError` (interface only).
-- `state-memory`: `InMemoryStateDb` implementation for state storage.
+- `state-reth`: `RethStateDb` implementation for persistent state storage.
+- `state-memory`: `InMemoryStateDb` implementation (test code only).
 - `p2p-commonware`: network provider bridge.
 - `rpc-eth`: Ethereum JSON-RPC server (extracted from former `rpc/` module).
 
@@ -19,12 +20,13 @@ Location: `crates/whirlpool-node/`
 - `consensus::traits::ConsensusEngine`
 - `app_evm::traits::StateProvider`
 - `state::traits::StateDb`
+- `state_reth::RethStateDb`
 
 ## main.rs Wiring
 1. Initialize runtime and `FinalizationSink`.
 2. Build Commonware network provider.
-3. Construct `TestStateDb(InMemoryStateDb)` implementing `StateDb`, `StateProvider`, and `revm::Database`.
-4. Build `WhirlpoolEvmConfig` and `EvmApplication`.
+3. Open `RethStateDb` at `DEFAULT_DB_PATH` via `state_reth::open_state_db`.
+4. Build `WhirlpoolEvmConfig` and `EvmApplication<RethStateDb>`.
 5. Provide `InMemoryTxPool` as tx source.
 6. Wrap app with `ApplicationAdapter`, construct `CommonwareEngine`, call `start()`.
 7. Initialize `EthRpcContext` and start JSON-RPC server on `RPC_BIND_ADDR` (via `rpc_eth`).

@@ -12,10 +12,11 @@ State database trait and error types — pure interface crate with no concrete i
 
 ## Trait Boundary
 `StateDb` defines the crate-level database contract:
+- `type Error`: fallible operations associated error type.
 - constructors: `new`, `with_genesis`
-- state transitions: `commit`
-- queries: `state_root`, account/code/storage/block-hash accessors
-- mutation helpers: `insert_account`, `insert_block_hash`
+- state transitions: `commit` (returns `Result`)
+- queries: `state_root`, account/code/storage/block-hash accessors (return `Result`)
+- mutation helpers: `insert_account`, `insert_block_hash` (return `Result`)
 
 ## Canonical Imports
 - `state::traits::StateDb`

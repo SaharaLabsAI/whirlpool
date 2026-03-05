@@ -7,6 +7,7 @@ edition.workspace = true
 app = { path = "../app" }
 state = { path = "../state" }
 state-memory = { path = "../state-memory" }
+state-reth = { path = "../state-reth" }
 consensus = { path = "../consensus" }
 reth-evm = { path = "../../vendor/reth/crates/evm/evm" }
 reth-evm-ethereum = { path = "../../vendor/reth/crates/ethereum/evm" }

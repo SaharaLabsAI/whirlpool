@@ -82,6 +82,7 @@ impl<DB> EvmApplication<DB> {
 impl<DB> Application for EvmApplication<DB>
 where
     DB: StateProvider + Clone + Send + Sync + 'static + revm::Database + std::fmt::Debug,
+    <DB as StateProvider>::Error: Into<EvmAppError>,
 {
     type Block = EvmBlock;
     type Result = ExecutionResult;
@@ -91,7 +92,7 @@ where
         async move {
             let state_root = {
                 let db = self.state_db.read().unwrap();
-                db.state_root()
+                db.state_root().map_err(Into::into).expect("genesis state root should not fail")
             };
 
             EvmBlock {
@@ -182,8 +183,8 @@ where
 
             let state_root = {
                 let mut canonical_db = self.state_db.write().unwrap();
-                canonical_db.commit(&bundle);
-                canonical_db.state_root()
+                canonical_db.commit(&bundle).map_err(Into::into)?;
+                canonical_db.state_root().map_err(Into::into)?
             };
 
             let transactions_root = ordered_trie_root_with_encoder(&executed_raw_txs, |tx, out| {
@@ -289,10 +290,10 @@ where
             let bundle = state.take_bundle();
 
             // 7. Apply bundle to cloned state (NOT canonical)
-            exec_state.commit(&bundle);
+            exec_state.commit(&bundle).map_err(Into::into)?;
 
             // 8. Compute all 4 fields
-            let computed_state_root = exec_state.state_root();
+            let computed_state_root = exec_state.state_root().map_err(Into::into)?;
             
             let computed_tx_root = ordered_trie_root_with_encoder(&block.transactions, |tx, out| {
                 out.put_slice(tx.as_slice());

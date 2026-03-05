@@ -29,9 +29,10 @@ The `whirlpool-node` binary wires `rpc-eth` via `rpc_eth::context::EthRpcContext
 ## Binary: whirlpool-node (EVM)
 
 Location: `crates/whirlpool-node/src/main.rs`
-- Uses `EvmApplication` (from `app-evm`) with `InMemoryTxPool` (from `app`) and `TestStateDb` (local to main.rs)
-- Implements `StateDb` and `revm::Database` traits for `TestStateDb`.
-- Full EVM execution with state root progression
+- Uses `EvmApplication` (from `app-evm`) with `InMemoryTxPool` (from `app`) and `RethStateDb` (persistent).
+- Persistent state: Open or creates MDBX environment at `data/state` (DEFAULT_DB_PATH).
+- Implements `StateDb`, `StateProvider`, and `revm::Database` traits via `RethStateDb`.
+- Full EVM execution with persistent state root progression.
 - Wiring: Starts consensus engine, then initializes and starts the JSON-RPC server.
 - See `crates/whirlpool-node.md` for binary details
 
