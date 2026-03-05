@@ -12,7 +12,6 @@ crates/
 ├── p2p/                  # P2P traits (out of scope)
 ├── p2p-commonware/       # P2P adapter (out of scope)
 ├── whirlpool-node/       # Node binary (deferred to Sub-Intent 3)
-└── whirlpool-node-simple/ # Simple node binary (out of scope)
 ```
 
 ## Crate Dependency Graph (in-scope)

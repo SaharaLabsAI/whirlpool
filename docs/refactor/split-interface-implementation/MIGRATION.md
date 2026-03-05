@@ -2,7 +2,7 @@
 
 ## Key Decisions
 
-- **Grounded**: Migration order follows the established dependency chain: foundation (`consensus`, `p2p`, `state`) -> app abstraction (`app`) -> adapters (`app-evm`, `consensus-simplex`, `p2p-commonware`) -> top-level consumers (`whirlpool-node`, `whirlpool-node-simple`).
+- **Grounded**: Migration order follows the established dependency chain: foundation (`consensus`, `p2p`, `state`) -> app abstraction (`app`) -> adapters (`app-evm`, `consensus-simplex`, `p2p-commonware`) -> top-level consumers (`whirlpool-node`).
 - **Grounded**: Every symbol move is staged with compatibility re-exports before downstream import rewrites.
 - **[PROPOSED]**: Keep final compatibility-export removal as a dedicated final step so all prior steps preserve dual-path compilation.
 - **[PROPOSED]**: Use crate-targeted `cargo check -p <crate>` verification at each step, plus focused consumer checks in cleanup.
@@ -118,11 +118,9 @@
 - **Prerequisite**: Steps 1-7 complete with dual-path compatibility intact.
 - **Changes**:
   - [ ] Update `whirlpool-node` imports to canonical trait paths (`consensus::traits`, `app-evm::traits`, etc.).
-  - [ ] Update `whirlpool-node-simple` imports similarly.
   - [ ] Remove any newly introduced old-path imports in integration points.
 - **Verification**:
   - `cargo check -p whirlpool-node`
-  - `cargo check -p whirlpool-node-simple`
 - **Rollback**:
   - Revert node import edits only; keep upstream compatibility shims in place.
   - Re-run node checks.

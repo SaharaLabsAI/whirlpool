@@ -12,8 +12,7 @@ whirlpool/
 │   ├── p2p/                # P2P trait layer (NetworkProvider, Channel)
 │   ├── p2p-commonware/     # ★ Commonware P2P provider — expose channel pairs
 │   ├── state/              # In-memory state database
-│   ├── whirlpool-node/     # ★ Production binary — pass runtime context
-│   └── whirlpool-node-simple/ # Dev binary (EmptyBlockApp, same stub)
+│   └── whirlpool-node/     # ★ Production binary — pass runtime context
 ├── vendor/
 │   └── commonware/         # Vendored commonware framework
 │       ├── consensus/      #   simplex::Engine, simplex::Config

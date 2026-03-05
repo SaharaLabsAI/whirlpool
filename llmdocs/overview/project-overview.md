@@ -16,7 +16,6 @@ Three layers with explicit interface boundaries:
 
 ## Current Scope
 - EVM path: `whirlpool-node` + `app` + `app-evm` + `state`.
-- Non-EVM path: `whirlpool-node-simple`.
 - Networking path: `p2p` interfaces + `p2p-commonware` implementation.
 
 ## Design Principles

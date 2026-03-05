@@ -2,9 +2,7 @@
 
 ## Overview
 
-The `whirlpool-node` crate library exports shared configuration constants used by both node binaries (`whirlpool-node` EVM and `whirlpool-node-simple` non-EVM).
-
-Previously this crate also exported `EmptyBlock` and `EmptyBlockApp` types — these have been moved to `whirlpool-node-simple` as local modules.
+The `whirlpool-node` crate library exports shared configuration constants used by the EVM node binary.
 
 ## Library Exports
 
@@ -18,7 +16,7 @@ Previously this crate also exported `EmptyBlock` and `EmptyBlockApp` types — t
 
 ## Dependency Graph
 
-- **whirlpool-node** (lib) → used by `whirlpool-node` (bin) and `whirlpool-node-simple` (bin) for config constants
+- **whirlpool-node** (lib) → used by `whirlpool-node` (bin) for config constants
 
 ## Binary: whirlpool-node (EVM)
 
@@ -26,13 +24,6 @@ Location: `crates/whirlpool-node/src/main.rs`
 - Uses `EvmApplication` (from `app-evm`) with `InMemoryTxPool` (from `app`) and `TestStateDb` (local to main.rs)
 - Full EVM execution with state root progression
 - See `crates/whirlpool-node.md` for binary details
-
-## Binary: whirlpool-node-simple (Non-EVM)
-
-Location: `crates/whirlpool-node-simple/src/main.rs`
-- Uses local `EmptyBlockApp` and `EmptyBlock` types (defined in `whirlpool-node-simple/src/app.rs` and `block.rs`)
-- Pure consensus without execution layer
-- See `crates/whirlpool-node-simple.md` for binary details
 
 ## Test Statistics
 
@@ -42,4 +33,4 @@ Location: `crates/whirlpool-node-simple/src/main.rs`
 | main.rs (bin) | 0 |
 | **Total (lib)** | **0** |
 
-Note: EmptyBlock/EmptyBlockApp tests (18 total) now live in `whirlpool-node-simple`. Integration tests for consensus wiring with EmptyBlockApp have been removed from this crate.
+

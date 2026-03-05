@@ -22,7 +22,6 @@
 | TB-008 | simplex_commonware_block_bound_compile | `crates/consensus-simplex/src/{adapter.rs,engine.rs,tests.rs}` | `CommonwareBlock` moves from `types.rs` to `traits.rs`; generic bounds may mismatch | Move trait + blanket impl together; update imports in adapter/engine/tests to canonical path | Step 6 |
 | TB-009 | p2p_commonware_transport_type_alignment | `crates/p2p-commonware/src/{provider.rs,tests.rs}` | New `CommonwareTransport` contract can diverge from existing sender/receiver wiring | Add trait impls on existing transport/provider types; verify send/recv parity tests | Step 7 |
 | TB-010 | node_canonical_imports_compile | `crates/whirlpool-node/**` | Node still importing legacy paths after upstream trait moves | Update to canonical imports (`consensus::traits`, `app-evm::traits`, etc.) | Step 8 |
-| TB-011 | node_simple_canonical_imports_compile | `crates/whirlpool-node-simple/**` | Same as above for simple node | Update to canonical imports; remove newly introduced legacy paths | Step 8 |
 | TB-012 | legacy_path_usage_after_cleanup | workspace doctests/integration compile surfaces | Step 9 removes compatibility exports; any stale import fails | Final sweep for legacy paths; update doctests/examples and test imports | Step 9 |
 
 ## New Tests
@@ -51,7 +50,7 @@
 | Step 5: App-EVM StateProvider Relocation | Trait relocation parity (`StateProvider` signatures/associated types unchanged); EVM propose/verify flow unchanged | `app-evm`, `whirlpool-node` |
 | Step 6: Consensus-Simplex CommonwareBlock Relocation | Adapter trait-bound integrity and blanket-impl parity across new trait module | `consensus-simplex` |
 | Step 7: P2P-Commonware Transport Interface Introduction | New `CommonwareTransport` contract parity with existing send/recv/channel behavior | `p2p-commonware`, `consensus-simplex` |
-| Step 8: Consumer Import Migration | Canonical import adoption in node consumers; no regressions from shimmed paths | `whirlpool-node`, `whirlpool-node-simple` |
+| Step 8: Consumer Import Migration | Canonical import adoption in node consumers; no regressions from shimmed paths | `whirlpool-node` |
 | Step 9: Compatibility Export Cleanup | Post-cleanup canonical-only contract; no legacy-path references remain in tests/docs/examples | workspace-wide |
 
 ## Per-Crate Test Changes Aligned to Migration
@@ -66,7 +65,6 @@
 | `consensus-simplex` | Step 6 | Update adapter/engine tests to canonical `traits::CommonwareBlock`; keep temporary compatibility-path compile checks |
 | `p2p-commonware` | Step 7 | Add transport contract tests validating sender/receiver/provider behavior equivalence under `CommonwareTransport` |
 | `whirlpool-node` | Step 8 | Add compile-use checks for canonical imports; remove any newly introduced legacy imports |
-| `whirlpool-node-simple` | Step 8 | Mirror node canonical import checks and compile gates |
 | workspace-wide | Step 9 | Add post-cleanup gate to fail on legacy trait-path usage in tests/examples/doctests |
 
 ## Verification Sequence
@@ -80,7 +78,7 @@
 5. Step 5: `cargo check -p app-evm && cargo check -p whirlpool-node && cargo test -p app-evm`
 6. Step 6: `cargo check -p consensus-simplex && cargo test -p consensus-simplex --lib`
 7. Step 7: `cargo check -p p2p-commonware && cargo check -p consensus-simplex && cargo test -p p2p-commonware`
-8. Step 8: `cargo check -p whirlpool-node && cargo check -p whirlpool-node-simple && cargo test -p whirlpool-node -p whirlpool-node-simple`
+8. Step 8: `cargo check -p whirlpool-node && cargo test -p whirlpool-node`
 9. Step 9: `cargo check --workspace && cargo test --workspace`
 
 ### Stability fallback

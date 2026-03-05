@@ -35,7 +35,6 @@ Structured reference docs optimized for fast LLM lookup. Each contains type sign
 | [architecture/simplex-adapter.md](architecture/simplex-adapter.md) | Adapter bridge: CommonwareBlock, AppAdapter, CommonwareEngine, CommonwareConfig, Mailbox, FinalizationSink | `consensus-simplex` |
 | [architecture/whirlpool-node.md](architecture/whirlpool-node.md) | Node library exports (config constants) used by EVM and non-EVM binaries | `whirlpool-node` (lib) |
 | [crates/whirlpool-node.md](crates/whirlpool-node.md) | EVM binary wiring: `EvmApplication` + `InMemoryTxPool` tx source + Commonware engine startup | `whirlpool-node` (bin) |
-| [crates/whirlpool-node-simple.md](crates/whirlpool-node-simple.md) | Non-EVM consensus binary using `EmptyBlockApp` | `whirlpool-node-simple` |
 
 ## Guides
 
@@ -82,4 +81,3 @@ Step-by-step instructions for common tasks and workflows.
 | `app` | `crates/app/src/` | `crates/app.md` | — |
 | `app-evm` | `crates/app-evm/src/` | `crates/app-evm.md` | — |
 | `whirlpool-node` | `crates/whirlpool-node/src/` | `architecture/whirlpool-node.md` (lib) + `crates/whirlpool-node.md` (EVM bin) | `guides/whirlpool-node-components.md` |
-| `whirlpool-node-simple` | `crates/whirlpool-node-simple/src/` | `crates/whirlpool-node-simple.md` | — |

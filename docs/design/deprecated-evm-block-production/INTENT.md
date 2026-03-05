@@ -31,7 +31,6 @@ To produce meaningful EVM blocks, we need:
 | `consensus` | Stable trait layer — no changes expected |
 | `consensus-simplex` | Consensus engine — no changes expected |
 | `p2p` / `p2p-commonware` | Network transport — no changes expected |
-| `whirlpool-node-simple` | Reference binary using EmptyBlockApp — not affected |
 
 ## Success criteria
 

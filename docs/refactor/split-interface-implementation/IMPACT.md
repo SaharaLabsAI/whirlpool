@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | In-scope crates | 7 | `app`, `consensus`, `p2p`, `state`, `consensus-simplex`, `p2p-commonware`, `app-evm` |
 | In-scope symbols | 16 | 12 existing symbols adjusted/moved, 2 new traits introduced, 2 retained as interface-only cleanups |
-| Structural dependents | 2 | `whirlpool-node`, `whirlpool-node-simple` consume adapter surfaces indirectly |
+| Structural dependents | 1 | `whirlpool-node` consumes adapter surfaces indirectly |
 | Highest-risk seams | 3 | `consensus-simplex` generic bounds, `app-evm` executor/database boundary, `p2p-commonware` provider multiplexing |
 | Expected breakage type | Compile-time | Import path churn, trait location changes, temporary re-export mismatches |
 | Runtime semantic change target | None | Refactor is structural only; behavior should remain unchanged |
