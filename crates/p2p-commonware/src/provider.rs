@@ -1,19 +1,21 @@
 //! CommonwareNetworkProvider implementation using discovery::Network.
 
+use commonware_cryptography::{PublicKey, Signer};
+use commonware_p2p::authenticated::discovery::{
+    self, Bootstrapper, Oracle, Receiver as DiscoveryReceiver, Sender as DiscoverySender,
+};
+use commonware_runtime::{Clock, Metrics, Network, Quota, Resolver, Spawner};
+use rand_core::CryptoRngCore;
 use std::collections::{BTreeSet, HashMap};
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::num::NonZeroU32;
-use commonware_cryptography::{PublicKey, Signer};
-use commonware_p2p::authenticated::discovery::{self, Bootstrapper, Oracle, Sender as DiscoverySender, Receiver as DiscoveryReceiver};
-use commonware_runtime::{Clock, Metrics, Resolver, Spawner, Quota, Network};
-use rand_core::CryptoRngCore;
 
 use crate::{
-    traits::CommonwareTransport,
-    CommonwareReceiver, CommonwareSender, CommonwarePeerId, MultiplexReceiver, MultiplexSender,
+    traits::CommonwareTransport, CommonwarePeerId, CommonwareReceiver, CommonwareSender,
+    MultiplexReceiver, MultiplexSender,
 };
 use p2p::{Channel, NetworkProvider, P2pError};
 
@@ -37,10 +39,18 @@ impl<PK> OracleHandle<PK>
 where
     PK: PublicKey + Clone + Hash + Eq + Debug + Send + Sync + 'static,
 {
-    pub async fn update_validators(&mut self, epoch: u64, validators: impl IntoIterator<Item = PK>) {
+    pub async fn update_validators(
+        &mut self,
+        epoch: u64,
+        validators: impl IntoIterator<Item = PK>,
+    ) {
         use commonware_p2p::Manager;
 
-        let deduped = validators.into_iter().collect::<BTreeSet<_>>().into_iter().collect();
+        let deduped = validators
+            .into_iter()
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
         let peers = <<Oracle<PK> as Manager>::Peers as TryFrom<Vec<PK>>>::try_from(deduped)
             .expect("deduplicated validators must form a valid peer set");
         self.0.update(epoch, peers).await;
@@ -62,7 +72,6 @@ where
     channel_config: ChannelConfig,
     _phantom: PhantomData<E>,
 }
-
 
 /// Impl block for the default case where E = ()
 impl<C: Signer> CommonwareNetworkProviderBuilder<C, ()>
@@ -88,7 +97,6 @@ impl<C: Signer, E> CommonwareNetworkProviderBuilder<C, E>
 where
     C::PublicKey: Clone + Hash + Eq + Debug + Send + Sync + 'static,
 {
-
     pub fn is_some(&self) -> bool {
         true
     }
@@ -123,7 +131,13 @@ where
         self
     }
 
-    pub fn build<Ctx>(self, context: Ctx) -> (CommonwareNetworkProvider<Ctx, C>, OracleHandle<C::PublicKey>)
+    pub fn build<Ctx>(
+        self,
+        context: Ctx,
+    ) -> (
+        CommonwareNetworkProvider<Ctx, C>,
+        OracleHandle<C::PublicKey>,
+    )
     where
         Ctx: Spawner + Clock + CryptoRngCore + Network + Resolver + Metrics + Send + 'static,
     {
@@ -165,7 +179,7 @@ pub struct PerChannelNetwork<S, R> {
 }
 
 /// Network provider that uses commonware's discovery::Network.
-/// 
+///
 /// Registers 3 channels (VOTE, CERTIFICATE, RESOLVER) and multiplexes them
 /// through a single NetworkSender/NetworkReceiver interface.
 pub struct CommonwareNetworkProvider<E, C>
@@ -185,10 +199,7 @@ where
     C::PublicKey: Clone + std::hash::Hash + Eq + std::fmt::Debug + Send + Sync + 'static,
 {
     /// Create a new provider from a discovery network and oracle.
-    pub fn new(
-        network: discovery::Network<E, C>,
-        oracle: Oracle<C::PublicKey>,
-    ) -> Self {
+    pub fn new(network: discovery::Network<E, C>, oracle: Oracle<C::PublicKey>) -> Self {
         Self {
             network,
             oracle,
@@ -212,19 +223,21 @@ where
     /// Start the network and return dedicated channel pairs.
     pub fn start_per_channel(
         mut self,
-    ) -> Result<PerChannelNetwork<DiscoverySender<C::PublicKey, E>, DiscoveryReceiver<C::PublicKey>>, P2pError> {
+    ) -> Result<
+        PerChannelNetwork<DiscoverySender<C::PublicKey, E>, DiscoveryReceiver<C::PublicKey>>,
+        P2pError,
+    > {
         let backlog = self.channel_config.backlog;
         let quota = Quota::per_second(NonZeroU32::new(10000).unwrap());
 
-        let (vote_sender, vote_receiver) = self
-            .network
-            .register(Channel::VOTE.0, quota.clone(), backlog);
-        let (cert_sender, cert_receiver) = self
-            .network
-            .register(Channel::CERTIFICATE.0, quota.clone(), backlog);
-        let (resolver_sender, resolver_receiver) = self
-            .network
-            .register(Channel::RESOLVER.0, quota, backlog);
+        let (vote_sender, vote_receiver) =
+            self.network
+                .register(Channel::VOTE.0, quota.clone(), backlog);
+        let (cert_sender, cert_receiver) =
+            self.network
+                .register(Channel::CERTIFICATE.0, quota.clone(), backlog);
+        let (resolver_sender, resolver_receiver) =
+            self.network.register(Channel::RESOLVER.0, quota, backlog);
 
         let network_handle = self.network.start();
 
@@ -281,25 +294,19 @@ where
         let quota = Quota::per_second(NonZeroU32::new(10000).unwrap());
 
         // Register VOTE channel (0)
-        let (vote_sender, vote_receiver) = self.network.register(
-            Channel::VOTE.0,
-            quota.clone(),
-            backlog,
-        );
+        let (vote_sender, vote_receiver) =
+            self.network
+                .register(Channel::VOTE.0, quota.clone(), backlog);
 
         // Register CERTIFICATE channel (1)
-        let (cert_sender, cert_receiver) = self.network.register(
-            Channel::CERTIFICATE.0,
-            quota.clone(),
-            backlog,
-        );
+        let (cert_sender, cert_receiver) =
+            self.network
+                .register(Channel::CERTIFICATE.0, quota.clone(), backlog);
 
         // Register RESOLVER channel (2)
-        let (res_sender, res_receiver) = self.network.register(
-            Channel::RESOLVER.0,
-            quota.clone(),
-            backlog,
-        );
+        let (res_sender, res_receiver) =
+            self.network
+                .register(Channel::RESOLVER.0, quota.clone(), backlog);
 
         // Start the network (returns handle that keeps network alive)
         let handle = self.network.start();
@@ -344,25 +351,25 @@ mod tests {
             let pk_0 = signer_0.public_key();
             let pk_1 = signer_1.public_key();
 
-            let addr_0 = "127.0.0.1:30001".parse::<SocketAddr>().expect("valid socket");
-            let addr_1 = "127.0.0.1:30002".parse::<SocketAddr>().expect("valid socket");
+            let addr_0 = "127.0.0.1:30001"
+                .parse::<SocketAddr>()
+                .expect("valid socket");
+            let addr_1 = "127.0.0.1:30002"
+                .parse::<SocketAddr>()
+                .expect("valid socket");
 
-            let (provider_0, mut oracle_0) = CommonwareNetworkProviderBuilder::new(
-                signer_0,
-                b"per-channel-test",
-            )
-            .listen_addr(addr_0)
-            .dialable_addr(addr_0)
-            .build(context.with_label("peer_0_network"));
+            let (provider_0, mut oracle_0) =
+                CommonwareNetworkProviderBuilder::new(signer_0, b"per-channel-test")
+                    .listen_addr(addr_0)
+                    .dialable_addr(addr_0)
+                    .build(context.with_label("peer_0_network"));
 
-            let (provider_1, mut oracle_1) = CommonwareNetworkProviderBuilder::new(
-                signer_1,
-                b"per-channel-test",
-            )
-            .listen_addr(addr_1)
-            .dialable_addr(addr_1)
-            .bootstrappers(vec![(pk_0.clone(), addr_0.into())])
-            .build(context.with_label("peer_1_network"));
+            let (provider_1, mut oracle_1) =
+                CommonwareNetworkProviderBuilder::new(signer_1, b"per-channel-test")
+                    .listen_addr(addr_1)
+                    .dialable_addr(addr_1)
+                    .bootstrappers(vec![(pk_0.clone(), addr_0.into())])
+                    .build(context.with_label("peer_1_network"));
 
             oracle_0
                 .update_validators(0, vec![pk_0.clone(), pk_1.clone()])
@@ -385,25 +392,25 @@ mod tests {
             let pk_0 = signer_0.public_key();
             let pk_1 = signer_1.public_key();
 
-            let addr_0 = "127.0.0.1:30011".parse::<SocketAddr>().expect("valid socket");
-            let addr_1 = "127.0.0.1:30012".parse::<SocketAddr>().expect("valid socket");
+            let addr_0 = "127.0.0.1:30011"
+                .parse::<SocketAddr>()
+                .expect("valid socket");
+            let addr_1 = "127.0.0.1:30012"
+                .parse::<SocketAddr>()
+                .expect("valid socket");
 
-            let (provider_0, mut oracle_0) = CommonwareNetworkProviderBuilder::new(
-                signer_0,
-                b"per-channel-io-test",
-            )
-            .listen_addr(addr_0)
-            .dialable_addr(addr_0)
-            .build(context.with_label("peer_0_network"));
+            let (provider_0, mut oracle_0) =
+                CommonwareNetworkProviderBuilder::new(signer_0, b"per-channel-io-test")
+                    .listen_addr(addr_0)
+                    .dialable_addr(addr_0)
+                    .build(context.with_label("peer_0_network"));
 
-            let (provider_1, mut oracle_1) = CommonwareNetworkProviderBuilder::new(
-                signer_1,
-                b"per-channel-io-test",
-            )
-            .listen_addr(addr_1)
-            .dialable_addr(addr_1)
-            .bootstrappers(vec![(pk_0.clone(), addr_0.into())])
-            .build(context.with_label("peer_1_network"));
+            let (provider_1, mut oracle_1) =
+                CommonwareNetworkProviderBuilder::new(signer_1, b"per-channel-io-test")
+                    .listen_addr(addr_1)
+                    .dialable_addr(addr_1)
+                    .bootstrappers(vec![(pk_0.clone(), addr_0.into())])
+                    .build(context.with_label("peer_1_network"));
 
             oracle_0
                 .update_validators(0, vec![pk_0.clone(), pk_1.clone()])

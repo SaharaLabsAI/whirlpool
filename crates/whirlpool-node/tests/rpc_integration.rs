@@ -41,8 +41,7 @@ async fn start_test_rpc() -> (
 #[tokio::test]
 async fn test_eth_chain_id() {
     let (url, _handle, _state, _pool) = start_test_rpc().await;
-    let provider = ProviderBuilder::new()
-        .connect_http(url.parse().unwrap());
+    let provider = ProviderBuilder::new().connect_http(url.parse().unwrap());
     let chain_id = provider.get_chain_id().await.unwrap();
     assert_eq!(chain_id, 313_371);
 }
@@ -50,8 +49,7 @@ async fn test_eth_chain_id() {
 #[tokio::test]
 async fn test_eth_gas_price() {
     let (url, _handle, _state, _pool) = start_test_rpc().await;
-    let provider = ProviderBuilder::new()
-        .connect_http(url.parse().unwrap());
+    let provider = ProviderBuilder::new().connect_http(url.parse().unwrap());
     let gas_price = provider.get_gas_price().await.unwrap();
     assert_eq!(gas_price, 1_000_000_000); // 1 gwei
 }
@@ -59,8 +57,7 @@ async fn test_eth_gas_price() {
 #[tokio::test]
 async fn test_eth_get_balance_zero_for_unknown() {
     let (url, _handle, _state, _pool) = start_test_rpc().await;
-    let provider = ProviderBuilder::new()
-        .connect_http(url.parse().unwrap());
+    let provider = ProviderBuilder::new().connect_http(url.parse().unwrap());
     let balance = provider.get_balance(Address::ZERO).await.unwrap();
     assert_eq!(balance, U256::ZERO);
 }
@@ -84,8 +81,7 @@ async fn test_eth_get_balance_with_funded_account() {
         );
     }
 
-    let provider = ProviderBuilder::new()
-        .connect_http(url.parse().unwrap());
+    let provider = ProviderBuilder::new().connect_http(url.parse().unwrap());
     let balance = provider.get_balance(addr).await.unwrap();
     assert_eq!(balance, U256::from(5_000_000_000_000_000_000u128));
 }
@@ -109,8 +105,7 @@ async fn test_eth_get_transaction_count() {
         );
     }
 
-    let provider = ProviderBuilder::new()
-        .connect_http(url.parse().unwrap());
+    let provider = ProviderBuilder::new().connect_http(url.parse().unwrap());
     let nonce = provider.get_transaction_count(addr).await.unwrap();
     assert_eq!(nonce, 7);
 }
@@ -118,8 +113,7 @@ async fn test_eth_get_transaction_count() {
 #[tokio::test]
 async fn test_eth_estimate_gas() {
     let (url, _handle, _state, _pool) = start_test_rpc().await;
-    let provider = ProviderBuilder::new()
-        .connect_http(url.parse().unwrap());
+    let provider = ProviderBuilder::new().connect_http(url.parse().unwrap());
 
     use alloy_rpc_types::TransactionRequest;
     let tx = TransactionRequest::default()
@@ -133,8 +127,7 @@ async fn test_eth_estimate_gas() {
 #[tokio::test]
 async fn test_eth_get_transaction_receipt_not_found() {
     let (url, _handle, _state, _pool) = start_test_rpc().await;
-    let provider = ProviderBuilder::new()
-        .connect_http(url.parse().unwrap());
+    let provider = ProviderBuilder::new().connect_http(url.parse().unwrap());
 
     let receipt = provider
         .get_transaction_receipt(alloy_primitives::B256::ZERO)
@@ -194,8 +187,7 @@ async fn test_eth_send_raw_transaction_transfer() {
     let expected_hash = alloy_primitives::keccak256(&encoded);
 
     // Send via RPC.
-    let provider = ProviderBuilder::new()
-        .connect_http(url.parse().unwrap());
+    let provider = ProviderBuilder::new().connect_http(url.parse().unwrap());
     let tx_hash = provider.send_raw_transaction(&encoded).await.unwrap();
     assert_eq!(*tx_hash.tx_hash(), expected_hash);
 

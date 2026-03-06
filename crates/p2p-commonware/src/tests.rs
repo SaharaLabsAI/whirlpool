@@ -2,7 +2,10 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::{CommonwarePeerId, map_send_error, MultiplexSender, CommonwareNetworkProviderBuilder, OracleHandle};
+    use crate::{
+        map_send_error, CommonwareNetworkProviderBuilder, CommonwarePeerId, MultiplexSender,
+        OracleHandle,
+    };
 
     use commonware_cryptography::ed25519;
     use commonware_cryptography::Signer;
@@ -56,8 +59,8 @@ mod tests {
 
     #[test]
     fn test_commonware_peer_id_hash() {
-        use std::hash::{Hash, Hasher};
         use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
 
         let pk1 = create_test_pubkey(42);
         let pk2 = create_test_pubkey(42); // Same seed
@@ -77,8 +80,8 @@ mod tests {
 
     #[test]
     fn test_commonware_peer_id_hash_different_keys() {
-        use std::hash::{Hash, Hasher};
         use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
 
         let pk1 = create_test_pubkey(42);
         let pk2 = create_test_pubkey(43);
@@ -176,7 +179,7 @@ mod tests {
     #[tokio::test]
     async fn test_multiplex_sender_routes_vote_channel() {
         use std::collections::HashMap;
-        
+
         // Test that MultiplexSender can be instantiated and cloned
         let multiplex: MultiplexSender<String> = MultiplexSender::new(HashMap::new());
         let _ = multiplex.clone();
@@ -185,7 +188,7 @@ mod tests {
     #[tokio::test]
     async fn test_multiplex_sender_routes_certificate_channel() {
         use std::collections::HashMap;
-        
+
         let multiplex: MultiplexSender<String> = MultiplexSender::new(HashMap::new());
         let _ = multiplex.clone();
     }
@@ -193,7 +196,7 @@ mod tests {
     #[tokio::test]
     async fn test_multiplex_sender_routes_resolver_channel() {
         use std::collections::HashMap;
-        
+
         let multiplex: MultiplexSender<String> = MultiplexSender::new(HashMap::new());
         let _ = multiplex.clone();
     }
@@ -201,7 +204,7 @@ mod tests {
     #[tokio::test]
     async fn test_multiplex_sender_invalid_channel() {
         use std::collections::HashMap;
-        
+
         let multiplex: MultiplexSender<String> = MultiplexSender::new(HashMap::new());
         let _ = multiplex.clone();
     }
@@ -242,9 +245,7 @@ mod tests {
         type Error = std::io::Error;
         type PublicKey = ed25519::PublicKey;
 
-        async fn recv(
-            &mut self,
-        ) -> Result<(Self::PublicKey, bytes::Bytes), Self::Error> {
+        async fn recv(&mut self) -> Result<(Self::PublicKey, bytes::Bytes), Self::Error> {
             self.rx.recv().await.ok_or_else(|| {
                 std::io::Error::new(std::io::ErrorKind::BrokenPipe, "channel closed")
             })
@@ -308,18 +309,9 @@ mod tests {
         }
 
         assert_eq!(received.len(), 3);
-        assert_eq!(
-            received[&Channel(0)],
-            bytes::Bytes::from_static(b"vote")
-        );
-        assert_eq!(
-            received[&Channel(1)],
-            bytes::Bytes::from_static(b"cert")
-        );
-        assert_eq!(
-            received[&Channel(2)],
-            bytes::Bytes::from_static(b"resolve")
-        );
+        assert_eq!(received[&Channel(0)], bytes::Bytes::from_static(b"vote"));
+        assert_eq!(received[&Channel(1)], bytes::Bytes::from_static(b"cert"));
+        assert_eq!(received[&Channel(2)], bytes::Bytes::from_static(b"resolve"));
     }
 
     #[tokio::test]
@@ -346,7 +338,8 @@ mod tests {
     async fn test_builder_new() {
         let pk = create_test_pubkey(1);
         let signer = ed25519::PrivateKey::from_seed(1);
-        let builder: CommonwareNetworkProviderBuilder<ed25519::PrivateKey, ()> = CommonwareNetworkProviderBuilder::new(signer, b"test");
+        let builder: CommonwareNetworkProviderBuilder<ed25519::PrivateKey, ()> =
+            CommonwareNetworkProviderBuilder::new(signer, b"test");
         assert!(builder.is_some());
     }
 
@@ -355,9 +348,10 @@ mod tests {
         let pk = create_test_pubkey(2);
         let signer = ed25519::PrivateKey::from_seed(2);
         let addr: std::net::SocketAddr = "127.0.0.1:0".parse().unwrap();
-        let builder: CommonwareNetworkProviderBuilder<ed25519::PrivateKey, ()> = CommonwareNetworkProviderBuilder::new(signer, b"test")
-            .listen_addr(addr)
-            .dialable_addr(addr);
+        let builder: CommonwareNetworkProviderBuilder<ed25519::PrivateKey, ()> =
+            CommonwareNetworkProviderBuilder::new(signer, b"test")
+                .listen_addr(addr)
+                .dialable_addr(addr);
         assert!(builder.is_some());
     }
 
@@ -366,8 +360,8 @@ mod tests {
         let pk = create_test_pubkey(3);
         let signer = ed25519::PrivateKey::from_seed(3);
         let addr: std::net::SocketAddr = "127.0.0.1:0".parse().unwrap();
-        let builder: CommonwareNetworkProviderBuilder<ed25519::PrivateKey, ()> = CommonwareNetworkProviderBuilder::new(signer, b"test")
-            .listen_addr(addr);
+        let builder: CommonwareNetworkProviderBuilder<ed25519::PrivateKey, ()> =
+            CommonwareNetworkProviderBuilder::new(signer, b"test").listen_addr(addr);
         // Will fail to compile - context type not available
         // let (provider, handle) = builder.build(context);
     }
@@ -383,7 +377,8 @@ mod tests {
     #[tokio::test]
     async fn test_empty_validators() {
         let signer = ed25519::PrivateKey::from_seed(5);
-        let builder: CommonwareNetworkProviderBuilder<ed25519::PrivateKey, ()> = CommonwareNetworkProviderBuilder::new(signer, b"test");
+        let builder: CommonwareNetworkProviderBuilder<ed25519::PrivateKey, ()> =
+            CommonwareNetworkProviderBuilder::new(signer, b"test");
         // Builder should accept initial_validators call
         // let builder = builder.initial_validators(0, vec![]);
     }
@@ -392,7 +387,8 @@ mod tests {
     async fn test_validator_set_with_self() {
         let pk = create_test_pubkey(6);
         let signer = ed25519::PrivateKey::from_seed(6);
-        let builder: CommonwareNetworkProviderBuilder<ed25519::PrivateKey, ()> = CommonwareNetworkProviderBuilder::new(signer, b"test");
+        let builder: CommonwareNetworkProviderBuilder<ed25519::PrivateKey, ()> =
+            CommonwareNetworkProviderBuilder::new(signer, b"test");
         // Builder should accept initial_validators with self in set
         // let builder = builder.initial_validators(0, vec![pk.clone()]);
     }
@@ -402,9 +398,10 @@ mod tests {
         let pk = create_test_pubkey(7);
         let signer = ed25519::PrivateKey::from_seed(7);
         let addr: std::net::SocketAddr = "127.0.0.1:0".parse().unwrap();
-        let builder: CommonwareNetworkProviderBuilder<ed25519::PrivateKey, ()> = CommonwareNetworkProviderBuilder::new(signer, b"test")
-            .listen_addr(addr)
-            .dialable_addr(addr);
+        let builder: CommonwareNetworkProviderBuilder<ed25519::PrivateKey, ()> =
+            CommonwareNetworkProviderBuilder::new(signer, b"test")
+                .listen_addr(addr)
+                .dialable_addr(addr);
         // Builder should support bootstrapper configuration
         // let builder = builder.bootstrappers(vec![]);
     }
@@ -413,8 +410,8 @@ mod tests {
     async fn test_builder_with_config() {
         let pk = create_test_pubkey(8);
         let signer = ed25519::PrivateKey::from_seed(8);
-        let builder: CommonwareNetworkProviderBuilder<ed25519::PrivateKey, ()> = CommonwareNetworkProviderBuilder::new(signer, b"test")
-            .max_message_size(1024);
+        let builder: CommonwareNetworkProviderBuilder<ed25519::PrivateKey, ()> =
+            CommonwareNetworkProviderBuilder::new(signer, b"test").max_message_size(1024);
         // Builder should accept max_message_size configuration
         assert!(builder.is_some());
     }

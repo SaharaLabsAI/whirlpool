@@ -19,11 +19,7 @@ pub struct EthRpcContext<S: StateDb> {
 }
 
 impl<S: StateDb> EthRpcContext<S> {
-    pub fn new(
-        tx_pool: Arc<InMemoryTxPool>,
-        state_db: Arc<RwLock<S>>,
-        chain_id: u64,
-    ) -> Self {
+    pub fn new(tx_pool: Arc<InMemoryTxPool>, state_db: Arc<RwLock<S>>, chain_id: u64) -> Self {
         Self {
             tx_pool,
             state_db,

@@ -1,6 +1,6 @@
 use crate::block::Block;
-use crate::error::ConsensusError;
 use crate::engine::ConsensusEngine;
+use crate::error::ConsensusError;
 use crate::event::{ConsensusEvent, EventSink};
 use crate::mock::MockBlock;
 use crate::mock::MockEngine;
@@ -100,10 +100,7 @@ async fn mock_engine_shutdown() {
 
     // Should have finalized some blocks (possibly all if fast enough, possibly fewer)
     let collected = events.lock().unwrap();
-    assert!(
-        collected.len() <= 100,
-        "should not exceed total blocks"
-    );
+    assert!(collected.len() <= 100, "should not exceed total blocks");
 }
 
 #[tokio::test]

@@ -133,7 +133,10 @@ impl StateDb for InMemoryStateDb {
     }
 
     fn get_account(&self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
-        Ok(self.accounts.get(&address).map(|account| account.info.clone()))
+        Ok(self
+            .accounts
+            .get(&address)
+            .map(|account| account.info.clone()))
     }
 
     fn get_code_by_hash(&self, code_hash: B256) -> Result<Bytecode, Self::Error> {
@@ -141,18 +144,29 @@ impl StateDb for InMemoryStateDb {
     }
 
     fn get_storage(&self, address: Address, index: U256) -> Result<U256, Self::Error> {
-        Ok(self.accounts
+        Ok(self
+            .accounts
             .get(&address)
             .and_then(|account| account.storage.get(&index).copied())
             .unwrap_or(U256::ZERO))
     }
 
     fn get_block_hash(&self, number: u64) -> Result<B256, Self::Error> {
-        Ok(self.block_hashes.get(&number).copied().unwrap_or(B256::ZERO))
+        Ok(self
+            .block_hashes
+            .get(&number)
+            .copied()
+            .unwrap_or(B256::ZERO))
     }
 
     fn insert_account(&mut self, address: Address, info: AccountInfo) -> Result<(), Self::Error> {
-        self.accounts.insert(address, DbAccount { info, storage: HashMap::new() });
+        self.accounts.insert(
+            address,
+            DbAccount {
+                info,
+                storage: HashMap::new(),
+            },
+        );
         Ok(())
     }
 
@@ -208,15 +222,14 @@ impl DatabaseRef for InMemoryStateDb {
     type Error = StateError;
 
     fn basic_ref(&self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
-        Ok(self.accounts.get(&address).map(|account| account.info.clone()))
+        Ok(self
+            .accounts
+            .get(&address)
+            .map(|account| account.info.clone()))
     }
 
     fn code_by_hash_ref(&self, code_hash: B256) -> Result<Bytecode, Self::Error> {
-        Ok(self
-            .bytecodes
-            .get(&code_hash)
-            .cloned()
-            .unwrap_or_default())
+        Ok(self.bytecodes.get(&code_hash).cloned().unwrap_or_default())
     }
 
     fn storage_ref(&self, address: Address, index: U256) -> Result<U256, Self::Error> {
@@ -228,7 +241,11 @@ impl DatabaseRef for InMemoryStateDb {
     }
 
     fn block_hash_ref(&self, number: u64) -> Result<B256, Self::Error> {
-        Ok(self.block_hashes.get(&number).copied().unwrap_or(B256::ZERO))
+        Ok(self
+            .block_hashes
+            .get(&number)
+            .copied()
+            .unwrap_or(B256::ZERO))
     }
 }
 
@@ -291,7 +308,10 @@ mod tests {
     ) -> BundleState {
         let mut storage_map: RevmHashMap<U256, StorageSlot> = RevmHashMap::default();
         for (key, original_value, present_value) in storage {
-            storage_map.insert(*key, StorageSlot::new_changed(*original_value, *present_value));
+            storage_map.insert(
+                *key,
+                StorageSlot::new_changed(*original_value, *present_value),
+            );
         }
 
         let mut bundle = BundleState::default();
@@ -328,7 +348,10 @@ mod tests {
     #[test]
     fn test_storage_zero() {
         let db = InMemoryStateDb::new();
-        assert_eq!(db.storage_ref(address(3), U256::from(7)).unwrap(), U256::ZERO);
+        assert_eq!(
+            db.storage_ref(address(3), U256::from(7)).unwrap(),
+            U256::ZERO
+        );
     }
 
     #[test]
@@ -373,7 +396,13 @@ mod tests {
         let addr = address(10);
         let info = account_info(1_000, 0, KECCAK_EMPTY);
 
-        let bundle = bundle_with_account(addr, None, Some(info.clone()), AccountStatus::InMemoryChange, &[]);
+        let bundle = bundle_with_account(
+            addr,
+            None,
+            Some(info.clone()),
+            AccountStatus::InMemoryChange,
+            &[],
+        );
         db.commit(&bundle);
 
         let stored = db.basic_ref(addr).unwrap().unwrap();
@@ -575,8 +604,14 @@ mod tests {
         );
         clone.commit(&bundle);
 
-        assert_eq!(db.basic_ref(addr).unwrap().unwrap().balance, U256::from(100));
-        assert_eq!(clone.basic_ref(addr).unwrap().unwrap().balance, U256::from(200));
+        assert_eq!(
+            db.basic_ref(addr).unwrap().unwrap().balance,
+            U256::from(100)
+        );
+        assert_eq!(
+            clone.basic_ref(addr).unwrap().unwrap().balance,
+            U256::from(200)
+        );
     }
 
     #[test]
@@ -617,7 +652,8 @@ mod tests {
             Bytecode::new_raw(Bytes::from(vec![0x60, 0x00]))
         );
         assert_eq!(
-            db.storage_ref(addr2, U256::from_be_bytes(b256(1).0)).unwrap(),
+            db.storage_ref(addr2, U256::from_be_bytes(b256(1).0))
+                .unwrap(),
             U256::from_be_bytes(b256(2).0)
         );
     }

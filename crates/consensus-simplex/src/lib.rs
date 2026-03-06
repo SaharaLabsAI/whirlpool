@@ -1,17 +1,17 @@
 //! Commonware Simplex BFT adapter for consensus-core traits.
 
+use commonware_cryptography::sha256::Digest;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use commonware_cryptography::sha256::Digest;
 
-pub mod traits;
-pub mod types;
-pub mod config;
 pub mod adapter;
+pub mod config;
 pub mod engine;
 pub mod mailbox;
 pub mod sink;
+pub mod traits;
+pub mod types;
 
 /// Shared block store keyed by digest.
 ///
@@ -20,8 +20,8 @@ pub mod sink;
 /// created during propose/genesis.
 pub type BlockStore<B> = Arc<RwLock<HashMap<Digest, B>>>;
 
-pub use config::CommonwareConfig;
 pub use adapter::AppAdapter;
+pub use config::CommonwareConfig;
 pub use engine::CommonwareEngine;
 pub use mailbox::{Mailbox, MailboxActor, Message};
 pub use sink::FinalizationSink;

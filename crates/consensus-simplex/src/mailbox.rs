@@ -164,7 +164,7 @@ where
                         self.genesis_block = Some(block);
                     }
                     let parent = self.genesis_block.as_ref().unwrap();
-                    
+
                     match self.app.propose(parent, current + 1).await {
                         Some(block) => {
                             let digest = compute_digest(&block);

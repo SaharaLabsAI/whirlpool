@@ -1,10 +1,10 @@
 //! Commonware Receiver to NetworkReceiver adapter.
 
+use crate::CommonwarePeerId;
 use commonware_p2p::Receiver as CwReceiver;
+use p2p::{Channel, NetworkMessage, NetworkReceiver};
 use std::fmt::Debug;
 use std::hash::Hash;
-use p2p::{NetworkMessage, NetworkReceiver, Channel};
-use crate::CommonwarePeerId;
 
 /// Adapts a Commonware Receiver to implement our vendor-agnostic NetworkReceiver trait.
 ///

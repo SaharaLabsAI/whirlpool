@@ -29,7 +29,9 @@ pub struct WhirlpoolEvmConfig {
 
 impl WhirlpoolEvmConfig {
     pub fn new(chain_spec: Arc<ChainSpec>) -> Self {
-        Self { inner: EthEvmConfig::new(chain_spec) }
+        Self {
+            inner: EthEvmConfig::new(chain_spec),
+        }
     }
 
     pub fn chain_spec(&self) -> &Arc<ChainSpec> {
@@ -115,5 +117,4 @@ mod tests {
         assert_eq!(spec.genesis.gas_limit, 30_000_000);
         assert!(spec.is_cancun_active_at_timestamp(0));
     }
-
 }

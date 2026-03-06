@@ -1,10 +1,10 @@
+use crate::context::EthRpcContext;
+use crate::eth_api::EthApiServer;
 use alloy_primitives::{Address, Bytes, B256, U256};
 use alloy_rpc_types::{BlockId, BlockNumberOrTag, TransactionReceipt, TransactionRequest};
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::types::ErrorObjectOwned;
 use state::StateDb;
-use crate::context::EthRpcContext;
-use crate::eth_api::EthApiServer;
 
 /// Implements the `EthApi` JSON-RPC trait for the Sahara/Whirlpool node.
 pub struct EthApiHandler<S: StateDb> {
@@ -70,9 +70,11 @@ impl<S: StateDb + Send + Sync + 'static> EthApiServer for EthApiHandler<S> {
         let state = self.ctx.state_db.read().map_err(|e| {
             ErrorObjectOwned::owned(-32000, format!("state lock poisoned: {e}"), None::<()>)
         })?;
-        let nonce = state.get_account(address)
+        let nonce = state
+            .get_account(address)
             .map_err(|e| ErrorObjectOwned::owned(-32000, format!("state error: {e}"), None::<()>))?
-            .map(|a| a.nonce).unwrap_or(0);
+            .map(|a| a.nonce)
+            .unwrap_or(0);
         Ok(U256::from(nonce))
     }
 
@@ -191,7 +193,10 @@ mod tests {
         let ctx = test_ctx();
         let handler = EthApiHandler::new(ctx.clone());
         let tx_bytes = Bytes::from(vec![0xde, 0xad, 0xbe, 0xef]);
-        let hash = handler.send_raw_transaction(tx_bytes.clone()).await.unwrap();
+        let hash = handler
+            .send_raw_transaction(tx_bytes.clone())
+            .await
+            .unwrap();
         let expected = alloy_primitives::keccak256(&tx_bytes);
         assert_eq!(hash, expected);
     }
@@ -216,10 +221,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_transaction_receipt_not_found() {
         let handler = EthApiHandler::new(test_ctx());
-        let result = handler
-            .get_transaction_receipt(B256::ZERO)
-            .await
-            .unwrap();
+        let result = handler.get_transaction_receipt(B256::ZERO).await.unwrap();
         assert!(result.is_none());
     }
 }

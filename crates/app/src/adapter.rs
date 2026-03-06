@@ -1,6 +1,6 @@
 use crate::traits::Application;
 use crate::types::EvmBlock;
-use consensus::{ConsensusError, traits::ConsensusApp};
+use consensus::{traits::ConsensusApp, ConsensusError};
 
 #[derive(Clone)]
 pub struct ApplicationAdapter<A: Application<Block = EvmBlock>> {
@@ -60,7 +60,10 @@ mod tests {
     use crate::error::ApplicationError;
     use crate::traits::Application;
     use crate::types::{EvmBlock, ExecutionResult};
-    use consensus::{ConsensusError, traits::{Block as CoreBlock, ConsensusApp}};
+    use consensus::{
+        traits::{Block as CoreBlock, ConsensusApp},
+        ConsensusError,
+    };
     use futures::executor::block_on;
 
     #[derive(Clone)]
@@ -99,7 +102,8 @@ mod tests {
             &self,
             _parent: &Self::Block,
             height: u64,
-        ) -> impl std::future::Future<Output = Result<(Self::Block, Self::Result), Self::Error>> + Send {
+        ) -> impl std::future::Future<Output = Result<(Self::Block, Self::Result), Self::Error>> + Send
+        {
             let mut block = self.genesis.clone();
             block.height = height;
 

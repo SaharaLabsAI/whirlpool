@@ -1,8 +1,8 @@
 use std::sync::{Arc, RwLock};
 
-use app::{NoopTxSource, traits::Application};
+use app::{traits::Application, NoopTxSource};
 use app_evm::executor::EvmApplication;
-use app_evm::{WhirlpoolEvmConfig, build_sahara_chain_spec};
+use app_evm::{build_sahara_chain_spec, WhirlpoolEvmConfig};
 use state_memory::InMemoryStateDb;
 
 fn build_app() -> EvmApplication<InMemoryStateDb> {

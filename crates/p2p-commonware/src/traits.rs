@@ -19,7 +19,8 @@ pub trait CommonwareTransport {
     type Receiver;
 
     /// Start the transport and return dedicated vote/cert/resolver channel pairs.
-    fn start_per_channel(self) -> Result<PerChannelNetwork<Self::Sender, Self::Receiver>, P2pError>;
+    fn start_per_channel(self)
+        -> Result<PerChannelNetwork<Self::Sender, Self::Receiver>, P2pError>;
 
     /// Access the discovery oracle used for validator/peer membership updates.
     fn oracle(&self) -> &Oracle<Self::PublicKey>;

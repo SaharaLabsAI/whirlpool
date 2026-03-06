@@ -7,7 +7,6 @@ use futures::StreamExt;
 use rand::Rng;
 use tracing::{debug, warn};
 
-use consensus::{ConsensusEvent, traits::{ConsensusApp, EventSink}};
 use commonware_consensus::{
     marshal::ingress::mailbox::AncestorStream,
     simplex::types::{Activity, Context},
@@ -15,9 +14,13 @@ use commonware_consensus::{
 };
 use commonware_cryptography::{certificate::Scheme, sha256::Digest, Committable};
 use commonware_runtime::{Clock, Metrics, Spawner};
+use consensus::{
+    traits::{ConsensusApp, EventSink},
+    ConsensusEvent,
+};
 
-use crate::BlockStore;
 use crate::traits::CommonwareBlock;
+use crate::BlockStore;
 
 /// Bridges `ConsensusApp` + `EventSink` (consensus-core) to
 /// `Application` + `VerifyingApplication` + `Reporter` (commonware-consensus).
@@ -76,7 +79,10 @@ where
     }
 
     async fn remember_block(&self, block: B) {
-        self.finalized_blocks.write().await.insert(block.commitment(), block);
+        self.finalized_blocks
+            .write()
+            .await
+            .insert(block.commitment(), block);
     }
 }
 
@@ -89,10 +95,7 @@ where
     Sig: Scheme + 'static,
 {
     type SigningScheme = Sig;
-    type Context = Context<
-        <B as Committable>::Commitment,
-        <Sig as Scheme>::PublicKey,
-    >;
+    type Context = Context<<B as Committable>::Commitment, <Sig as Scheme>::PublicKey>;
     type Block = B;
 
     async fn genesis(&mut self) -> Self::Block {
@@ -182,7 +185,10 @@ where
                 debug!(?commitment, "received certification activity");
             }
             other => {
-                debug!(?other, "ignoring simplex activity outside finalization path");
+                debug!(
+                    ?other,
+                    "ignoring simplex activity outside finalization path"
+                );
             }
         }
     }

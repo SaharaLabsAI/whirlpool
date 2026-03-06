@@ -12,10 +12,7 @@ pub enum ConsensusEvent<B: Block> {
         proof: Vec<u8>,
     },
     /// A block is tentatively accepted but not yet finalized.
-    PreFinalized {
-        block: B,
-        height: u64,
-    },
+    PreFinalized { block: B, height: u64 },
     /// A consensus fault was detected.
     Fault {
         /// Identifier of the faulty participant.
@@ -31,8 +28,5 @@ pub trait EventSink: Send + Sync + 'static {
     type Block: Block;
 
     /// Handle an incoming consensus event.
-    fn handle(
-        &self,
-        event: ConsensusEvent<Self::Block>,
-    ) -> impl Future<Output = ()> + Send;
+    fn handle(&self, event: ConsensusEvent<Self::Block>) -> impl Future<Output = ()> + Send;
 }

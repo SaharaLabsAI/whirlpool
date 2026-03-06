@@ -1,10 +1,10 @@
 //! Unit tests for the consensus-simplex crate.
 
+use std::net::SocketAddr;
 use std::num::NonZeroUsize;
 use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use std::net::SocketAddr;
 
 use bytes::{Buf, BufMut};
 use commonware_codec::{EncodeSize, Error as CodecError, Read as CodecRead, Write as CodecWrite};
@@ -97,7 +97,14 @@ impl CodecWrite for TestBlock {
 
 impl EncodeSize for TestBlock {
     fn encode_size(&self) -> usize {
-        32 + 32 + 8 + 4 + self.transactions.iter().map(|tx| 4 + tx.len()).sum::<usize>()
+        32 + 32
+            + 8
+            + 4
+            + self
+                .transactions
+                .iter()
+                .map(|tx| 4 + tx.len())
+                .sum::<usize>()
     }
 }
 
@@ -121,11 +128,17 @@ impl CodecRead for TestBlock {
         let mut transactions = Vec::with_capacity(tx_count);
         for _ in 0..tx_count {
             if reader.remaining() < 4 {
-                return Err(CodecError::Invalid("TestBlock", "missing transaction length"));
+                return Err(CodecError::Invalid(
+                    "TestBlock",
+                    "missing transaction length",
+                ));
             }
             let tx_len = reader.get_u32() as usize;
             if reader.remaining() < tx_len {
-                return Err(CodecError::Invalid("TestBlock", "missing transaction bytes"));
+                return Err(CodecError::Invalid(
+                    "TestBlock",
+                    "missing transaction bytes",
+                ));
             }
             let mut tx = vec![0u8; tx_len];
             reader.copy_to_slice(&mut tx);
@@ -188,7 +201,10 @@ impl CollectorSink {
 impl EventSink for CollectorSink {
     type Block = TestBlock;
 
-    fn handle(&self, event: ConsensusEvent<Self::Block>) -> impl std::future::Future<Output = ()> + Send {
+    fn handle(
+        &self,
+        event: ConsensusEvent<Self::Block>,
+    ) -> impl std::future::Future<Output = ()> + Send {
         async move {
             if let ConsensusEvent::Finalized { height, .. } = event {
                 self.events.lock().unwrap().push(height);
@@ -216,7 +232,10 @@ impl BlockCollectorSink {
 impl EventSink for BlockCollectorSink {
     type Block = TestBlock;
 
-    fn handle(&self, event: ConsensusEvent<Self::Block>) -> impl std::future::Future<Output = ()> + Send {
+    fn handle(
+        &self,
+        event: ConsensusEvent<Self::Block>,
+    ) -> impl std::future::Future<Output = ()> + Send {
         async move {
             if let ConsensusEvent::Finalized { block, .. } = event {
                 self.blocks.lock().unwrap().push(block);
@@ -345,13 +364,11 @@ async fn spawn_engine(
     config: CommonwareConfig,
     context: commonware_tokio::Context,
 ) -> consensus::engine::RunningEngine {
-    let (network, mut oracle_handle) = CommonwareNetworkProviderBuilder::new(
-        config.signer.clone(),
-        config.namespace.as_bytes(),
-    )
-    .listen_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
-    .dialable_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
-    .build(context.with_label("network"));
+    let (network, mut oracle_handle) =
+        CommonwareNetworkProviderBuilder::new(config.signer.clone(), config.namespace.as_bytes())
+            .listen_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
+            .dialable_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
+            .build(context.with_label("network"));
     oracle_handle
         .update_validators(config.epoch, config.validators.clone())
         .await;

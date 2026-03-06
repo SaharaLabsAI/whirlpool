@@ -110,17 +110,21 @@ impl StateDb for RethStateDb {
                         let slot = U256::from_be_bytes(key.0);
                         let val = U256::from_be_bytes(value.0);
                         if !val.is_zero() {
-                            let entry = StorageEntry::new(B256::from(slot.to_be_bytes::<32>()), val);
+                            let entry =
+                                StorageEntry::new(B256::from(slot.to_be_bytes::<32>()), val);
                             // Plain storage
-                            let mut cursor = tx.cursor_dup_write::<PlainStorageState>()
-                                .expect("cursor");
-                            cursor.upsert(*address, &entry).expect("plain storage write");
+                            let mut cursor =
+                                tx.cursor_dup_write::<PlainStorageState>().expect("cursor");
+                            cursor
+                                .upsert(*address, &entry)
+                                .expect("plain storage write");
                             // Hashed storage
                             let hashed_slot = keccak256(B256::from(slot.to_be_bytes::<32>()));
                             let hashed_entry = StorageEntry::new(hashed_slot, val);
-                            let mut hcursor = tx.cursor_dup_write::<HashedStorages>()
-                                .expect("cursor");
-                            hcursor.upsert(hashed_addr, &hashed_entry)
+                            let mut hcursor =
+                                tx.cursor_dup_write::<HashedStorages>().expect("cursor");
+                            hcursor
+                                .upsert(hashed_addr, &hashed_entry)
                                 .expect("hashed storage write");
                         }
                     }
@@ -189,25 +193,34 @@ impl StateDb for RethStateDb {
                 } else {
                     // Upsert storage slot.
                     let entry = StorageEntry::new(key_b256, value);
-                    let mut cursor = tx.cursor_dup_write::<PlainStorageState>()
+                    let mut cursor = tx
+                        .cursor_dup_write::<PlainStorageState>()
                         .map_err(RethStateError::Database)?;
                     // Delete old entry first, then insert new.
-                    if cursor.seek_by_key_subkey(*address, key_b256)
-                        .map_err(RethStateError::Database)?.is_some()
+                    if cursor
+                        .seek_by_key_subkey(*address, key_b256)
+                        .map_err(RethStateError::Database)?
+                        .is_some()
                     {
                         cursor.delete_current().map_err(RethStateError::Database)?;
                     }
-                    cursor.upsert(*address, &entry).map_err(RethStateError::Database)?;
+                    cursor
+                        .upsert(*address, &entry)
+                        .map_err(RethStateError::Database)?;
 
                     let hashed_entry = StorageEntry::new(hashed_slot, value);
-                    let mut hcursor = tx.cursor_dup_write::<HashedStorages>()
+                    let mut hcursor = tx
+                        .cursor_dup_write::<HashedStorages>()
                         .map_err(RethStateError::Database)?;
-                    if hcursor.seek_by_key_subkey(hashed_addr, hashed_slot)
-                        .map_err(RethStateError::Database)?.is_some()
+                    if hcursor
+                        .seek_by_key_subkey(hashed_addr, hashed_slot)
+                        .map_err(RethStateError::Database)?
+                        .is_some()
                     {
                         hcursor.delete_current().map_err(RethStateError::Database)?;
                     }
-                    hcursor.upsert(hashed_addr, &hashed_entry)
+                    hcursor
+                        .upsert(hashed_addr, &hashed_entry)
                         .map_err(RethStateError::Database)?;
                 }
             }
@@ -215,8 +228,11 @@ impl StateDb for RethStateDb {
 
         // Store new bytecodes.
         for (code_hash, bytecode) in &bundle.contracts {
-            tx.put::<Bytecodes>(*code_hash, reth_primitives_traits::Bytecode(bytecode.clone()))
-                .map_err(RethStateError::Database)?;
+            tx.put::<Bytecodes>(
+                *code_hash,
+                reth_primitives_traits::Bytecode(bytecode.clone()),
+            )
+            .map_err(RethStateError::Database)?;
         }
 
         tx.commit().map_err(RethStateError::Database)?;
@@ -225,7 +241,10 @@ impl StateDb for RethStateDb {
 
     fn get_account(&self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
         let tx = self.db.tx().map_err(RethStateError::Database)?;
-        match tx.get::<PlainAccountState>(address).map_err(RethStateError::Database)? {
+        match tx
+            .get::<PlainAccountState>(address)
+            .map_err(RethStateError::Database)?
+        {
             Some(account) => Ok(Some(account_to_info(&account))),
             None => Ok(None),
         }
@@ -236,7 +255,8 @@ impl StateDb for RethStateDb {
             return Ok(Bytecode::default());
         }
         let tx = self.db.tx().map_err(RethStateError::Database)?;
-        Ok(tx.get::<Bytecodes>(code_hash)
+        Ok(tx
+            .get::<Bytecodes>(code_hash)
             .map_err(RethStateError::Database)?
             .map(|b| b.0)
             .unwrap_or_default())
@@ -245,9 +265,13 @@ impl StateDb for RethStateDb {
     fn get_storage(&self, address: Address, index: U256) -> Result<U256, Self::Error> {
         let tx = self.db.tx().map_err(RethStateError::Database)?;
         let key = B256::from(index.to_be_bytes::<32>());
-        let mut cursor = tx.cursor_dup_read::<PlainStorageState>()
+        let mut cursor = tx
+            .cursor_dup_read::<PlainStorageState>()
             .map_err(RethStateError::Database)?;
-        match cursor.seek_by_key_subkey(address, key).map_err(RethStateError::Database)? {
+        match cursor
+            .seek_by_key_subkey(address, key)
+            .map_err(RethStateError::Database)?
+        {
             Some(entry) if entry.key == key => Ok(entry.value),
             _ => Ok(U256::ZERO),
         }
@@ -255,7 +279,8 @@ impl StateDb for RethStateDb {
 
     fn get_block_hash(&self, number: u64) -> Result<B256, Self::Error> {
         let tx = self.db.tx().map_err(RethStateError::Database)?;
-        Ok(tx.get::<CanonicalHeaders>(number)
+        Ok(tx
+            .get::<CanonicalHeaders>(number)
             .map_err(RethStateError::Database)?
             .unwrap_or(B256::ZERO))
     }
@@ -272,8 +297,11 @@ impl StateDb for RethStateDb {
         // Store bytecode if present.
         if let Some(ref code) = info.code {
             if info.code_hash != KECCAK_EMPTY {
-                tx.put::<Bytecodes>(info.code_hash, reth_primitives_traits::Bytecode(code.clone()))
-                    .map_err(RethStateError::Database)?;
+                tx.put::<Bytecodes>(
+                    info.code_hash,
+                    reth_primitives_traits::Bytecode(code.clone()),
+                )
+                .map_err(RethStateError::Database)?;
             }
         }
 
@@ -298,8 +326,7 @@ impl revm::DatabaseRef for RethStateDb {
     type Error = state::StateError;
 
     fn basic_ref(&self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
-        StateDb::get_account(self, address)
-            .map_err(|e| state::StateError::Internal(e.to_string()))
+        StateDb::get_account(self, address).map_err(|e| state::StateError::Internal(e.to_string()))
     }
 
     fn code_by_hash_ref(&self, code_hash: B256) -> Result<Bytecode, Self::Error> {
@@ -373,7 +400,10 @@ mod tests {
     ) -> BundleState {
         let mut storage_map: RevmHashMap<U256, StorageSlot> = RevmHashMap::default();
         for (key, original_value, present_value) in storage {
-            storage_map.insert(*key, StorageSlot::new_changed(*original_value, *present_value));
+            storage_map.insert(
+                *key,
+                StorageSlot::new_changed(*original_value, *present_value),
+            );
         }
 
         let mut bundle = BundleState::default();
@@ -443,7 +473,8 @@ mod tests {
         info.code_hash = code_hash;
         info.code = Some(code.clone());
 
-        let mut bundle = bundle_with_account(addr, None, Some(info), AccountStatus::InMemoryChange, &[]);
+        let mut bundle =
+            bundle_with_account(addr, None, Some(info), AccountStatus::InMemoryChange, &[]);
         bundle.contracts.insert(code_hash, code.clone());
 
         db.commit(&bundle).unwrap();

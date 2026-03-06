@@ -3,7 +3,10 @@ use std::sync::{Arc, RwLock};
 use alloy_consensus::{SignableTransaction, TxLegacy};
 use alloy_eips::eip2718::Encodable2718;
 use alloy_primitives::{Address, Bytes, Signature, TxKind, U256};
-use app::{InMemoryTxPool, traits::{Application, TxSource}};
+use app::{
+    traits::{Application, TxSource},
+    InMemoryTxPool,
+};
 use app_evm::executor::EvmApplication;
 use app_evm::WhirlpoolEvmConfig;
 use reth_ethereum_primitives::TransactionSigned;
@@ -26,14 +29,14 @@ async fn test_full_propose_verify_cycle() {
     // 1. Setup Environment
     let chain_spec = Arc::new(app_evm::build_sahara_chain_spec());
     let config = WhirlpoolEvmConfig::new(chain_spec.clone());
-    
+
     // Initial state DB
     let state_db = Arc::new(RwLock::new(InMemoryStateDb::new()));
 
     // 2. Create a valid transaction (Alice -> Bob)
     let alice_sk = Signature::test_signature(); // Using test signature/signer
     let bob_addr = Address::with_last_byte(2);
-    
+
     let tx = TxLegacy {
         chain_id: Some(app_evm::config::SAHARA_CHAIN_ID),
         nonce: 0,
@@ -43,10 +46,10 @@ async fn test_full_propose_verify_cycle() {
         value: U256::from(1000),
         input: Bytes::default(),
     };
-    
+
     let signed: TransactionSigned = tx.into_signed(alice_sk).into();
     let alice_addr = signed.recover_signer().expect("Should recover signer");
-    
+
     let mut encoded_tx = Vec::new();
     signed.encode_2718(&mut encoded_tx);
 
@@ -88,11 +91,15 @@ async fn test_full_propose_verify_cycle() {
     let validator_db = Arc::new(RwLock::new(pre_state_snapshot));
     // TxSource is irrelevant for verification as txs are in the block
     let empty_source = Arc::new(MockTxSource { txs: vec![] });
-    
+
     let validator_app = EvmApplication::new(config, validator_db.clone(), empty_source);
 
     let verify_result = validator_app.verify(&genesis, &block).await;
-    assert!(verify_result.is_ok(), "Verification failed: {:?}", verify_result.err());
+    assert!(
+        verify_result.is_ok(),
+        "Verification failed: {:?}",
+        verify_result.err()
+    );
 
     // 7. Check Post-Verification State (optional, if verify applies changes? usually verify is stateless or updates canonical)
     // In this implementation, `verify` updates the state_db provided to it if successful?
@@ -107,7 +114,7 @@ async fn test_full_propose_verify_cycle() {
     // But `EvmApplication` struct doesn't have a `commit_block` method in the snippets I saw.
     // The `Application` trait might have `commit` or similar?
     // Re-reading `verify` logic: it returns `Result<ExecutionResult, ...>`.
-    
+
     // For this test, ensuring `verify` returns Ok is sufficient to prove the round-trip works.
 }
 
@@ -168,5 +175,8 @@ async fn test_propose_with_in_memory_pool() {
     assert_eq!(block.gas_used, execution_result.gas_used);
 
     // 7. Pool should be drained after propose
-    assert!(tx_pool.pending().is_empty(), "Pool should be empty after propose");
+    assert!(
+        tx_pool.pending().is_empty(),
+        "Pool should be empty after propose"
+    );
 }

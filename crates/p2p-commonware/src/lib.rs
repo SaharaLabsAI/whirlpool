@@ -2,31 +2,30 @@
 //!
 //! This crate provides adapter types that bridge our vendor-agnostic `p2p` trait system
 //! to the Commonware P2P implementation.
+use bytes::Bytes;
+use p2p::{Channel, NetworkMessage, NetworkReceiver, NetworkSender, P2pError, Recipients};
 use std::collections::HashMap;
 use std::sync::Arc;
-use bytes::Bytes;
-use p2p::{Channel, NetworkSender, Recipients, P2pError, NetworkReceiver, NetworkMessage};
 
 pub mod provider;
 pub mod traits;
 
-
-mod peer_id;
 mod error;
+mod peer_id;
 
 #[cfg(test)]
 mod tests;
 
+pub use error::{map_recv_error, map_send_error};
 pub use peer_id::CommonwarePeerId;
-pub use error::{map_send_error, map_recv_error};
 pub use traits::CommonwareTransport;
 
-pub mod sender;
 pub mod receiver;
-pub use sender::CommonwareSender;
-pub use receiver::CommonwareReceiver;
-pub use provider::{CommonwareNetworkProvider, CommonwareNetworkProviderBuilder, OracleHandle};
+pub mod sender;
 pub use commonware_p2p::authenticated::discovery::Bootstrapper;
+pub use provider::{CommonwareNetworkProvider, CommonwareNetworkProviderBuilder, OracleHandle};
+pub use receiver::CommonwareReceiver;
+pub use sender::CommonwareSender;
 
 // MultiplexSender: routes send() calls to correct per-channel CommonwareSender
 #[derive(Clone)]
@@ -70,7 +69,10 @@ pub struct MultiplexReceiver<R> {
 }
 
 impl<R> MultiplexReceiver<R> {
-    pub fn new(receivers: Vec<(Channel, CommonwareReceiver<R>)>, handle: commonware_runtime::Handle<()>) -> Self {
+    pub fn new(
+        receivers: Vec<(Channel, CommonwareReceiver<R>)>,
+        handle: commonware_runtime::Handle<()>,
+    ) -> Self {
         Self {
             receivers,
             _handle: Some(handle),

@@ -1,7 +1,7 @@
 //! CommonwarePeerId newtype that implements our PeerId trait.
 
-use p2p::PeerId;
 use commonware_cryptography::PublicKey;
+use p2p::PeerId;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 
@@ -21,9 +21,8 @@ use std::hash::{Hash, Hasher};
 #[derive(Clone, Debug)]
 pub struct CommonwarePeerId<P: PublicKey>(pub P);
 
-impl<P> PeerId for CommonwarePeerId<P>
-where
-    P: PublicKey + Clone + Eq + Hash + fmt::Debug + Send + Sync + 'static,
+impl<P> PeerId for CommonwarePeerId<P> where
+    P: PublicKey + Clone + Eq + Hash + fmt::Debug + Send + Sync + 'static
 {
 }
 

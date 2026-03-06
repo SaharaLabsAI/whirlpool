@@ -1,7 +1,7 @@
 //! CommonwareBlock super-trait combining consensus-core and commonware-consensus block interfaces.
 
-use consensus::traits::Block as CoreBlock;
 use commonware_consensus::Block as VendorBlock;
+use consensus::traits::Block as CoreBlock;
 
 /// A block type that satisfies both the consensus-core `Block` trait
 /// and the commonware-consensus `Block` trait requirements.
@@ -13,8 +13,4 @@ pub trait CommonwareBlock: CoreBlock + VendorBlock + Clone {}
 
 /// Blanket implementation: any type implementing both `CoreBlock` and `VendorBlock`
 /// plus `Clone` automatically satisfies `CommonwareBlock`.
-impl<T> CommonwareBlock for T
-where
-    T: CoreBlock + VendorBlock + Clone,
-{
-}
+impl<T> CommonwareBlock for T where T: CoreBlock + VendorBlock + Clone {}

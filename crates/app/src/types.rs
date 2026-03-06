@@ -100,7 +100,18 @@ impl CodecWrite for EvmBlock {
 
 impl EncodeSize for EvmBlock {
     fn encode_size(&self) -> usize {
-        8 + 32 + 32 + 32 + 32 + 8 + 8 + 4 + self.transactions.iter().map(|tx| 4 + tx.len()).sum::<usize>()
+        8 + 32
+            + 32
+            + 32
+            + 32
+            + 8
+            + 8
+            + 4
+            + self
+                .transactions
+                .iter()
+                .map(|tx| 4 + tx.len())
+                .sum::<usize>()
     }
 }
 
@@ -134,11 +145,17 @@ impl CodecRead for EvmBlock {
 
         for _ in 0..tx_count {
             if reader.remaining() < 4 {
-                return Err(CodecError::Invalid("EvmBlock", "missing transaction length"));
+                return Err(CodecError::Invalid(
+                    "EvmBlock",
+                    "missing transaction length",
+                ));
             }
             let tx_len = reader.get_u32() as usize;
             if reader.remaining() < tx_len {
-                return Err(CodecError::Invalid("EvmBlock", "transaction exceeds remaining bytes"));
+                return Err(CodecError::Invalid(
+                    "EvmBlock",
+                    "transaction exceeds remaining bytes",
+                ));
             }
             let mut tx = vec![0u8; tx_len];
             reader.copy_to_slice(&mut tx);
