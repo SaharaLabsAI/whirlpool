@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use futures::StreamExt;
 use rand::Rng;
+use tokio::sync::RwLock;
 use tracing::{debug, warn};
 
 use consensus::{ConsensusEvent, traits::{ConsensusApp, EventSink}};
@@ -33,7 +34,9 @@ where
 {
     app: Arc<A>,
     sink: Arc<S>,
-    finalized_blocks: HashMap<Digest, B>,
+    /// Shared across all clones so the reporter can find blocks stored by the
+    /// automaton/batcher during propose/verify/genesis.
+    finalized_blocks: Arc<RwLock<HashMap<Digest, B>>>,
     _phantom: PhantomData<Sig>,
 }
 
@@ -45,7 +48,7 @@ where
         Self {
             app: Arc::clone(&self.app),
             sink: Arc::clone(&self.sink),
-            finalized_blocks: HashMap::new(),
+            finalized_blocks: Arc::clone(&self.finalized_blocks),
             _phantom: PhantomData,
         }
     }
@@ -63,13 +66,13 @@ where
         Self {
             app,
             sink,
-            finalized_blocks: HashMap::new(),
+            finalized_blocks: Arc::new(RwLock::new(HashMap::new())),
             _phantom: PhantomData,
         }
     }
 
-    fn remember_block(&mut self, block: B) {
-        self.finalized_blocks.insert(block.commitment(), block);
+    async fn remember_block(&self, block: B) {
+        self.finalized_blocks.write().await.insert(block.commitment(), block);
     }
 }
 
@@ -90,7 +93,7 @@ where
 
     async fn genesis(&mut self) -> Self::Block {
         let block = self.app.genesis().await;
-        self.remember_block(block.clone());
+        self.remember_block(block.clone()).await;
         block
     }
 
@@ -101,11 +104,11 @@ where
     ) -> Option<Self::Block> {
         // Marshaled passes [parent] in the ancestry stream for propose()
         let parent = ancestry.next().await?;
-        self.remember_block(parent.clone());
+        self.remember_block(parent.clone()).await;
         let height = Heightable::height(&parent).next().get();
         let proposed = self.app.propose(&parent, height).await;
         if let Some(block) = &proposed {
-            self.remember_block(block.clone());
+            self.remember_block(block.clone()).await;
         }
         proposed
     }
@@ -131,10 +134,10 @@ where
         let Some(parent) = ancestry.next().await else {
             return false;
         };
-        self.remember_block(parent.clone());
+        self.remember_block(parent.clone()).await;
         let verified = self.app.verify(&parent, &block).await.is_ok();
         if verified {
-            self.remember_block(block);
+            self.remember_block(block).await;
         }
         verified
     }
@@ -156,7 +159,7 @@ where
             Finalization(fin) => {
                 // fin.proposal.payload is a Digest (the block's commitment)
                 let commitment = fin.proposal.payload;
-                if let Some(block) = self.finalized_blocks.remove(&commitment) {
+                if let Some(block) = self.finalized_blocks.write().await.remove(&commitment) {
                     let height = Heightable::height(&block).get();
                     self.sink
                         .handle(ConsensusEvent::Finalized {
