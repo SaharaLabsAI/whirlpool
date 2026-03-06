@@ -19,10 +19,19 @@ Location: `testing/integration-tests/`
 ## Test Files
 
 ### `tests/rpc_integration.rs`
-Tests use a `start_test_rpc()` helper that creates `InMemoryTxPool`, `InMemoryStateDb`, `EthRpcContext` (chain_id 313_371), and starts a JSON-RPC server on a random port.
+Tests use two primary helpers:
+- `start_test_rpc()`: creates `InMemoryTxPool`, `InMemoryStateDb`, and `NullBlockStorage` for legacy tests.
+- `start_test_rpc_with_reth_storage()`: creates a real `RethStateDb` (temp file) for block history e2e tests.
 
 Covered RPC methods:
-- `eth_chainId`, `eth_gasPrice`, `eth_getBalance`, `eth_getTransactionCount`, `eth_estimateGas`, `eth_getTransactionReceipt`, `eth_sendRawTransaction` (transfer).
+- `eth_chainId`, `eth_gasPrice`, `eth_getBalance`, `eth_getTransactionCount`, `eth_estimateGas`, `eth_getTransactionReceipt`, `eth_sendRawTransaction`.
+- `eth_getBlockByNumber`, `eth_getBlockByHash`.
+
+Block History Tests:
+- `TC-INT-01`: Store and retrieve block via RPC (latest tag). Verifies field mapping and height synchronization.
+- `TC-INT-02`: `eth_getBlockByHash` round-trip. Verifies lookup by block hash in `RethStateDb`.
+- `TC-INT-03`: Missing block returns null. Verifies error handling for unknown block numbers.
+- `TC-INT-04`: Multiple sequential blocks. Verifies that multiple blocks can be persisted and retrieved independently.
 
 The transfer test builds a signed `TxLegacy` via `alloy-consensus`/`alloy-signer-local`, EIP-2718 encodes it, sends via `send_raw_transaction`, and verifies both the returned tx hash and pool contents.
 

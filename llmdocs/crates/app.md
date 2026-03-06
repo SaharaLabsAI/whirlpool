@@ -20,6 +20,7 @@ Application-facing interfaces and adapters that bridge execution logic to consen
 
 ## Key Types
 - `EvmBlock`: block type used by the app layer.
+- `Receipt`: alloy-consensus receipt type, re-exported for app-layer use.
 - `ExecutionResult`: execution output returned by `Application::propose`/`Application::verify`.
 - `ApplicationError`: app-layer error type.
 

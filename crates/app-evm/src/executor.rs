@@ -1,4 +1,4 @@
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 use alloy_consensus::TxReceipt;
 use alloy_eips::eip2718::{Decodable2718, Encodable2718};
@@ -6,7 +6,7 @@ use alloy_primitives::{bytes::BufMut, Address, Bytes, B256, U256};
 use alloy_trie::{root::ordered_trie_root_with_encoder, EMPTY_ROOT_HASH};
 use app::{
     traits::{Application, TxSource},
-    EvmBlock, ExecutionResult,
+    EvmBlock, ExecutionResult, Receipt,
 };
 use reth_ethereum_primitives::TransactionSigned;
 use reth_evm::{
@@ -16,6 +16,7 @@ use reth_evm::{
 use reth_primitives_traits::{Header, Recovered, SealedHeader, SignedTransaction};
 use reth_revm::State;
 use revm::database::states::bundle_state::BundleRetention;
+use state::BlockStorage;
 
 use crate::config::WhirlpoolEvmConfig;
 use crate::error::EvmAppError;
@@ -24,7 +25,7 @@ pub use crate::traits::StateProvider;
 pub type RecoveredTx = Recovered<TransactionSigned>;
 
 /// Converts an `EvmBlock` into an Ethereum `Header`.
-fn build_header_from_evm_block(block: &EvmBlock) -> Header {
+pub fn build_header_from_evm_block(block: &EvmBlock) -> Header {
     Header {
         number: block.height,
         parent_hash: B256::from(block.parent_id),
@@ -69,6 +70,7 @@ pub struct EvmApplication<DB> {
     evm_config: WhirlpoolEvmConfig,
     state_db: Arc<RwLock<DB>>,
     tx_source: Arc<dyn TxSource + Send + Sync>,
+    pending_receipts: Arc<Mutex<Option<Vec<Receipt>>>>,
 }
 
 impl<DB> EvmApplication<DB> {
@@ -81,7 +83,26 @@ impl<DB> EvmApplication<DB> {
             evm_config,
             state_db,
             tx_source,
+            pending_receipts: Arc::new(Mutex::new(None)),
         }
+    }
+
+    /// Stores a finalized block and its receipts into the given `BlockStorage`.
+    ///
+    /// Uses the receipts captured from the most recent `propose()` or `verify()` call.
+    /// Clears `pending_receipts` after a successful store.
+    pub fn store_finalized_block(
+        &self,
+        block: &EvmBlock,
+        storage: &dyn BlockStorage,
+    ) -> Result<(), EvmAppError> {
+        let receipts = {
+            let mut guard = self.pending_receipts.lock().unwrap();
+            guard.take().unwrap_or_default()
+        };
+        storage
+            .store_block(block, &receipts)
+            .map_err(|e| EvmAppError::State(e.to_string()))
     }
 }
 
@@ -210,6 +231,22 @@ where
                 .iter()
                 .map(TxReceipt::cumulative_gas_used)
                 .sum::<u64>();
+
+            // Capture receipts for later persistence via store_finalized_block
+            {
+                let mut guard = self.pending_receipts.lock().unwrap();
+                *guard = Some(
+                    execution_result
+                        .receipts
+                        .iter()
+                        .map(|r| Receipt {
+                            status: r.status().into(),
+                            cumulative_gas_used: r.cumulative_gas_used(),
+                            logs: r.logs().to_vec(),
+                        })
+                        .collect(),
+                );
+            }
 
             let block = EvmBlock {
                 height,
@@ -352,7 +389,23 @@ where
                 )));
             }
 
-            // 10. Return ExecutionResult
+            // 10. Capture receipts for later persistence
+            {
+                let mut guard = self.pending_receipts.lock().unwrap();
+                *guard = Some(
+                    execution_result
+                        .receipts
+                        .iter()
+                        .map(|r| Receipt {
+                            status: r.status().into(),
+                            cumulative_gas_used: r.cumulative_gas_used(),
+                            logs: r.logs().to_vec(),
+                        })
+                        .collect(),
+                );
+            }
+
+            // 11. Return ExecutionResult
             Ok(ExecutionResult {
                 state_root: block.state_root,
                 receipts_root: block.receipts_root,
@@ -721,5 +774,204 @@ mod tests {
 
         let result = verifier_app.verify(&parent, &block).await;
         assert!(result.is_err());
+    }
+
+    // ---- Mock BlockStorage for receipt persistence tests ----
+
+    use state::block_storage::BlockStorageError;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    struct MockBlockStorage {
+        stored_blocks: Mutex<Vec<(EvmBlock, Vec<Receipt>)>>,
+        should_fail: AtomicBool,
+    }
+
+    impl MockBlockStorage {
+        fn new() -> Self {
+            Self {
+                stored_blocks: Mutex::new(Vec::new()),
+                should_fail: AtomicBool::new(false),
+            }
+        }
+
+        fn with_failure() -> Self {
+            Self {
+                stored_blocks: Mutex::new(Vec::new()),
+                should_fail: AtomicBool::new(true),
+            }
+        }
+
+        fn stored_count(&self) -> usize {
+            self.stored_blocks.lock().unwrap().len()
+        }
+
+        fn last_stored(&self) -> Option<(EvmBlock, Vec<Receipt>)> {
+            self.stored_blocks.lock().unwrap().last().cloned()
+        }
+    }
+
+    impl BlockStorage for MockBlockStorage {
+        fn store_block(
+            &self,
+            block: &EvmBlock,
+            receipts: &[Receipt],
+        ) -> Result<(), BlockStorageError> {
+            if self.should_fail.load(Ordering::Relaxed) {
+                return Err(BlockStorageError::Database("mock failure".into()));
+            }
+            self.stored_blocks
+                .lock()
+                .unwrap()
+                .push((block.clone(), receipts.to_vec()));
+            Ok(())
+        }
+
+        fn get_block_by_number(
+            &self,
+            _number: u64,
+        ) -> Result<Option<EvmBlock>, BlockStorageError> {
+            Ok(None)
+        }
+
+        fn get_block_by_hash(
+            &self,
+            _hash: B256,
+        ) -> Result<Option<EvmBlock>, BlockStorageError> {
+            Ok(None)
+        }
+
+        fn get_receipts_by_block(
+            &self,
+            _number: u64,
+        ) -> Result<Option<Vec<Receipt>>, BlockStorageError> {
+            Ok(None)
+        }
+    }
+
+    /// TC-AE-01: Propose returns receipts matching transaction count.
+    #[tokio::test]
+    async fn propose_captures_receipts_matching_tx_count() {
+        let receiver = Address::with_last_byte(2);
+        let tx = TxLegacy {
+            chain_id: Some(crate::config::SAHARA_CHAIN_ID),
+            nonce: 0,
+            gas_price: 10,
+            gas_limit: 21_000,
+            to: TxKind::Call(receiver),
+            value: U256::from(1000),
+            input: Bytes::default(),
+        };
+        let signature = Signature::test_signature();
+        let signed: TransactionSigned = tx.into_signed(signature).into();
+        let recovered = signed.recover_signer().unwrap();
+        let mut encoded = Vec::new();
+        signed.encode_2718(&mut encoded);
+
+        let (app, db) = setup_app(vec![encoded]).await;
+
+        // Fund sender
+        {
+            let mut db = db.write().unwrap();
+            let info = revm::state::AccountInfo {
+                balance: U256::from(1_000_000_000_000_000_000u64),
+                nonce: 0,
+                ..Default::default()
+            };
+            db.insert_account(recovered, info);
+        }
+
+        let parent = app.genesis().await;
+        let (block, _result) = app.propose(&parent, 1).await.unwrap();
+
+        // pending_receipts should now contain receipts matching tx count
+        let guard = app.pending_receipts.lock().unwrap();
+        let receipts = guard.as_ref().expect("receipts should be Some after propose");
+        assert_eq!(
+            receipts.len(),
+            block.transactions.len(),
+            "receipt count should match transaction count"
+        );
+    }
+
+    /// TC-AE-02: store_finalized_block calls BlockStorage::store_block and clears pending.
+    #[tokio::test]
+    async fn store_finalized_block_stores_and_clears_receipts() {
+        let receiver = Address::with_last_byte(2);
+        let tx = TxLegacy {
+            chain_id: Some(crate::config::SAHARA_CHAIN_ID),
+            nonce: 0,
+            gas_price: 10,
+            gas_limit: 21_000,
+            to: TxKind::Call(receiver),
+            value: U256::from(1000),
+            input: Bytes::default(),
+        };
+        let signature = Signature::test_signature();
+        let signed: TransactionSigned = tx.into_signed(signature).into();
+        let recovered = signed.recover_signer().unwrap();
+        let mut encoded = Vec::new();
+        signed.encode_2718(&mut encoded);
+
+        let (app, db) = setup_app(vec![encoded]).await;
+
+        // Fund sender
+        {
+            let mut db = db.write().unwrap();
+            let info = revm::state::AccountInfo {
+                balance: U256::from(1_000_000_000_000_000_000u64),
+                nonce: 0,
+                ..Default::default()
+            };
+            db.insert_account(recovered, info);
+        }
+
+        let parent = app.genesis().await;
+        let (block, _) = app.propose(&parent, 1).await.unwrap();
+
+        let storage = MockBlockStorage::new();
+        app.store_finalized_block(&block, &storage).unwrap();
+
+        assert_eq!(storage.stored_count(), 1);
+        let (stored_block, stored_receipts) = storage.last_stored().unwrap();
+        assert_eq!(stored_block.height, block.height);
+        assert_eq!(stored_receipts.len(), block.transactions.len());
+
+        // pending_receipts should be cleared (None)
+        let guard = app.pending_receipts.lock().unwrap();
+        assert!(guard.is_none(), "pending_receipts should be None after store");
+    }
+
+    /// TC-AE-03: store_finalized_block handles no pending receipts gracefully.
+    #[tokio::test]
+    async fn store_finalized_block_empty_receipts() {
+        let (app, _) = setup_app(vec![]).await;
+        let parent = app.genesis().await;
+
+        // Don't call propose, so pending_receipts is None
+        let storage = MockBlockStorage::new();
+        app.store_finalized_block(&parent, &storage).unwrap();
+
+        assert_eq!(storage.stored_count(), 1);
+        let (_, stored_receipts) = storage.last_stored().unwrap();
+        assert!(
+            stored_receipts.is_empty(),
+            "should store empty receipts when none pending"
+        );
+    }
+
+    /// TC-AE-04: store_finalized_block surfaces BlockStorage errors.
+    #[tokio::test]
+    async fn store_finalized_block_propagates_storage_error() {
+        let (app, _) = setup_app(vec![]).await;
+        let parent = app.genesis().await;
+
+        let storage = MockBlockStorage::with_failure();
+        let result = app.store_finalized_block(&parent, &storage);
+
+        assert!(result.is_err(), "should propagate storage error");
+        assert!(
+            matches!(result, Err(EvmAppError::State(_))),
+            "should map to EvmAppError::State"
+        );
     }
 }

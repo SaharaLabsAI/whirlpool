@@ -1,5 +1,5 @@
 use jsonrpsee::server::{ServerBuilder, ServerHandle};
-use state::StateDb;
+use state::{BlockStorage, StateDb};
 use std::net::SocketAddr;
 use tracing::info;
 
@@ -8,8 +8,8 @@ use crate::eth_api::EthApiServer;
 use crate::eth_handler::EthApiHandler;
 
 /// Start the JSON-RPC server and return a handle for graceful shutdown.
-pub async fn start_rpc_server<S: StateDb + Send + Sync + 'static>(
-    ctx: EthRpcContext<S>,
+pub async fn start_rpc_server<S: StateDb + Send + Sync + 'static, B: BlockStorage + 'static>(
+    ctx: EthRpcContext<S, B>,
     addr: SocketAddr,
 ) -> Result<ServerHandle, Box<dyn std::error::Error + Send + Sync>> {
     let handler = EthApiHandler::new(ctx);

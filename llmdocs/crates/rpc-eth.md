@@ -16,19 +16,21 @@ Location: `crates/rpc-eth/`
 
 ## Module Layout
 - `eth_api.rs`: `EthApi` trait — jsonrpsee `#[rpc(server, namespace = "eth")]` macro defining 7 RPC methods.
-- `eth_handler.rs`: `EthApiHandler<S: StateDb>` implementing `EthApiServer`. Contains unit tests.
-- `context.rs`: `EthRpcContext<S: StateDb>` — shared context holding `Arc` handles to tx pool, state, receipts, chain ID, block height.
+- `eth_handler.rs`: `EthApiHandler<S: StateDb, B: BlockStorage>` implementing `EthApiServer`. Contains unit tests.
+- `context.rs`: `EthRpcContext<S: StateDb, B: BlockStorage>` — shared context holding `Arc` handles to tx pool, state, block storage, receipt store, chain ID, and atomic block height.
 - `receipt_store.rs`: `ReceiptStore` — thread-safe in-memory `HashMap<B256, TransactionReceipt>`.
 - `server.rs`: `start_rpc_server()` — builds and starts the jsonrpsee server.
 
 ## Supported RPC Methods
 - `eth_chainId`: returns the configured Sahara chain ID.
 - `eth_gasPrice`: returns hardcoded 1 gwei (v1).
-- `eth_getBalance`: returns balance from `StateDb` for "latest" block. Handles `Result` and returns `RpcResult` errors.
-- `eth_getTransactionCount`: returns nonce from `StateDb` for "latest" block. Handles `Result` and returns `RpcResult` errors.
+- `eth_getBalance`: returns balance from `StateDb` for a specified block.
+- `eth_getTransactionCount`: returns nonce from `StateDb` for a specified block.
 - `eth_sendRawTransaction`: pushes raw bytes directly into `InMemoryTxPool`.
 - `eth_estimateGas`: returns hardcoded 21,000 gas (v1).
 - `eth_getTransactionReceipt`: retrieves confirmed receipts from `ReceiptStore`.
+- `eth_getBlockByNumber(number: BlockNumberOrTag, full_txs: bool)`: retrieves blocks from `BlockStorage`. Resolves `latest`/`finalized` to current node height.
+- `eth_getBlockByHash(hash: B256, full_txs: bool)`: retrieves blocks from `BlockStorage`.
 
 ## Canonical Imports
 - `rpc_eth::context::EthRpcContext`
@@ -38,9 +40,9 @@ Location: `crates/rpc-eth/`
 - `rpc_eth::server::start_rpc_server`
 
 ## Key Design Notes
-- `EthRpcContext` is currently concrete over `Arc<InMemoryTxPool>` (not generic over `TxSource`).
-- `validate_block_id()` rejects all block IDs except `latest` and `pending`.
-- Hardcoded gas values (`TRANSFER_GAS=21000`, `GAS_PRICE_WEI=1gwei`) are v1 placeholders.
+- `EthRpcContext` and `EthApiHandler` are generic over `S: StateDb` and `B: BlockStorage`.
+- `validate_block_id()` supports `latest`, `finalized`, `earliest`, `pending`, and specific block numbers.
+- `evm_block_to_rpc_block()` handles conversion from internal `EvmBlock` to `alloy_rpc_types::Block`.
 
 ## Status
 Complete. Extracted from `whirlpool-node::rpc` module.

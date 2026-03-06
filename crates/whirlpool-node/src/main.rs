@@ -18,6 +18,7 @@ use std::sync::{Arc, RwLock};
 use std::time::Duration;
 use tracing::info;
 use whirlpool_node::config;
+use whirlpool_node::persisting_sink::PersistingFinalizationSink;
 
 // Application namespace for network isolation
 const APPLICATION_NAMESPACE: &[u8] = b"whirlpool-dev";
@@ -38,7 +39,7 @@ fn main() {
     info!("Starting Whirlpool node");
 
     let height = Arc::new(AtomicU64::new(0));
-    let sink = Arc::new(FinalizationSink::new(Arc::clone(&height)));
+    let inner_sink = FinalizationSink::new(Arc::clone(&height));
     info!("Application and sink initialized");
 
     // Create commonware runtime and start async context
@@ -83,13 +84,22 @@ fn main() {
         // Initialize state database
         let db_path = PathBuf::from(DEFAULT_DB_PATH);
         info!(?db_path, "Opening persistent state database");
-        let state_db = Arc::new(RwLock::new(
-            state_reth::open_state_db(&db_path).expect("failed to open state database"),
-        ));
+        let reth_db =
+            state_reth::open_state_db(&db_path).expect("failed to open state database");
+        let state_db = Arc::new(RwLock::new(reth_db.clone()));
+        let block_storage = Arc::new(reth_db);
         let chain_spec = Arc::new(build_sahara_chain_spec());
         let evm_config = WhirlpoolEvmConfig::new(chain_spec);
         let tx_pool = Arc::new(InMemoryTxPool::new());
         let evm_app = EvmApplication::new(evm_config, state_db.clone(), tx_pool.clone());
+
+        // Wrap the finalization sink to persist blocks on finalization
+        let sink = Arc::new(PersistingFinalizationSink::new(
+            inner_sink,
+            evm_app.clone(),
+            block_storage.clone(),
+        ));
+
         let app = Arc::new(ApplicationAdapter::new(evm_app));
 
         let engine =
@@ -97,8 +107,10 @@ fn main() {
         let _running = engine.start().expect("failed to start consensus engine");
         info!("Consensus engine created and started successfully");
 
-        // Start JSON-RPC server
-        let rpc_ctx = rpc::context::EthRpcContext::new(tx_pool, state_db, SAHARA_CHAIN_ID);
+        // Start JSON-RPC server (share the height Arc for block number resolution)
+        let mut rpc_ctx =
+            rpc::context::EthRpcContext::new(tx_pool, state_db, block_storage, SAHARA_CHAIN_ID);
+        rpc_ctx.block_height = height;
         let rpc_addr: SocketAddr = config::RPC_BIND_ADDR
             .parse()
             .expect("invalid RPC bind address");

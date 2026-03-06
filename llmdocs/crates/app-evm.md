@@ -35,7 +35,12 @@ The `EvmApplication` executor uses `.map_err(Into::into)` on all `StateProvider`
 ## Key Types
 - `WhirlpoolEvmConfig`: wrapper for EVM configuration.
 - `EvmApplication`: application implementation that executes EVM blocks.
+  - `pending_receipts: Arc<Mutex<Option<Vec<Receipt>>>>`: temporary storage for receipts between execution and persistence.
+  - `store_finalized_block(&self, block: &EvmBlock, storage: &dyn BlockStorage) -> Result<(), EvmAppError>`: persists block and receipts.
 - `EvmAppError`: EVM application error type.
 
+## Public Functions
+- `build_header_from_evm_block(block: &EvmBlock) -> Header`: converts internal block type to Ethereum header.
+
 ## Status
-Partial. Trait surface is stable (`traits.rs`); execution implementation remains in progress.
+Complete. Traits are stable and execution/persistence logic is implemented.

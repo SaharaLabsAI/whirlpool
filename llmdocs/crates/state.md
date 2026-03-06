@@ -7,6 +7,7 @@ State database trait and error types — pure interface crate with no concrete i
 `state` is the interface half of the state layer. Concrete implementations live in `state-memory`.
 
 ## Modules
+- `crates/state/src/block_storage.rs` — `BlockStorage` trait + `BlockStorageError`
 - `crates/state/src/traits.rs` — `StateDb` trait
 - `crates/state/src/error.rs` — `StateError` enum, `DBErrorMarker` impl
 
@@ -18,9 +19,17 @@ State database trait and error types — pure interface crate with no concrete i
 - queries: `state_root`, account/code/storage/block-hash accessors (return `Result`)
 - mutation helpers: `insert_account`, `insert_block_hash` (return `Result`)
 
+`BlockStorage` defines the contract for persistent block and receipt storage:
+- `store_block(&self, block: &EvmBlock, receipts: &[Receipt]) -> Result<(), BlockStorageError>`: Atomic persistence.
+- `get_block_by_number(&self, number: u64) -> Result<Option<EvmBlock>, BlockStorageError>`
+- `get_block_by_hash(&self, hash: B256) -> Result<Option<EvmBlock>, BlockStorageError>`
+- `get_receipts_by_block(&self, number: u64) -> Result<Option<Vec<Receipt>>, BlockStorageError>`
+
 ## Canonical Imports
 - `state::traits::StateDb`
 - `state::StateDb` (re-export)
+- `state::BlockStorage` (re-export)
+- `state::BlockStorageError` (re-export)
 - `state::StateError`
 - `state::GenesisAccount` (re-export from `alloy-genesis`)
 

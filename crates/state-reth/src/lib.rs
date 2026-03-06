@@ -1,3 +1,4 @@
+pub mod block_storage;
 pub mod codec;
 pub mod db;
 pub mod error;

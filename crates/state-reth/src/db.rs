@@ -9,7 +9,7 @@
 
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, OnceLock};
 
 use alloy_genesis::GenesisAccount;
 use alloy_primitives::{keccak256, B256, U256};
@@ -32,10 +32,9 @@ use crate::tables::{
 };
 use crate::trie::compute_state_root;
 
-/// Persistent state database backed by reth-db (MDBX).
-///
-/// All public methods open per-call read or write transactions.
-/// The struct itself is `Clone` (via `Arc<DatabaseEnv>`).
+// Shared temp directories kept alive for DBs created via `StateDb::new`.
+static TEST_DB_TEMP_DIRS: OnceLock<Mutex<Vec<Arc<tempfile::TempDir>>>> = OnceLock::new();
+
 #[derive(Debug, Clone)]
 pub struct RethStateDb {
     db: Arc<DatabaseEnv>,
@@ -62,10 +61,23 @@ impl StateDb for RethStateDb {
     where
         Self: Sized,
     {
-        // RethStateDb requires a path — use a temp dir for `new()`.
-        // This is primarily for trait compliance; production code should use `open()`.
-        let tmp = tempfile::tempdir().expect("failed to create tempdir for RethStateDb::new()");
-        Self::open(tmp.path()).expect("failed to initialize RethStateDb")
+        // RethStateDb requires a path — keep temp dirs alive globally in tests.
+        let temp_dir = Arc::new(
+            tempfile::tempdir().expect("failed to create tempdir for RethStateDb::new()"),
+        );
+        let db = init_db(
+            temp_dir.path(),
+            DatabaseArguments::new(ClientVersion::default()),
+        )
+        .expect("failed to initialize RethStateDb database");
+
+        TEST_DB_TEMP_DIRS
+            .get_or_init(|| Mutex::new(Vec::new()))
+            .lock()
+            .expect("failed to lock test db tempdir registry")
+            .push(temp_dir);
+
+        Self { db: Arc::new(db) }
     }
 
     fn with_genesis(alloc: HashMap<Address, GenesisAccount>) -> Self
@@ -415,6 +427,7 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_insert_and_get_account() {
         let mut db = RethStateDb::new();
         let addr = address!("1000000000000000000000000000000000000001");
@@ -427,6 +440,7 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_get_account_missing() {
         let db = RethStateDb::new();
         let unknown = address!("2000000000000000000000000000000000000002");
@@ -435,6 +449,7 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_commit_storage_and_get() {
         let mut db = RethStateDb::new();
         let addr = address!("3000000000000000000000000000000000000003");
@@ -454,6 +469,7 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_get_storage_missing() {
         let db = RethStateDb::new();
         let unknown = address!("4000000000000000000000000000000000000004");
@@ -463,6 +479,7 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_commit_code_and_get() {
         let mut db = RethStateDb::new();
         let addr = address!("5000000000000000000000000000000000000005");
@@ -482,6 +499,7 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_insert_and_get_block_hash() {
         let mut db = RethStateDb::new();
         let number = 42;
@@ -492,6 +510,7 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_state_root_empty() {
         let db = RethStateDb::new();
         let expected = b256!("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421");
@@ -500,6 +519,7 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_state_root_deterministic() {
         let mut db = RethStateDb::new();
         db.insert_account(
@@ -520,6 +540,7 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_revm_database_basic() {
         let mut db = RethStateDb::new();
         let addr = address!("8000000000000000000000000000000000000008");
@@ -531,6 +552,7 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_revm_database_storage() {
         let mut db = RethStateDb::new();
         let addr = address!("9000000000000000000000000000000000000009");
@@ -549,6 +571,7 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_revm_database_ref_basic() {
         let mut db = RethStateDb::new();
         let addr = address!("a00000000000000000000000000000000000000a");

@@ -1,11 +1,11 @@
 use alloy_primitives::{Address, Bytes, B256, U256};
-use alloy_rpc_types::{BlockId, TransactionReceipt, TransactionRequest};
+use alloy_rpc_types::{Block, BlockId, BlockNumberOrTag, TransactionReceipt, TransactionRequest};
 use jsonrpsee::proc_macros::rpc;
 
 /// Ethereum JSON-RPC namespace trait.
 ///
 /// Defines the minimal set of `eth_*` methods required to support
-/// basic ETH balance transfers via an alloy client.
+/// basic ETH balance transfers via an alloy client, plus block history queries.
 #[rpc(server, namespace = "eth")]
 pub trait EthApi {
     /// Returns the chain ID of the network.
@@ -50,4 +50,20 @@ pub trait EthApi {
         &self,
         hash: B256,
     ) -> jsonrpsee::core::RpcResult<Option<TransactionReceipt>>;
+
+    /// Returns a block by its number/tag, with full transactions or just hashes.
+    #[method(name = "getBlockByNumber")]
+    async fn get_block_by_number(
+        &self,
+        block_number: BlockNumberOrTag,
+        full_transactions: bool,
+    ) -> jsonrpsee::core::RpcResult<Option<Block>>;
+
+    /// Returns a block by its hash, with full transactions or just hashes.
+    #[method(name = "getBlockByHash")]
+    async fn get_block_by_hash(
+        &self,
+        block_hash: B256,
+        full_transactions: bool,
+    ) -> jsonrpsee::core::RpcResult<Option<Block>>;
 }

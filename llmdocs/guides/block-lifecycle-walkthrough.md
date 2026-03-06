@@ -71,8 +71,10 @@ Finalization occurs when a block gains enough notarization votes from the networ
     *   `Update::Block` is converted into a `ConsensusEvent::Finalized` instance.
 3.  **Interface (`consensus`)**: Calls `EventSink::handle(ConsensusEvent)`.
 4.  **Application (`whirlpool-node`)**:
-    *   `FinalizationSink::handle` receives the `Finalized` event.
-    *   It extracts the block height and updates its internal `Arc<AtomicU64>` for observability.
+    *   `PersistingFinalizationSink::handle` receives the `Finalized` event.
+    *   It calls `EvmApplication::store_finalized_block`, which retrieves the receipts captured during `propose`/`verify` and persists them along with the block into `BlockStorage` (usually `RethStateDb`).
+    *   It then delegates to the inner `FinalizationSink::handle`.
+    *   `FinalizationSink` updates its internal `Arc<AtomicU64>` block height, which is shared with the RPC context.
 5.  **Completion**: The adapter calls `ack.acknowledge()` to notify the vendor that the block was successfully processed.
 
 ### Diagram
@@ -83,7 +85,12 @@ Simplex (Vendor)
         │
         └─> EventSink::handle(ConsensusEvent::Finalized)
               │
-              └─> FinalizationSink::handle(...)
+              └─> PersistingFinalizationSink::handle(...)
                     │
-                    └─> ack.acknowledge()
+                    ├─> EvmApplication::store_finalized_block(block, storage)
+                    │     └─> BlockStorage::store_block(block, receipts)
+                    │
+                    └─> FinalizationSink::handle(...)
+                          │
+                          └─> ack.acknowledge()
 ```
