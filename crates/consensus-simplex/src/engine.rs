@@ -6,6 +6,7 @@
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::collections::HashMap;
 use std::num::{NonZeroUsize, NonZeroU16};
 
 use futures::channel::mpsc;
@@ -30,6 +31,7 @@ use crate::config::CommonwareConfig;
 use crate::mailbox::{Mailbox, MailboxActor};
 use crate::sink::FinalizationSink;
 use crate::traits::CommonwareBlock;
+use crate::BlockStore;
 
 /// A consensus engine backed by the Commonware Simplex BFT protocol.
 ///
@@ -110,12 +112,13 @@ where
         // Step 4: Create Mailbox (Automaton + Relay)
         let mailbox = Mailbox::<A::Block>::new(mailbox_tx);
         
-        // Step 5: Create shared height tracker
+        // Step 5: Create shared height tracker and block store
         let height = Arc::new(AtomicU64::new(0));
         let running = Arc::new(AtomicBool::new(true));
+        let block_store: BlockStore<A::Block> = Arc::new(tokio::sync::RwLock::new(HashMap::new()));
         
         // Step 6: Spawn MailboxActor using commonware spawn API (takes closure receiving context)
-        let actor = MailboxActor::new(mailbox_rx, Arc::clone(&height), Arc::clone(&self.app));
+        let actor = MailboxActor::new(mailbox_rx, Arc::clone(&height), Arc::clone(&self.app), Arc::clone(&block_store));
         let height_for_actor = Arc::clone(&height);
         let _actor_handle = self.context.clone().spawn(|_ctx| async move {
             actor.run().await;
@@ -126,8 +129,8 @@ where
         // Step 7: Create FinalizationSink
         let finalization_sink = FinalizationSink::<A::Block>::new(Arc::clone(&height));
         
-        // Step 8: Create AppAdapter (Reporter)
-        let reporter = AppAdapter::new(Arc::clone(&self.app), Arc::new(finalization_sink));
+        // Step 8: Create AppAdapter (Reporter) with shared block store
+        let reporter = AppAdapter::new(Arc::clone(&self.app), Arc::new(finalization_sink), block_store);
         
         // Step 9: Create ed25519 Scheme from signer and validators
         // Use from_iter_dedup which deduplicates and creates Set

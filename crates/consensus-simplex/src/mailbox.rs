@@ -17,6 +17,8 @@ use std::marker::PhantomData;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
+use crate::BlockStore;
+
 // Message types for actor channel
 pub enum Message {
     Genesis {
@@ -97,26 +99,46 @@ impl<B: Clone + Send + 'static> Relay for Mailbox<B> {
     }
 }
 
-/// MailboxActor processes messages and delegates to ConsensusApp
-pub struct MailboxActor<A: ConsensusApp> {
+/// MailboxActor processes messages and delegates to ConsensusApp.
+///
+/// Stores every block it creates (genesis / proposed) into the shared
+/// [`BlockStore`] so that the [`AppAdapter`](crate::adapter::AppAdapter)
+/// reporter can later find them when finalization arrives.
+pub struct MailboxActor<A: ConsensusApp>
+where
+    A::Block: Digestible<Digest = Digest>,
+{
     receiver: mpsc::Receiver<Message>,
     height: Arc<AtomicU64>,
     app: Arc<A>,
+    block_store: BlockStore<A::Block>,
     genesis_block: Option<A::Block>,
 }
 
 impl<A> MailboxActor<A>
 where
     A: ConsensusApp,
-    A::Block: Digestible<Digest = Digest>,
+    A::Block: Digestible<Digest = Digest> + Clone,
 {
-    pub fn new(receiver: mpsc::Receiver<Message>, height: Arc<AtomicU64>, app: Arc<A>) -> Self {
+    pub fn new(
+        receiver: mpsc::Receiver<Message>,
+        height: Arc<AtomicU64>,
+        app: Arc<A>,
+        block_store: BlockStore<A::Block>,
+    ) -> Self {
         Self {
             receiver,
             height,
             app,
+            block_store,
             genesis_block: None,
         }
+    }
+
+    /// Store a block in the shared block store, keyed by its digest.
+    async fn remember_block(&self, block: &A::Block) {
+        let digest = compute_digest(block);
+        self.block_store.write().await.insert(digest, block.clone());
     }
 
     pub async fn run(mut self) {
@@ -125,7 +147,9 @@ where
                 Message::Genesis { epoch: _, response } => {
                     // Cache genesis block on first call
                     if self.genesis_block.is_none() {
-                        self.genesis_block = Some(self.app.genesis().await);
+                        let block = self.app.genesis().await;
+                        self.remember_block(&block).await;
+                        self.genesis_block = Some(block);
                     }
                     let block = self.genesis_block.as_ref().unwrap();
                     let digest = compute_digest(block);
@@ -135,13 +159,16 @@ where
                     let current = self.height.load(Ordering::SeqCst);
                     // Use genesis as parent (simplified - real impl would track parent)
                     if self.genesis_block.is_none() {
-                        self.genesis_block = Some(self.app.genesis().await);
+                        let block = self.app.genesis().await;
+                        self.remember_block(&block).await;
+                        self.genesis_block = Some(block);
                     }
                     let parent = self.genesis_block.as_ref().unwrap();
                     
                     match self.app.propose(parent, current + 1).await {
                         Some(block) => {
                             let digest = compute_digest(&block);
+                            self.remember_block(&block).await;
                             let _ = response.send(digest);
                         }
                         None => {
@@ -194,8 +221,14 @@ mod tests {
     use commonware_cryptography::sha256::Digest;
     use commonware_cryptography::Signer;
     use futures::channel::mpsc;
+    use std::collections::HashMap;
     use std::sync::atomic::AtomicU64;
     use std::sync::Arc;
+    use tokio::sync::RwLock;
+
+    fn empty_block_store() -> BlockStore<TestBlock> {
+        Arc::new(RwLock::new(HashMap::new()))
+    }
 
     fn sample_context(seed: u64) -> Context<Digest, PublicKey> {
         let epoch = Epoch::new(1);
@@ -220,7 +253,7 @@ mod tests {
 
         let height = Arc::new(AtomicU64::new(0));
         let app = Arc::new(MockApp);
-        tokio::spawn(MailboxActor::new(rx, height, app).run());
+        tokio::spawn(MailboxActor::new(rx, height, app, empty_block_store()).run());
 
         let d1 = mailbox.genesis(Epoch::new(1)).await;
         let d2 = mailbox.genesis(Epoch::new(1)).await;
@@ -234,7 +267,7 @@ mod tests {
 
         let height = Arc::new(AtomicU64::new(0));
         let app = Arc::new(MockApp);
-        tokio::spawn(MailboxActor::new(rx, height, app).run());
+        tokio::spawn(MailboxActor::new(rx, height, app, empty_block_store()).run());
 
         let receiver = mailbox.propose(sample_context(1)).await;
         let digest: Result<Digest, _> = receiver.await;
@@ -248,7 +281,7 @@ mod tests {
 
         let height = Arc::new(AtomicU64::new(0));
         let app = Arc::new(MockApp);
-        tokio::spawn(MailboxActor::new(rx, height, app).run());
+        tokio::spawn(MailboxActor::new(rx, height, app, empty_block_store()).run());
 
         let genesis = TestBlock::genesis();
         let valid_digest = compute_digest(&genesis);
@@ -264,7 +297,7 @@ mod tests {
 
         let height = Arc::new(AtomicU64::new(0));
         let app = Arc::new(MockApp);
-        tokio::spawn(MailboxActor::new(rx, height, app).run());
+        tokio::spawn(MailboxActor::new(rx, height, app, empty_block_store()).run());
 
         let garbage_digest = Digest::from([255u8; 32]);
         let receiver = mailbox.verify(sample_context(3), garbage_digest).await;
@@ -279,7 +312,7 @@ mod tests {
 
         let height = Arc::new(AtomicU64::new(0));
         let app = Arc::new(MockApp);
-        tokio::spawn(MailboxActor::new(rx, height, app).run());
+        tokio::spawn(MailboxActor::new(rx, height, app, empty_block_store()).run());
 
         mailbox.broadcast(Digest::from([1u8; 32])).await;
     }
@@ -292,7 +325,7 @@ mod tests {
 
         let height = Arc::new(AtomicU64::new(0));
         let app = Arc::new(MockApp);
-        tokio::spawn(MailboxActor::new(rx, height, app).run());
+        tokio::spawn(MailboxActor::new(rx, height, app, empty_block_store()).run());
 
         drop(mailbox1);
         drop(mailbox2);

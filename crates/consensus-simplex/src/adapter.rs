@@ -1,12 +1,10 @@
 //! AppAdapter bridges consensus-core traits to commonware-consensus traits.
 
-use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
 use futures::StreamExt;
 use rand::Rng;
-use tokio::sync::RwLock;
 use tracing::{debug, warn};
 
 use consensus::{ConsensusEvent, traits::{ConsensusApp, EventSink}};
@@ -18,6 +16,7 @@ use commonware_consensus::{
 use commonware_cryptography::{certificate::Scheme, sha256::Digest, Committable};
 use commonware_runtime::{Clock, Metrics, Spawner};
 
+use crate::BlockStore;
 use crate::traits::CommonwareBlock;
 
 /// Bridges `ConsensusApp` + `EventSink` (consensus-core) to
@@ -34,9 +33,10 @@ where
 {
     app: Arc<A>,
     sink: Arc<S>,
-    /// Shared across all clones so the reporter can find blocks stored by the
-    /// automaton/batcher during propose/verify/genesis.
-    finalized_blocks: Arc<RwLock<HashMap<Digest, B>>>,
+    /// Shared with [`MailboxActor`](crate::mailbox::MailboxActor) so that
+    /// blocks created during propose/genesis are available when the reporter
+    /// receives finalization activity.
+    finalized_blocks: BlockStore<B>,
     _phantom: PhantomData<Sig>,
 }
 
@@ -61,12 +61,16 @@ where
     B: CommonwareBlock + Committable<Commitment = Digest>,
     Sig: Scheme,
 {
-    /// Create a new adapter wrapping a consensus app and event sink.
-    pub fn new(app: Arc<A>, sink: Arc<S>) -> Self {
+    /// Create a new adapter wrapping a consensus app, event sink, and shared block store.
+    ///
+    /// The `block_store` must be the **same** instance given to
+    /// [`MailboxActor`](crate::mailbox::MailboxActor) so that blocks
+    /// inserted during propose/genesis are visible to the reporter.
+    pub fn new(app: Arc<A>, sink: Arc<S>, block_store: BlockStore<B>) -> Self {
         Self {
             app,
             sink,
-            finalized_blocks: Arc::new(RwLock::new(HashMap::new())),
+            finalized_blocks: block_store,
             _phantom: PhantomData,
         }
     }
