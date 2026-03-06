@@ -1,23 +1,23 @@
 //! Whirlpool consensus node binary.
 
-use commonware_cryptography::Signer;
+use app::{ApplicationAdapter, InMemoryTxPool};
+use app_evm::executor::EvmApplication;
+use app_evm::{build_sahara_chain_spec, WhirlpoolEvmConfig, SAHARA_CHAIN_ID};
 use commonware_cryptography::ed25519;
+use commonware_cryptography::Signer;
 use commonware_runtime::{tokio, Metrics, Runner};
 use consensus::traits::ConsensusEngine;
 use consensus_simplex::{CommonwareConfig, CommonwareEngine, FinalizationSink};
 use p2p_commonware::CommonwareNetworkProviderBuilder;
+use rpc_eth as rpc;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::sync::{Arc, RwLock};
-use std::sync::atomic::AtomicU64;
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
+use std::sync::atomic::AtomicU64;
+use std::sync::{Arc, RwLock};
 use std::time::Duration;
 use tracing::info;
-use app::{ApplicationAdapter, InMemoryTxPool};
-use app_evm::executor::EvmApplication;
-use app_evm::{WhirlpoolEvmConfig, build_sahara_chain_spec, SAHARA_CHAIN_ID};
 use whirlpool_node::config;
-use rpc_eth as rpc;
 
 // Application namespace for network isolation
 const APPLICATION_NAMESPACE: &[u8] = b"whirlpool-dev";
@@ -55,11 +55,12 @@ fn main() {
         let listen_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0); // OS assigns port
         let dialable_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
 
-        let (network_provider, oracle_handle) = CommonwareNetworkProviderBuilder::new(signer.clone(), APPLICATION_NAMESPACE)
-            .listen_addr(listen_addr)
-            .dialable_addr(dialable_addr)
-            .max_message_size(MAX_MESSAGE_SIZE)
-            .build(context.with_label("network"));
+        let (network_provider, oracle_handle) =
+            CommonwareNetworkProviderBuilder::new(signer.clone(), APPLICATION_NAMESPACE)
+                .listen_addr(listen_addr)
+                .dialable_addr(dialable_addr)
+                .max_message_size(MAX_MESSAGE_SIZE)
+                .build(context.with_label("network"));
 
         // Configure consensus engine config
         let engine_config = CommonwareConfig {
@@ -70,8 +71,8 @@ fn main() {
             activity_timeout: 10,
             skip_timeout: 5,
             mailbox_size: 100,
-            replay_buffer: NonZeroUsize::new(100).unwrap(),
-            write_buffer: NonZeroUsize::new(100).unwrap(),
+            replay_buffer: NonZeroUsize::new(1024 * 1024).unwrap(),
+            write_buffer: NonZeroUsize::new(1024 * 1024).unwrap(),
             epoch: 0,
             fetch_timeout: Duration::from_secs(5),
             fetch_concurrent: 4,
@@ -91,16 +92,13 @@ fn main() {
         let evm_app = EvmApplication::new(evm_config, state_db.clone(), tx_pool.clone());
         let app = Arc::new(ApplicationAdapter::new(evm_app));
 
-        let engine = CommonwareEngine::new(app, sink, engine_config, network_provider, context.clone());
+        let engine =
+            CommonwareEngine::new(app, sink, engine_config, network_provider, context.clone());
         let _running = engine.start().expect("failed to start consensus engine");
         info!("Consensus engine created and started successfully");
 
         // Start JSON-RPC server
-        let rpc_ctx = rpc::context::EthRpcContext::new(
-            tx_pool,
-            state_db,
-            SAHARA_CHAIN_ID,
-        );
+        let rpc_ctx = rpc::context::EthRpcContext::new(tx_pool, state_db, SAHARA_CHAIN_ID);
         let rpc_addr: SocketAddr = config::RPC_BIND_ADDR
             .parse()
             .expect("invalid RPC bind address");
