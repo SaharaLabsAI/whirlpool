@@ -3223,6 +3223,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "integration-tests"
+version = "0.1.0"
+dependencies = [
+ "alloy-consensus",
+ "alloy-eips",
+ "alloy-network",
+ "alloy-primitives",
+ "alloy-provider",
+ "alloy-rpc-types",
+ "alloy-signer",
+ "alloy-signer-local",
+ "app",
+ "jsonrpsee",
+ "reqwest",
+ "revm",
+ "rpc-eth",
+ "state-memory",
+ "tokio",
+]
+
+[[package]]
 name = "ipnet"
 version = "2.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6993,14 +7014,7 @@ dependencies = [
 name = "whirlpool-node"
 version = "0.1.0"
 dependencies = [
- "alloy-consensus",
- "alloy-eips",
- "alloy-network",
  "alloy-primitives",
- "alloy-provider",
- "alloy-rpc-types",
- "alloy-signer",
- "alloy-signer-local",
  "app",
  "app-evm",
  "bytes",
@@ -7008,9 +7022,7 @@ dependencies = [
  "commonware-runtime",
  "consensus",
  "consensus-simplex",
- "jsonrpsee",
  "p2p-commonware",
- "reqwest",
  "reth-revm",
  "revm",
  "rpc-eth",

@@ -24,18 +24,6 @@ tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
-[dev-dependencies]
-jsonrpsee = { version = "0.26.0", features = ["server"] }
-alloy-provider = { version = "1.4.3", default-features = false, features = ["reqwest", "reqwest-rustls-tls"] }
-alloy-network = "1.4.3"
-alloy-signer = "1.4.3"
-alloy-signer-local = "1.4.3"
-alloy-consensus = "1.4.3"
-alloy-eips = "1.4.3"
-alloy-rpc-types = { version = "1.4.3", features = ["eth"] }
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
-tokio = { version = "1", features = ["full", "test-util"] }
-
 [[bin]]
 name = "whirlpool-node"
 path = "src/main.rs"

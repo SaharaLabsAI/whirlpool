@@ -1,0 +1,23 @@
+[package]
+name = "integration-tests"
+version.workspace = true
+edition.workspace = true
+
+# This crate exists only for its integration tests; there is no library.
+# `cargo test -p integration-tests` runs everything under tests/.
+[dependencies]
+app = { path = "../../crates/app" }
+rpc-eth = { path = "../../crates/rpc-eth" }
+state-memory = { path = "../../crates/state-memory" }
+revm = { version = "34" }
+alloy-primitives = { version = "1.5.0" }
+alloy-consensus = "1.4.3"
+alloy-eips = "1.4.3"
+alloy-provider = { version = "1.4.3", default-features = false, features = ["reqwest", "reqwest-rustls-tls"] }
+alloy-network = "1.4.3"
+alloy-rpc-types = { version = "1.4.3", features = ["eth"] }
+alloy-signer = "1.4.3"
+alloy-signer-local = "1.4.3"
+jsonrpsee = { version = "0.26.0", features = ["server"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+tokio = { version = "1", features = ["full", "test-util"] }

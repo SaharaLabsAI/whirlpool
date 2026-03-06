@@ -71,6 +71,7 @@ Step-by-step instructions for common tasks and workflows.
 | Add/modify RPC methods | `crates/rpc-eth.md` |
 | Check code style | `reference/coding-conventions.md` |
 | Write a commit message | `reference/git-conventions.md` |
+| Add/run e2e integration tests | `crates/integration-tests.md` |
 
 ## Workspace -> Documentation Map
 
@@ -86,3 +87,4 @@ Step-by-step instructions for common tasks and workflows.
 | `app-evm` | `crates/app-evm/src/` | `crates/app-evm.md` | — |
 | `whirlpool-node` | `crates/whirlpool-node/src/` | `architecture/whirlpool-node.md` (lib) + `crates/whirlpool-node.md` (EVM bin) | `guides/whirlpool-node-components.md` |
 | `rpc-eth` | `crates/rpc-eth/src/` | `crates/rpc-eth.md` | — |
+| `integration-tests` | `testing/integration-tests/tests/` | `crates/integration-tests.md` | — |

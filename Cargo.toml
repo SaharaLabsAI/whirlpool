@@ -13,6 +13,7 @@ members = [
     "crates/state-reth",
     "crates/app",
     "crates/app-evm",
+    "testing/integration-tests",
 ]
 
 [workspace.package]
