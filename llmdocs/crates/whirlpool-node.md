@@ -24,14 +24,14 @@ Location: `crates/whirlpool-node/`
 5. Build `WhirlpoolEvmConfig` and `EvmApplication<RethStateDb>`.
 6. Provide `InMemoryTxPool` as tx source.
 7. Wrap `FinalizationSink` and `EvmApplication` in `PersistingFinalizationSink` to enable block/receipt persistence.
-8. Wrap app with `ApplicationAdapter`, construct `CommonwareEngine` (passing recovered `initial_height`), call `start()`.
-9. Initialize `EthRpcContext` sharing the `RethStateDb` (as `BlockStorage`) and the `block_height` Arc with the `FinalizationSink`.
+8. Construct `CommonwareEngine` (passing recovered `height` Arc in `engine_config`), call `start()`.
+9. Initialize `EthRpcContext` sharing the `RethStateDb` (as `BlockStorage`) and the `height` Arc (as `block_height`).
 10. Start JSON-RPC server on `RPC_BIND_ADDR` (via `rpc_eth`).
 
 ## Startup Recovery Flow
 Recovery relies on two persistence layers working together:
-1. **Application state** (MDBX): The node opens the persistent database and queries `CanonicalHeaders` for the highest stored block number. This `recovered_height` seeds the atomic `height` tracker and the engine's `initial_height` config so the application layer (proposals, finalization sink, RPC) resumes at the correct block.
-2. **Consensus journal** (Commonware Storage): The Simplex voter journals votes and certificates to `DEFAULT_RUNTIME_STORAGE_DIR`. On restart the voter replays the journal to recover its view/round state, preventing re-voting or re-proposing for already-decided views. Without a persistent storage directory the journal is lost and consensus restarts from view 0.
+1. **Application state** (MDBX): The node opens the persistent database and queries `CanonicalHeaders` for the highest stored block number. This `recovered_height` seeds the atomic `height` tracker and the engine's `height` config (crates/whirlpool-node/src/main.rs:84,99) so the application layer (proposals, finalization sink, RPC) resumes at the correct block.
+2. **Consensus journal** (Commonware Storage): The Simplex voter journals votes and certificates to `DEFAULT_RUNTIME_STORAGE_DIR` (crates/whirlpool-node/src/main.rs:32). On restart the voter replays the journal to recover its view/round state, preventing re-voting or re-proposing for already-decided views. Without a persistent storage directory the journal is lost and consensus restarts from view 0.
 
 ## Key Types
 - `PersistingFinalizationSink<DB, BS>`: `EventSink` implementation that persists finalized blocks to `BlockStorage` before delegating to the inner `FinalizationSink`.

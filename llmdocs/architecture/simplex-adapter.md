@@ -18,10 +18,9 @@ The adapter crate translates Commonware Simplex APIs into Whirlpool consensus tr
 
 ## Core Types
 - `CommonwareBlock`: super-trait requiring `consensus::traits::Block + commonware_consensus::Block + Clone`.
-- `CommonwareConfig`: simplex timing, buffer, and startup height configuration. Includes `initial_height: u64` to resume engine from non-zero state.
-- `AppAdapter`: maps vendor `Application/VerifyingApplication/Reporter` callbacks to consensus traits. Internally tracks finalized blocks via `Arc<RwLock<HashMap<Digest, B>>>` shared across all clones, enabling the reporter actor to find blocks stored by the batcher/automaton actor during propose/verify/genesis.
-- `CommonwareEngine`: sealed constructor/startup for mailbox, adapter, sink, and simplex engine. Engine `height` is initialized to `initial_height` from config.
-- `FinalizationSink`: `EventSink` implementation tracking finalized height.
+- `CommonwareConfig`: simplex timing, buffer, and startup height configuration. Includes `height: Arc<AtomicU64>` to share block-height tracking between the mailbox and the caller's event sink.
+- `AppAdapter`: maps vendor `Application/VerifyingApplication/Reporter` callbacks to consensus traits. Internally tracks finalized blocks via `Arc<RwLock<HashMap<Digest, B>>>` shared across all clones. Reporter forwards finalization events to the caller-provided `EventSink`.
+- `CommonwareEngine`: sealed constructor/startup for mailbox, adapter, and simplex engine. Uses the caller-provided `EventSink` for finalization side-effects (e.g. block persistence).
 
 ## Clone Semantics
 `AppAdapter::Clone` clones the `Arc` to the shared `finalized_blocks` map. All clones (batcher, voter/reporter) operate on the same block store. `remember_block()` is async (acquires write lock).
