@@ -22,7 +22,10 @@
 - **Wave 6 (Phase 6)**: Integration tests
 - **Wave 7 (Phase 7)**: End-to-end validation and workspace verification
 
+- **Wave 8 (Verification)**: Final verification of all ACs and invariants
+
 ## AC Coverage Matrix (from proven-ac.md)
+
 | AC ID | Criterion | Covered By Tasks |
 |---|---|---|
 | AC-1 | Transactions persist across node restart | 05, 06, 07, 08, 09 |
@@ -42,6 +45,7 @@
 - [ ] Task 07: whirlpool-node-persistent-wiring [**M**] → [tasks/07-whirlpool-node-persistent-wiring.md](tasks/07-whirlpool-node-persistent-wiring.md)
 - [ ] Task 08: cross-crate-integration-tests [**M**] → [tasks/08-cross-crate-integration-tests.md](tasks/08-cross-crate-integration-tests.md)
 - [ ] Task 09: e2e-and-workspace-validation [**S**] → [tasks/09-e2e-and-workspace-validation.md](tasks/09-e2e-and-workspace-validation.md)
+- [ ] Task 10: final-verification [**M**] → [tasks/10-final-verification.md](tasks/10-final-verification.md)
 <!-- TASKS_END -->
 
 ## Dependency Graph
