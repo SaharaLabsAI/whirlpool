@@ -323,6 +323,7 @@ fn test_config(namespace: &str) -> CommonwareConfig {
         replay_buffer: NonZeroUsize::new(16).unwrap(),
         write_buffer: NonZeroUsize::new(16).unwrap(),
         epoch: 0,
+        initial_height: 0,
         fetch_timeout: Duration::from_secs(1),
         fetch_concurrent: 4,
         signer,

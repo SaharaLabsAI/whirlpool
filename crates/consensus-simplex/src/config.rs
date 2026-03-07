@@ -42,6 +42,12 @@ pub struct CommonwareConfig {
     /// Starting epoch number.
     pub epoch: u64,
 
+    /// Block height recovered from persistent storage.
+    ///
+    /// When non-zero the engine resumes from this height instead of
+    /// starting from genesis.  Set to `0` for a fresh start.
+    pub initial_height: u64,
+
     /// Timeout for fetching blocks from peers.
     pub fetch_timeout: Duration,
 
@@ -79,6 +85,7 @@ mod tests {
             replay_buffer: NonZeroUsize::new(16).unwrap(),
             write_buffer: NonZeroUsize::new(16).unwrap(),
             epoch: 0,
+            initial_height: 0,
             fetch_timeout: Duration::from_secs(1),
             fetch_concurrent: 4,
             signer,

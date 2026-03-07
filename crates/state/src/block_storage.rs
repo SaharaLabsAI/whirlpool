@@ -41,6 +41,12 @@ pub trait BlockStorage: Send + Sync {
     ///
     /// Returns `None` if no block is stored at the given height.
     fn get_receipts_by_block(&self, number: u64) -> Result<Option<Vec<Receipt>>, BlockStorageError>;
+
+    /// Return the highest block number stored, or `None` if the store is empty.
+    ///
+    /// Used on startup to determine whether to resume from an existing chain
+    /// or initialise from genesis.
+    fn get_latest_block_number(&self) -> Result<Option<u64>, BlockStorageError>;
 }
 
 #[cfg(test)]

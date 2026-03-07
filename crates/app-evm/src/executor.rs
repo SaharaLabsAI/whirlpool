@@ -846,6 +846,11 @@ mod tests {
         ) -> Result<Option<Vec<Receipt>>, BlockStorageError> {
             Ok(None)
         }
+
+        fn get_latest_block_number(&self) -> Result<Option<u64>, BlockStorageError> {
+            let blocks = self.stored_blocks.lock().unwrap();
+            Ok(blocks.last().map(|(b, _)| b.height))
+        }
     }
 
     /// TC-AE-01: Propose returns receipts matching transaction count.

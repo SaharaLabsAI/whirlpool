@@ -291,6 +291,16 @@ mod tests {
         ) -> Result<Option<Vec<Receipt>>, BlockStorageError> {
             Ok(None)
         }
+
+        fn get_latest_block_number(&self) -> Result<Option<u64>, BlockStorageError> {
+            Ok(self
+                .blocks
+                .lock()
+                .unwrap()
+                .iter()
+                .map(|b| b.height)
+                .max())
+        }
     }
 
     fn test_ctx() -> EthRpcContext<InMemoryStateDb, MockBlockStorage> {

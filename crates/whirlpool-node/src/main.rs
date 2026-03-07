@@ -17,6 +17,7 @@ use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 use tracing::info;
+use state::BlockStorage;
 use whirlpool_node::config;
 use whirlpool_node::persisting_sink::PersistingFinalizationSink;
 
@@ -37,10 +38,6 @@ fn main() {
         .init();
 
     info!("Starting Whirlpool node");
-
-    let height = Arc::new(AtomicU64::new(0));
-    let inner_sink = FinalizationSink::new(Arc::clone(&height));
-    info!("Application and sink initialized");
 
     // Create commonware runtime and start async context
     let executor = tokio::Runner::default();
@@ -63,6 +60,24 @@ fn main() {
                 .max_message_size(MAX_MESSAGE_SIZE)
                 .build(context.with_label("network"));
 
+        // Initialize state database
+        let db_path = PathBuf::from(DEFAULT_DB_PATH);
+        info!(?db_path, "Opening persistent state database");
+        let reth_db =
+            state_reth::open_state_db(&db_path).expect("failed to open state database");
+        let state_db = Arc::new(RwLock::new(reth_db.clone()));
+        let block_storage = Arc::new(reth_db);
+
+        // Recover chain tip from persistent storage
+        let recovered_height = block_storage
+            .get_latest_block_number()
+            .expect("failed to query chain tip")
+            .unwrap_or(0);
+        info!(recovered_height, "Chain tip recovered from database");
+
+        let height = Arc::new(AtomicU64::new(recovered_height));
+        let inner_sink = FinalizationSink::new(Arc::clone(&height));
+
         // Configure consensus engine config
         let engine_config = CommonwareConfig {
             namespace: String::from_utf8_lossy(config::NAMESPACE).to_string(),
@@ -75,19 +90,13 @@ fn main() {
             replay_buffer: NonZeroUsize::new(1024 * 1024).unwrap(),
             write_buffer: NonZeroUsize::new(1024 * 1024).unwrap(),
             epoch: 0,
+            initial_height: recovered_height,
             fetch_timeout: Duration::from_secs(5),
             fetch_concurrent: 4,
             signer,
             validators,
         };
 
-        // Initialize state database
-        let db_path = PathBuf::from(DEFAULT_DB_PATH);
-        info!(?db_path, "Opening persistent state database");
-        let reth_db =
-            state_reth::open_state_db(&db_path).expect("failed to open state database");
-        let state_db = Arc::new(RwLock::new(reth_db.clone()));
-        let block_storage = Arc::new(reth_db);
         let chain_spec = Arc::new(build_sahara_chain_spec());
         let evm_config = WhirlpoolEvmConfig::new(chain_spec);
         let tx_pool = Arc::new(InMemoryTxPool::new());

@@ -18,9 +18,9 @@ The adapter crate translates Commonware Simplex APIs into Whirlpool consensus tr
 
 ## Core Types
 - `CommonwareBlock`: super-trait requiring `consensus::traits::Block + commonware_consensus::Block + Clone`.
-- `CommonwareConfig`: simplex timing and buffer configuration.
+- `CommonwareConfig`: simplex timing, buffer, and startup height configuration. Includes `initial_height: u64` to resume engine from non-zero state.
 - `AppAdapter`: maps vendor `Application/VerifyingApplication/Reporter` callbacks to consensus traits. Internally tracks finalized blocks via `Arc<RwLock<HashMap<Digest, B>>>` shared across all clones, enabling the reporter actor to find blocks stored by the batcher/automaton actor during propose/verify/genesis.
-- `CommonwareEngine`: sealed constructor/startup for mailbox, adapter, sink, and simplex engine.
+- `CommonwareEngine`: sealed constructor/startup for mailbox, adapter, sink, and simplex engine. Engine `height` is initialized to `initial_height` from config.
 - `FinalizationSink`: `EventSink` implementation tracking finalized height.
 
 ## Clone Semantics

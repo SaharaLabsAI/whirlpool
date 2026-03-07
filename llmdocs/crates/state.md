@@ -21,6 +21,7 @@ State database trait and error types — pure interface crate with no concrete i
 
 `BlockStorage` defines the contract for persistent block and receipt storage:
 - `store_block(&self, block: &EvmBlock, receipts: &[Receipt]) -> Result<(), BlockStorageError>`: Atomic persistence.
+- `get_latest_block_number(&self) -> Result<Option<u64>, BlockStorageError>`: Returns highest stored block number or None if empty.
 - `get_block_by_number(&self, number: u64) -> Result<Option<EvmBlock>, BlockStorageError>`
 - `get_block_by_hash(&self, hash: B256) -> Result<Option<EvmBlock>, BlockStorageError>`
 - `get_receipts_by_block(&self, number: u64) -> Result<Option<Vec<Receipt>>, BlockStorageError>`

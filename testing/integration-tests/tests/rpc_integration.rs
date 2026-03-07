@@ -36,6 +36,10 @@ impl BlockStorage for NullBlockStorage {
     fn get_receipts_by_block(&self, _number: u64) -> Result<Option<Vec<Receipt>>, BlockStorageError> {
         Ok(None)
     }
+
+    fn get_latest_block_number(&self) -> Result<Option<u64>, BlockStorageError> {
+        Ok(None)
+    }
 }
 
 /// Spin up an RPC server with a fresh in-memory state and return the provider URL.

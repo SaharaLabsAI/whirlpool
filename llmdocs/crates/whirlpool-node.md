@@ -20,12 +20,19 @@ Location: `crates/whirlpool-node/`
 1. Initialize runtime and `FinalizationSink`.
 2. Build Commonware network provider.
 3. Open `RethStateDb` at `DEFAULT_DB_PATH` via `state_reth::open_state_db`.
-4. Build `WhirlpoolEvmConfig` and `EvmApplication<RethStateDb>`.
-5. Provide `InMemoryTxPool` as tx source.
-6. Wrap `FinalizationSink` and `EvmApplication` in `PersistingFinalizationSink` to enable block/receipt persistence.
-7. Wrap app with `ApplicationAdapter`, construct `CommonwareEngine`, call `start()`.
-8. Initialize `EthRpcContext` sharing the `RethStateDb` (as `BlockStorage`) and the `block_height` Arc with the `FinalizationSink`.
-9. Start JSON-RPC server on `RPC_BIND_ADDR` (via `rpc_eth`).
+4. Recover chain tip via `block_storage.get_latest_block_number()` and seed shared `height` Arc.
+5. Build `WhirlpoolEvmConfig` and `EvmApplication<RethStateDb>`.
+6. Provide `InMemoryTxPool` as tx source.
+7. Wrap `FinalizationSink` and `EvmApplication` in `PersistingFinalizationSink` to enable block/receipt persistence.
+8. Wrap app with `ApplicationAdapter`, construct `CommonwareEngine` (passing recovered `initial_height`), call `start()`.
+9. Initialize `EthRpcContext` sharing the `RethStateDb` (as `BlockStorage`) and the `block_height` Arc with the `FinalizationSink`.
+10. Start JSON-RPC server on `RPC_BIND_ADDR` (via `rpc_eth`).
+
+## Startup Recovery Flow
+On restart, the node opens the persistent MDBX database before consensus starts. It performs O(log N) lookup in the `CanonicalHeaders` table to find the highest stored block number. This `recovered_height` is used to:
+- Seed the atomic `height` tracker shared by the app, sink, and RPC.
+- Configure the Simplex engine's `initial_height` so consensus resumes correctly from the last finalized block.
+- Ensure the JSON-RPC server reports the correct block tip immediately.
 
 ## Key Types
 - `PersistingFinalizationSink<DB, BS>`: `EventSink` implementation that persists finalized blocks to `BlockStorage` before delegating to the inner `FinalizationSink`.

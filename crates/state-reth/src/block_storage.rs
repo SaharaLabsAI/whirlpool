@@ -180,6 +180,22 @@ impl BlockStorage for RethStateDb {
         self.get_block_by_number(number)
     }
 
+    fn get_latest_block_number(&self) -> Result<Option<u64>, BlockStorageError> {
+        let tx = self
+            .inner()
+            .tx()
+            .map_err(|e| BlockStorageError::Database(e.to_string()))?;
+
+        let latest = tx
+            .cursor_read::<CanonicalHeaders>()
+            .map_err(|e| BlockStorageError::Database(e.to_string()))?
+            .last()
+            .map_err(|e| BlockStorageError::Database(e.to_string()))?
+            .map(|(number, _hash)| number);
+
+        Ok(latest)
+    }
+
     fn get_receipts_by_block(&self, number: u64) -> Result<Option<Vec<AppReceipt>>, BlockStorageError> {
         let tx = self
             .inner()
@@ -431,5 +447,37 @@ mod tests {
         assert_eq!(loaded[0].cumulative_gas_used, 100);
         assert_eq!(loaded[1].cumulative_gas_used, 200);
         assert_eq!(loaded[2].cumulative_gas_used, 300);
+    }
+
+    // TC-SR-09
+    #[test]
+    #[serial_test::serial]
+    fn tc_sr_09_get_latest_block_number_empty_db_returns_none() {
+        let dir = tempfile::tempdir().expect("create temp dir");
+        let db = open_state_db(dir.path()).expect("open db");
+
+        let latest = db.get_latest_block_number().expect("query latest");
+        assert_eq!(latest, None);
+    }
+
+    // TC-SR-10
+    #[test]
+    #[serial_test::serial]
+    fn tc_sr_10_get_latest_block_number_returns_highest_stored() {
+        let dir = tempfile::tempdir().expect("create temp dir");
+        let db = open_state_db(dir.path()).expect("open db");
+
+        // Store three blocks at heights 0, 5, 10
+        for h in [0, 5, 10] {
+            let block = make_block(h, 1);
+            let receipts = make_receipts(1);
+            db.store_block(&block, &receipts).expect("store block");
+        }
+
+        let latest = db
+            .get_latest_block_number()
+            .expect("query latest")
+            .expect("should have blocks");
+        assert_eq!(latest, 10);
     }
 }

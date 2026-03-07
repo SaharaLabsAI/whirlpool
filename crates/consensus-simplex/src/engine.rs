@@ -153,7 +153,11 @@ where
         let mailbox = Mailbox::<A::Block>::new(mailbox_tx);
 
         // Step 5: Create shared height tracker and block store
-        let height = Arc::new(AtomicU64::new(0));
+        //
+        // When `initial_height` is non-zero the node is resuming from
+        // persistent storage – seed the tracker so the mailbox, sink, and
+        // status all reflect the already-finalized chain.
+        let height = Arc::new(AtomicU64::new(self.config.initial_height));
         let running = Arc::new(AtomicBool::new(true));
         let block_store: BlockStore<A::Block> = Arc::new(tokio::sync::RwLock::new(HashMap::new()));
 
@@ -277,6 +281,7 @@ mod tests {
             replay_buffer: NonZeroUsize::new(10).unwrap(),
             write_buffer: NonZeroUsize::new(10).unwrap(),
             epoch: 0,
+            initial_height: 0,
             fetch_timeout: Duration::from_secs(1),
             fetch_concurrent: 4,
             signer,
