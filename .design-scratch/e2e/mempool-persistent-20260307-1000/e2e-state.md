@@ -26,7 +26,7 @@ splits: none
 ## Sub-intent Implementation Status
 | # | Title | Slug | Design | Proved | Planned | Executed | Verified |
 |---|-------|------|--------|--------|---------|----------|----------|
-| 1 | Persistent mempool | main | complete | complete | complete | pending | pending |
+| 1 | Persistent mempool | main | complete | complete | complete | complete | complete |
 
 ## Phase Results
 
@@ -70,12 +70,15 @@ splits: none
 - artifacts: mempool-persistent.md (entry), INDEX.md, 9 task files, ac-coverage.md, plan-phase-digest.md
 
 ### Execute
-- status: pending
-- session_id: none
-- tasks_completed: 0
+- status: complete
+- session_id: none (orchestrated directly)
+- tasks_completed: 10
 - tasks_failed: 0
-- rollback_tag: none
-- timestamp: none
+- rollback_tag: e2e-pre-execute-mempool-persistent-20260307-1000
+- timestamp: 2026-03-07
+- ac_verification: ALL PASS (AC-1 through AC-5, QA-1 through QA-3)
+- test_count: 82 (app: 14, app-evm: 35, mempool: 16, rpc-eth: 17)
+- clippy: clean (mempool --no-deps -D warnings)
 
 ## Accepted Gaps
 

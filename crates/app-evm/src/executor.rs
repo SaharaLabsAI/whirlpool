@@ -494,6 +494,10 @@ mod tests {
     }
 
     impl TxSource for MockTxSource {
+        fn push(&self, _tx: Vec<u8>) {
+            // MockTxSource is pre-loaded, ignores push.
+        }
+
         fn pending(&self) -> Vec<Vec<u8>> {
             self.txs.clone()
         }

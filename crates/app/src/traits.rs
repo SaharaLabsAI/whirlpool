@@ -20,6 +20,7 @@ pub trait Application: Send + Sync + Clone + 'static {
     ) -> impl Future<Output = Result<Self::Result, Self::Error>> + Send;
 }
 
-pub trait TxSource {
+pub trait TxSource: Send + Sync {
+    fn push(&self, tx: Vec<u8>);
     fn pending(&self) -> Vec<Vec<u8>>;
 }

@@ -1,4 +1,4 @@
-use app::tx_source::InMemoryTxPool;
+use app::traits::TxSource;
 use state::{BlockStorage, StateDb};
 use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, RwLock};
@@ -10,7 +10,7 @@ use crate::receipt_store::ReceiptStore;
 /// Holds references to the node's transaction pool, state database,
 /// block storage, receipt store, and chain metadata needed by RPC method handlers.
 pub struct EthRpcContext<S: StateDb, B: BlockStorage> {
-    pub tx_pool: Arc<InMemoryTxPool>,
+    pub tx_pool: Arc<dyn TxSource>,
     pub state_db: Arc<RwLock<S>>,
     pub block_storage: Arc<B>,
     pub receipt_store: Arc<ReceiptStore>,
@@ -34,7 +34,7 @@ impl<S: StateDb, B: BlockStorage> Clone for EthRpcContext<S, B> {
 
 impl<S: StateDb, B: BlockStorage> EthRpcContext<S, B> {
     pub fn new(
-        tx_pool: Arc<InMemoryTxPool>,
+        tx_pool: Arc<dyn TxSource>,
         state_db: Arc<RwLock<S>>,
         block_storage: Arc<B>,
         chain_id: u64,

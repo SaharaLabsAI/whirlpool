@@ -3588,6 +3588,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mempool"
+version = "0.1.0"
+dependencies = [
+ "app",
+ "reth-libmdbx",
+ "tempfile",
+]
+
+[[package]]
 name = "metrics"
 version = "0.24.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7076,6 +7085,7 @@ dependencies = [
  "commonware-runtime",
  "consensus",
  "consensus-simplex",
+ "mempool",
  "p2p-commonware",
  "reth-revm",
  "revm",

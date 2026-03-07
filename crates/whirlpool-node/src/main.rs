@@ -1,6 +1,7 @@
 //! Whirlpool consensus node binary.
 
-use app::{ApplicationAdapter, InMemoryTxPool};
+use app::traits::TxSource;
+use app::ApplicationAdapter;
 use app_evm::executor::EvmApplication;
 use app_evm::{build_sahara_chain_spec, WhirlpoolEvmConfig, SAHARA_CHAIN_ID};
 use commonware_cryptography::ed25519;
@@ -8,6 +9,7 @@ use commonware_cryptography::Signer;
 use commonware_runtime::{tokio, Metrics, Runner};
 use consensus::traits::ConsensusEngine;
 use consensus_simplex::{CommonwareConfig, CommonwareEngine, FinalizationSink};
+use mempool::PersistentTxPool;
 use p2p_commonware::CommonwareNetworkProviderBuilder;
 use rpc_eth as rpc;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -30,6 +32,9 @@ const DEFAULT_DB_PATH: &str = "data/state";
 
 /// Persistent directory for the Commonware runtime (consensus journal, etc.).
 const DEFAULT_RUNTIME_STORAGE_DIR: &str = "data/runtime";
+
+/// Default path for the persistent mempool database.
+const DEFAULT_MEMPOOL_DB_PATH: &str = "data/mempool";
 
 fn main() {
     // Initialize tracing
@@ -105,7 +110,11 @@ fn main() {
 
         let chain_spec = Arc::new(build_sahara_chain_spec());
         let evm_config = WhirlpoolEvmConfig::new(chain_spec);
-        let tx_pool = Arc::new(InMemoryTxPool::new());
+        let mempool_path = PathBuf::from(DEFAULT_MEMPOOL_DB_PATH);
+        info!(?mempool_path, "Opening persistent mempool database");
+        let tx_pool: Arc<dyn TxSource> = Arc::new(
+            PersistentTxPool::open(&mempool_path).expect("failed to open mempool database"),
+        );
         let evm_app = EvmApplication::new(evm_config, state_db.clone(), tx_pool.clone());
 
         // Wrap the finalization sink to persist blocks on finalization

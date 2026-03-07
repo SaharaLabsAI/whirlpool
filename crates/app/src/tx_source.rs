@@ -5,6 +5,10 @@ use crate::traits::TxSource;
 pub struct NoopTxSource;
 
 impl TxSource for NoopTxSource {
+    fn push(&self, _tx: Vec<u8>) {
+        // NoopTxSource silently discards transactions.
+    }
+
     fn pending(&self) -> Vec<Vec<u8>> {
         Vec::new()
     }
@@ -28,11 +32,6 @@ impl InMemoryTxPool {
             txs: Mutex::new(Vec::new()),
         }
     }
-
-    /// Add a raw EIP-2718 encoded transaction to the pool.
-    pub fn push(&self, tx: Vec<u8>) {
-        self.txs.lock().expect("tx pool lock poisoned").push(tx);
-    }
 }
 
 impl Default for InMemoryTxPool {
@@ -42,6 +41,11 @@ impl Default for InMemoryTxPool {
 }
 
 impl TxSource for InMemoryTxPool {
+    /// Add a raw EIP-2718 encoded transaction to the pool.
+    fn push(&self, tx: Vec<u8>) {
+        self.txs.lock().expect("tx pool lock poisoned").push(tx);
+    }
+
     /// Drain and return all pending transactions.
     ///
     /// After this call the pool is empty. Transactions are returned

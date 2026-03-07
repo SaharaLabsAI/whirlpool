@@ -8,8 +8,9 @@ Location: `crates/whirlpool-node/`
 ## Dependency Boundaries
 - `consensus`: core interface traits from `consensus::traits`.
 - `consensus-simplex`: simplex adapter and engine.
-- `app`: application adapter + tx source implementations (`InMemoryTxPool`).
+- `app`: application adapter + `TxSource` trait.
 - `app-evm`: EVM app implementation + `app_evm::traits::StateProvider`.
+- `mempool`: `PersistentTxPool` for transaction storage.
 - `state`: `StateDb` trait, `StateError`, and `BlockStorage` trait.
 - `state-reth`: `RethStateDb` implementation for persistent state and block storage.
 - `state-memory`: `InMemoryStateDb` implementation (test code only).
@@ -22,7 +23,7 @@ Location: `crates/whirlpool-node/`
 3. Open `RethStateDb` at `DEFAULT_DB_PATH` via `state_reth::open_state_db`.
 4. Recover chain tip via `block_storage.get_latest_block_number()` and seed shared `height` Arc.
 5. Build `WhirlpoolEvmConfig` and `EvmApplication<RethStateDb>`.
-6. Provide `InMemoryTxPool` as tx source.
+6. Open `PersistentTxPool` at `data/mempool` as `TxSource`.
 7. Wrap `FinalizationSink` and `EvmApplication` in `PersistingFinalizationSink` to enable block/receipt persistence.
 8. Construct `CommonwareEngine` (passing recovered `height` Arc in `engine_config`), call `start()`.
 9. Initialize `EthRpcContext` sharing the `RethStateDb` (as `BlockStorage`) and the `height` Arc (as `block_height`).

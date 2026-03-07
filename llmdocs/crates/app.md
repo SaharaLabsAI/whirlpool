@@ -6,10 +6,10 @@ Application-facing interfaces and adapters that bridge execution logic to consen
 ## Interface/Implementation Split
 - Interface module: `crates/app/src/traits.rs`
   - `Application`
-  - `TxSource`
+  - `TxSource`: interface for transaction storage and retrieval. Methods: `pending()`, `push(tx: Vec<u8>)`. Bounds: `Send + Sync`.
 - Implementation module: `crates/app/src/tx_source.rs`
-  - `NoopTxSource`
-  - `InMemoryTxPool`
+  - `NoopTxSource`: no-op implementation of `TxSource`.
+  - `InMemoryTxPool`: in-memory implementation of `TxSource`.
 - Adapter module: `crates/app/src/adapter.rs`
   - `ApplicationAdapter` maps `Application` to `consensus::traits::ConsensusApp`.
 

@@ -37,6 +37,7 @@ Structured reference docs optimized for fast LLM lookup. Each contains type sign
 | [crates/whirlpool-node.md](crates/whirlpool-node.md) | EVM binary wiring: `EvmApplication` + `InMemoryTxPool` tx source | `whirlpool-node` (bin) |
 | [crates/rpc-eth.md](crates/rpc-eth.md) | Ethereum JSON-RPC server: `eth_*` methods, context, receipt store | `rpc-eth` |
 | [crates/state-reth.md](crates/state-reth.md) | Persistent state implementation: RethStateDb, MDBX, state root | `state-reth` |
+| [crates/mempool.md](crates/mempool.md) | Persistent transaction pool: MempoolStore, MDBX, FIFO ordering | `mempool` |
 
 ## Guides
 
@@ -66,8 +67,8 @@ Step-by-step instructions for common tasks and workflows.
 | Add a new block type | `architecture/consensus-traits.md` -> `guides/implementing-consensus-traits.md` |
 | Wire a new consensus engine | `architecture/simplex-adapter.md` -> `guides/wiring-simplex-adapter.md` |
 | Understand block flow | `architecture/block-lifecycle.md` -> `guides/block-lifecycle-walkthrough.md` |
-| Extend the node binary | `architecture/whirlpool-node.md` -> `guides/whirlpool-node-components.md` |
-| Update EVM node tx sourcing | `crates/app.md` + `crates/whirlpool-node.md` |
+| Extend node/mempool | `architecture/whirlpool-node.md` -> `guides/whirlpool-node-components.md` + `crates/mempool.md` |
+| Update EVM node tx sourcing | `crates/app.md` + `crates/whirlpool-node.md` + `crates/mempool.md` |
 | Add/modify RPC methods | `crates/rpc-eth.md` |
 | Check code style | `reference/coding-conventions.md` |
 | Write a commit message | `reference/git-conventions.md` |
@@ -85,6 +86,7 @@ Step-by-step instructions for common tasks and workflows.
 | `state-reth` | `crates/state-reth/src/` | `crates/state-reth.md` | — |
 | `app` | `crates/app/src/` | `crates/app.md` | — |
 | `app-evm` | `crates/app-evm/src/` | `crates/app-evm.md` | — |
+| `mempool` | `crates/mempool/src/` | `crates/mempool.md` | — |
 | `whirlpool-node` | `crates/whirlpool-node/src/` | `architecture/whirlpool-node.md` (lib) + `crates/whirlpool-node.md` (EVM bin) | `guides/whirlpool-node-components.md` |
 | `rpc-eth` | `crates/rpc-eth/src/` | `crates/rpc-eth.md` | — |
 | `integration-tests` | `testing/integration-tests/tests/` | `crates/integration-tests.md` | — |
