@@ -323,7 +323,7 @@ fn test_config(namespace: &str) -> CommonwareConfig {
         replay_buffer: NonZeroUsize::new(16).unwrap(),
         write_buffer: NonZeroUsize::new(16).unwrap(),
         epoch: 0,
-        initial_height: 0,
+        height: Arc::new(AtomicU64::new(0)),
         fetch_timeout: Duration::from_secs(1),
         fetch_concurrent: 4,
         signer,
@@ -382,9 +382,8 @@ fn test_engine_starts_with_real_simplex() {
     let runner = commonware_tokio::Runner::default();
     runner.start(|context| async move {
         let app = Arc::new(MockApp);
-        let height = Arc::new(AtomicU64::new(0));
-        let sink = Arc::new(FinalizationSink::<TestBlock>::new(height));
         let config = test_config("engine-start");
+        let sink = Arc::new(FinalizationSink::<TestBlock>::new(Arc::clone(&config.height)));
         let running_engine = spawn_engine(app, sink, config, context).await;
         let status = running_engine.status();
         assert!(status.is_running);
@@ -399,9 +398,8 @@ fn test_engine_shutdown_aborts_handle() {
     let runner = commonware_tokio::Runner::default();
     runner.start(|context| async move {
         let app = Arc::new(MockApp);
-        let height = Arc::new(AtomicU64::new(0));
-        let sink = Arc::new(FinalizationSink::<TestBlock>::new(height));
         let config = test_config("engine-shutdown");
+        let sink = Arc::new(FinalizationSink::<TestBlock>::new(Arc::clone(&config.height)));
         let running_engine = spawn_engine(app, sink, config, context).await;
 
         assert!(running_engine.status().is_running);
@@ -415,9 +413,8 @@ fn test_engine_status_tracks_height() {
     let runner = commonware_tokio::Runner::default();
     runner.start(|context| async move {
         let app = Arc::new(MockApp);
-        let height = Arc::new(AtomicU64::new(0));
-        let sink = Arc::new(FinalizationSink::<TestBlock>::new(Arc::clone(&height)));
         let config = test_config("engine-height");
+        let sink = Arc::new(FinalizationSink::<TestBlock>::new(Arc::clone(&config.height)));
 
         let running_engine = spawn_engine(app, sink, config, context.clone()).await;
 
@@ -494,9 +491,8 @@ fn test_single_validator_produces_block() {
     let runner = commonware_tokio::Runner::default();
     runner.start(|context| async move {
         let app = Arc::new(MockApp);
-        let height = Arc::new(AtomicU64::new(0));
-        let sink = Arc::new(FinalizationSink::<TestBlock>::new(Arc::clone(&height)));
         let config = test_config("e2e-single-validator-block");
+        let sink = Arc::new(FinalizationSink::<TestBlock>::new(Arc::clone(&config.height)));
 
         let running_engine = spawn_engine(app, sink, config, context.clone()).await;
 

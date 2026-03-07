@@ -90,7 +90,7 @@ impl<E, A, S, B, Sig> Application<E> for AppAdapter<A, S, B, Sig>
 where
     E: Rng + Spawner + Metrics + Clock,
     A: ConsensusApp<Block = B> + Clone + 'static,
-    S: EventSink<Block = B> + Clone + 'static,
+    S: EventSink<Block = B> + 'static,
     B: CommonwareBlock + Committable<Commitment = Digest> + 'static,
     Sig: Scheme + 'static,
 {
@@ -125,7 +125,7 @@ impl<E, A, S, B, Sig> VerifyingApplication<E> for AppAdapter<A, S, B, Sig>
 where
     E: Rng + Spawner + Metrics + Clock,
     A: ConsensusApp<Block = B> + Clone + 'static,
-    S: EventSink<Block = B> + Clone + 'static,
+    S: EventSink<Block = B> + 'static,
     B: CommonwareBlock + Committable<Commitment = Digest> + 'static,
     Sig: Scheme + 'static,
 {
@@ -153,7 +153,7 @@ where
 impl<A, S, B, Sig> Reporter for AppAdapter<A, S, B, Sig>
 where
     A: ConsensusApp<Block = B> + Clone + 'static,
-    S: EventSink<Block = B> + Clone + 'static,
+    S: EventSink<Block = B> + 'static,
     B: CommonwareBlock + Committable<Commitment = Digest> + 'static,
     Sig: Scheme + 'static,
 {

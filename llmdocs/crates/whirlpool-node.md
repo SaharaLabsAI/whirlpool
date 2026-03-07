@@ -17,7 +17,7 @@ Location: `crates/whirlpool-node/`
 - `rpc-eth`: Ethereum JSON-RPC server (extracted from former `rpc/` module).
 
 ## main.rs Wiring
-1. Initialize runtime and `FinalizationSink`.
+1. Initialize Commonware runtime with **persistent storage directory** (`DEFAULT_RUNTIME_STORAGE_DIR`) so the consensus journal survives restarts.
 2. Build Commonware network provider.
 3. Open `RethStateDb` at `DEFAULT_DB_PATH` via `state_reth::open_state_db`.
 4. Recover chain tip via `block_storage.get_latest_block_number()` and seed shared `height` Arc.
@@ -29,10 +29,9 @@ Location: `crates/whirlpool-node/`
 10. Start JSON-RPC server on `RPC_BIND_ADDR` (via `rpc_eth`).
 
 ## Startup Recovery Flow
-On restart, the node opens the persistent MDBX database before consensus starts. It performs O(log N) lookup in the `CanonicalHeaders` table to find the highest stored block number. This `recovered_height` is used to:
-- Seed the atomic `height` tracker shared by the app, sink, and RPC.
-- Configure the Simplex engine's `initial_height` so consensus resumes correctly from the last finalized block.
-- Ensure the JSON-RPC server reports the correct block tip immediately.
+Recovery relies on two persistence layers working together:
+1. **Application state** (MDBX): The node opens the persistent database and queries `CanonicalHeaders` for the highest stored block number. This `recovered_height` seeds the atomic `height` tracker and the engine's `initial_height` config so the application layer (proposals, finalization sink, RPC) resumes at the correct block.
+2. **Consensus journal** (Commonware Storage): The Simplex voter journals votes and certificates to `DEFAULT_RUNTIME_STORAGE_DIR`. On restart the voter replays the journal to recover its view/round state, preventing re-voting or re-proposing for already-decided views. Without a persistent storage directory the journal is lost and consensus restarts from view 0.
 
 ## Key Types
 - `PersistingFinalizationSink<DB, BS>`: `EventSink` implementation that persists finalized blocks to `BlockStorage` before delegating to the inner `FinalizationSink`.

@@ -1,8 +1,9 @@
 // CommonwareEngine — sealed wiring for commonware simplex BFT consensus
 //!
 //! This module provides sealed internal wiring that connects ConsensusApp and EventSink
-//! to the commonware simplex BFT engine. All infrastructure (Mailbox, MailboxActor,
-//! AppAdapter, FinalizationSink) is created and managed internally.
+//! to the commonware simplex BFT engine. Internal infrastructure (Mailbox, MailboxActor,
+//! AppAdapter) is created and managed here, while the caller-provided EventSink is threaded
+//! through so that finalization side-effects (e.g. block persistence) actually fire.
 
 use std::collections::HashMap;
 use std::num::{NonZeroU16, NonZeroUsize};
@@ -32,7 +33,6 @@ use rand_core::CryptoRngCore;
 use crate::adapter::AppAdapter;
 use crate::config::CommonwareConfig;
 use crate::mailbox::{Mailbox, MailboxActor};
-use crate::sink::FinalizationSink;
 use crate::traits::CommonwareBlock;
 use crate::BlockStore;
 
@@ -154,10 +154,10 @@ where
 
         // Step 5: Create shared height tracker and block store
         //
-        // When `initial_height` is non-zero the node is resuming from
-        // persistent storage – seed the tracker so the mailbox, sink, and
-        // status all reflect the already-finalized chain.
-        let height = Arc::new(AtomicU64::new(self.config.initial_height));
+        // The height `Arc` is owned by the caller and shared with the
+        // user-provided EventSink so finalization events update the same
+        // counter that the mailbox reads when proposing new blocks.
+        let height = Arc::clone(&self.config.height);
         let running = Arc::new(AtomicBool::new(true));
         let block_store: BlockStore<A::Block> = Arc::new(tokio::sync::RwLock::new(HashMap::new()));
 
@@ -178,17 +178,20 @@ where
             ()
         });
 
-        // Step 7: Create FinalizationSink
-        let finalization_sink = FinalizationSink::<A::Block>::new(Arc::clone(&height));
-
-        // Step 8: Create AppAdapter (Reporter) with shared block store
+        // Step 7: Create AppAdapter (Reporter) using the caller-provided sink
+        //
+        // The user-provided `EventSink` (e.g. `PersistingFinalizationSink`)
+        // receives finalization events from the vendor consensus engine via
+        // the `AppAdapter`.  Previously this wired an internally-created
+        // `FinalizationSink` that was disconnected from the caller's sink,
+        // which meant block persistence and other side-effects never fired.
         let reporter = AppAdapter::new(
             Arc::clone(&self.app),
-            Arc::new(finalization_sink),
+            Arc::clone(&self.sink),
             block_store,
         );
 
-        // Step 9: Create ed25519 Scheme from signer and validators
+        // Step 8: Create ed25519 Scheme from signer and validators
         // Use from_iter_dedup which deduplicates and creates Set
         let participants = Set::from_iter_dedup(self.config.validators.clone());
         let scheme = simplex::scheme::ed25519::Scheme::signer(
@@ -198,7 +201,7 @@ where
         )
         .ok_or_else(|| ConsensusError::Other("signer not in validator set".into()))?;
 
-        // Step 10: Build simplex::Config
+        // Step 9: Build simplex::Config
         let simplex_config = simplex::Config {
             scheme: scheme.clone(),
             elector: RoundRobin::<Sha256>::default(), // Pass config, not built elector
@@ -225,29 +228,29 @@ where
             fetch_concurrent: self.config.fetch_concurrent,
         };
 
-        // Step 11: Validate config (panics on programming errors - acceptable per design)
+        // Step 10: Validate config (panics on programming errors - acceptable per design)
         simplex_config.assert();
 
-        // Step 12: Create vendor Engine
+        // Step 11: Create vendor Engine
         let engine = simplex::Engine::new(self.context, simplex_config);
 
-        // Step 13: Start vendor engine with three channel pairs (raw vendor types - no wrappers)
+        // Step 12: Start vendor engine with three channel pairs (raw vendor types - no wrappers)
         let vendor_handle = engine.start(per_channel.vote, per_channel.cert, per_channel.resolver);
 
-        // Step 14: Convert vendor Handle to tokio JoinHandle
+        // Step 13: Convert vendor Handle to tokio JoinHandle
         let join_handle: JoinHandle<Result<(), ConsensusError>> = tokio::task::spawn(async move {
             vendor_handle.await;
             Ok(())
         });
 
-        // Step 15: Create shutdown function
+        // Step 14: Create shutdown function
         let running_for_shutdown = Arc::clone(&running);
         let stop_fn = Box::new(move || {
             running_for_shutdown.store(false, Ordering::SeqCst);
             tracing::info!("Shutdown signal sent to consensus engine");
         }) as Box<dyn FnOnce() + Send>;
 
-        // Step 16: Return RunningEngine
+        // Step 15: Return RunningEngine
         Ok(RunningEngine::new(stop_fn, join_handle, height, running))
     }
 }
@@ -281,7 +284,7 @@ mod tests {
             replay_buffer: NonZeroUsize::new(10).unwrap(),
             write_buffer: NonZeroUsize::new(10).unwrap(),
             epoch: 0,
-            initial_height: 0,
+            height: Arc::new(AtomicU64::new(0)),
             fetch_timeout: Duration::from_secs(1),
             fetch_concurrent: 4,
             signer,
@@ -294,9 +297,8 @@ mod tests {
         let executor = commonware_runtime::deterministic::Runner::default();
         executor.start(|context| async move {
             let app = Arc::new(MockApp);
-            let height = Arc::new(AtomicU64::new(0));
-            let sink = Arc::new(FinalizationSink::<TestBlock>::new(height));
             let config = test_config();
+            let sink = Arc::new(FinalizationSink::<TestBlock>::new(Arc::clone(&config.height)));
 
             let (network, _oracle_handle) = CommonwareNetworkProviderBuilder::new(
                 config.signer.clone(),
@@ -316,9 +318,8 @@ mod tests {
         let runner = commonware_tokio::Runner::default();
         runner.start(|context| async move {
             let app = Arc::new(MockApp);
-            let height = Arc::new(AtomicU64::new(0));
-            let sink = Arc::new(FinalizationSink::<TestBlock>::new(height));
             let config = test_config();
+            let sink = Arc::new(FinalizationSink::<TestBlock>::new(Arc::clone(&config.height)));
 
             let (network, mut oracle_handle) = CommonwareNetworkProviderBuilder::new(
                 config.signer.clone(),
@@ -350,10 +351,8 @@ mod tests {
         let runner = commonware_tokio::Runner::default();
         runner.start(|context| async move {
             let app = Arc::new(MockApp);
-            let sink = Arc::new(FinalizationSink::<TestBlock>::new(Arc::new(
-                AtomicU64::new(0),
-            )));
             let config = test_config();
+            let sink = Arc::new(FinalizationSink::<TestBlock>::new(Arc::clone(&config.height)));
 
             let (network, mut oracle) = CommonwareNetworkProviderBuilder::new(
                 config.signer.clone(),

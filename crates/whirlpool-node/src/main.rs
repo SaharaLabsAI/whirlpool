@@ -28,6 +28,9 @@ const MAX_MESSAGE_SIZE: u32 = 1024 * 1024; // 1 MB
 /// Default path for the state database.
 const DEFAULT_DB_PATH: &str = "data/state";
 
+/// Persistent directory for the Commonware runtime (consensus journal, etc.).
+const DEFAULT_RUNTIME_STORAGE_DIR: &str = "data/runtime";
+
 fn main() {
     // Initialize tracing
     tracing_subscriber::fmt()
@@ -39,8 +42,11 @@ fn main() {
 
     info!("Starting Whirlpool node");
 
-    // Create commonware runtime and start async context
-    let executor = tokio::Runner::default();
+    // Create commonware runtime with persistent storage so the consensus
+    // journal survives restarts (the default uses a random temp directory).
+    let runtime_cfg = tokio::Config::new()
+        .with_storage_directory(PathBuf::from(DEFAULT_RUNTIME_STORAGE_DIR));
+    let executor = tokio::Runner::new(runtime_cfg);
 
     executor.start(|context| async move {
         info!("Commonware runtime started");
@@ -90,7 +96,7 @@ fn main() {
             replay_buffer: NonZeroUsize::new(1024 * 1024).unwrap(),
             write_buffer: NonZeroUsize::new(1024 * 1024).unwrap(),
             epoch: 0,
-            initial_height: recovered_height,
+            height: Arc::clone(&height),
             fetch_timeout: Duration::from_secs(5),
             fetch_concurrent: 4,
             signer,

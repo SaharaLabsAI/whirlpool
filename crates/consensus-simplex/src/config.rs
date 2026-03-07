@@ -1,6 +1,8 @@
 //! Configuration for the Commonware Simplex BFT consensus engine.
 
 use std::num::NonZeroUsize;
+use std::sync::atomic::AtomicU64;
+use std::sync::Arc;
 use std::time::Duration;
 
 use commonware_cryptography::ed25519::{PrivateKey as Ed25519Signer, PublicKey};
@@ -42,11 +44,14 @@ pub struct CommonwareConfig {
     /// Starting epoch number.
     pub epoch: u64,
 
-    /// Block height recovered from persistent storage.
+    /// Shared block-height tracker.
     ///
-    /// When non-zero the engine resumes from this height instead of
-    /// starting from genesis.  Set to `0` for a fresh start.
-    pub initial_height: u64,
+    /// The engine shares this `Arc<AtomicU64>` between its internal mailbox
+    /// actor (which reads the current height to propose the next block) and
+    /// the user-provided `EventSink` (which is responsible for advancing the
+    /// value on finalization).  The caller should seed it from persistent
+    /// storage so restarts resume at the correct height.
+    pub height: Arc<AtomicU64>,
 
     /// Timeout for fetching blocks from peers.
     pub fetch_timeout: Duration,
@@ -67,6 +72,8 @@ mod tests {
     use commonware_cryptography::ed25519::PrivateKey;
     use commonware_cryptography::Signer as _;
     use std::num::NonZeroUsize;
+    use std::sync::atomic::AtomicU64;
+    use std::sync::Arc;
     use std::time::Duration;
 
     #[test]
@@ -85,7 +92,7 @@ mod tests {
             replay_buffer: NonZeroUsize::new(16).unwrap(),
             write_buffer: NonZeroUsize::new(16).unwrap(),
             epoch: 0,
-            initial_height: 0,
+            height: Arc::new(AtomicU64::new(0)),
             fetch_timeout: Duration::from_secs(1),
             fetch_concurrent: 4,
             signer,
