@@ -6,3 +6,4 @@
 - TB-008..TB-010 move without behavioral edits because they only depend on  and  behavior.
 - Task 04 correction: PersistentTxPool ports cleanly to mempool-mdbx by swapping MempoolStore to MdbxMempoolStore while keeping TxSource delegation unchanged.
 - Task 04 correction: TB-008 through TB-010 moved without behavior edits because they only rely on PersistentTxPool open/pending/push semantics.
+- Task 05: Integration test relocation is a pure move with one import rewrite (`mempool::PersistentTxPool` -> `mempool_mdbx::PersistentTxPool`); all six test bodies remain byte-identical.

@@ -7,7 +7,7 @@
 use std::sync::Arc;
 
 use app::traits::TxSource;
-use mempool::PersistentTxPool;
+use mempool_mdbx::PersistentTxPool;
 use tempfile::TempDir;
 
 /// INT-FLOW-01: PersistentTxPool can be used as `Arc<dyn TxSource>`
