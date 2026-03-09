@@ -9,7 +9,7 @@ use commonware_cryptography::Signer;
 use commonware_runtime::{tokio, Metrics, Runner};
 use consensus::traits::ConsensusEngine;
 use consensus_simplex::{CommonwareConfig, CommonwareEngine, FinalizationSink};
-use mempool::PersistentTxPool;
+use mempool_mdbx::PersistentTxPool;
 use p2p_commonware::CommonwareNetworkProviderBuilder;
 use rpc_eth as rpc;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
