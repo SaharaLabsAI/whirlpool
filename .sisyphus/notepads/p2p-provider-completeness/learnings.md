@@ -26,3 +26,8 @@ This file tracks conventions, patterns, and insights discovered during task exec
 - sender.rs and traits.rs are compatible with receiver/provider/multiplex changes; no code changes required.
 - `nix develop --command cargo check -p p2p-commonware` passed (exit code 0).
 - `nix develop --command cargo test -p p2p-commonware` failed due to pre-existing tests.rs blockers from receiver constructor arity updates (`CommonwareReceiver::new` now requires `Channel`), out of scope for Task 04.
+## [2026-03-09T21:08:09+08:00] Task 05: whirlpool-node builder wiring
+- main.rs now passes validators via initial_validators(0, validators.clone())
+- Bootstrappers passed as empty vec for dev mode (no external peers)
+- build() changed to build().await (Task 02 made it async)
+- REQ-1 and REQ-2 complete through node integration boundary

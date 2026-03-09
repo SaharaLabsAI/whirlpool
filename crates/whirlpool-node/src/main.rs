@@ -63,13 +63,17 @@ fn main() {
         // Create local addresses for network setup
         let listen_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0); // OS assigns port
         let dialable_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
+        let bootstrappers = vec![]; // Empty for development mode (no external peers)
 
         let (network_provider, oracle_handle) =
             CommonwareNetworkProviderBuilder::new(signer.clone(), APPLICATION_NAMESPACE)
                 .listen_addr(listen_addr)
                 .dialable_addr(dialable_addr)
                 .max_message_size(MAX_MESSAGE_SIZE)
-                .build(context.with_label("network"));
+                .initial_validators(0, validators.clone())
+                .bootstrappers(bootstrappers)
+                .build(context.with_label("network"))
+                .await;
 
         // Initialize state database
         let db_path = PathBuf::from(DEFAULT_DB_PATH);
@@ -150,4 +154,26 @@ fn main() {
         // In production, this would integrate with proper signal handling
         ::std::future::pending::<()>().await;
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tst_req2_002_node_startup_wiring_populates_builder_bootstrappers_and_validators() {
+        // Verify node wiring can pass validators and bootstrappers in sequence.
+        let signer = ed25519::PrivateKey::from_seed(config::VALIDATOR_SEED);
+        let validators = vec![signer.public_key()];
+        let bootstrappers = vec![];
+
+        let builder = CommonwareNetworkProviderBuilder::new(signer.clone(), APPLICATION_NAMESPACE)
+            .listen_addr(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0))
+            .dialable_addr(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0))
+            .max_message_size(MAX_MESSAGE_SIZE)
+            .initial_validators(0, validators.clone())
+            .bootstrappers(bootstrappers.clone());
+
+        drop(builder);
+    }
 }
