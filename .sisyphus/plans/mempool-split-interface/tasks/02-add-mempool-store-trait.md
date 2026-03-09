@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `pending` |
+| Status | `completed` |
 | Dependencies | `01-scaffold-mempool-mdbx` |
 | Wave | 2 |
 | Complexity | S (2 files) |
