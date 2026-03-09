@@ -110,15 +110,11 @@ where
 
             // Try each receiver in order
             for i in 0..len {
-                let (channel, receiver) = &mut self.receivers[i];
+                let (_, receiver) = &mut self.receivers[i];
                 match receiver.recv().await {
                     Some(msg) => {
-                        // Fix the bug: tag with correct channel, not hardcoded Channel(0)
-                        return Some(NetworkMessage {
-                            channel: *channel,
-                            data: msg.data,
-                            peer_id: msg.peer_id,
-                        });
+                        // Trust receiver-owned channel tagging.
+                        return Some(msg);
                     }
                     None => {
                         // This receiver is done - continue checking others
@@ -129,5 +125,103 @@ where
             // All receivers returned None - they're all exhausted
             return None;
         }
+    }
+}
+
+#[cfg(test)]
+mod multiplex_receiver_contract_tests {
+    use super::MultiplexReceiver;
+    use crate::receiver::CommonwareReceiver;
+    use commonware_cryptography::ed25519;
+    use commonware_cryptography::Signer;
+    use p2p::{Channel, NetworkReceiver};
+
+    #[derive(Debug)]
+    struct MockCwReceiver {
+        rx: tokio::sync::mpsc::UnboundedReceiver<(ed25519::PublicKey, bytes::Bytes)>,
+    }
+
+    impl MockCwReceiver {
+        fn new() -> (
+            tokio::sync::mpsc::UnboundedSender<(ed25519::PublicKey, bytes::Bytes)>,
+            Self,
+        ) {
+            let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+            (tx, Self { rx })
+        }
+    }
+
+    impl commonware_p2p::Receiver for MockCwReceiver {
+        type Error = std::io::Error;
+        type PublicKey = ed25519::PublicKey;
+
+        async fn recv(&mut self) -> Result<(Self::PublicKey, bytes::Bytes), Self::Error> {
+            self.rx.recv().await.ok_or_else(|| {
+                std::io::Error::new(std::io::ErrorKind::BrokenPipe, "channel closed")
+            })
+        }
+    }
+
+    fn create_test_pubkey(seed: u64) -> ed25519::PublicKey {
+        let private_key = ed25519::PrivateKey::from_seed(seed);
+        private_key.public_key()
+    }
+
+    #[tokio::test]
+    async fn tst_req3_003_multiplex_forwards_receiver_tagged_channels() {
+        let pk = create_test_pubkey(42);
+
+        let (tx_vote, vote_mock) = MockCwReceiver::new();
+        let (tx_cert, cert_mock) = MockCwReceiver::new();
+        let (tx_resolver, resolver_mock) = MockCwReceiver::new();
+
+        tx_vote
+            .send((pk.clone(), bytes::Bytes::from_static(b"vote")))
+            .expect("vote send succeeds");
+        tx_cert
+            .send((pk.clone(), bytes::Bytes::from_static(b"cert")))
+            .expect("certificate send succeeds");
+        tx_resolver
+            .send((pk.clone(), bytes::Bytes::from_static(b"resolver")))
+            .expect("resolver send succeeds");
+
+        drop(tx_vote);
+        drop(tx_cert);
+        drop(tx_resolver);
+
+        // Intentionally mismatch tuple channels to ensure mux forwards receiver tags unchanged.
+        let mut mux = MultiplexReceiver::new_for_test(vec![
+            (
+                Channel::RESOLVER,
+                CommonwareReceiver::new(Channel::VOTE, vote_mock),
+            ),
+            (
+                Channel::VOTE,
+                CommonwareReceiver::new(Channel::CERTIFICATE, cert_mock),
+            ),
+            (
+                Channel::CERTIFICATE,
+                CommonwareReceiver::new(Channel::RESOLVER, resolver_mock),
+            ),
+        ]);
+
+        let msg1 = mux.recv().await.expect("vote message should be available");
+        let msg2 = mux
+            .recv()
+            .await
+            .expect("certificate message should be available");
+        let msg3 = mux
+            .recv()
+            .await
+            .expect("resolver message should be available");
+
+        assert_eq!(msg1.channel, Channel::VOTE);
+        assert_eq!(msg1.data, bytes::Bytes::from_static(b"vote"));
+
+        assert_eq!(msg2.channel, Channel::CERTIFICATE);
+        assert_eq!(msg2.data, bytes::Bytes::from_static(b"cert"));
+
+        assert_eq!(msg3.channel, Channel::RESOLVER);
+        assert_eq!(msg3.data, bytes::Bytes::from_static(b"resolver"));
     }
 }

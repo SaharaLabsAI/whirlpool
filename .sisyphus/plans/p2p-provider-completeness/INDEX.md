@@ -107,7 +107,7 @@ ZERO HUMAN INTERVENTION: every task ends with command-driven acceptance checks a
 <!-- TASKS_START -->
 - [x] Task 1: Receiver channel contract [**S**] -> [tasks/01-receiver-channel-contract.md](tasks/01-receiver-channel-contract.md)
 - [x] Task 2: Provider build seeding and bootstrap [**M**] -> [tasks/02-provider-build-seeding-and-bootstrap.md](tasks/02-provider-build-seeding-and-bootstrap.md)
-- [ ] Task 3: Multiplex receiver alignment [**S**] -> [tasks/03-multiplex-receiver-alignment.md](tasks/03-multiplex-receiver-alignment.md)
+- [x] Task 3: Multiplex receiver alignment [**S**] -> [tasks/03-multiplex-receiver-alignment.md](tasks/03-multiplex-receiver-alignment.md)
 - [ ] Task 4: Sender and traits compatibility review [**S**] -> [tasks/04-sender-traits-compatibility-review.md](tasks/04-sender-traits-compatibility-review.md)
 - [ ] Task 5: whirlpool-node builder wiring [**M**] -> [tasks/05-whirlpool-node-builder-wiring.md](tasks/05-whirlpool-node-builder-wiring.md)
 - [ ] Task 6: Final Sub-Intent A verification [**M**] -> [tasks/06-final-subintent-a-verification.md](tasks/06-final-subintent-a-verification.md)
