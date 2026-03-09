@@ -1,0 +1,3 @@
+- Task 03 pattern: keep `mempool::MempoolStore` in place while introducing parallel `MdbxMempoolStore` in `mempool-mdbx` to avoid breakage during staged migration.
+- Compile-time trait conformance test (`implements_mempool_store_trait`) is effective for TN-001 and does not require runtime setup.
+- Keeping inherent store methods with `?` remains valid after renaming `MempoolError::Mdbx` to `MempoolError::Storage` because `From<reth_libmdbx::Error>` still exists in `mempool`.

@@ -1,0 +1,2 @@
+- Renamed error variant to storage-agnostic naming: `MempoolError::Mdbx` -> `MempoolError::Storage` in `mempool` while preserving `From<reth_libmdbx::Error>` conversion for existing `?` flows.
+- Implemented `mempool::MempoolStoreTrait` for `MdbxMempoolStore` via delegation to inherent methods (`MdbxMempoolStore::push` and `MdbxMempoolStore::drain_pending`) to keep logic single-sourced.

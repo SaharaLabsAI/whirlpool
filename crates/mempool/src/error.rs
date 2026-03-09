@@ -2,14 +2,14 @@ use std::fmt::{Display, Formatter};
 
 #[derive(Debug)]
 pub enum MempoolError {
-    Mdbx(String),
+    Storage(String),
     Io(std::io::Error),
 }
 
 impl Display for MempoolError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Mdbx(err) => write!(f, "MDBX error: {err}"),
+            Self::Storage(err) => write!(f, "Storage error: {err}"),
             Self::Io(err) => write!(f, "IO error: {err}"),
         }
     }
@@ -25,6 +25,6 @@ impl From<std::io::Error> for MempoolError {
 
 impl From<reth_libmdbx::Error> for MempoolError {
     fn from(value: reth_libmdbx::Error) -> Self {
-        Self::Mdbx(value.to_string())
+        Self::Storage(value.to_string())
     }
 }
