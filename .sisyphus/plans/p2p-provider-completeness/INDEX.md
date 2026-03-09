@@ -105,7 +105,7 @@ ZERO HUMAN INTERVENTION: every task ends with command-driven acceptance checks a
 ## Task List
 
 <!-- TASKS_START -->
-- [ ] Task 1: Receiver channel contract [**S**] -> [tasks/01-receiver-channel-contract.md](tasks/01-receiver-channel-contract.md)
+- [x] Task 1: Receiver channel contract [**S**] -> [tasks/01-receiver-channel-contract.md](tasks/01-receiver-channel-contract.md)
 - [ ] Task 2: Provider build seeding and bootstrap [**M**] -> [tasks/02-provider-build-seeding-and-bootstrap.md](tasks/02-provider-build-seeding-and-bootstrap.md)
 - [ ] Task 3: Multiplex receiver alignment [**S**] -> [tasks/03-multiplex-receiver-alignment.md](tasks/03-multiplex-receiver-alignment.md)
 - [ ] Task 4: Sender and traits compatibility review [**S**] -> [tasks/04-sender-traits-compatibility-review.md](tasks/04-sender-traits-compatibility-review.md)
