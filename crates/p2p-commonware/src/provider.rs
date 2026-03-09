@@ -131,7 +131,7 @@ where
         self
     }
 
-    pub fn build<Ctx>(
+    pub async fn build<Ctx>(
         self,
         context: Ctx,
     ) -> (
@@ -151,11 +151,14 @@ where
         );
 
         let (network, oracle) = discovery::Network::new(context, config);
+        let mut oracle_handle = OracleHandle(oracle.clone());
 
-        // Initial validator seeding is intentionally deferred to OracleHandle updates.
-        let _ = self.initial_validators;
+        if let Some((epoch, validators)) = self.initial_validators {
+            if !validators.is_empty() {
+                oracle_handle.update_validators(epoch, validators).await;
+            }
+        }
 
-        let oracle_handle = OracleHandle(oracle.clone());
         let provider = CommonwareNetworkProvider {
             network,
             oracle,
@@ -319,9 +322,15 @@ where
 
         // Build receiver list
         let receivers = vec![
-            (Channel::VOTE, CommonwareReceiver::new(vote_receiver)),
-            (Channel::CERTIFICATE, CommonwareReceiver::new(cert_receiver)),
-            (Channel::RESOLVER, CommonwareReceiver::new(res_receiver)),
+            (Channel::VOTE, CommonwareReceiver::new(Channel::VOTE, vote_receiver)),
+            (
+                Channel::CERTIFICATE,
+                CommonwareReceiver::new(Channel::CERTIFICATE, cert_receiver),
+            ),
+            (
+                Channel::RESOLVER,
+                CommonwareReceiver::new(Channel::RESOLVER, res_receiver),
+            ),
         ];
 
         let multiplex_sender = MultiplexSender::new(senders);
@@ -337,10 +346,237 @@ mod tests {
     use bytes::Bytes;
     use commonware_cryptography::ed25519;
     use commonware_cryptography::Signer;
-    use commonware_p2p::{Receiver as _, Recipients, Sender as _};
+    use commonware_p2p::{Manager, Receiver as _, Recipients, Sender as _};
     use commonware_runtime::{deterministic, Clock, Runner};
+    use p2p::{NetworkReceiver, NetworkSender, Recipients as P2pRecipients};
     use std::net::SocketAddr;
     use std::time::Duration;
+
+    #[test]
+    fn tst_req1_001_builder_seeds_non_empty_validator_set() {
+        let runner = deterministic::Runner::default();
+        runner.start(|context| async move {
+            let signer = ed25519::PrivateKey::from_seed(920);
+            let self_pk = signer.public_key();
+            let other_pk = ed25519::PrivateKey::from_seed(921).public_key();
+            let addr = "127.0.0.1:30101"
+                .parse::<SocketAddr>()
+                .expect("valid socket");
+
+            let (_provider, mut oracle_handle) =
+                CommonwareNetworkProviderBuilder::new(signer, b"seed-validators-test")
+                    .listen_addr(addr)
+                    .dialable_addr(addr)
+                    .initial_validators(0, vec![self_pk.clone(), other_pk.clone(), self_pk.clone()])
+                    .build(context.with_label("seeded_network"))
+                    .await;
+
+            let seeded = oracle_handle
+                .0
+                .peer_set(0)
+                .await
+                .expect("validator set should be seeded");
+
+            assert_eq!(seeded.len(), 2);
+            assert!(seeded.iter().any(|pk| pk == &self_pk));
+            assert!(seeded.iter().any(|pk| pk == &other_pk));
+        });
+    }
+
+    #[test]
+    fn tst_req1_002_builder_skips_empty_validator_set() {
+        let runner = deterministic::Runner::default();
+        runner.start(|context| async move {
+            let signer = ed25519::PrivateKey::from_seed(922);
+            let addr = "127.0.0.1:30102"
+                .parse::<SocketAddr>()
+                .expect("valid socket");
+
+            let (_provider, mut oracle_handle) =
+                CommonwareNetworkProviderBuilder::new(signer, b"empty-validators-test")
+                    .listen_addr(addr)
+                    .dialable_addr(addr)
+                    .initial_validators(0, vec![])
+                    .build(context.with_label("empty_seed_network"))
+                    .await;
+
+            assert!(oracle_handle.0.peer_set(0).await.is_none());
+        });
+    }
+
+    #[test]
+    fn tst_req2_001_builder_threads_bootstrappers_into_discovery() {
+        let runner = deterministic::Runner::default();
+        runner.start(|context| async move {
+            let signer_0 = ed25519::PrivateKey::from_seed(923);
+            let signer_1 = ed25519::PrivateKey::from_seed(924);
+            let pk_0 = signer_0.public_key();
+
+            let addr_0 = "127.0.0.1:30103"
+                .parse::<SocketAddr>()
+                .expect("valid socket");
+            let addr_1 = "127.0.0.1:30104"
+                .parse::<SocketAddr>()
+                .expect("valid socket");
+
+            let (provider_0, mut oracle_0) =
+                CommonwareNetworkProviderBuilder::new(signer_0, b"bootstrap-threading-test")
+                    .listen_addr(addr_0)
+                    .dialable_addr(addr_0)
+                    .initial_validators(0, vec![pk_0.clone()])
+                    .build(context.with_label("bootstrap_peer_0"))
+                    .await;
+
+            let (provider_1, _oracle_1) =
+                CommonwareNetworkProviderBuilder::new(signer_1, b"bootstrap-threading-test")
+                    .listen_addr(addr_1)
+                    .dialable_addr(addr_1)
+                    .bootstrappers(vec![(pk_0.clone(), addr_0.into())])
+                    .initial_validators(0, vec![pk_0.clone()])
+                    .build(context.with_label("bootstrap_peer_1"))
+                    .await;
+
+            let peer_0 = provider_0.start_per_channel().expect("peer 0 starts");
+            let _peer_1 = provider_1.start_per_channel().expect("peer 1 starts");
+
+            context.sleep(Duration::from_secs(1)).await;
+
+            let mut vote_sender = peer_0.vote.0;
+            vote_sender
+                .send(
+                    Recipients::One(pk_0.clone()),
+                    Bytes::from_static(b"bootstrap-ready"),
+                    false,
+                )
+                .await
+                .expect("send should succeed when bootstrap config is valid");
+
+            let seeded = oracle_0
+                .0
+                .peer_set(0)
+                .await
+                .expect("validator set seeded for bootstrap test");
+            assert!(seeded.iter().any(|pk| pk == &pk_0));
+        });
+    }
+
+    #[test]
+    fn tst_req3_001_provider_start_tags_vote_and_certificate_receivers() {
+        let runner = deterministic::Runner::default();
+        runner.start(|context| async move {
+            let signer_0 = ed25519::PrivateKey::from_seed(925);
+            let signer_1 = ed25519::PrivateKey::from_seed(926);
+            let pk_0 = signer_0.public_key();
+            let pk_1 = signer_1.public_key();
+
+            let addr_0 = "127.0.0.1:30105"
+                .parse::<SocketAddr>()
+                .expect("valid socket");
+            let addr_1 = "127.0.0.1:30106"
+                .parse::<SocketAddr>()
+                .expect("valid socket");
+
+            let (provider_0, _oracle_0) =
+                CommonwareNetworkProviderBuilder::new(signer_0, b"receiver-tag-test-1")
+                    .listen_addr(addr_0)
+                    .dialable_addr(addr_0)
+                    .initial_validators(0, vec![pk_0.clone(), pk_1.clone()])
+                    .build(context.with_label("tag_peer_0"))
+                    .await;
+
+            let (provider_1, _oracle_1) =
+                CommonwareNetworkProviderBuilder::new(signer_1, b"receiver-tag-test-1")
+                    .listen_addr(addr_1)
+                    .dialable_addr(addr_1)
+                    .bootstrappers(vec![(pk_0.clone(), addr_0.into())])
+                    .initial_validators(0, vec![pk_0.clone(), pk_1.clone()])
+                    .build(context.with_label("tag_peer_1"))
+                    .await;
+
+            let (sender_0, _receiver_0) = provider_0.start().expect("peer 0 starts");
+            let (_sender_1, mut receiver_1) = provider_1.start().expect("peer 1 starts");
+
+            context.sleep(Duration::from_secs(2)).await;
+
+            sender_0
+                .send(
+                    Channel::VOTE,
+                    Bytes::from_static(b"vote-tag"),
+                    P2pRecipients::One(crate::CommonwarePeerId(pk_1.clone())),
+                )
+                .await
+                .expect("vote send succeeds");
+
+            sender_0
+                .send(
+                    Channel::CERTIFICATE,
+                    Bytes::from_static(b"cert-tag"),
+                    P2pRecipients::One(crate::CommonwarePeerId(pk_1.clone())),
+                )
+                .await
+                .expect("certificate send succeeds");
+
+            let first = receiver_1.recv().await.expect("first message");
+            let second = receiver_1.recv().await.expect("second message");
+            let channels = [first.channel, second.channel];
+
+            assert!(channels.contains(&Channel::VOTE));
+            assert!(channels.contains(&Channel::CERTIFICATE));
+        });
+    }
+
+    #[test]
+    fn tst_req3_002_provider_start_tags_resolver_receiver() {
+        let runner = deterministic::Runner::default();
+        runner.start(|context| async move {
+            let signer_0 = ed25519::PrivateKey::from_seed(927);
+            let signer_1 = ed25519::PrivateKey::from_seed(928);
+            let pk_0 = signer_0.public_key();
+            let pk_1 = signer_1.public_key();
+
+            let addr_0 = "127.0.0.1:30107"
+                .parse::<SocketAddr>()
+                .expect("valid socket");
+            let addr_1 = "127.0.0.1:30108"
+                .parse::<SocketAddr>()
+                .expect("valid socket");
+
+            let (provider_0, _oracle_0) =
+                CommonwareNetworkProviderBuilder::new(signer_0, b"receiver-tag-test-2")
+                    .listen_addr(addr_0)
+                    .dialable_addr(addr_0)
+                    .initial_validators(0, vec![pk_0.clone(), pk_1.clone()])
+                    .build(context.with_label("resolver_tag_peer_0"))
+                    .await;
+
+            let (provider_1, _oracle_1) =
+                CommonwareNetworkProviderBuilder::new(signer_1, b"receiver-tag-test-2")
+                    .listen_addr(addr_1)
+                    .dialable_addr(addr_1)
+                    .bootstrappers(vec![(pk_0.clone(), addr_0.into())])
+                    .initial_validators(0, vec![pk_0.clone(), pk_1.clone()])
+                    .build(context.with_label("resolver_tag_peer_1"))
+                    .await;
+
+            let (sender_0, _receiver_0) = provider_0.start().expect("peer 0 starts");
+            let (_sender_1, mut receiver_1) = provider_1.start().expect("peer 1 starts");
+
+            context.sleep(Duration::from_secs(2)).await;
+
+            sender_0
+                .send(
+                    Channel::RESOLVER,
+                    Bytes::from_static(b"resolver-tag"),
+                    P2pRecipients::One(crate::CommonwarePeerId(pk_1.clone())),
+                )
+                .await
+                .expect("resolver send succeeds");
+
+            let message = receiver_1.recv().await.expect("resolver message");
+            assert_eq!(message.channel, Channel::RESOLVER);
+            assert_eq!(message.data, Bytes::from_static(b"resolver-tag"));
+        });
+    }
 
     #[test]
     fn test_start_per_channel_returns_three_pairs() {
@@ -362,14 +598,16 @@ mod tests {
                 CommonwareNetworkProviderBuilder::new(signer_0, b"per-channel-test")
                     .listen_addr(addr_0)
                     .dialable_addr(addr_0)
-                    .build(context.with_label("peer_0_network"));
+                    .build(context.with_label("peer_0_network"))
+                    .await;
 
             let (provider_1, mut oracle_1) =
                 CommonwareNetworkProviderBuilder::new(signer_1, b"per-channel-test")
                     .listen_addr(addr_1)
                     .dialable_addr(addr_1)
                     .bootstrappers(vec![(pk_0.clone(), addr_0.into())])
-                    .build(context.with_label("peer_1_network"));
+                    .build(context.with_label("peer_1_network"))
+                    .await;
 
             oracle_0
                 .update_validators(0, vec![pk_0.clone(), pk_1.clone()])
@@ -403,14 +641,16 @@ mod tests {
                 CommonwareNetworkProviderBuilder::new(signer_0, b"per-channel-io-test")
                     .listen_addr(addr_0)
                     .dialable_addr(addr_0)
-                    .build(context.with_label("peer_0_network"));
+                    .build(context.with_label("peer_0_network"))
+                    .await;
 
             let (provider_1, mut oracle_1) =
                 CommonwareNetworkProviderBuilder::new(signer_1, b"per-channel-io-test")
                     .listen_addr(addr_1)
                     .dialable_addr(addr_1)
                     .bootstrappers(vec![(pk_0.clone(), addr_0.into())])
-                    .build(context.with_label("peer_1_network"));
+                    .build(context.with_label("peer_1_network"))
+                    .await;
 
             oracle_0
                 .update_validators(0, vec![pk_0.clone(), pk_1.clone()])
