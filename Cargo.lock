@@ -3590,8 +3590,13 @@ dependencies = [
 [[package]]
 name = "mempool"
 version = "0.1.0"
+
+[[package]]
+name = "mempool-mdbx"
+version = "0.0.0"
 dependencies = [
  "app",
+ "mempool",
  "reth-libmdbx",
  "tempfile",
 ]
@@ -7085,7 +7090,7 @@ dependencies = [
  "commonware-runtime",
  "consensus",
  "consensus-simplex",
- "mempool",
+ "mempool-mdbx",
  "p2p-commonware",
  "reth-revm",
  "revm",

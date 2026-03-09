@@ -7,6 +7,10 @@ use std::{
 use mempool::MempoolError;
 use reth_libmdbx::{Database, Environment, WriteFlags};
 
+fn map_mdbx_err(err: reth_libmdbx::Error) -> MempoolError {
+    MempoolError::Storage(err.to_string())
+}
+
 pub struct MdbxMempoolStore {
     env: Environment,
     db: Database,
@@ -17,12 +21,12 @@ impl MdbxMempoolStore {
     pub fn open(path: &Path) -> Result<Self, MempoolError> {
         fs::create_dir_all(path)?;
 
-        let env = Environment::builder().open(path)?;
+        let env = Environment::builder().open(path).map_err(map_mdbx_err)?;
 
         let db = {
-            let tx = env.begin_rw_txn()?;
-            let db = tx.open_db(None)?;
-            tx.commit()?;
+            let tx = env.begin_rw_txn().map_err(map_mdbx_err)?;
+            let db = tx.open_db(None).map_err(map_mdbx_err)?;
+            tx.commit().map_err(map_mdbx_err)?;
             db
         };
 
@@ -34,34 +38,36 @@ impl MdbxMempoolStore {
     pub fn push(&self, tx: Vec<u8>) -> Result<(), MempoolError> {
         let key = self.next_key.fetch_add(1, Ordering::Relaxed).to_be_bytes();
 
-        let rw_tx = self.env.begin_rw_txn()?;
-        rw_tx.put(self.db.dbi(), key, tx, WriteFlags::empty())?;
-        rw_tx.commit()?;
+        let rw_tx = self.env.begin_rw_txn().map_err(map_mdbx_err)?;
+        rw_tx
+            .put(self.db.dbi(), key, tx, WriteFlags::empty())
+            .map_err(map_mdbx_err)?;
+        rw_tx.commit().map_err(map_mdbx_err)?;
 
         Ok(())
     }
 
     pub fn drain_pending(&self) -> Result<Vec<Vec<u8>>, MempoolError> {
-        let rw_tx = self.env.begin_rw_txn()?;
-        let mut cursor = rw_tx.cursor(self.db.dbi())?;
+        let rw_tx = self.env.begin_rw_txn().map_err(map_mdbx_err)?;
+        let mut cursor = rw_tx.cursor(self.db.dbi()).map_err(map_mdbx_err)?;
 
         let mut txs = Vec::new();
         for item in cursor.iter_start::<[u8; 8], Vec<u8>>() {
-            let (_key, value) = item?;
+            let (_key, value) = item.map_err(map_mdbx_err)?;
             txs.push(value);
         }
 
-        rw_tx.clear_db(self.db.dbi())?;
-        rw_tx.commit()?;
+        rw_tx.clear_db(self.db.dbi()).map_err(map_mdbx_err)?;
+        rw_tx.commit().map_err(map_mdbx_err)?;
 
         Ok(txs)
     }
 
     fn load_next_key(env: &Environment, db: &Database) -> Result<u64, MempoolError> {
-        let ro_tx = env.begin_ro_txn()?;
-        let mut cursor = ro_tx.cursor(db.dbi())?;
+        let ro_tx = env.begin_ro_txn().map_err(map_mdbx_err)?;
+        let mut cursor = ro_tx.cursor(db.dbi()).map_err(map_mdbx_err)?;
 
-        let next = match cursor.last::<[u8; 8], ()>()? {
+        let next = match cursor.last::<[u8; 8], ()>().map_err(map_mdbx_err)? {
             Some((key, _)) => u64::from_be_bytes(key).saturating_add(1),
             None => 0,
         };
@@ -70,7 +76,7 @@ impl MdbxMempoolStore {
     }
 }
 
-impl mempool::MempoolStoreTrait for MdbxMempoolStore {
+impl mempool::MempoolStore for MdbxMempoolStore {
     fn push(&self, tx: Vec<u8>) -> Result<(), MempoolError> {
         MdbxMempoolStore::push(self, tx)
     }
@@ -88,7 +94,7 @@ mod tests {
 
     #[test]
     fn implements_mempool_store_trait() {
-        fn _assert_impl<T: mempool::MempoolStoreTrait>() {}
+        fn _assert_impl<T: mempool::MempoolStore>() {}
         _assert_impl::<MdbxMempoolStore>();
     }
 

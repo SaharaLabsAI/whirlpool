@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `pending` |
+| Status | `completed` |
 | Dependencies | `05-move-integration-tests` |
 | Wave | 6 |
 | Complexity | S (2 files) |

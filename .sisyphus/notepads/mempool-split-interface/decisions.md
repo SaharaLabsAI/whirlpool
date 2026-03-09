@@ -7,3 +7,5 @@
 - Task 04 decision: Re-exported PersistentTxPool from mempool-mdbx lib to preserve crate-level access during parallel migration.
 - Task 05 decision: Removed legacy `crates/mempool/tests/integration.rs` and relocated integration coverage under `crates/mempool-mdbx/tests/integration.rs` to align tests with concrete MDBX-backed implementation ownership.
 - Task 06 decision: Updated `crates/whirlpool-node` to depend on `mempool-mdbx` and import `mempool_mdbx::PersistentTxPool` because API compatibility allows zero logic changes.
+- Decided to preserve `MempoolError::Storage(String)` and perform explicit `reth_libmdbx::Error` to `MempoolError` conversion inside `mempool-mdbx` to keep `mempool` crate dependency-free.
+- Renamed trait usage from `mempool::MempoolStoreTrait` to `mempool::MempoolStore` in `mempool-mdbx` implementation/tests to align with interface-only API.

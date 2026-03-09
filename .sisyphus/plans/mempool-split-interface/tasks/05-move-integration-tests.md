@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `pending` |
+| Status | `completed` |
 | Dependencies | `04-move-persistent-txpool` |
 | Wave | 5 |
 | Complexity | S (2 files) |

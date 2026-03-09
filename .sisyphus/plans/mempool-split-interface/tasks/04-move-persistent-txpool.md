@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `pending` |
+| Status | `completed` |
 | Dependencies | `03-move-store-impl` |
 | Wave | 4 |
 | Complexity | M (4 files) |

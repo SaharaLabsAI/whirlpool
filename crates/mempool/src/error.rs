@@ -22,9 +22,3 @@ impl From<std::io::Error> for MempoolError {
         Self::Io(value)
     }
 }
-
-impl From<reth_libmdbx::Error> for MempoolError {
-    fn from(value: reth_libmdbx::Error) -> Self {
-        Self::Storage(value.to_string())
-    }
-}

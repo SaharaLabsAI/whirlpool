@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `pending` |
+| Status | `completed` |
 | Dependencies | `02-add-mempool-store-trait` |
 | Wave | 3 |
 | Complexity | M (5+ files) |

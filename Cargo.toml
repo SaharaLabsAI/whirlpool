@@ -14,6 +14,7 @@ members = [
     "crates/app",
     "crates/app-evm",
     "crates/mempool",
+    "crates/mempool-mdbx",
     "testing/integration-tests",
 ]
 

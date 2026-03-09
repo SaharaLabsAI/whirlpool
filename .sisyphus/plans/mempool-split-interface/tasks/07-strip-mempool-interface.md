@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | `pending` |
+| Status | `completed` |
 | Dependencies | `06-update-consumer` |
 | Wave | 7 |
 | Complexity | M (5+ files) |

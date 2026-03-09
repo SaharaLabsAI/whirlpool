@@ -8,3 +8,5 @@
 - Task 04 correction: TB-008 through TB-010 moved without behavior edits because they only rely on PersistentTxPool open/pending/push semantics.
 - Task 05: Integration test relocation is a pure move with one import rewrite (`mempool::PersistentTxPool` -> `mempool_mdbx::PersistentTxPool`); all six test bodies remain byte-identical.
 - Task 06: `whirlpool-node` consumer migration is a pure path swap (`mempool` -> `mempool-mdbx`) in Cargo and import; `PersistentTxPool::open()` call sites remain unchanged.
+- Task 07 strips `mempool` to interface-only by keeping only `error.rs` and `traits.rs` exports in `crates/mempool/src/lib.rs`.
+- Removing `From<reth_libmdbx::Error>` from `mempool` requires MDBX backends to map `reth_libmdbx::Error` at backend layer (implemented in `mempool-mdbx/src/store.rs` via `map_mdbx_err`).
