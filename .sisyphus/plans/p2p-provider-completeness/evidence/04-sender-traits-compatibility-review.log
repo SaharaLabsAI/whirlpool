@@ -1,0 +1,208 @@
+=== Task 04: Sender and traits compatibility review ===
+Date: 2026-03-09T21:01:50+08:00
+
+=== Compatibility Assessment ===
+sender.rs: No changes required - channel parameter already accepted but unused
+traits.rs: No changes required - trait definitions independent of receiver contract
+
+=== Cargo check ===
+warning: use of deprecated method `futures::futures_channel::mpsc::Receiver::<T>::try_next`: please use `try_recv` instead
+   --> vendor/commonware/utils/src/channels/tracked.rs:245:20
+    |
+245 |         self.inner.try_next().ok().flatten()
+    |                    ^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+
+warning: `commonware-utils` (lib) generated 1 warning
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.28s
+cargo check exit code: 0
+
+=== Cargo test (documenting pre-existing blockers) ===
+warning: use of deprecated method `futures::futures_channel::mpsc::Receiver::<T>::try_next`: please use `try_recv` instead
+   --> vendor/commonware/utils/src/channels/tracked.rs:245:20
+    |
+245 |         self.inner.try_next().ok().flatten()
+    |                    ^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+
+warning: `commonware-utils` (lib) generated 1 warning
+   Compiling p2p-commonware v0.1.0 (/home/dev/sahara/web3/agent/playground/whirlpool/crates/p2p-commonware)
+warning: unused import: `OracleHandle`
+ --> crates/p2p-commonware/src/tests.rs:7:9
+  |
+7 |         OracleHandle,
+  |         ^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+error[E0061]: this function takes 2 arguments but 1 argument was supplied
+   --> crates/p2p-commonware/src/tests.rs:268:24
+    |
+268 |         let receiver = CommonwareReceiver::new(mock);
+    |                        ^^^^^^^^^^^^^^^^^^^^^^^ ---- argument #1 of type `p2p::Channel` is missing
+    |
+note: associated function defined here
+   --> crates/p2p-commonware/src/receiver.rs:20:12
+    |
+ 20 |     pub fn new(channel: Channel, inner: R) -> Self {
+    |            ^^^ ----------------
+help: provide the argument
+    |
+268 |         let receiver = CommonwareReceiver::new(/* p2p::Channel */, mock);
+    |                                                +++++++++++++++++++
+
+error[E0061]: this function takes 2 arguments but 1 argument was supplied
+   --> crates/p2p-commonware/src/tests.rs:301:26
+    |
+301 |             (Channel(0), CommonwareReceiver::new(mock0)),
+    |                          ^^^^^^^^^^^^^^^^^^^^^^^ ----- argument #1 of type `p2p::Channel` is missing
+    |
+note: associated function defined here
+   --> crates/p2p-commonware/src/receiver.rs:20:12
+    |
+ 20 |     pub fn new(channel: Channel, inner: R) -> Self {
+    |            ^^^ ----------------
+help: provide the argument
+    |
+301 |             (Channel(0), CommonwareReceiver::new(/* p2p::Channel */, mock0)),
+    |                                                  +++++++++++++++++++
+
+error[E0061]: this function takes 2 arguments but 1 argument was supplied
+   --> crates/p2p-commonware/src/tests.rs:302:26
+    |
+302 |             (Channel(1), CommonwareReceiver::new(mock1)),
+    |                          ^^^^^^^^^^^^^^^^^^^^^^^ ----- argument #1 of type `p2p::Channel` is missing
+    |
+note: associated function defined here
+   --> crates/p2p-commonware/src/receiver.rs:20:12
+    |
+ 20 |     pub fn new(channel: Channel, inner: R) -> Self {
+    |            ^^^ ----------------
+help: provide the argument
+    |
+302 |             (Channel(1), CommonwareReceiver::new(/* p2p::Channel */, mock1)),
+    |                                                  +++++++++++++++++++
+
+error[E0061]: this function takes 2 arguments but 1 argument was supplied
+   --> crates/p2p-commonware/src/tests.rs:303:26
+    |
+303 |             (Channel(2), CommonwareReceiver::new(mock2)),
+    |                          ^^^^^^^^^^^^^^^^^^^^^^^ ----- argument #1 of type `p2p::Channel` is missing
+    |
+note: associated function defined here
+   --> crates/p2p-commonware/src/receiver.rs:20:12
+    |
+ 20 |     pub fn new(channel: Channel, inner: R) -> Self {
+    |            ^^^ ----------------
+help: provide the argument
+    |
+303 |             (Channel(2), CommonwareReceiver::new(/* p2p::Channel */, mock2)),
+    |                                                  +++++++++++++++++++
+
+error[E0061]: this function takes 2 arguments but 1 argument was supplied
+   --> crates/p2p-commonware/src/tests.rs:329:26
+    |
+329 |             (Channel(0), CommonwareReceiver::new(mock0)),
+    |                          ^^^^^^^^^^^^^^^^^^^^^^^ ----- argument #1 of type `p2p::Channel` is missing
+    |
+note: associated function defined here
+   --> crates/p2p-commonware/src/receiver.rs:20:12
+    |
+ 20 |     pub fn new(channel: Channel, inner: R) -> Self {
+    |            ^^^ ----------------
+help: provide the argument
+    |
+329 |             (Channel(0), CommonwareReceiver::new(/* p2p::Channel */, mock0)),
+    |                                                  +++++++++++++++++++
+
+error[E0061]: this function takes 2 arguments but 1 argument was supplied
+   --> crates/p2p-commonware/src/tests.rs:330:26
+    |
+330 |             (Channel(1), CommonwareReceiver::new(mock1)),
+    |                          ^^^^^^^^^^^^^^^^^^^^^^^ ----- argument #1 of type `p2p::Channel` is missing
+    |
+note: associated function defined here
+   --> crates/p2p-commonware/src/receiver.rs:20:12
+    |
+ 20 |     pub fn new(channel: Channel, inner: R) -> Self {
+    |            ^^^ ----------------
+help: provide the argument
+    |
+330 |             (Channel(1), CommonwareReceiver::new(/* p2p::Channel */, mock1)),
+    |                                                  +++++++++++++++++++
+
+warning: unused variable: `pk`
+   --> crates/p2p-commonware/src/tests.rs:339:13
+    |
+339 |         let pk = create_test_pubkey(1);
+    |             ^^ help: if this is intentional, prefix it with an underscore: `_pk`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `pk`
+   --> crates/p2p-commonware/src/tests.rs:348:13
+    |
+348 |         let pk = create_test_pubkey(2);
+    |             ^^ help: if this is intentional, prefix it with an underscore: `_pk`
+
+warning: unused variable: `pk`
+   --> crates/p2p-commonware/src/tests.rs:360:13
+    |
+360 |         let pk = create_test_pubkey(3);
+    |             ^^ help: if this is intentional, prefix it with an underscore: `_pk`
+
+warning: unused variable: `builder`
+   --> crates/p2p-commonware/src/tests.rs:363:13
+    |
+363 |         let builder: CommonwareNetworkProviderBuilder<ed25519::PrivateKey, ()> =
+    |             ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_builder`
+
+warning: unused variable: `pk`
+   --> crates/p2p-commonware/src/tests.rs:371:13
+    |
+371 |         let pk = create_test_pubkey(4);
+    |             ^^ help: if this is intentional, prefix it with an underscore: `_pk`
+
+warning: unused variable: `builder`
+   --> crates/p2p-commonware/src/tests.rs:380:13
+    |
+380 |         let builder: CommonwareNetworkProviderBuilder<ed25519::PrivateKey, ()> =
+    |             ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_builder`
+
+warning: unused variable: `pk`
+   --> crates/p2p-commonware/src/tests.rs:388:13
+    |
+388 |         let pk = create_test_pubkey(6);
+    |             ^^ help: if this is intentional, prefix it with an underscore: `_pk`
+
+warning: unused variable: `builder`
+   --> crates/p2p-commonware/src/tests.rs:390:13
+    |
+390 |         let builder: CommonwareNetworkProviderBuilder<ed25519::PrivateKey, ()> =
+    |             ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_builder`
+
+warning: unused variable: `pk`
+   --> crates/p2p-commonware/src/tests.rs:398:13
+    |
+398 |         let pk = create_test_pubkey(7);
+    |             ^^ help: if this is intentional, prefix it with an underscore: `_pk`
+
+warning: unused variable: `builder`
+   --> crates/p2p-commonware/src/tests.rs:401:13
+    |
+401 |         let builder: CommonwareNetworkProviderBuilder<ed25519::PrivateKey, ()> =
+    |             ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_builder`
+
+warning: unused variable: `pk`
+   --> crates/p2p-commonware/src/tests.rs:411:13
+    |
+411 |         let pk = create_test_pubkey(8);
+    |             ^^ help: if this is intentional, prefix it with an underscore: `_pk`
+
+For more information about this error, try `rustc --explain E0061`.
+warning: `p2p-commonware` (lib test) generated 12 warnings
+error: could not compile `p2p-commonware` (lib test) due to 6 previous errors; 12 warnings emitted
+cargo test exit code: 101
+Note: test failures due to pre-existing tests.rs blockers (out of scope)

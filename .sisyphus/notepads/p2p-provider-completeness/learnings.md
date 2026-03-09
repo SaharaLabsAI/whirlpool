@@ -18,3 +18,11 @@ This file tracks conventions, patterns, and insights discovered during task exec
 - Removed channel-repair logic that overwrote receiver's channel with multiplex's stored channel
 - Round-robin polling preserved
 - REQ-3 complete through aggregate receive path
+## [2026-03-09T21:02:09+08:00] Task 04: Sender and traits compatibility review
+- sender.rs and traits.rs are compatible with receiver/provider/multiplex changes; no code changes required.
+-  passed (exit code 0).
+-  failed due to pre-existing tests.rs blockers from receiver constructor arity updates ( now requires ), out of scope for Task 04.
+## [2026-03-09T21:03:35+08:00] Task 04: Sender and traits compatibility review (corrected entry)
+- sender.rs and traits.rs are compatible with receiver/provider/multiplex changes; no code changes required.
+- `nix develop --command cargo check -p p2p-commonware` passed (exit code 0).
+- `nix develop --command cargo test -p p2p-commonware` failed due to pre-existing tests.rs blockers from receiver constructor arity updates (`CommonwareReceiver::new` now requires `Channel`), out of scope for Task 04.
