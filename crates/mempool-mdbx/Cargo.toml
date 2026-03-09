@@ -3,6 +3,7 @@ name = "mempool-mdbx"
 edition = "2021"
 
 [dependencies]
+app = { path = "../app" }
 mempool = { path = "../mempool" }
 reth-libmdbx = { path = "../../vendor/reth/crates/storage/libmdbx-rs" }
 
