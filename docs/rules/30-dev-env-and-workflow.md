@@ -16,11 +16,11 @@ Do **not** run bare `cargo` commands — they will fail with `command not found`
 
 ## When in doubt
 
-1. Follow the target subproject's own `AGENTS.md` and `llmdocs/`.
+1. Follow the target subproject's own `AGENTS.md` and `agent-docs/`.
 2. When designing new business logic or architecture, use the `rust-whiteboard-design-docs` skill first.
 3. Keep changes small and focused.
 4. Match formatting/lint/test expectations before considering work complete.
-5. After completing code changes, use the `ctx-update-doc` skill to generate/update llmdocs for the affected crates.
+5. After completing code changes, use the `ctx-update-doc` skill to generate/update agent-docs for the affected crates.
 
 ## Git workflow
 

@@ -40,10 +40,10 @@ Recovery relies on two persistence layers working together:
 - `PersistingFinalizationSink<DB, BS>`: `EventSink` implementation that persists finalized blocks to `BlockStorage` before delegating to the inner `FinalizationSink`.
 
 ## RPC
-The RPC implementation lives in the separate `rpc-eth` crate. See `llmdocs/crates/rpc-eth.md`. It uses the `RethStateDb` as its `BlockStorage` backend.
+The RPC implementation lives in the separate `rpc-eth` crate. See `agent-docs/crates/rpc-eth.md`. It uses the `RethStateDb` as its `BlockStorage` backend.
 
 ## Import Migration Rule
 Use canonical `::traits::` paths for interface types; avoid non-canonical crate-root trait imports.
 
 ## Integration Tests
-Moved to `testing/integration-tests/` crate. See `llmdocs/crates/integration-tests.md`.
+Moved to `testing/integration-tests/` crate. See `agent-docs/crates/integration-tests.md`.

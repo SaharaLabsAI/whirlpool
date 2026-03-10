@@ -1,7 +1,7 @@
 # SKILL_DIGEST
 
 ## Grounded
-- **Workspace**: Whirlpool modular consensus framework at `/home/dev/sahara/web3/agent/playground/whirlpool` (cite: `llmdocs/index.md`)
+- **Workspace**: Whirlpool modular consensus framework at `/home/dev/sahara/web3/agent/playground/whirlpool` (cite: `agent-docs/index.md`)
 - **P2P trait crate**: `crates/p2p` defines `PeerId`, `NetworkSender`, `NetworkReceiver`, `NetworkProvider` traits (cite: `crates/p2p/src/traits.rs`)
 - **P2P impl crate**: `crates/p2p-commonware` bridges to Commonware vendor; `CommonwareNetworkProviderBuilder` + `CommonwareNetworkProvider` (cite: `crates/p2p-commonware/src/provider.rs`)
 - **Gap: Validator seeding**: `initial_validators` stored but never applied to oracle (cite: `crates/p2p-commonware/src/provider.rs`)

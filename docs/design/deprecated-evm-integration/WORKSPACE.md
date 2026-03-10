@@ -34,7 +34,7 @@ whirlpool/
 ├── docs/
 │   └── design/
 │       └── evm-integration/  # This design doc set
-└── llmdocs/                  # Auto-generated code documentation
+└── agent-docs/                  # Auto-generated code documentation
 ```
 
 ## Crate dependency graph (post-integration)

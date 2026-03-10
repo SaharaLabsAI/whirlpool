@@ -3,7 +3,7 @@
 ## Inputs
 - User intent: P2P node connectivity for whirlpool-node
 - Codebase exploration: crates/p2p, crates/p2p-commonware, crates/whirlpool-node, crates/app, crates/consensus-simplex, vendor/commonware
-- llmdocs: index.md, crates/p2p-commonware.md, overview/project-overview.md
+- agent-docs: index.md, crates/p2p-commonware.md, overview/project-overview.md
 - Intake constraints: module depth, all focus crates, grounded-facts-only execution
 
 ## Outputs

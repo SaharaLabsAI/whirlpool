@@ -62,5 +62,5 @@
 ## Vendor Code
 
 - `vendor/` is reference-only — never modify
-- Always consult `vendor/<project>/llmdocs/index.md` before reading vendor source
+- Always consult `vendor/<project>/agent-docs/index.md` before reading vendor source
 - Use vendor examples as implementation templates (e.g., `vendor/commonware/examples/log/`)

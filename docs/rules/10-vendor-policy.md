@@ -15,6 +15,6 @@ Current vendor submodules:
 Each submodule may include its own:
 
 - `AGENTS.md`
-- `llmdocs/`
+- `agent-docs/`
 
 When work touches a vendor project, follow that subproject's local instructions as authoritative.

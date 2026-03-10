@@ -10,8 +10,8 @@
 - `crates/app/src/traits.rs` — TxSource trait definition
 - `crates/state/` — reference split pattern (interface crate)
 - `crates/state-memory/` — reference split pattern (impl crate)
-- `llmdocs/index.md` — project architecture overview
-- `llmdocs/crates/mempool.md` — mempool documentation
+- `agent-docs/index.md` — project architecture overview
+- `agent-docs/crates/mempool.md` — mempool documentation
 
 ## Outputs Produced
 - `INTENT.md` — Step 1

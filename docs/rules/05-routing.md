@@ -4,10 +4,10 @@ Use this decision tree to find the minimum docs you need for the current task.
 
 ## Decision tree
 
-0. **Always start with `llmdocs/index.md`** (top-level) for architecture overview and crate map. If the task targets a specific crate, also check that crate's `llmdocs/index.md` — it may contain enough context to skip reading source entirely.
+0. **Always start with `agent-docs/index.md`** (top-level) for architecture overview and crate map. If the task targets a specific crate, also check that crate's `agent-docs/index.md` — it may contain enough context to skip reading source entirely.
 
 1. **Does the task touch `vendor/` code?**
-   - YES → Read `10-vendor-policy.md`, then `20-vendor-llmdocs-workflow.md`. Stop.
+   - YES → Read `10-vendor-policy.md`, then `20-vendor-agent-docs-workflow.md`. Stop.
    - NO → Continue.
 
 2. **Does the task involve build, test, or git operations?**
