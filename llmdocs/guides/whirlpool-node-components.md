@@ -15,12 +15,14 @@ The node uses the `p2p-commonware` crate to bridge to the Commonware P2P stack. 
 
 Example:
 ```rust
-let (provider, mut oracle_handle) = CommonwareNetworkProviderBuilder::new(signer, NAMESPACE)
-    .listen_addr(listen_addr)
-    .dialable_addr(dial_addr)
-    .bootstrappers(bootstrappers)
+let args = NodeArgs::parse();
+let config = NodeConfig::from(args);
+let (provider, mut oracle_handle) = CommonwareNetworkProviderBuilder::new(signer, config.network.namespace.clone())
+    .listen_addr(config.network.listen_addr)
+    .dialable_addr(config.network.dialable_addr)
+    .max_message_size(config.network.max_message_size)
+    .bootstrappers(config.network.bootstrap_peers.clone())
     .build(context);
-
 oracle_handle.update_validators(0, validators).await;
 ```
 
@@ -67,4 +69,4 @@ Previously, whirlpool-node contained Mailbox, FinalizationSink, and Wire modules
 The node now focuses entirely on:
 - EmptyBlock (dual-trait block definition)
 - EmptyBlockApp (verification rules)
-- Config constants (NAMESPACE, BLOCK_INTERVAL, VALIDATOR_SEED, BIND_ADDR)
+- Config module: NodeConfig hierarchy with CLI parsing (clap), default constants, and NodeArgs conversion

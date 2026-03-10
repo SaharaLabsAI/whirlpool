@@ -1,10 +1,7 @@
 {
-  "active_plan": "/home/dev/sahara/web3/agent/playground/whirlpool/.sisyphus/plans/p2p-provider-completeness/INDEX.md",
-  "started_at": "2026-03-09T12:11:20.234Z",
-  "session_ids": [
-    "ses_32e0c0a54ffeZgl24vDd4ikJYl",
-    "ses_32d6d452bffeKq2UDFvEd7Uhw1"
-  ],
-  "plan_name": "p2p-provider-completeness",
+  "active_plan": "/home/dev/sahara/web3/agent/playground/whirlpool/.sisyphus/plans/node-config-startup-wiring/INDEX.md",
+  "started_at": "2026-03-10T04:00:00.000Z",
+  "session_ids": [],
+  "plan_name": "node-config-startup-wiring",
   "worktree_path": "/home/dev/sahara/web3/agent/playground/whirlpool"
 }

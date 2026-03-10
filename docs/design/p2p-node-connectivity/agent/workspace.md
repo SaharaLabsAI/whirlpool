@@ -1,50 +1,88 @@
 # Workspace Integration Plan
 
 ## Goal
-- Make the existing Commonware-backed P2P provider complete enough for node startup to seed validators, supply bootstrap peers, and preserve inbound channel metadata.
-- Limit this pass to the integration path spanning `crates/whirlpool-node` -> `crates/p2p-commonware` -> stable `crates/p2p` contracts.
+- Deliver REQ-4 and REQ-5 by giving `crates/whirlpool-node` a real startup configuration surface and threading those configured values into the existing Commonware network builder.
+- Keep the workspace impact intentionally narrow: one crate changes, one new dependency is added, and no transport or consensus contracts move.
+
+## Workspace Impact
+- Modified crate: `crates/whirlpool-node`.
+- Read-only integration dependency: `crates/p2p-commonware`.
+- Stable downstream consumers: `crates/consensus-simplex`, `crates/app`, `crates/p2p`.
+- New dependency addition: `clap 4.5.x` with derive support in `crates/whirlpool-node` only.
+- No `[workspace.dependencies]` update and no workspace resolver changes are required.
 
 ## Integration Path
-1. `crates/whirlpool-node/src/main.rs` derives node signer identity and validator set during startup.
-2. The node constructs `CommonwareNetworkProviderBuilder` with namespace, listen address, dialable address, max message size, bootstrap peers, and initial validators.
-3. `crates/p2p-commonware/src/provider.rs` builds the Commonware runtime/provider, injects bootstrappers into the vendor setup, and immediately seeds validators through `OracleHandle::update_validators(...)`.
-4. `CommonwareNetworkProvider::start()` exposes sender/receiver handles implementing the stable `crates/p2p` traits.
-5. `crates/p2p-commonware/src/receiver.rs` emits `NetworkMessage` values tagged with the actual mux channel, preserving compatibility for later consensus relay wiring.
+1. `crates/whirlpool-node/src/config.rs` parses CLI args into `NodeConfig`.
+2. `crates/whirlpool-node/src/main.rs` derives signer, validator set, storage paths, and RPC bind address from `NodeConfig`.
+3. `crates/whirlpool-node/src/main.rs` constructs `CommonwareNetworkProviderBuilder` using configured namespace, listen address, dialable address, bootstrap peers, validators, and max message size.
+4. `crates/p2p-commonware` consumes those values through its existing builder API with no API changes.
+5. The rest of node startup remains behaviorally unchanged apart from now being configurable.
 
 ## Workspace-Level Decisions
 
-### Single seeding point
-- Validator seeding happens exactly once in `CommonwareNetworkProviderBuilder::build(context)`.
-- This avoids duplicated seeding responsibilities between node startup and provider startup.
-- The workspace contract becomes: callers provide initial validators to the builder; the provider applies them to the oracle.
+### Single crate ownership
+- All new config parsing and startup normalization live in `crates/whirlpool-node`.
+- No shared config crate is introduced.
+- No other crate becomes aware of Clap or CLI parsing concerns.
 
-### Explicit bootstrap threading
-- Bootstrap peers are a first-class startup input, not an implicit side effect of dial peers.
-- The node wiring layer owns deciding which bootstrap peers to provide.
-- The provider layer owns passing those peers into Commonware discovery without reinterpretation.
+### Builder contract stays fixed
+- `crates/p2p-commonware` is already sufficient for REQ-4/REQ-5.
+- The workspace contract for this sub-intent becomes:
+  - node parses startup inputs
+  - node converts them into concrete builder types
+  - provider consumes them without reinterpretation
 
-### Stable channel contract
-- Channel IDs remain defined only in `crates/p2p`.
-- `crates/p2p-commonware` is responsible for faithfully transporting those IDs across the vendor mux boundary.
-- Downstream crates should not add remapping logic to compensate for the current `Channel(0)` bug.
+### Dial peers map to bootstrappers
+- Workspace-level interpretation is explicit: Commonware bootstrappers are the startup dial targets.
+- `whirlpool-node` may accept both `--bootstrap-peer` and `--dial-peer` flags, but both normalize to `Vec<Bootstrapper<ed25519::PublicKey>>`.
+- No second peer-routing path is introduced elsewhere in the workspace.
+
+### Namespace separation is preserved
+- The existing divergence between network namespace and consensus namespace is retained but made explicit.
+- `whirlpool-node` owns two separate config values:
+  - network namespace for `CommonwareNetworkProviderBuilder`
+  - consensus namespace for `CommonwareConfig`
+- This prevents accidental workspace-wide coupling between the two consumers.
+
+### Storage configuration remains local
+- `--data-dir` is the only new storage-related CLI flag.
+- Derived runtime/state/mempool subpaths stay local to `whirlpool-node` and do not create new workspace contracts.
+
+## Concrete Type Threading
+- CLI-parsed and config-normalized types crossing crate boundaries:
+  - `Vec<u8>` for network namespace
+  - `SocketAddr` for P2P listen address
+  - `SocketAddr` for P2P dialable address
+  - `Vec<p2p_commonware::Bootstrapper<ed25519::PublicKey>>` for bootstrap peers
+  - `Vec<ed25519::PublicKey>` for initial validators
+  - `u32` for max message size
+- Internal-only node startup types:
+  - `u64` for validator seed
+  - `SocketAddr` for RPC bind address
+  - `PathBuf` for `data_dir`
+  - `String` for consensus namespace
+  - `Duration` for block interval
 
 ## Implementation Ordering
-1. Fix `crates/p2p-commonware/src/receiver.rs` constructor and message wrapping so channel metadata is preserved.
-2. Update `crates/p2p-commonware/src/provider.rs` and `crates/p2p-commonware/src/lib.rs` call sites to pass real channels and apply validator seeding.
-3. Update `crates/whirlpool-node/src/main.rs` to populate builder bootstrapper and validator inputs.
-4. Leave downstream relay/config work untouched until Sub-Intent B and C passes consume the corrected provider behavior.
+1. Update `crates/whirlpool-node/Cargo.toml` with `clap`.
+2. Expand `crates/whirlpool-node/src/config.rs` into `NodeArgs` + `NodeConfig` + parse helpers.
+3. Replace hardcoded startup literals in `crates/whirlpool-node/src/main.rs` with `NodeConfig` values.
+4. Keep `crates/p2p-commonware` untouched; only consume its existing builder setters.
 
 ## Validation Expectations
-- Unit/integration coverage should confirm provider build with non-empty validators triggers an oracle update path.
-- Startup tests should confirm bootstrap peers are present in the provider configuration when node wiring supplies them.
-- Receive-path tests should confirm inbound vote/certificate/resolver messages retain the originating channel in `NetworkMessage.channel`.
+- Default launch behavior remains equivalent to the current single-node local-dev startup when no flags are supplied.
+- Passing explicit `--listen-addr`, `--dialable-addr`, and peer flags changes the concrete values sent into `CommonwareNetworkProviderBuilder`.
+- Passing `--data-dir` changes all three derived storage locations consistently.
+- Passing `--rpc-addr` changes JSON-RPC bind behavior without affecting P2P startup.
 
 ## Risks Managed In This Pass
-- Startup with no validator seeding currently creates discovery/admission blind spots; centralized oracle initialization removes that gap.
-- Empty bootstrapper wiring currently prevents discovery-based expansion beyond direct peers; explicit builder threading addresses this.
-- Channel metadata loss currently blocks correct downstream dispatch; receiver-owned channel state resolves it without trait churn.
+- Hardcoded startup values in `main.rs` currently prevent running multiple nodes with distinct addresses or storage roots; `NodeConfig` removes that coupling.
+- The unused `config::BIND_ADDR` currently suggests a config surface that does not really control startup; centralizing config fixes that mismatch.
+- The current namespace split is easy to miss; naming both config values explicitly prevents accidental misuse during later implementation.
+- The dial-peer requirement is ambiguous against the existing builder API; mapping dial peers to Commonware bootstrappers resolves that ambiguity without changing upstream crates.
 
-## Deferred To Later Passes
-- CLI/config parsing and user-facing peer configuration surfaces.
-- Consensus relay enablement and mailbox delivery.
-- Multi-node end-to-end topology orchestration and operational defaults.
+## Deferred Beyond This Pass
+- Config file support.
+- Explicit private key material or keystore support.
+- Separate startup semantics for anonymous dial targets that do not include authenticated peer identity.
+- Any transport, discovery, or consensus relay changes outside `crates/whirlpool-node`.

@@ -1,103 +1,236 @@
 # Crate Change Specifications
 
-## crates/p2p
-- No code changes in this synthesize pass.
-- Preserve the existing stable contract in `crates/p2p/src/traits.rs` and `crates/p2p/src/types.rs`:
-  - `NetworkProvider::start()` returns sender/receiver handles.
-  - `NetworkMessage` remains the carrier for `channel`, `data`, and `sender`.
-  - `VOTE`, `CERTIFICATE`, and `RESOLVER` remain the canonical channel constants consumed downstream.
-- This crate is the compatibility anchor for the provider completeness fixes.
-
-## crates/p2p-commonware
-
-### Files in Scope
-- `crates/p2p-commonware/src/provider.rs`
-- `crates/p2p-commonware/src/receiver.rs`
-- `crates/p2p-commonware/src/sender.rs`
-- `crates/p2p-commonware/src/lib.rs`
-- `crates/p2p-commonware/src/traits.rs`
-
-### `src/provider.rs`
-
-#### `CommonwareNetworkProviderBuilder`
-- Keep the existing fields: `signer`, `namespace`, `listen_addr`, `dialable_addr`, `bootstrappers`, `max_message_size`, `initial_validators`.
-- Ensure builder setters exist or are added for:
-  - bootstrap peers (`bootstrappers`)
-  - initial validators (`initial_validators`)
-- Keep builder data in Commonware-native types so `build(context)` does not need late conversion at multiple call sites.
-
-#### `CommonwareNetworkProviderBuilder::build(context)`
-- Change this function from passive field storage to active runtime initialization.
-- Exact responsibilities:
-  1. Build the Commonware-backed provider/runtime with the configured namespace, listen/dial addresses, max message size, and bootstrap peers.
-  2. Return `(CommonwareNetworkProvider, OracleHandle)` as today.
-  3. If `initial_validators` is non-empty, call `oracle_handle.update_validators(initial_validators.clone())` before returning.
-- This is the canonical validator seeding point because it has both the fully constructed oracle handle and the builder-owned validator set.
-- The update must happen once per provider build, not lazily on first `start()` call, so discovery/admission state is primed before network traffic begins.
-
-#### Provider receiver construction in `provider.rs`
-- Any code path that creates `CommonwareReceiver` instances must pass the real `Channel` value into the receiver constructor.
-- If `provider.rs` currently creates the aggregate sender/receiver pair, it must instantiate receivers with `VOTE`, `CERTIFICATE`, and `RESOLVER` (or the matching runtime channel value) instead of relying on receiver-local defaults.
-- Use canonical imports from `crate::traits::...` where transport traits are referenced.
-
-### `src/receiver.rs`
-
-#### `CommonwareReceiver` struct
-- Add/store a `channel: Channel` field alongside the wrapped Commonware receiver handle.
-- Keep sender identity extraction unchanged.
-
-#### `CommonwareReceiver::recv()`
-- Replace the hard-coded `Channel(0)` in the emitted `NetworkMessage` with the stored `self.channel`.
-- Preserve existing behavior for payload bytes and authenticated sender identity.
-- This is the only behavioral change required for REQ-3.
-
-#### `CommonwareReceiver::new(...)`
-- Update constructor signature to accept the concrete `Channel` for that receiver instance.
-- Constructor callers must now supply the channel explicitly; no fallback/default channel should remain.
-
-### `src/sender.rs`
-- No primary bug fix required here.
-- Confirm send-path channel routing continues to use the caller-supplied `Channel` and maps recipients correctly.
-- If imports are touched while adjusting constructor signatures, normalize them to the `crate::traits::...` pattern.
-
-### `src/lib.rs`
-- If `MultiplexReceiver` or helper constructors allocate per-channel receivers here, update those constructors to pass through the originating `Channel` to `CommonwareReceiver`.
-- Preserve the existing round-robin multiplexing behavior; no fairness or polling redesign is needed.
-- Keep exported module surface stable.
-
-### `src/traits.rs`
-- No interface redesign.
-- Use as the canonical local import site for Commonware transport traits referenced by sibling modules.
-- If minor re-exports are needed to support the `crate::traits::` import convention consistently, keep them additive and local to this crate.
-
 ## crates/whirlpool-node
 
-### File in Scope
+### Scope
+- This is the only crate modified in Sub-Intent B.
+- It owns REQ-4 and REQ-5: accepting explicit startup configuration and wiring that configuration into the existing P2P builder.
+- `crates/p2p-commonware` remains read-only; it is only the consumer boundary for builder inputs.
+
+### Files in Scope
+- `crates/whirlpool-node/Cargo.toml`
+- `crates/whirlpool-node/src/config.rs`
 - `crates/whirlpool-node/src/main.rs`
 
-### `main.rs` startup wiring
-- Update the P2P builder assembly site so it supplies:
-  - the already-derived validator identity set into `CommonwareNetworkProviderBuilder::initial_validators(...)`
-  - bootstrap peer list into `CommonwareNetworkProviderBuilder::bootstrappers(...)`
-- Preserve the current namespace and max message size defaults.
-- Preserve current ephemeral `127.0.0.1:0` defaults for this pass when explicit network config is absent.
-- Continue keeping the returned `oracle_handle` alive for the runtime lifetime; no new ownership model is required.
+### `Cargo.toml`
+- Add a direct dependency on `clap = { version = "4.5", features = ["derive"] }`.
+- No workspace dependency promotion is needed.
+- No other new third-party dependencies are required for this pass.
 
-### Validator seeding integration detail
-- The validator set created during startup is already the canonical source of truth for consensus membership at boot.
-- Convert/map that validator set once in `main.rs` into the Commonware/public-key form expected by the builder.
-- Do not call `oracle_handle.update_validators(...)` directly in `main.rs`; that responsibility remains centralized in `provider.rs` so all callers benefit consistently.
+### `src/config.rs`
 
-### Bootstrap integration detail
-- For this pass, bootstrap peers come from the node wiring layer, even if currently sourced from placeholder/local values.
-- The important change is that `main.rs` stops leaving the builder bootstrap list empty by construction.
-- CLI/config ergonomics for user-specified bootstrap peers remain part of Sub-Intent B.
+#### Current problems to resolve
+- The file only exposes loose constants today.
+- `BIND_ADDR` is unused by startup wiring.
+- The runtime/network/storage values consumed by `main.rs` are split between constants here and unrelated hardcoded literals in `main.rs`.
 
-## crates/consensus-simplex
-- No code changes in this synthesize pass.
-- The only design dependency is that later relay work can now trust `NetworkMessage.channel` to reflect the true mux channel.
-- Preserve alignment with `crates/p2p` channel constants; do not introduce crate-local channel IDs.
+#### Required design outcome
+- Convert this module into the canonical startup-config module for the binary.
+- Keep small default constants where helpful, but the main product of the module should be a typed `NodeConfig` assembled from Clap args.
+- Recommended exported types:
 
-## crates/app
-- No code changes in this synthesize pass.
-- Behavioral compatibility is preserved because the provider completeness fixes are below the app boundary.
+```rust
+pub type BootstrapPeer = p2p_commonware::Bootstrapper<ed25519::PublicKey>;
+
+pub struct NodeConfig {
+    pub network: NetworkConfig,
+    pub identity: IdentityConfig,
+    pub rpc: RpcConfig,
+    pub storage: StorageConfig,
+    pub consensus: ConsensusStartupConfig,
+}
+
+pub struct NetworkConfig {
+    pub network_namespace: Vec<u8>,
+    pub listen_addr: SocketAddr,
+    pub dialable_addr: SocketAddr,
+    pub bootstrap_peers: Vec<BootstrapPeer>,
+    pub max_message_size: u32,
+}
+
+pub struct IdentityConfig {
+    pub validator_seed: u64,
+}
+
+pub struct RpcConfig {
+    pub bind_addr: SocketAddr,
+}
+
+pub struct StorageConfig {
+    pub data_dir: PathBuf,
+}
+
+pub struct ConsensusStartupConfig {
+    pub consensus_namespace: String,
+    pub block_interval: Duration,
+}
+```
+
+#### Parser types and conversions
+- Add a derive-based parser type such as `NodeArgs`:
+
+```rust
+#[derive(clap::Parser, Debug, Clone)]
+pub struct NodeArgs {
+    #[arg(long = "network-namespace", default_value = "whirlpool-dev")]
+    pub network_namespace: String,
+
+    #[arg(long = "consensus-namespace", default_value = "sahara-chain-v0")]
+    pub consensus_namespace: String,
+
+    #[arg(short = 'l', long = "listen-addr", default_value = "127.0.0.1:0")]
+    pub listen_addr: SocketAddr,
+
+    #[arg(long = "dialable-addr", default_value = "127.0.0.1:0")]
+    pub dialable_addr: SocketAddr,
+
+    #[arg(short = 'b', long = "bootstrap-peer", value_name = "PUBKEY@HOST:PORT")]
+    pub bootstrap_peers: Vec<String>,
+
+    #[arg(long = "dial-peer", alias = "peer", value_name = "PUBKEY@HOST:PORT")]
+    pub dial_peers: Vec<String>,
+
+    #[arg(short = 's', long = "validator-seed", default_value_t = 0)]
+    pub validator_seed: u64,
+
+    #[arg(short = 'r', long = "rpc-addr", default_value = "127.0.0.1:8545")]
+    pub rpc_addr: SocketAddr,
+
+    #[arg(short = 'd', long = "data-dir", default_value = "data")]
+    pub data_dir: PathBuf,
+
+    #[arg(long = "max-message-size", default_value_t = 1024 * 1024)]
+    pub max_message_size: u32,
+}
+```
+
+- Implement `NodeArgs::into_config(self) -> Result<NodeConfig, String>` or an equivalent `TryFrom<NodeArgs>` conversion.
+- Conversion responsibilities:
+  - convert `network_namespace: String` to `Vec<u8>`
+  - normalize `bootstrap_peers` and `dial_peers` into one `Vec<BootstrapPeer>`
+  - carry defaults forward without relying on `main.rs`
+
+#### Bootstrap peer parsing
+- Add a dedicated parse helper in this module:
+
+```rust
+pub fn parse_bootstrap_peer(input: &str) -> Result<BootstrapPeer, String>;
+```
+
+- Expected input format: `PUBKEY@HOST:PORT`.
+- Expected output type: `Bootstrapper<ed25519::PublicKey>` which resolves to `(ed25519::PublicKey, SocketAddr)` at this boundary.
+- Parse rules:
+  1. split once on `@`
+  2. parse address as `SocketAddr`
+  3. decode pubkey hex bytes
+  4. construct `ed25519::PublicKey` from the 32-byte value
+- Parsing failure is a CLI error, not a runtime warning.
+
+#### Dial peer decision
+- Do not introduce a separate `dial_peers: Vec<SocketAddr>` field in `NodeConfig`.
+- In Commonware, bootstrappers are already the peers dialed on startup.
+- Therefore `--dial-peer` is only an operator-friendly alias that feeds the same `bootstrap_peers` collection.
+- This crate must document and implement that normalization explicitly so REQ-4 remains unambiguous.
+
+#### Storage helpers
+- Add derived-path helpers on `StorageConfig`:
+
+```rust
+impl StorageConfig {
+    pub fn runtime_dir(&self) -> PathBuf;
+    pub fn state_db_path(&self) -> PathBuf;
+    pub fn mempool_db_path(&self) -> PathBuf;
+}
+```
+
+- The derived layout must remain:
+  - `<data-dir>/runtime`
+  - `<data-dir>/state`
+  - `<data-dir>/mempool`
+
+### `src/main.rs`
+
+#### Startup ordering
+- Parse CLI args before initializing the runtime executor.
+- Replace ad hoc constants and inline `SocketAddr::new(...)` calls with `NodeConfig` fields.
+- Keep tracing setup at the top of `main()`.
+
+#### Runtime and storage wiring
+- Replace:
+  - `DEFAULT_RUNTIME_STORAGE_DIR`
+  - `DEFAULT_DB_PATH`
+  - `DEFAULT_MEMPOOL_DB_PATH`
+- With the values derived from `node_config.storage.data_dir`.
+- No separate storage redesign is needed beyond consuming the new helper methods.
+
+#### Network builder wiring
+- Replace the current hardcoded builder assembly with config-owned values:
+
+```rust
+let (network_provider, oracle_handle) =
+    CommonwareNetworkProviderBuilder::new(
+        signer.clone(),
+        node_config.network.network_namespace.clone(),
+    )
+    .listen_addr(node_config.network.listen_addr)
+    .dialable_addr(node_config.network.dialable_addr)
+    .max_message_size(node_config.network.max_message_size)
+    .initial_validators(0, validators.clone())
+    .bootstrappers(node_config.network.bootstrap_peers.clone())
+    .build(context.with_label("network"))
+    .await;
+```
+
+- Types threaded into the builder are concrete and unchanged from the existing API:
+  - `SocketAddr` for `listen_addr`
+  - `SocketAddr` for `dialable_addr`
+  - `Vec<Bootstrapper<ed25519::PublicKey>>` for `bootstrappers`
+  - `Vec<ed25519::PublicKey>` for `initial_validators`
+
+#### Validator identity wiring
+- Continue deriving the signer with:
+
+```rust
+let signer = ed25519::PrivateKey::from_seed(node_config.identity.validator_seed);
+```
+
+- Continue using `vec![signer.public_key()]` as the startup validator set.
+- No multi-validator CLI surface is introduced in this pass.
+
+#### Namespace wiring
+- Replace hardcoded `APPLICATION_NAMESPACE` usage with `node_config.network.network_namespace`.
+- Replace `String::from_utf8_lossy(config::NAMESPACE).to_string()` with `node_config.consensus.consensus_namespace.clone()`.
+- This crate is where the current namespace divergence is made explicit and resolved without changing runtime behavior.
+
+#### RPC wiring
+- Replace inline parsing of `config::RPC_BIND_ADDR` with `node_config.rpc.bind_addr`.
+- Keep the RPC server startup flow otherwise unchanged.
+
+#### Constants to retire or narrow
+- Remove or internalize `APPLICATION_NAMESPACE`, `DEFAULT_DB_PATH`, `DEFAULT_RUNTIME_STORAGE_DIR`, and `DEFAULT_MEMPOOL_DB_PATH` once they are represented by `NodeConfig` defaults.
+- `MAX_MESSAGE_SIZE` may remain as a config-module default constant, but `main.rs` should stop owning it.
+
+#### Tests in `main.rs`
+- Existing startup-wiring tests can remain lightweight, but they should shift from builder-call sequencing to config-to-builder intent.
+- Suitable minimal tests for this crate after implementation:
+  - default `NodeArgs` conversion preserves current startup behavior
+  - bootstrap peer parsing accepts a valid `PUBKEY@HOST:PORT`
+  - `dial_peers` and `bootstrap_peers` merge into a single config vector
+  - `data_dir` derives the expected `runtime`, `state`, and `mempool` paths
+
+## crates/p2p-commonware
+- Read-only in this pass.
+- Existing consumed contracts:
+  - `CommonwareNetworkProviderBuilder::new(signer, namespace)`
+  - `.listen_addr(SocketAddr)`
+  - `.dialable_addr(SocketAddr)`
+  - `.bootstrappers(Vec<Bootstrapper<PublicKey>>)`
+  - `.initial_validators(epoch, Vec<PublicKey>)`
+  - `.max_message_size(u32)`
+- No crate-local redesign, no new setter, and no startup-side workaround should be proposed here.
+
+## Other crates
+- `crates/p2p`: no changes.
+- `crates/consensus-simplex`: no changes.
+- `crates/app`: no changes.
+- `crates/p2p-commonware` design artifacts from Sub-Intent A are not revised in this pass.

@@ -2,18 +2,17 @@
 
 ## Overview
 
-The `whirlpool-node` crate library exports shared configuration constants used by the EVM node binary.
+The `whirlpool-node` crate library exports a comprehensive configuration system including constants, CLI argument parsing via `clap`, and a nested configuration hierarchy used by the EVM node binary.
 
 ## Library Exports
 
 `crates/whirlpool-node/src/lib.rs`: `pub mod config;`
 
 ### config.rs
-- `pub const NAMESPACE: &[u8]` — `b"sahara-chain-v0"`
-- `pub const BLOCK_INTERVAL: Duration` — 5 seconds
-- `pub const VALIDATOR_SEED: u64` — 0
-- `pub const BIND_ADDR: &str` — `"127.0.0.1:0"`
-- `pub const RPC_BIND_ADDR: &str` — `"127.0.0.1:8545"`
+- Types: `NodeArgs` (clap derive, 12 CLI fields), `NodeConfig` (top-level config), `NetworkConfig`, `IdentityConfig`, `RpcConfig`, `StorageConfig`, `ConsensusStartupConfig`
+- Functions: `parse_bootstrap_peer(s: &str) -> Result<BootstrapPeer, String>`
+- Impl: `From<NodeArgs> for NodeConfig`
+- Constants (defaults): `APPLICATION_NAMESPACE`, `NAMESPACE`, `BLOCK_INTERVAL`, `VALIDATOR_SEED`, `BIND_ADDR`, `RPC_BIND_ADDR`, `DEFAULT_DATA_DIR`, `DEFAULT_MAX_MESSAGE_SIZE`
 
 ## JSON-RPC Server Architecture
 
@@ -29,8 +28,8 @@ The `whirlpool-node` binary wires `rpc-eth` via `rpc_eth::context::EthRpcContext
 ## Binary: whirlpool-node (EVM)
 
 Location: `crates/whirlpool-node/src/main.rs`
-- Uses `EvmApplication` (from `app-evm`) with `InMemoryTxPool` (from `app`) and `RethStateDb` (persistent).
-- Persistent state: Open or creates MDBX environment at `data/state` (DEFAULT_DB_PATH).
+- Configuration: Driven by CLI flags parsed via `clap` into `NodeConfig` hierarchy.
+- Persistent state: Opens or creates MDBX environment at `config.storage.state_dir()`.
 - Implements `StateDb`, `StateProvider`, and `revm::Database` traits via `RethStateDb`.
 - Full EVM execution with persistent state root progression.
 - Wiring: Starts consensus engine, then initializes and starts the JSON-RPC server.
@@ -40,8 +39,8 @@ Location: `crates/whirlpool-node/src/main.rs`
 
 | Module | Test Count |
 |--------|-----------|
-| config.rs | 0 |
-| main.rs (bin) | 0 |
-| **Total (lib)** | **0** |
+| config.rs | 8 |
+| main.rs (bin) | 1 |
+| **Total** | **9** |
 
 

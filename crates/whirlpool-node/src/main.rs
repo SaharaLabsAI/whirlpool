@@ -4,6 +4,7 @@ use app::traits::TxSource;
 use app::ApplicationAdapter;
 use app_evm::executor::EvmApplication;
 use app_evm::{build_sahara_chain_spec, WhirlpoolEvmConfig, SAHARA_CHAIN_ID};
+use clap::Parser;
 use commonware_cryptography::ed25519;
 use commonware_cryptography::Signer;
 use commonware_runtime::{tokio, Metrics, Runner};
@@ -12,31 +13,20 @@ use consensus_simplex::{CommonwareConfig, CommonwareEngine, FinalizationSink};
 use mempool_mdbx::PersistentTxPool;
 use p2p_commonware::CommonwareNetworkProviderBuilder;
 use rpc_eth as rpc;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::num::NonZeroUsize;
-use std::path::PathBuf;
 use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 use tracing::info;
 use state::BlockStorage;
-use whirlpool_node::config;
+use whirlpool_node::config::{NodeArgs, NodeConfig};
 use whirlpool_node::persisting_sink::PersistingFinalizationSink;
 
-// Application namespace for network isolation
-const APPLICATION_NAMESPACE: &[u8] = b"whirlpool-dev";
-const MAX_MESSAGE_SIZE: u32 = 1024 * 1024; // 1 MB
-
-/// Default path for the state database.
-const DEFAULT_DB_PATH: &str = "data/state";
-
-/// Persistent directory for the Commonware runtime (consensus journal, etc.).
-const DEFAULT_RUNTIME_STORAGE_DIR: &str = "data/runtime";
-
-/// Default path for the persistent mempool database.
-const DEFAULT_MEMPOOL_DB_PATH: &str = "data/mempool";
-
 fn main() {
+    let args = NodeArgs::parse();
+    let config = NodeConfig::from(args);
+    let runtime_storage_dir = config.storage.runtime_dir();
+
     // Initialize tracing
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -45,38 +35,37 @@ fn main() {
         )
         .init();
 
-    info!("Starting Whirlpool node");
+    info!(?config, "Starting Whirlpool node");
 
     // Create commonware runtime with persistent storage so the consensus
     // journal survives restarts (the default uses a random temp directory).
-    let runtime_cfg = tokio::Config::new()
-        .with_storage_directory(PathBuf::from(DEFAULT_RUNTIME_STORAGE_DIR));
+    let runtime_cfg = tokio::Config::new().with_storage_directory(runtime_storage_dir);
     let executor = tokio::Runner::new(runtime_cfg);
 
     executor.start(|context| async move {
-        info!("Commonware runtime started");
+        info!(?config, "Commonware runtime started");
 
         // Create ed25519 signer from deterministic seed (development only)
-        let signer = ed25519::PrivateKey::from_seed(config::VALIDATOR_SEED);
+        let signer = ed25519::PrivateKey::from_seed(config.identity.seed);
         let validators = vec![signer.public_key()]; // Single validator for development
 
         // Create local addresses for network setup
-        let listen_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0); // OS assigns port
-        let dialable_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
-        let bootstrappers = vec![]; // Empty for development mode (no external peers)
+        let listen_addr = config.network.listen_addr;
+        let dialable_addr = config.network.dialable_addr;
+        let bootstrappers = config.network.bootstrap_peers.clone();
 
         let (network_provider, oracle_handle) =
-            CommonwareNetworkProviderBuilder::new(signer.clone(), APPLICATION_NAMESPACE)
+            CommonwareNetworkProviderBuilder::new(signer.clone(), config.network.namespace.clone())
                 .listen_addr(listen_addr)
                 .dialable_addr(dialable_addr)
-                .max_message_size(MAX_MESSAGE_SIZE)
+                .max_message_size(config.network.max_message_size)
                 .initial_validators(0, validators.clone())
                 .bootstrappers(bootstrappers)
                 .build(context.with_label("network"))
                 .await;
 
         // Initialize state database
-        let db_path = PathBuf::from(DEFAULT_DB_PATH);
+        let db_path = config.storage.state_dir();
         info!(?db_path, "Opening persistent state database");
         let reth_db =
             state_reth::open_state_db(&db_path).expect("failed to open state database");
@@ -95,7 +84,7 @@ fn main() {
 
         // Configure consensus engine config
         let engine_config = CommonwareConfig {
-            namespace: String::from_utf8_lossy(config::NAMESPACE).to_string(),
+            namespace: String::from_utf8_lossy(&config.consensus.namespace).to_string(),
             leader_timeout: Duration::from_secs(5),
             notarization_timeout: Duration::from_secs(5),
             nullify_retry: Duration::from_millis(500),
@@ -114,7 +103,7 @@ fn main() {
 
         let chain_spec = Arc::new(build_sahara_chain_spec());
         let evm_config = WhirlpoolEvmConfig::new(chain_spec);
-        let mempool_path = PathBuf::from(DEFAULT_MEMPOOL_DB_PATH);
+        let mempool_path = config.storage.mempool_dir();
         info!(?mempool_path, "Opening persistent mempool database");
         let tx_pool: Arc<dyn TxSource> = Arc::new(
             PersistentTxPool::open(&mempool_path).expect("failed to open mempool database"),
@@ -139,10 +128,7 @@ fn main() {
         let mut rpc_ctx =
             rpc::context::EthRpcContext::new(tx_pool, state_db, block_storage, SAHARA_CHAIN_ID);
         rpc_ctx.block_height = height;
-        let rpc_addr: SocketAddr = config::RPC_BIND_ADDR
-            .parse()
-            .expect("invalid RPC bind address");
-        let _rpc_handle = rpc::server::start_rpc_server(rpc_ctx, rpc_addr)
+        let _rpc_handle = rpc::server::start_rpc_server(rpc_ctx, config.rpc.bind_addr)
             .await
             .expect("failed to start RPC server");
         info!("JSON-RPC server started");
@@ -159,6 +145,8 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+    use whirlpool_node::config;
 
     #[test]
     fn tst_req2_002_node_startup_wiring_populates_builder_bootstrappers_and_validators() {
@@ -167,12 +155,15 @@ mod tests {
         let validators = vec![signer.public_key()];
         let bootstrappers = vec![];
 
-        let builder = CommonwareNetworkProviderBuilder::new(signer.clone(), APPLICATION_NAMESPACE)
-            .listen_addr(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0))
-            .dialable_addr(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0))
-            .max_message_size(MAX_MESSAGE_SIZE)
-            .initial_validators(0, validators.clone())
-            .bootstrappers(bootstrappers.clone());
+        let builder = CommonwareNetworkProviderBuilder::new(
+            signer.clone(),
+            config::APPLICATION_NAMESPACE,
+        )
+        .listen_addr(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0))
+        .dialable_addr(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0))
+        .max_message_size(config::DEFAULT_MAX_MESSAGE_SIZE)
+        .initial_validators(0, validators.clone())
+        .bootstrappers(bootstrappers.clone());
 
         drop(builder);
     }

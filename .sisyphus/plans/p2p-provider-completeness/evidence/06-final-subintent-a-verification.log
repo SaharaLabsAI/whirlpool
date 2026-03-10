@@ -1,0 +1,207 @@
+=== Task 06: Final Sub-Intent A Verification ===
+Date: 2026-03-09T21:13:57+08:00
+
+=== Phase 1: Compilation Check ===
+--- cargo check -p p2p-commonware ---
+warning: Git tree '/home/dev/sahara/web3/agent/playground/whirlpool' is dirty
+warning: use of deprecated method `futures::futures_channel::mpsc::Receiver::<T>::try_next`: please use `try_recv` instead
+   --> vendor/commonware/utils/src/channels/tracked.rs:245:20
+    |
+245 |         self.inner.try_next().ok().flatten()
+    |                    ^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+
+warning: `commonware-utils` (lib) generated 1 warning
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.20s
+exit_code=0
+
+--- cargo check -p whirlpool-node ---
+warning: Git tree '/home/dev/sahara/web3/agent/playground/whirlpool' is dirty
+warning: use of deprecated method `futures::futures_channel::mpsc::Receiver::<T>::try_next`: please use `try_recv` instead
+   --> vendor/commonware/utils/src/channels/tracked.rs:245:20
+    |
+245 |         self.inner.try_next().ok().flatten()
+    |                    ^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+
+warning: `commonware-utils` (lib) generated 1 warning
+warning: unused import: `AtomicU64`
+  --> crates/consensus-simplex/src/engine.rs:10:37
+   |
+10 | use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+   |                                     ^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused `Result` that must be used
+   --> crates/consensus-simplex/src/engine.rs:242:13
+    |
+242 |             vendor_handle.await;
+    |             ^^^^^^^^^^^^^^^^^^^
+    |
+    = note: this `Result` may be an `Err` variant, which should be handled
+    = note: `#[warn(unused_must_use)]` (part of `#[warn(unused)]`) on by default
+help: use `let _ = ...` to ignore the resulting value
+    |
+242 |             let _ = vendor_handle.await;
+    |             +++++++
+
+warning: `consensus-simplex` (lib) generated 2 warnings (run `cargo fix --lib -p consensus-simplex` to apply 1 suggestion)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.28s
+exit_code=0
+
+=== Phase 2: Test Discovery ===
+--- p2p-commonware tests (tst_req) ---
+multiplex_receiver_contract_tests::tst_req3_003_multiplex_forwards_receiver_tagged_channels: test
+provider::tests::tst_req1_001_builder_seeds_non_empty_validator_set: test
+provider::tests::tst_req1_002_builder_skips_empty_validator_set: test
+provider::tests::tst_req2_001_builder_threads_bootstrappers_into_discovery: test
+provider::tests::tst_req3_001_provider_start_tags_vote_and_certificate_receivers: test
+provider::tests::tst_req3_002_provider_start_tags_resolver_receiver: test
+receiver::tests::tst_req3_001_receiver_emits_vote_channel: test
+receiver::tests::tst_req3_002_receiver_emits_distinct_channels: test
+exit_code=0
+
+--- whirlpool-node tests (tst_req) ---
+tests::tst_req2_002_node_startup_wiring_populates_builder_bootstrappers_and_validators: test
+exit_code=0
+
+=== Phase 3: Crate-level Test Execution ===
+--- cargo test -p p2p-commonware ---
+warning: Git tree '/home/dev/sahara/web3/agent/playground/whirlpool' is dirty
+   Compiling commonware-utils v0.0.65 (/home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/utils)
+warning: use of deprecated method `futures::futures_channel::mpsc::Receiver::<T>::try_next`: please use `try_recv` instead
+   --> vendor/commonware/utils/src/channels/tracked.rs:245:20
+    |
+245 |         self.inner.try_next().ok().flatten()
+    |                    ^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+
+warning: `commonware-utils` (lib) generated 1 warning
+   Compiling commonware-math v0.0.65 (/home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/math)
+   Compiling commonware-cryptography v0.0.65 (/home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/cryptography)
+   Compiling commonware-runtime v0.0.65 (/home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/runtime)
+   Compiling commonware-stream v0.0.65 (/home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/stream)
+   Compiling commonware-p2p v0.0.65 (/home/dev/sahara/web3/agent/playground/whirlpool/vendor/commonware/p2p)
+   Compiling p2p-commonware v0.1.0 (/home/dev/sahara/web3/agent/playground/whirlpool/crates/p2p-commonware)
+warning: unused import: `OracleHandle`
+ --> crates/p2p-commonware/src/tests.rs:7:9
+  |
+7 |         OracleHandle,
+  |         ^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `pk`
+   --> crates/p2p-commonware/src/tests.rs:339:13
+    |
+339 |         let pk = create_test_pubkey(1);
+    |             ^^ help: if this is intentional, prefix it with an underscore: `_pk`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `pk`
+   --> crates/p2p-commonware/src/tests.rs:348:13
+    |
+348 |         let pk = create_test_pubkey(2);
+    |             ^^ help: if this is intentional, prefix it with an underscore: `_pk`
+
+warning: unused variable: `pk`
+   --> crates/p2p-commonware/src/tests.rs:360:13
+    |
+360 |         let pk = create_test_pubkey(3);
+    |             ^^ help: if this is intentional, prefix it with an underscore: `_pk`
+
+warning: unused variable: `builder`
+   --> crates/p2p-commonware/src/tests.rs:363:13
+    |
+363 |         let builder: CommonwareNetworkProviderBuilder<ed25519::PrivateKey, ()> =
+    |             ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_builder`
+
+warning: unused variable: `pk`
+   --> crates/p2p-commonware/src/tests.rs:371:13
+    |
+371 |         let pk = create_test_pubkey(4);
+    |             ^^ help: if this is intentional, prefix it with an underscore: `_pk`
+
+warning: unused variable: `builder`
+   --> crates/p2p-commonware/src/tests.rs:380:13
+    |
+380 |         let builder: CommonwareNetworkProviderBuilder<ed25519::PrivateKey, ()> =
+    |             ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_builder`
+
+warning: unused variable: `pk`
+   --> crates/p2p-commonware/src/tests.rs:388:13
+    |
+388 |         let pk = create_test_pubkey(6);
+    |             ^^ help: if this is intentional, prefix it with an underscore: `_pk`
+
+warning: unused variable: `builder`
+   --> crates/p2p-commonware/src/tests.rs:390:13
+    |
+390 |         let builder: CommonwareNetworkProviderBuilder<ed25519::PrivateKey, ()> =
+    |             ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_builder`
+
+warning: unused variable: `pk`
+   --> crates/p2p-commonware/src/tests.rs:398:13
+    |
+398 |         let pk = create_test_pubkey(7);
+    |             ^^ help: if this is intentional, prefix it with an underscore: `_pk`
+
+warning: unused variable: `builder`
+   --> crates/p2p-commonware/src/tests.rs:401:13
+    |
+401 |         let builder: CommonwareNetworkProviderBuilder<ed25519::PrivateKey, ()> =
+    |             ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_builder`
+
+warning: unused variable: `pk`
+   --> crates/p2p-commonware/src/tests.rs:411:13
+    |
+411 |         let pk = create_test_pubkey(8);
+    |             ^^ help: if this is intentional, prefix it with an underscore: `_pk`
+
+warning: `p2p-commonware` (lib test) generated 12 warnings (run `cargo fix --lib -p p2p-commonware --tests` to apply 12 suggestions)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.57s
+     Running unittests src/lib.rs (target/debug/deps/p2p_commonware-bd778873976af510)
+
+running 37 tests
+test multiplex_receiver_contract_tests::tst_req3_003_multiplex_forwards_receiver_tagged_channels ... ok
+test receiver::tests::tst_req3_001_receiver_emits_vote_channel ... ok
+test tests::tests::test_builder_new ... ok
+test tests::tests::test_builder_build ... ok
+test tests::tests::test_commonware_peer_id_clone ... ok
+test provider::tests::test_start_per_channel_returns_three_pairs ... ok
+test receiver::tests::tst_req3_002_receiver_emits_distinct_channels ... ok
+test tests::tests::test_builder_setters ... ok
+test provider::tests::tst_req1_002_builder_skips_empty_validator_set ... FAILED
+test provider::tests::tst_req1_001_builder_seeds_non_empty_validator_set ... FAILED
+test tests::tests::test_commonware_peer_id_debug ... ok
+test tests::tests::test_builder_with_bootstrappers ... ok
+test tests::tests::test_builder_with_config ... ok
+test tests::tests::test_commonware_peer_id_hash ... ok
+test tests::tests::test_commonware_peer_id_implements_peer_id_trait ... ok
+test tests::tests::test_commonware_peer_id_in_hashset ... ok
+test tests::tests::test_commonware_peer_id_hash_different_keys ... ok
+test tests::tests::test_commonware_peer_id_eq ... ok
+test tests::tests::test_commonware_peer_id_ne ... ok
+test tests::tests::test_empty_validators ... ok
+test tests::tests::test_map_send_error_preserves_message ... ok
+test tests::tests::test_commonware_peer_id_to_bytes ... ok
+test tests::tests::test_map_send_error_with_string ... ok
+test tests::tests::test_multiplex_receiver_returns_none_on_shutdown ... ok
+test tests::tests::test_multiplex_sender_invalid_channel ... ok
+test tests::tests::test_multiplex_sender_clone ... ok
+test tests::tests::test_multiplex_receiver_merges_channels ... ok
+test tests::tests::test_multiplex_sender_routes_certificate_channel ... ok
+test tests::tests::test_multiplex_receiver_tags_channel ... ok
+test tests::tests::test_multiplex_sender_routes_vote_channel ... ok
+test tests::tests::test_multiplex_sender_routes_resolver_channel ... ok
+test tests::tests::test_oracle_handle_update ... ok
+test provider::tests::tst_req2_001_builder_threads_bootstrappers_into_discovery ... ok
+test tests::tests::test_validator_set_with_self ... ok
+test provider::tests::test_per_channel_send_receive ... ok
+test provider::tests::tst_req3_001_provider_start_tags_vote_and_certificate_receivers has been running for over 60 seconds
+test provider::tests::tst_req3_002_provider_start_tags_resolver_receiver has been running for over 60 seconds

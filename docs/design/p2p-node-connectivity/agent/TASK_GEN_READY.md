@@ -1,11 +1,28 @@
 READY
 
 - blockers_status: PASS
-- scope: Sub-Intent A only (`REQ-1`, `REQ-2`, `REQ-3`)
+- sub_intent: Sub-Intent B (`node-config-startup-wiring`)
+- requirements_in_scope:
+  - REQ-4
+  - REQ-5
+- source_verified:
+  - `crates/whirlpool-node/src/config.rs`
+  - `crates/whirlpool-node/src/main.rs`
 - crate_contracts_complete: true
 - flows_complete: true
 - tests_complete: true
 - handoff_complete: true
 - review_summary_complete: true
+- checklist:
+  - [x] Synthesized artifacts read
+  - [x] Current source baseline verified
+  - [x] whirlpool-node contract finalized
+  - [x] CLI parsing flow documented
+  - [x] startup wiring flow documented
+  - [x] bootstrap peer parsing flow documented
+  - [x] unit and integration tests specified
+  - [x] implementation handoff written
+  - [x] review-lane docs updated
+  - [x] blockers remain none
 - blocker_notes: none
 - ready_for_task_generation: true
