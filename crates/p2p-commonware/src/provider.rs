@@ -363,17 +363,17 @@ mod tests {
                 .parse::<SocketAddr>()
                 .expect("valid socket");
 
-        // Verify builder accepts initial_validators and build succeeds
-        let (_provider, _oracle_handle) =
-            CommonwareNetworkProviderBuilder::new(signer, b"seed-validators-test")
-                .listen_addr(addr)
-                .dialable_addr(addr)
-                .initial_validators(0, vec![self_pk.clone(), other_pk.clone(), self_pk.clone()])
-                .build(context.with_label("seeded_network"))
-                .await;
+            // Verify builder accepts initial_validators and build succeeds.
+            let (_provider, _oracle_handle) =
+                CommonwareNetworkProviderBuilder::new(signer, b"seed-validators-test")
+                    .listen_addr(addr)
+                    .dialable_addr(addr)
+                    .initial_validators(0, vec![self_pk.clone(), other_pk.clone(), self_pk.clone()])
+                    .build(context.with_label("seeded_network"))
+                    .await;
 
-        // Test passes if build() completes without error
-        // Oracle seeding happens internally; unit test can't verify actor state
+            // Test passes if build() completes without error.
+            // Oracle seeding happens internally; unit test can't verify actor state.
         });
     }
 
@@ -386,7 +386,8 @@ mod tests {
                 .parse::<SocketAddr>()
                 .expect("valid socket");
 
-            let (_provider, mut oracle_handle) =
+            // Verify builder accepts empty initial_validators and build succeeds.
+            let (_provider, _oracle_handle) =
                 CommonwareNetworkProviderBuilder::new(signer, b"empty-validators-test")
                     .listen_addr(addr)
                     .dialable_addr(addr)
@@ -394,8 +395,8 @@ mod tests {
                     .build(context.with_label("empty_seed_network"))
                     .await;
 
-            // Unit test cannot verify actor state - only confirms API acceptance and build() success
-            // (calling oracle_handle.0.peer_set() causes "runtime stalled" in deterministic test runtime)
+            // Unit test confirms API acceptance and build() success only.
+            // Oracle internals require a fully running actor context.
         });
     }
 

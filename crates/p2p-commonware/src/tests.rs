@@ -265,7 +265,7 @@ mod tests {
             .unwrap();
         drop(tx); // close the channel after sending
 
-        let receiver = CommonwareReceiver::new(mock);
+        let receiver = CommonwareReceiver::new(Channel(0), mock);
         let mut mux = MultiplexReceiver::new_for_test(vec![(Channel(0), receiver)]);
 
         let msg = mux.recv().await.expect("should receive a message");
@@ -298,9 +298,9 @@ mod tests {
         drop(tx2);
 
         let mut mux = MultiplexReceiver::new_for_test(vec![
-            (Channel(0), CommonwareReceiver::new(mock0)),
-            (Channel(1), CommonwareReceiver::new(mock1)),
-            (Channel(2), CommonwareReceiver::new(mock2)),
+            (Channel(0), CommonwareReceiver::new(Channel(0), mock0)),
+            (Channel(1), CommonwareReceiver::new(Channel(1), mock1)),
+            (Channel(2), CommonwareReceiver::new(Channel(2), mock2)),
         ]);
 
         let mut received = std::collections::HashMap::new();
@@ -326,8 +326,8 @@ mod tests {
         drop(_tx1);
 
         let mut mux = MultiplexReceiver::new_for_test(vec![
-            (Channel(0), CommonwareReceiver::new(mock0)),
-            (Channel(1), CommonwareReceiver::new(mock1)),
+            (Channel(0), CommonwareReceiver::new(Channel(0), mock0)),
+            (Channel(1), CommonwareReceiver::new(Channel(1), mock1)),
         ]);
 
         // All senders are gone, should return None
