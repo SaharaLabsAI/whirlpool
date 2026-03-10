@@ -369,7 +369,7 @@ async fn spawn_engine(
         CommonwareNetworkProviderBuilder::new(config.signer.clone(), config.namespace.as_bytes())
             .listen_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
             .dialable_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
-            .build(context.with_label("network"));
+            .build(context.with_label("network")).await;
     oracle_handle
         .update_validators(config.epoch, config.validators.clone())
         .await;

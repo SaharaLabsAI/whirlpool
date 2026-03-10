@@ -1,111 +1,106 @@
 # Implementation Handoff
 
 ## Intent
-- Finalize Sub-Intent B for `node-config-startup-wiring`.
-- Scope is limited to `REQ-4` and `REQ-5`.
-- Only implementation crate changed in this pass: `crates/whirlpool-node`.
-- `crates/p2p-commonware` remains read-only and is consumed through its existing builder API.
+- Finalize Sub-Intent C for `consensus-relay-activation`.
+- Scope is limited to `REQ-6`, `REQ-7`, and `REQ-8`.
+- Primary implementation crate: `crates/consensus-simplex`.
+- Supporting crates with narrow additive changes:
+  - `crates/p2p`
+  - `crates/p2p-commonware`
+- Node integration boundary to preserve:
+  - `crates/whirlpool-node`
 
 ## Verified Source Baseline
-- `crates/whirlpool-node/src/config.rs` currently contains only startup constants and no structured config model.
-- `crates/whirlpool-node/src/main.rs` currently owns multiple hardcoded startup literals that must move into config.
-- The finalized design intentionally preserves current no-flag behavior while making startup values explicit and configurable.
+- `crates/consensus-simplex/src/mailbox.rs` currently implements `Relay::broadcast()` as a no-op.
+- `crates/consensus-simplex/src/mailbox.rs` already stores genesis and proposed blocks in a shared `BlockStore` through `MailboxActor::remember_block()`.
+- `crates/consensus-simplex/src/engine.rs` already creates one shared `BlockStore` and passes it to both `MailboxActor` and `AppAdapter`.
+- `crates/p2p/src/types.rs` currently reserves only three channel constants: vote, certificate, resolver.
+- `crates/p2p-commonware/src/provider.rs` currently registers only those three channels in `start_per_channel()`.
+- `crates/whirlpool-node/src/main.rs` already delegates consensus/network startup to `CommonwareEngine` and does not own relay logic itself.
 
 ## Implementation Order
-1. Update `crates/whirlpool-node/Cargo.toml`.
-   - Add `clap = { version = "4.5", features = ["derive"] }`.
-   - Why first: `NodeArgs` depends on clap derive support.
-2. Expand `crates/whirlpool-node/src/config.rs`.
-   - Add `BootstrapPeer`, `NodeArgs`, `NodeConfig`, nested config structs, defaults, storage helpers, and `parse_bootstrap_peer`.
-   - Why second: this file becomes the single startup source of truth used by `main.rs`.
-3. Refactor startup wiring in `crates/whirlpool-node/src/main.rs`.
-   - Parse CLI before creating the runtime.
-   - Convert `NodeArgs` into `NodeConfig`.
-   - Replace hardcoded network, identity, storage, RPC, and consensus literals with config fields.
-   - Why third: startup wiring depends on the normalized config contract being available.
-4. Add unit tests in `crates/whirlpool-node`.
-   - Cover defaults, peer parsing, conversion, and storage helpers.
-   - Why fourth: validates the config module independently before startup integration checks.
-5. Add startup wiring tests in `crates/whirlpool-node`.
-   - Cover default backwards compatibility and custom config propagation into builder inputs.
-   - Why last: validates the completed config-to-startup flow.
+1. Update `crates/p2p/src/types.rs`.
+   - Add `Channel::PAYLOAD = Channel(3)`.
+   - Why first: every downstream relay registration and assertion depends on the stable constant existing.
+2. Update `crates/p2p-commonware/src/provider.rs` and related transport tests.
+   - Register the payload channel in `start_per_channel()`.
+   - Extend `PerChannelNetwork` with `payload: (S, R)`.
+   - Why second: consensus wiring needs the extra dedicated channel pair before relay activation can consume it.
+3. Refactor `crates/consensus-simplex/src/mailbox.rs`.
+   - Give `Mailbox` access to shared `BlockStore` and a payload sender.
+   - Replace the no-op relay with digest lookup plus payload send.
+   - Why third: this is the core outbound relay activation point.
+4. Extend `crates/consensus-simplex/src/engine.rs`.
+   - Extract `per_channel.payload`.
+   - Construct the updated `Mailbox`.
+   - Spawn a payload receive task that decodes inbound payloads and stores them in `BlockStore`.
+   - Why fourth: engine wiring ties outbound relay and inbound persistence together.
+5. Run and update tests.
+   - Add relay broadcast tests, payload receive/store tests, channel alignment tests, multi-node round-trip coverage, and single-node compatibility checks.
+   - Why last: test coverage validates the completed end-to-end relay path.
 
 ## File-by-File Change Summary
 
-### `crates/whirlpool-node/Cargo.toml`
-- Add clap derive dependency only.
-- No workspace-wide dependency promotion.
-- No additional third-party config library in this pass.
+### `crates/p2p/src/types.rs`
+- Add one additive channel constant only:
+  - `pub const PAYLOAD: Channel = Channel(3);`
+- Preserve existing values for `VOTE`, `CERTIFICATE`, and `RESOLVER`.
 
-### `crates/whirlpool-node/src/config.rs`
-- Retire the current role of this file as a loose constant bag.
-- Introduce the canonical startup model:
-  - `NodeArgs`
-  - `NodeConfig`
-  - `NetworkConfig`
-  - `IdentityConfig`
-  - `RpcConfig`
-  - `StorageConfig`
-  - `ConsensusStartupConfig`
-- Add `parse_bootstrap_peer("PUBKEY@HOST:PORT") -> Result<BootstrapPeer, String>`.
-- Merge `bootstrap_peers` and `dial_peers` into the single internal `network.bootstrap_peers` vector.
-- Add derived storage helpers:
-  - `runtime_dir()`
-  - `state_dir()`
-  - `mempool_dir()`
-- Encode all current startup defaults in one place.
+### `crates/p2p-commonware/src/provider.rs`
+- Extend `PerChannelNetwork<S, R>` with `payload: (S, R)`.
+- Register `Channel::PAYLOAD.0` in `start_per_channel()` using the same quota/backlog policy as the existing channels.
+- Return the payload sender/receiver pair in the `PerChannelNetwork` bundle.
+- Keep the vendor-facing dedicated-channel contract intact for vote/certificate/resolver.
+
+### `crates/consensus-simplex/src/mailbox.rs`
+- Change `Mailbox::new(...)` to accept relay dependencies in addition to the mailbox command sender.
+- Store the shared `BlockStore` inside the mailbox so `broadcast(digest)` can resolve the block payload.
+- Add or use a small relay sender helper that serializes `PayloadRelayMessage` and sends to `Recipients::All`.
+- Replace the current no-op `broadcast` implementation with real payload relay behavior.
+- Keep `Automaton` and `CertifiableAutomaton` behavior intact.
+
+### `crates/consensus-simplex/src/engine.rs`
+- Continue creating one shared `BlockStore` for proposal, verification, and finalization paths.
+- Extract `per_channel.payload` before handing `vote`, `cert`, and `resolver` to the vendor engine.
+- Spawn a background payload receiver task that:
+  - reads payload channel messages
+  - decodes the relay envelope
+  - decodes the block
+  - verifies digest consistency
+  - stores the block into `BlockStore`
+- Continue calling `simplex::Engine::start(per_channel.vote, per_channel.cert, per_channel.resolver)` unchanged.
 
 ### `crates/whirlpool-node/src/main.rs`
-- Keep tracing initialization unchanged.
-- Parse `NodeArgs` before `commonware_runtime::tokio::Runner::new(...)`.
-- Build runtime storage from `config.storage.runtime_dir()`.
-- Derive signer from `config.identity.seed`.
-- Pass config-owned values into `p2p_commonware::CommonwareNetworkProviderBuilder`:
-  - namespace
-  - listen address
-  - dialable address
-  - bootstrap peers
-  - max message size
-  - initial validators
-- Open state DB from `config.storage.state_dir()`.
-- Open mempool DB from `config.storage.mempool_dir()`.
-- Bind JSON-RPC server to `config.rpc.bind_addr`.
-- Replace the current consensus namespace literal path with `config.consensus.namespace`.
-- Wire `config.consensus.block_interval` into the consensus startup path where the current code uses fixed `Duration::from_secs(5)` timing.
-- Preserve the current `oracle_handle` lifetime behavior.
+- Prefer no source change.
+- If implementation requires any edit here, it must remain narrow and compatibility-preserving.
+- Do not move payload relay logic into the node binary.
 
 ## Dependencies Between Changes
-- `main.rs` depends on the new `config.rs` types and helpers.
-- Tests for startup wiring depend on the config model existing first.
-- No implementation step depends on changes to `crates/p2p-commonware`.
-- Namespace handling depends on preserving two separate fields because source already shows two different consumers:
-  - network namespace for Commonware networking
-  - consensus namespace for `consensus_simplex::CommonwareConfig`
+- `p2p` payload channel constant must exist before `p2p-commonware` can register it.
+- `p2p-commonware` payload registration must exist before `consensus-simplex` can consume `per_channel.payload`.
+- `Mailbox` relay activation depends on the existing `BlockStore` contract remaining shared.
+- End-to-end relay tests depend on both transport registration and consensus wiring being in place.
 
 ## Verification Steps
-1. Run crate-local tests covering defaults, parse helpers, conversion, and storage derivation.
-2. Run startup wiring tests proving no-flag behavior matches the current source baseline.
-3. Run startup wiring tests proving custom config values replace all previous literals.
-4. Confirm `crates/whirlpool-node/src/main.rs` no longer hardcodes:
-   - `APPLICATION_NAMESPACE`
-   - listen and dialable localhost addresses
-   - empty bootstrapper list by construction
-   - `MAX_MESSAGE_SIZE`
-   - `DEFAULT_DB_PATH`
-   - `DEFAULT_RUNTIME_STORAGE_DIR`
-   - `DEFAULT_MEMPOOL_DB_PATH`
-   - inline RPC bind parsing
-5. Confirm `crates/p2p-commonware` is untouched.
+1. Confirm `crates/p2p/src/types.rs` exposes `PAYLOAD = 3` while existing constants remain unchanged.
+2. Confirm `crates/p2p-commonware/src/provider.rs` registers four channels in `start_per_channel()` and returns a populated `payload` pair.
+3. Confirm `crates/consensus-simplex/src/mailbox.rs` no longer contains a no-op `broadcast` implementation.
+4. Confirm `crates/consensus-simplex/src/engine.rs` spawns a payload receive task and still starts the vendor engine with only vote/cert/resolver pairs.
+5. Run:
+   - `nix develop --command cargo build`
+   - `nix develop --command cargo test -p consensus-simplex`
+   - `nix develop --command cargo test -p p2p`
+   - `nix develop --command cargo test -p p2p-commonware`
+   - `nix develop --command cargo test -p whirlpool-node`
 
 ## Acceptance Checks
-- `REQ-4`: node accepts explicit CLI startup inputs for listen address, dialable address, peers, validator seed, RPC, storage root, max message size, and namespaces.
-- `REQ-5`: node startup threads configured values into the existing Commonware builder and remaining startup sequence.
-- Default launch remains equivalent to today's local-dev startup when no flags are supplied.
-- Invalid peer inputs fail before the runtime starts.
+- `REQ-6`: relay broadcast sends application payload bytes for a proposed digest and inbound payloads are stored for later verification.
+- `REQ-7`: vote/certificate/resolver channels remain aligned on `0`, `1`, and `2`, with payload isolated on `3`.
+- `REQ-8`: existing node startup and app-layer finalization flow remain compatible while multi-node relay becomes functional.
+- No vendor code is modified.
 
 ## Deferred Beyond This Pass
-- Config-file support.
-- Multi-validator CLI inputs.
-- Keystore or private-key material inputs.
-- Peer deduplication.
-- Any `crates/p2p-commonware` API redesign.
+- Vendor simplex engine redesign.
+- Payload gossip policies beyond `Recipients::All`.
+- Specialized payload backpressure tuning separate from the default channel quota/backlog.
+- Any redesign of application-level block encoding beyond what is minimally required to serialize and verify relay payloads.

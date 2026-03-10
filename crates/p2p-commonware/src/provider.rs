@@ -178,6 +178,7 @@ pub struct PerChannelNetwork<S, R> {
     pub vote: (S, R),
     pub cert: (S, R),
     pub resolver: (S, R),
+    pub payload: (S, R),
     pub network_handle: commonware_runtime::Handle<()>,
 }
 
@@ -240,7 +241,11 @@ where
             self.network
                 .register(Channel::CERTIFICATE.0, quota.clone(), backlog);
         let (resolver_sender, resolver_receiver) =
-            self.network.register(Channel::RESOLVER.0, quota, backlog);
+            self.network
+                .register(Channel::RESOLVER.0, quota.clone(), backlog);
+        let (payload_sender, payload_receiver) =
+            self.network
+                .register(Channel::PAYLOAD.0, quota, backlog);
 
         let network_handle = self.network.start();
 
@@ -250,6 +255,7 @@ where
             vote: (vote_sender, vote_receiver),
             cert: (cert_sender, cert_receiver),
             resolver: (resolver_sender, resolver_receiver),
+            payload: (payload_sender, payload_receiver),
             network_handle,
         })
     }
@@ -311,6 +317,11 @@ where
             self.network
                 .register(Channel::RESOLVER.0, quota.clone(), backlog);
 
+        // Register PAYLOAD channel (3)
+        let (payload_sender, payload_receiver) =
+            self.network
+                .register(Channel::PAYLOAD.0, quota.clone(), backlog);
+
         // Start the network (returns handle that keeps network alive)
         let handle = self.network.start();
 
@@ -319,6 +330,7 @@ where
         senders.insert(Channel::VOTE, CommonwareSender::new(vote_sender));
         senders.insert(Channel::CERTIFICATE, CommonwareSender::new(cert_sender));
         senders.insert(Channel::RESOLVER, CommonwareSender::new(res_sender));
+        senders.insert(Channel::PAYLOAD, CommonwareSender::new(payload_sender));
 
         // Build receiver list
         let receivers = vec![
@@ -330,6 +342,10 @@ where
             (
                 Channel::RESOLVER,
                 CommonwareReceiver::new(Channel::RESOLVER, res_receiver),
+            ),
+            (
+                Channel::PAYLOAD,
+                CommonwareReceiver::new(Channel::PAYLOAD, payload_receiver),
             ),
         ];
 

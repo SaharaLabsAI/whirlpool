@@ -22,6 +22,7 @@
 //! - [`Channel::VOTE`] - For vote messages
 //! - [`Channel::CERTIFICATE`] - For certificate messages
 //! - [`Channel::RESOLVER`] - For resolver messages
+//! - [`Channel::PAYLOAD`] - For payload relay messages
 //!
 //! # Example
 //!

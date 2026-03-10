@@ -20,6 +20,22 @@ impl Channel {
 
     /// Channel for resolver messages.
     pub const RESOLVER: Channel = Channel(2);
+
+    /// Channel for payload relay messages (block content distribution).
+    pub const PAYLOAD: Channel = Channel(3);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn channel_alignment_vote_cert_resolver_payload() {
+        assert_eq!(Channel::VOTE.0, 0);
+        assert_eq!(Channel::CERTIFICATE.0, 1);
+        assert_eq!(Channel::RESOLVER.0, 2);
+        assert_eq!(Channel::PAYLOAD.0, 3);
+    }
 }
 
 /// Specifies the intended recipients of a network message.

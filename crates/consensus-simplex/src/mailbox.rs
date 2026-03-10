@@ -3,7 +3,14 @@
 // This module bridges the gap between ConsensusApp and the simplex consensus engine.
 // The simplex engine requires Automaton/Relay traits, but ConsensusApp doesn't provide them.
 // Mailbox implements these traits and delegates to an actor that handles the actual work.
+//
+// The Relay::broadcast implementation looks up the proposed block by digest in the shared
+// BlockStore, encodes it as a PayloadRelayMessage (digest ++ encoded-block), and forwards the
+// bytes through an mpsc channel.  The receiving end (spawned in engine.rs) pushes them onto the
+// PAYLOAD P2P channel so remote validators can obtain the block before voting.
 
+use bytes::{BufMut, Bytes, BytesMut};
+use commonware_codec::Encode;
 use commonware_consensus::simplex::types::Context;
 use commonware_consensus::types::Epoch;
 use commonware_consensus::{Automaton, CertifiableAutomaton, Relay};
@@ -13,7 +20,6 @@ use commonware_cryptography::Digestible;
 use consensus::app::ConsensusApp;
 use futures::channel::{mpsc, oneshot};
 use futures::SinkExt;
-use std::marker::PhantomData;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
@@ -34,24 +40,57 @@ pub enum Message {
     },
 }
 
-/// Mailbox implements Automaton/Relay traits for simplex consensus engine
+/// Mailbox implements Automaton/Relay traits for simplex consensus engine.
+///
+/// When constructed with [`Mailbox::with_relay`], the [`Relay::broadcast`]
+/// implementation encodes the proposed block as a [`PayloadRelayMessage`]
+/// and pushes it through an mpsc channel.  The consuming end (wired in
+/// `engine.rs`) forwards the bytes onto the PAYLOAD P2P channel so that
+/// remote validators receive the full block payload before voting.
+///
+/// When constructed with [`Mailbox::new`] (no relay wiring), broadcast
+/// remains a silent no-op for backward-compatible single-node setups.
 #[derive(Clone)]
 pub struct Mailbox<B> {
     sender: mpsc::Sender<Message>,
-    _phantom: PhantomData<B>,
+    /// Shared block store — used by `broadcast` to look up the full block
+    /// payload that corresponds to the digest the vendor engine provides.
+    block_store: Option<BlockStore<B>>,
+    /// Channel for outbound payload relay messages.  `None` ⇒ no-op relay.
+    payload_tx: Option<mpsc::UnboundedSender<Bytes>>,
 }
 
 impl<B> Mailbox<B> {
+    /// Create a mailbox **without** relay capability (broadcast is a no-op).
     pub fn new(sender: mpsc::Sender<Message>) -> Self {
         Self {
             sender,
-            _phantom: PhantomData,
+            block_store: None,
+            payload_tx: None,
+        }
+    }
+
+    /// Create a mailbox **with** relay capability.
+    ///
+    /// `block_store` is shared with `MailboxActor` so that the relay can look
+    /// up the full block for a given digest.  `payload_tx` is the sender-half
+    /// of an unbounded channel whose receiver is consumed by a forwarding task
+    /// in `engine.rs`.
+    pub fn with_relay(
+        sender: mpsc::Sender<Message>,
+        block_store: BlockStore<B>,
+        payload_tx: mpsc::UnboundedSender<Bytes>,
+    ) -> Self {
+        Self {
+            sender,
+            block_store: Some(block_store),
+            payload_tx: Some(payload_tx),
         }
     }
 }
 
 // Implement Automaton trait (async methods matching vendor pattern)
-impl<B: Clone + Send + 'static> Automaton for Mailbox<B> {
+impl<B: Clone + Send + Sync + 'static> Automaton for Mailbox<B> {
     type Context = Context<Digest, PublicKey>;
     type Digest = Digest;
 
@@ -88,14 +127,48 @@ impl<B: Clone + Send + 'static> Automaton for Mailbox<B> {
 }
 
 // Implement CertifiableAutomaton trait (uses default certify)
-impl<B: Clone + Send + 'static> CertifiableAutomaton for Mailbox<B> {}
+impl<B: Clone + Send + Sync + 'static> CertifiableAutomaton for Mailbox<B> {}
 
-// Implement Relay trait (no-op broadcast for single node)
-impl<B: Clone + Send + 'static> Relay for Mailbox<B> {
+// Implement Relay trait — broadcast block payloads to peers via PAYLOAD channel
+impl<B: Clone + Encode + Send + Sync + 'static> Relay for Mailbox<B>
+where
+    B: Digestible<Digest = Digest>,
+{
     type Digest = Digest;
 
-    async fn broadcast(&mut self, _payload: Self::Digest) {
-        // No-op for single node
+    async fn broadcast(&mut self, digest: Self::Digest) {
+        let (Some(ref block_store), Some(ref payload_tx)) =
+            (&self.block_store, &self.payload_tx)
+        else {
+            // No relay wiring — silent no-op (single-node mode).
+            return;
+        };
+
+        // Look up the full block by its digest.
+        let block = {
+            let store = block_store.read().await;
+            store.get(&digest).cloned()
+        };
+
+        let Some(block) = block else {
+            tracing::warn!(
+                ?digest,
+                "relay broadcast: digest not found in block store, skipping"
+            );
+            return;
+        };
+
+        // Encode as PayloadRelayMessage: [32-byte digest][encoded block]
+        let msg = PayloadRelayMessage::new(digest, block.encode());
+        let wire = msg.encode_wire();
+
+        if let Err(e) = payload_tx.unbounded_send(wire) {
+            tracing::warn!(
+                ?digest,
+                error = %e,
+                "relay broadcast: failed to enqueue payload message"
+            );
+        }
     }
 }
 
@@ -211,10 +284,59 @@ fn is_valid_digest(digest: Digest) -> bool {
     bytes != &[255u8; 32]
 }
 
+// ---------------------------------------------------------------------------
+// PayloadRelayMessage — wire envelope for PAYLOAD channel
+// ---------------------------------------------------------------------------
+
+/// Wire-format envelope for block payloads relayed over the PAYLOAD P2P channel.
+///
+/// Layout: `[32-byte SHA-256 digest][variable-length encoded block]`
+///
+/// The digest is placed first so the receiver can validate the block before
+/// fully decoding it.  `encode_wire` / `decode_wire` handle serialisation
+/// without pulling in an external framework.
+pub struct PayloadRelayMessage {
+    pub digest: Digest,
+    pub payload: Bytes,
+}
+
+/// Fixed size of the digest prefix in the wire format (SHA-256 = 32 bytes).
+const DIGEST_SIZE: usize = 32;
+
+impl PayloadRelayMessage {
+    /// Create a new relay message from a digest and pre-encoded block bytes.
+    pub fn new(digest: Digest, payload: Bytes) -> Self {
+        Self { digest, payload }
+    }
+
+    /// Serialise to wire format: `[digest bytes][payload bytes]`.
+    pub fn encode_wire(&self) -> Bytes {
+        let digest_bytes: &[u8] = self.digest.as_ref();
+        let mut buf = BytesMut::with_capacity(DIGEST_SIZE + self.payload.len());
+        buf.put_slice(digest_bytes);
+        buf.put_slice(&self.payload);
+        buf.freeze()
+    }
+
+    /// Deserialise from wire format.  Returns `None` if the buffer is too
+    /// short to contain even the digest prefix.
+    pub fn decode_wire(data: Bytes) -> Option<Self> {
+        if data.len() < DIGEST_SIZE {
+            return None;
+        }
+        let mut digest_arr = [0u8; DIGEST_SIZE];
+        digest_arr.copy_from_slice(&data[..DIGEST_SIZE]);
+        let digest = Digest::from(digest_arr);
+        let payload = data.slice(DIGEST_SIZE..);
+        Some(Self { digest, payload })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::tests::{MockApp, TestBlock};
+    use commonware_codec::Encode;
     use commonware_consensus::types::{Epoch, Round, View};
     use commonware_consensus::{Automaton, Relay};
     use commonware_cryptography::ed25519::PrivateKey;
@@ -306,7 +428,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_relay_broadcast_completes() {
+    async fn test_relay_broadcast_noop_without_wiring() {
+        // Mailbox::new (no relay) — broadcast completes silently.
         let (tx, rx) = mpsc::channel(10);
         let mut mailbox = Mailbox::<TestBlock>::new(tx);
 
@@ -315,6 +438,63 @@ mod tests {
         tokio::spawn(MailboxActor::new(rx, height, app, empty_block_store()).run());
 
         mailbox.broadcast(Digest::from([1u8; 32])).await;
+        // No panic, no message sent — passes by definition.
+    }
+
+    #[tokio::test]
+    async fn test_relay_broadcast_sends_payload_message() {
+        // with_relay mailbox — broadcast encodes and sends via payload_tx.
+        let block_store = empty_block_store();
+        let (payload_tx, mut payload_rx) = mpsc::unbounded::<Bytes>();
+        let (mailbox_tx, mailbox_rx) = mpsc::channel(10);
+
+        let mut mailbox =
+            Mailbox::<TestBlock>::with_relay(mailbox_tx, Arc::clone(&block_store), payload_tx);
+
+        let height = Arc::new(AtomicU64::new(0));
+        let app = Arc::new(MockApp);
+        tokio::spawn(
+            MailboxActor::new(mailbox_rx, height, app, Arc::clone(&block_store)).run(),
+        );
+
+        // Populate block store with a known block.
+        let block = TestBlock::genesis();
+        let digest = compute_digest(&block);
+        block_store.write().await.insert(digest, block.clone());
+
+        // Broadcast the digest — should produce one outbound message.
+        mailbox.broadcast(digest).await;
+
+        // Verify a PayloadRelayMessage was enqueued.
+        let wire = payload_rx.try_recv().expect("should have a message");
+        let msg = PayloadRelayMessage::decode_wire(wire).expect("valid wire format");
+
+        assert_eq!(msg.digest, digest);
+        assert_eq!(msg.payload, block.encode());
+    }
+
+    #[tokio::test]
+    async fn test_relay_broadcast_missing_digest_is_silent() {
+        // Block not in store — broadcast should log a warning and NOT send.
+        let block_store = empty_block_store();
+        let (payload_tx, mut payload_rx) = mpsc::unbounded::<Bytes>();
+        let (mailbox_tx, mailbox_rx) = mpsc::channel(10);
+
+        let mut mailbox =
+            Mailbox::<TestBlock>::with_relay(mailbox_tx, Arc::clone(&block_store), payload_tx);
+
+        let height = Arc::new(AtomicU64::new(0));
+        let app = Arc::new(MockApp);
+        tokio::spawn(
+            MailboxActor::new(mailbox_rx, height, app, Arc::clone(&block_store)).run(),
+        );
+
+        // Broadcast a digest that has NO corresponding block.
+        let unknown_digest = Digest::from([42u8; 32]);
+        mailbox.broadcast(unknown_digest).await;
+
+        // Channel should be empty — nothing was sent.
+        assert!(payload_rx.try_recv().is_err(), "no message should be sent");
     }
 
     #[tokio::test]
@@ -330,5 +510,41 @@ mod tests {
         drop(mailbox1);
         drop(mailbox2);
         tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+
+    // -----------------------------------------------------------------------
+    // PayloadRelayMessage unit tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_payload_relay_message_roundtrip() {
+        let digest = Digest::from([7u8; 32]);
+        let payload = Bytes::from_static(b"hello block");
+        let msg = PayloadRelayMessage::new(digest, payload.clone());
+
+        let wire = msg.encode_wire();
+        assert_eq!(wire.len(), DIGEST_SIZE + payload.len());
+
+        let decoded = PayloadRelayMessage::decode_wire(wire).expect("decode should succeed");
+        assert_eq!(decoded.digest, digest);
+        assert_eq!(decoded.payload, payload);
+    }
+
+    #[test]
+    fn test_payload_relay_message_empty_payload() {
+        let digest = Digest::from([0u8; 32]);
+        let msg = PayloadRelayMessage::new(digest, Bytes::new());
+        let wire = msg.encode_wire();
+        assert_eq!(wire.len(), DIGEST_SIZE);
+
+        let decoded = PayloadRelayMessage::decode_wire(wire).unwrap();
+        assert_eq!(decoded.digest, digest);
+        assert!(decoded.payload.is_empty());
+    }
+
+    #[test]
+    fn test_payload_relay_message_too_short() {
+        let short = Bytes::from_static(&[0u8; 16]);
+        assert!(PayloadRelayMessage::decode_wire(short).is_none());
     }
 }

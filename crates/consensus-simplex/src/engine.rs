@@ -7,10 +7,12 @@
 
 use std::collections::HashMap;
 use std::num::{NonZeroU16, NonZeroUsize};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
+use bytes::Bytes;
 use futures::channel::mpsc;
+use futures::StreamExt;
 use tokio::task::JoinHandle;
 
 use commonware_consensus::simplex::{self, elector::RoundRobin};
@@ -28,11 +30,14 @@ use consensus::app::ConsensusApp;
 use consensus::engine::{ConsensusEngine, RunningEngine};
 use consensus::error::ConsensusError;
 use consensus::event::EventSink;
+use p2p::types::Channel;
+use p2p_commonware::CommonwareReceiver;
 use rand_core::CryptoRngCore;
 
 use crate::adapter::AppAdapter;
 use crate::config::CommonwareConfig;
 use crate::mailbox::{Mailbox, MailboxActor};
+use crate::receiver::payload_receive_loop;
 use crate::traits::CommonwareBlock;
 use crate::BlockStore;
 
@@ -120,6 +125,8 @@ where
     A::Block: CommonwareBlock
         + Digestible<Digest = Digest>
         + Committable<Commitment = Digest>
+        + commonware_codec::Encode
+        + commonware_codec::Decode<Cfg = ()>
         + Send
         + Sync
         + 'static,
@@ -140,28 +147,39 @@ where
         // Step 1: Clone oracle before consuming network
         let oracle = self.network.oracle().clone();
 
-        // Step 2: Start network to get three channel pairs (now returns raw vendor types)
+        // Step 2: Start network to get four channel pairs (raw vendor types)
         let per_channel = self
             .network
             .start_per_channel()
             .map_err(|e| ConsensusError::Other(format!("Failed to start network: {}", e).into()))?;
 
-        // Step 3: Create mailbox channel
-        let (mailbox_tx, mailbox_rx) = mpsc::channel(self.config.mailbox_size);
+        // Destructure the PAYLOAD channel pair — used for relay wiring.
+        let (mut payload_sender, payload_receiver) = per_channel.payload;
 
-        // Step 4: Create Mailbox (Automaton + Relay)
-        let mailbox = Mailbox::<A::Block>::new(mailbox_tx);
-
-        // Step 5: Create shared height tracker and block store
+        // Step 3: Create shared height tracker and block store
         //
-        // The height `Arc` is owned by the caller and shared with the
-        // user-provided EventSink so finalization events update the same
-        // counter that the mailbox reads when proposing new blocks.
+        // Block store is created early so it can be shared with:
+        //   - MailboxActor   (writes on propose/genesis)
+        //   - Mailbox Relay  (reads on broadcast)
+        //   - payload_receive_loop (writes on inbound payloads)
+        //   - AppAdapter     (reads on finalization)
         let height = Arc::clone(&self.config.height);
         let running = Arc::new(AtomicBool::new(true));
         let block_store: BlockStore<A::Block> = Arc::new(tokio::sync::RwLock::new(HashMap::new()));
 
-        // Step 6: Spawn MailboxActor using commonware spawn API (takes closure receiving context)
+        // Step 4: Create mailbox channel and outbound relay channel
+        let (mailbox_tx, mailbox_rx) = mpsc::channel(self.config.mailbox_size);
+        let (relay_tx, mut relay_rx) = mpsc::unbounded::<Bytes>();
+
+        // Step 5: Create Mailbox with relay wiring (Automaton + Relay)
+        //
+        // Mailbox::with_relay gives the Relay::broadcast implementation access
+        // to the block store (for digest→block lookup) and the relay_tx channel
+        // (for forwarding encoded PayloadRelayMessages to the outbound task).
+        let mailbox =
+            Mailbox::<A::Block>::with_relay(mailbox_tx, Arc::clone(&block_store), relay_tx);
+
+        // Step 6: Spawn MailboxActor using commonware spawn API
         let actor = MailboxActor::new(
             mailbox_rx,
             Arc::clone(&height),
@@ -178,21 +196,49 @@ where
             ()
         });
 
-        // Step 7: Create AppAdapter (Reporter) using the caller-provided sink
+        // Step 7: Spawn outbound payload relay forwarder
         //
-        // The user-provided `EventSink` (e.g. `PersistingFinalizationSink`)
-        // receives finalization events from the vendor consensus engine via
-        // the `AppAdapter`.  Previously this wired an internally-created
-        // `FinalizationSink` that was disconnected from the caller's sink,
-        // which meant block persistence and other side-effects never fired.
+        // Reads encoded PayloadRelayMessages from relay_rx and sends them to
+        // all peers via the vendor PAYLOAD sender.  Runs until relay_rx is
+        // closed (which happens when all Mailbox clones are dropped).
+        tokio::spawn(async move {
+            while let Some(wire) = relay_rx.next().await {
+                use commonware_p2p::Sender as _;
+                if let Err(e) = payload_sender
+                    .send(
+                        commonware_p2p::Recipients::All,
+                        wire,
+                        false, // not priority — payload relay is best-effort
+                    )
+                    .await
+                {
+                    tracing::warn!(error = %e, "outbound payload relay send failed");
+                }
+            }
+            tracing::debug!("outbound payload relay task exited");
+        });
+
+        // Step 8: Spawn inbound payload receiver loop
+        //
+        // Wraps the raw vendor receiver in a CommonwareReceiver adapter and
+        // feeds it to payload_receive_loop which decodes, validates, and
+        // stores inbound block payloads in the shared block store.
+        let payload_cw_receiver =
+            CommonwareReceiver::new(Channel::PAYLOAD, payload_receiver);
+        let block_store_for_receiver = Arc::clone(&block_store);
+        tokio::spawn(async move {
+            payload_receive_loop(payload_cw_receiver, block_store_for_receiver).await;
+            tracing::debug!("inbound payload receiver task exited");
+        });
+
+        // Step 9: Create AppAdapter (Reporter) using the caller-provided sink
         let reporter = AppAdapter::new(
             Arc::clone(&self.app),
             Arc::clone(&self.sink),
             block_store,
         );
 
-        // Step 8: Create ed25519 Scheme from signer and validators
-        // Use from_iter_dedup which deduplicates and creates Set
+        // Step 10: Create ed25519 Scheme from signer and validators
         let participants = Set::from_iter_dedup(self.config.validators.clone());
         let scheme = simplex::scheme::ed25519::Scheme::signer(
             self.config.namespace.as_bytes(),
@@ -201,10 +247,10 @@ where
         )
         .ok_or_else(|| ConsensusError::Other("signer not in validator set".into()))?;
 
-        // Step 9: Build simplex::Config
+        // Step 11: Build simplex::Config
         let simplex_config = simplex::Config {
             scheme: scheme.clone(),
-            elector: RoundRobin::<Sha256>::default(), // Pass config, not built elector
+            elector: RoundRobin::<Sha256>::default(),
             blocker: oracle,
             automaton: mailbox.clone(),
             relay: mailbox,
@@ -228,29 +274,29 @@ where
             fetch_concurrent: self.config.fetch_concurrent,
         };
 
-        // Step 10: Validate config (panics on programming errors - acceptable per design)
+        // Step 12: Validate config
         simplex_config.assert();
 
-        // Step 11: Create vendor Engine
+        // Step 13: Create vendor Engine
         let engine = simplex::Engine::new(self.context, simplex_config);
 
-        // Step 12: Start vendor engine with three channel pairs (raw vendor types - no wrappers)
+        // Step 14: Start vendor engine with three channel pairs (vote/cert/resolver only)
         let vendor_handle = engine.start(per_channel.vote, per_channel.cert, per_channel.resolver);
 
-        // Step 13: Convert vendor Handle to tokio JoinHandle
+        // Step 15: Convert vendor Handle to tokio JoinHandle
         let join_handle: JoinHandle<Result<(), ConsensusError>> = tokio::task::spawn(async move {
-            vendor_handle.await;
+            let _ = vendor_handle.await;
             Ok(())
         });
 
-        // Step 14: Create shutdown function
+        // Step 16: Create shutdown function
         let running_for_shutdown = Arc::clone(&running);
         let stop_fn = Box::new(move || {
             running_for_shutdown.store(false, Ordering::SeqCst);
             tracing::info!("Shutdown signal sent to consensus engine");
         }) as Box<dyn FnOnce() + Send>;
 
-        // Step 15: Return RunningEngine
+        // Step 17: Return RunningEngine
         Ok(RunningEngine::new(stop_fn, join_handle, height, running))
     }
 }
@@ -261,6 +307,7 @@ mod tests {
     use crate::sink::FinalizationSink;
     use crate::tests::{MockApp, TestBlock};
     use commonware_cryptography::ed25519::PrivateKey;
+    use std::sync::atomic::AtomicU64;
     use commonware_cryptography::Signer as _;
     use commonware_runtime::{tokio as commonware_tokio, Clock, Metrics, Runner};
     use p2p_commonware::CommonwareNetworkProviderBuilder;
@@ -307,9 +354,8 @@ mod tests {
             .listen_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
             .dialable_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
             .initial_validators(config.epoch, config.validators.clone())
-            .build(context.with_label("network"));
+            .build(context.with_label("network")).await;
             let _engine = CommonwareEngine::new(app, sink, config, network, context);
-            // Test passes if construction succeeds
         });
     }
 
@@ -328,7 +374,7 @@ mod tests {
             .listen_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
             .dialable_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
             .initial_validators(config.epoch, config.validators.clone())
-            .build(context.with_label("network"));
+            .build(context.with_label("network")).await;
             oracle_handle
                 .update_validators(config.epoch, config.validators.clone())
                 .await;
@@ -360,7 +406,7 @@ mod tests {
             )
             .listen_addr(SocketAddr::from(([127, 0, 0, 1], 31401)))
             .dialable_addr(SocketAddr::from(([127, 0, 0, 1], 31401)))
-            .build(context.with_label("network"));
+            .build(context.with_label("network")).await;
 
             oracle
                 .update_validators(config.epoch, config.validators.clone())

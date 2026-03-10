@@ -1,131 +1,125 @@
 # Architecture Flows
 
 ## Scope
-- Sub-Intent B only: `REQ-4` and `REQ-5`.
-- Modified crate: `crates/whirlpool-node`.
-- Read-only builder boundary: `crates/p2p-commonware`.
+- Sub-Intent C only: `REQ-6`, `REQ-7`, and `REQ-8`.
+- Primary implementation crate: `crates/consensus-simplex`.
+- Supporting crates:
+  - `crates/p2p`
+  - `crates/p2p-commonware`
+  - `crates/whirlpool-node`
 - Source verification anchors:
-  - `crates/whirlpool-node/src/config.rs`
+  - `crates/consensus-simplex/src/mailbox.rs`
+  - `crates/consensus-simplex/src/engine.rs`
+  - `crates/p2p/src/types.rs`
+  - `crates/p2p-commonware/src/provider.rs`
   - `crates/whirlpool-node/src/main.rs`
 
-## Flow 1: CLI Parsing to `NodeConfig`
+## Flow 1: Proposal Broadcast Over Payload Channel
 
 ```text
-process start
-  -> tracing initialization
-  -> clap parses NodeArgs
-       - --listen-addr -> SocketAddr
-       - --dialable-addr -> SocketAddr
-       - --bootstrap-peer -> Vec<String>
-       - --dial-peer -> Vec<String>
-       - --validator-seed -> u64
-       - --rpc-addr -> SocketAddr
-       - --data-dir -> PathBuf
-       - --max-message-size -> u32
-       - --network-namespace -> String
-       - --consensus-namespace -> String
-       - --block-interval-ms -> u64
-  -> NodeConfig::from(args)
-       - network.namespace = args.network_namespace.into_bytes()
-       - network.listen_addr = args.listen_addr
-       - network.dialable_addr = args.dialable_addr
-       - network.bootstrap_peers = parse(bootstrap_peers) + parse(dial_peers)
-       - network.max_message_size = args.max_message_size
-       - identity.seed = args.validator_seed
-       - rpc.bind_addr = args.rpc_addr
-       - storage.data_dir = args.data_dir
-       - consensus.namespace = args.consensus_namespace
-       - consensus.block_interval = Duration::from_millis(args.block_interval_ms)
-  -> validated runtime-owned NodeConfig
+vendor simplex engine
+  -> Automaton::propose(ctx) on Mailbox
+  -> Mailbox sends Message::Propose to MailboxActor
+  -> MailboxActor calls app.propose(parent, height)
+  -> block returned
+  -> MailboxActor::remember_block(&block)
+       - compute digest
+       - store block in shared BlockStore<digest, block>
+  -> digest returned to vendor engine
+  -> vendor engine calls Relay::broadcast(digest)
+  -> Mailbox::broadcast(digest)
+       - read block from shared BlockStore
+       - serialize PayloadRelayMessage { digest, payload_bytes }
+       - payload_sender.send(Channel::PAYLOAD / Recipients::All)
 ```
 
 ### Flow guarantees
-- All startup inputs become typed before `commonware_runtime::tokio::Runner::new(...)` is called.
-- `--dial-peer` and `--bootstrap-peer` converge into a single `network.bootstrap_peers` collection.
-- Invalid peer entries abort startup before the async runtime starts.
-- No fallback path leaves `main.rs` responsible for defaulting individual fields.
+- The block is inserted into `BlockStore` before relay broadcast is attempted.
+- Outbound relay uses a dedicated payload transport path, not the vendor vote/certificate/resolver channels.
+- Missing local payload cache does not crash the process; the relay logs and returns.
 
-## Flow 2: Startup Wiring With Config-Owned Inputs
+## Flow 2: Inbound Payload Receive To Verification Cache
 
 ```text
-NodeArgs::parse()
-  -> NodeConfig::from(args)
-  -> tokio::Config::new().with_storage_directory(config.storage.runtime_dir())
-  -> tokio::Runner::new(runtime_cfg)
-  -> executor.start(|context| async move { ... })
-       -> signer = ed25519::PrivateKey::from_seed(config.identity.seed)
-       -> validators = vec![signer.public_key()]
-       -> CommonwareNetworkProviderBuilder::new(
-              signer.clone(),
-              config.network.namespace.clone(),
-          )
-          .listen_addr(config.network.listen_addr)
-          .dialable_addr(config.network.dialable_addr)
-          .bootstrappers(config.network.bootstrap_peers.clone())
-          .max_message_size(config.network.max_message_size)
-          .initial_validators(0, validators.clone())
-          .build(context.with_label("network"))
-          .await
-       -> open state DB at config.storage.state_dir()
-       -> open mempool DB at config.storage.mempool_dir()
-       -> build CommonwareConfig using config.consensus.namespace
-       -> set block interval from config.consensus.block_interval
-       -> start RPC server at config.rpc.bind_addr
-       -> keep oracle_handle alive
-       -> await forever
+remote peer sends PayloadRelayMessage on Channel::PAYLOAD
+  -> local p2p-commonware payload receiver yields raw bytes
+  -> CommonwareEngine payload task reads message loop
+  -> decode PayloadRelayMessage
+  -> decode block payload bytes into A::Block
+  -> recompute digest from decoded block
+  -> compare recomputed digest with envelope.digest
+       - if mismatch: drop and trace
+       - if decode fails: drop and trace
+  -> if valid: store block in shared BlockStore<digest, block>
 ```
 
 ### Flow guarantees
-- Every startup value currently split between `config.rs` constants and `main.rs` literals moves behind `NodeConfig`.
-- The Commonware builder contract remains unchanged; only the caller-side values change.
-- Default startup still binds ephemeral local P2P addresses, uses seed `0`, uses `data/` storage, and binds RPC on `127.0.0.1:8545` when no flags are passed.
-- The current namespace split is preserved explicitly:
-  - `config.network.namespace` -> Commonware network provider
-  - `config.consensus.namespace` -> `consensus_simplex::CommonwareConfig`
+- Inbound payload persistence happens outside the vendor engine and without vendor code changes.
+- Only digest-validated payloads enter the shared block cache.
+- The same `BlockStore` type backs both locally proposed blocks and remotely received blocks.
 
-## Flow 3: Bootstrap Peer Parsing
+## Flow 3: Verification Resolves Relayed Payload
 
 ```text
-input: "PUBKEY@HOST:PORT"
-  -> split_once('@')
-       - fail if separator missing
-       - fail if either side empty
-  -> parse pubkey segment
-       - hex decode
-       - validate expected Ed25519 public-key bytes
-       - construct commonware_cryptography::ed25519::PublicKey
-  -> parse address segment
-       - SocketAddr::from_str(HOST:PORT)
-  -> return BootstrapPeer = (public_key, socket_addr)
-```
-
-### Failure branches
-- Missing `@` -> configuration error
-- Empty pubkey segment -> configuration error
-- Empty address segment -> configuration error
-- Invalid hex -> configuration error
-- Invalid Ed25519 public key bytes or wrong length -> configuration error
-- Invalid `HOST:PORT` -> configuration error
-
-### Flow guarantees
-- Parsing is fail-fast and deterministic.
-- Successful output matches `p2p_commonware::Bootstrapper<commonware_cryptography::ed25519::PublicKey>` exactly.
-- No runtime warning or best-effort skip is allowed for malformed peers.
-
-## Flow 4: Storage Path Derivation
-
-```text
-storage.data_dir
-  -> runtime_dir() = data_dir / "runtime"
-  -> state_dir() = data_dir / "state"
-  -> mempool_dir() = data_dir / "mempool"
+vendor simplex engine receives proposal digest from peers
+  -> vendor engine later calls Automaton::verify(ctx, digest)
+  -> Mailbox::verify(digest) forwards to MailboxActor
+  -> verification path looks up digest in shared BlockStore
+       - if present: app verify logic can validate the concrete block
+       - if absent: verification fails or returns false
 ```
 
 ### Flow guarantees
-- One root flag, `--data-dir`, controls all persistent node paths.
-- Relative and absolute roots both remain valid.
-- No separate state/runtime/mempool flags are introduced in this pass.
+- Relay activation closes the gap between receiving a digest and having the corresponding application payload available locally.
+- Verification remains digest-driven at the vendor boundary.
+- No additional vendor fetch/resolver redesign is required for application payload availability in this pass.
+
+## Flow 4: Engine Startup Wiring With Additive Payload Task
+
+```text
+CommonwareEngine::start()
+  -> network.start_per_channel()
+       - vote pair
+       - cert pair
+       - resolver pair
+       - payload pair
+  -> create shared BlockStore
+  -> create Mailbox(mailbox_tx, block_store.clone(), payload_sender)
+  -> spawn MailboxActor(mailbox_rx, height, app, block_store.clone())
+  -> spawn payload receive task(payload_receiver, block_store.clone())
+  -> create AppAdapter(app, sink, block_store)
+  -> simplex::Engine::start(vote, cert, resolver)
+```
+
+### Flow guarantees
+- The vendor engine still starts with exactly three protocol channel pairs.
+- Payload receive is additive background wiring owned by `consensus-simplex`.
+- `AppAdapter`, `FinalizationSink`, and finalization side effects continue using the same shared block cache model.
+
+## Flow 5: Channel Alignment Across Crates
+
+```text
+crates/p2p/src/types.rs
+  -> VOTE = 0
+  -> CERTIFICATE = 1
+  -> RESOLVER = 2
+  -> PAYLOAD = 3
+
+crates/p2p-commonware/src/provider.rs
+  -> register 0, 1, 2, 3
+  -> expose payload pair on PerChannelNetwork
+
+crates/consensus-simplex/src/engine.rs
+  -> vendor engine consumes 0, 1, 2 only
+  -> payload relay task consumes 3 only
+```
+
+### Flow guarantees
+- Existing protocol channel IDs do not move.
+- Payload traffic is strictly additive and isolated on channel `3`.
+- `REQ-7` is satisfied by preserving vote/certificate/resolver alignment while introducing a dedicated payload path.
 
 ## Traceability
-- `REQ-4` -> Flow 1, Flow 3, Flow 4
-- `REQ-5` -> Flow 2
+- `REQ-6` -> Flow 1, Flow 2, Flow 3, Flow 4
+- `REQ-7` -> Flow 5
+- `REQ-8` -> Flow 4 and the compatibility guarantees attached to Flows 1-4

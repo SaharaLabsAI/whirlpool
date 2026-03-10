@@ -9,6 +9,7 @@ pub mod adapter;
 pub mod config;
 pub mod engine;
 pub mod mailbox;
+pub mod receiver;
 pub mod sink;
 pub mod traits;
 pub mod types;
@@ -23,7 +24,8 @@ pub type BlockStore<B> = Arc<RwLock<HashMap<Digest, B>>>;
 pub use adapter::AppAdapter;
 pub use config::CommonwareConfig;
 pub use engine::CommonwareEngine;
-pub use mailbox::{Mailbox, MailboxActor, Message};
+pub use mailbox::{Mailbox, MailboxActor, Message, PayloadRelayMessage};
+pub use receiver::payload_receive_loop;
 pub use sink::FinalizationSink;
 
 // Channel constants for P2P communication
