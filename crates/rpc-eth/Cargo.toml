@@ -10,7 +10,7 @@ state = { path = "../state" }
 state-reth = { path = "../state-reth" }
 
 # --- Legacy deps (still used by existing source; removed when source is rewritten) ---
-jsonrpsee = { version = "0.26.0", features = ["server", "macros"] }
+jsonrpsee = { version = "0.26.0", features = ["client", "server", "macros"] }
 alloy-consensus = "1.4.3"
 alloy-eips = "1.1.2"
 alloy-primitives = { version = "1.5.0" }
@@ -49,6 +49,7 @@ reth-transaction-pool = { path = "../../vendor/reth/crates/transaction-pool" }
 reth-evm-ethereum = { path = "../../vendor/reth/crates/ethereum/evm" }
 reth-consensus = { path = "../../vendor/reth/crates/consensus/consensus" }
 reth-tasks = { path = "../../vendor/reth/crates/tasks" }
+reth-tokio-util = { path = "../../vendor/reth/crates/tokio-util" }
 enr = { version = "0.13", default-features = false, features = ["rust-secp256k1"] }
 
 # --- Common ---

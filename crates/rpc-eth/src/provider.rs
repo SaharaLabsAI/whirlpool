@@ -8,7 +8,10 @@ use alloy_eips::{BlockHashOrNumber, BlockId, BlockNumberOrTag};
 use alloy_primitives::{
     Address, BlockHash, BlockNumber, Bytes, StorageKey, StorageValue, TxHash, TxNumber, B256,
 };
-use reth_chain_state::{CanonStateNotification, CanonStateNotifications, CanonStateSubscriptions};
+use reth_chain_state::{
+    CanonStateNotification, CanonStateNotifications, CanonStateSubscriptions,
+    PersistedBlockNotifications, PersistedBlockSubscriptions,
+};
 use reth_chainspec::{ChainInfo, ChainSpec, ChainSpecProvider};
 use reth_db_api::{
     cursor::DbCursorRO,
@@ -43,7 +46,7 @@ use state_reth::{
     },
     RethStateDb,
 };
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, watch};
 
 fn map_db_err(e: impl std::fmt::Display) -> ProviderError {
     ProviderError::Database(reth_storage_errors::db::DatabaseError::Other(e.to_string()))
@@ -82,15 +85,18 @@ pub struct WhirlpoolProvider {
     state_db: Arc<RethStateDb>,
     chain_spec: Arc<ChainSpec>,
     canon_state_tx: broadcast::Sender<CanonStateNotification<EthPrimitives>>,
+    persisted_block_tx: watch::Sender<Option<alloy_eips::BlockNumHash>>,
 }
 
 impl WhirlpoolProvider {
     pub fn new(state_db: Arc<RethStateDb>, chain_spec: Arc<ChainSpec>) -> Self {
         let (canon_state_tx, _rx) = broadcast::channel(16);
+        let (persisted_block_tx, _persisted_block_rx) = watch::channel(None);
         Self {
             state_db,
             chain_spec,
             canon_state_tx,
+            persisted_block_tx,
         }
     }
 
@@ -863,6 +869,12 @@ impl StateProviderFactory for WhirlpoolProvider {
 impl CanonStateSubscriptions for WhirlpoolProvider {
     fn subscribe_to_canonical_state(&self) -> CanonStateNotifications<Self::Primitives> {
         self.canon_state_tx.subscribe()
+    }
+}
+
+impl PersistedBlockSubscriptions for WhirlpoolProvider {
+    fn subscribe_persisted_block(&self) -> PersistedBlockNotifications {
+        PersistedBlockNotifications(self.persisted_block_tx.subscribe())
     }
 }
 
