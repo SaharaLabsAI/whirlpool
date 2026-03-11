@@ -92,7 +92,7 @@
 - [x] Task 03: Implement provider block/header/hash readers [**M**] -> [tasks/03-provider-block-and-header-readers.md](tasks/03-provider-block-and-header-readers.md)
 - [x] Task 04: Implement provider state, transaction, and receipt readers [**M**] -> [tasks/04-provider-state-tx-and-receipt-readers.md](tasks/04-provider-state-tx-and-receipt-readers.md)
 - [x] Task 05: Implement provider chain context and subscription adapters [**M**] -> [tasks/05-provider-chain-context-and-subscriptions.md](tasks/05-provider-chain-context-and-subscriptions.md)
-- [ ] Task 06: Implement `WhirlpoolTxPool` and blob rejection [**M**] -> [tasks/06-txpool-adapter-and-blob-rejection.md](tasks/06-txpool-adapter-and-blob-rejection.md)
+- [x] Task 06: Implement `WhirlpoolTxPool` and blob rejection [**M**] -> [tasks/06-txpool-adapter-and-blob-rejection.md](tasks/06-txpool-adapter-and-blob-rejection.md)
 - [ ] Task 07: Implement `WhirlpoolNetwork` [**S**] -> [tasks/07-network-adapter.md](tasks/07-network-adapter.md)
 - [ ] Task 08: Add `convert.rs` block and transaction conversion helpers [**M**] -> [tasks/08-conversion-layer.md](tasks/08-conversion-layer.md)
 - [ ] Task 09: Rewire `server.rs` through `RpcModuleBuilder` [**M**] -> [tasks/09-rpcmodulebuilder-server-wiring.md](tasks/09-rpcmodulebuilder-server-wiring.md)
