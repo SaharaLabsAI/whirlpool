@@ -24,8 +24,14 @@ Tests use two primary helpers:
 - `start_test_rpc_with_reth_storage()`: creates a real `RethStateDb` (temp file) for block history e2e tests.
 
 Covered RPC methods:
-- `eth_chainId`, `eth_gasPrice`, `eth_getBalance`, `eth_getTransactionCount`, `eth_estimateGas`, `eth_getTransactionReceipt`, `eth_sendRawTransaction`.
+- `eth_chainId`, `eth_gasPrice`, `eth_getBalance`, `eth_getTransactionCount`, `eth_estimateGas`, `eth_getTransactionReceipt`, `eth_sendRawTransaction`, `eth_blockNumber`.
 - `eth_getBlockByNumber`, `eth_getBlockByHash`.
+
+### `tests/multinode_consensus.rs`
+End-to-end consensus test for a 4-node network using `whirlpool_node::node::start_node`.
+- **TC-INT-05**: Verifies multi-node consensus. Starts 4 in-process nodes, waits for block height >= 1 via `eth_blockNumber` RPC calls (testing/integration-tests/tests/multinode_consensus.rs:19).
+- Uses distinct ephemeral data directories, P2P ports, and RPC ports for each node.
+- Validates that heights across nodes remain synchronized within 1 block.
 
 Block History Tests:
 - `TC-INT-01`: Store and retrieve block via RPC (latest tag). Verifies field mapping and height synchronization.

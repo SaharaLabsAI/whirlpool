@@ -50,6 +50,14 @@ impl<S: StateDb + Send + Sync + 'static, B: BlockStorage + 'static> EthApiServer
         Ok(U256::from(self.ctx.chain_id))
     }
 
+    async fn block_number(&self) -> RpcResult<U256> {
+        let height = self
+            .ctx
+            .block_height
+            .load(std::sync::atomic::Ordering::Relaxed);
+        Ok(U256::from(height))
+    }
+
     async fn gas_price(&self) -> RpcResult<U256> {
         Ok(U256::from(GAS_PRICE_WEI))
     }

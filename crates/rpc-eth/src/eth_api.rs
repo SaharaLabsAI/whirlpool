@@ -51,6 +51,10 @@ pub trait EthApi {
         hash: B256,
     ) -> jsonrpsee::core::RpcResult<Option<TransactionReceipt>>;
 
+    /// Returns the current block number (chain tip height).
+    #[method(name = "blockNumber")]
+    async fn block_number(&self) -> jsonrpsee::core::RpcResult<U256>;
+
     /// Returns a block by its number/tag, with full transactions or just hashes.
     #[method(name = "getBlockByNumber")]
     async fn get_block_by_number(

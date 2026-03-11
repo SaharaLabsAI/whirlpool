@@ -18,23 +18,27 @@ Location: `crates/whirlpool-node/`
 - `rpc-eth`: Ethereum JSON-RPC server (extracted from former `rpc/` module).
 - `clap`: CLI argument parsing (derive macros).
 
-## main.rs Wiring
-1. Parse CLI arguments via `clap::Parser` into `NodeArgs`, convert to `NodeConfig`.
-2. Initialize Commonware runtime with persistent storage directory from `config.storage.runtime_dir()`.
-3. Build Commonware network provider using `config.network.*` fields (namespace, listen/dialable addr, bootstrap peers, max message size).
-4. Open `RethStateDb` at `config.storage.state_dir()` via `state_reth::open_state_db`.
-5. Recover chain tip via `block_storage.get_latest_block_number()` and seed shared `height` Arc.
-6. Build `WhirlpoolEvmConfig` and `EvmApplication<RethStateDb>`.
-7. Open `PersistentTxPool` at `config.storage.mempool_dir()` as `TxSource`.
-8. Wrap `FinalizationSink` and `EvmApplication` in `PersistingFinalizationSink`.
-9. Construct `CommonwareEngine` (passing recovered `height` Arc in `engine_config`), call `start()`.
-10. Initialize `EthRpcContext` sharing the `RethStateDb` and `height` Arc.
-11. Start JSON-RPC server on `config.rpc.bind_addr`.
+## config.rs Configuration
+1. **NodeArgs**: CLI parser supporting `--config <path>`, `--validator <hex>`, `--data-dir`, etc. (crates/whirlpool-node/src/config.rs:24)
+2. **TomlConfig**: Serializable structure for persistent configuration (crates/whirlpool-node/src/config.rs:95).
+3. **load_config(NodeArgs)**: Merges CLI overrides, TOML file settings, and hardcoded defaults (crates/whirlpool-node/src/config.rs:319).
+4. **NodeConfig**: Root configuration validated for multi-validator deployments (crates/whirlpool-node/src/config.rs:55).
+
+## node.rs Lifecycle
+- **start_node(NodeConfig) -> NodeHandle**: Spawns consensus and RPC threads. Returns a handle with `Drop` implementation for teardown (crates/whirlpool-node/src/node.rs:50).
+- **NodeHandle**: Tracks RPC/P2P addresses and the thread join handle (crates/whirlpool-node/src/node.rs:26).
+
+## main.rs Entrypoint
+Minimal wrapper:
+1. `NodeArgs::parse()`
+2. `load_config(args)`
+3. `start_node(config)`
+4. `std::thread::park()` loop.
 
 ## Startup Recovery Flow
 Recovery relies on two persistence layers working together:
-1. **Application state** (MDBX): The node opens the persistent database and queries `CanonicalHeaders` for the highest stored block number. This `recovered_height` seeds the atomic `height` tracker and the engine's `height` config (crates/whirlpool-node/src/main.rs:84,99) so the application layer (proposals, finalization sink, RPC) resumes at the correct block.
-2. **Consensus journal** (Commonware Storage): The Simplex voter journals votes and certificates to `config.storage.runtime_dir()` (crates/whirlpool-node/src/main.rs:32). On restart the voter replays the journal to recover its view/round state, preventing re-voting or re-proposing for already-decided views. Without a persistent storage directory the journal is lost and consensus restarts from view 0.
+1. **Application state** (MDBX): The node opens the persistent database and queries `CanonicalHeaders` for the highest stored block number. This `recovered_height` seeds the atomic `height` tracker and the engine's `height` config (crates/whirlpool-node/src/node.rs:89,109) so the application layer resumes at the correct block.
+2. **Consensus journal** (Commonware Storage): The Simplex voter journals votes and certificates to `config.storage.runtime_dir()` (crates/whirlpool-node/src/node.rs:55). On restart the voter replays the journal to recover its view/round state. Without a persistent storage directory the journal is lost and consensus restarts from view 0.
 
 ## Key Types
 - `PersistingFinalizationSink<DB, BS>`: `EventSink` implementation that persists finalized blocks to `BlockStorage` before delegating to the inner `FinalizationSink`.

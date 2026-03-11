@@ -48,25 +48,17 @@ The `EmptyBlockApp` enforces five rules during block verification to ensure chai
 
 ## Using the Node
 
-The node consumes the `CommonwareEngine` API from consensus-simplex:
+The node library provides a high-level API in `whirlpool_node::node`:
 
-1. Create an `EmptyBlockApp` instance
-2. Create an `EventSink` implementation (e.g., FinalizationSink imported from consensus-simplex)
-3. Construct `CommonwareEngine::new(app, sink, config)`
-4. Call `engine.start()` to spawn consensus tasks and return `RunningEngine`
-5. Query `running.height()` for current finalized height
-6. Call `running.shutdown()` for graceful shutdown
-
-This sealed API simplifies the node to pure business logic \u2014 all consensus wiring is internal to consensus-simplex.
+1.  **Parse Arguments**: Use `NodeArgs::parse()`.
+2.  **Load Configuration**: Call `load_config(args)` to merge CLI and TOML (crates/whirlpool-node/src/config.rs:319).
+3.  **Start Node**: Call `start_node(config)` to launch consensus and RPC (crates/whirlpool-node/src/node.rs:50).
+4.  **Manage Lifecycle**: Use the `NodeHandle` for monitoring and teardown on `Drop` (crates/whirlpool-node/src/node.rs:26).
 
 ## Architecture Evolution
 
-Previously, whirlpool-node contained Mailbox, FinalizationSink, and Wire modules. These have been moved to consensus-simplex as generic types:
-- Mailbox: Generic over block type, implements Automaton for simplex engine
-- FinalizationSink: Generic EventSink tracking finalized height
-- Engine wiring: Sealed in CommonwareEngine constructor \u2014 no starter closures
+Whirlpool components are now separated into distinct modules for better reuse:
+- **config**: Multi-source configuration layering (CLI > TOML > Defaults).
+- **node**: Programmatic node lifecycle management (start/stop/handle).
+- **main**: Minimalist binary wrapper.
 
-The node now focuses entirely on:
-- EmptyBlock (dual-trait block definition)
-- EmptyBlockApp (verification rules)
-- Config module: NodeConfig hierarchy with CLI parsing (clap), default constants, and NodeArgs conversion

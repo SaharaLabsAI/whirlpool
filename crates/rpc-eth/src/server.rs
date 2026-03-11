@@ -11,11 +11,11 @@ use crate::eth_handler::EthApiHandler;
 pub async fn start_rpc_server<S: StateDb + Send + Sync + 'static, B: BlockStorage + 'static>(
     ctx: EthRpcContext<S, B>,
     addr: SocketAddr,
-) -> Result<ServerHandle, Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<(ServerHandle, SocketAddr), Box<dyn std::error::Error + Send + Sync>> {
     let handler = EthApiHandler::new(ctx);
     let server = ServerBuilder::default().build(addr).await?;
     let addr = server.local_addr()?;
     info!("JSON-RPC server listening on {addr}");
     let handle = server.start(handler.into_rpc());
-    Ok(handle)
+    Ok((handle, addr))
 }

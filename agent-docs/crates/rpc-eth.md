@@ -29,6 +29,7 @@ Location: `crates/rpc-eth/`
 - `eth_sendRawTransaction`: pushes raw bytes directly into the configured `TxSource`.
 - `eth_estimateGas`: returns hardcoded 21,000 gas (v1).
 - `eth_getTransactionReceipt`: retrieves confirmed receipts from `ReceiptStore`.
+- `eth_blockNumber`: returns current block height from shared `AtomicU64` (crates/rpc-eth/src/eth_handler.rs:53).
 - `eth_getBlockByNumber(number: BlockNumberOrTag, full_txs: bool)`: retrieves blocks from `BlockStorage`. Resolves `latest`/`finalized` to current node height.
 - `eth_getBlockByHash(hash: B256, full_txs: bool)`: retrieves blocks from `BlockStorage`.
 

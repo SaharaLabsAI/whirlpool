@@ -11,6 +11,8 @@ rpc-eth = { path = "../../crates/rpc-eth" }
 state = { path = "../../crates/state" }
 state-memory = { path = "../../crates/state-memory" }
 state-reth = { path = "../../crates/state-reth" }
+whirlpool-node = { path = "../../crates/whirlpool-node" }
+commonware-cryptography = { path = "../../vendor/commonware/cryptography" }
 revm = { version = "34" }
 alloy-primitives = { version = "1.5.0" }
 alloy-consensus = "1.4.3"
@@ -21,6 +23,10 @@ alloy-rpc-types = { version = "1.4.3", features = ["eth"] }
 alloy-signer = "1.4.3"
 alloy-signer-local = "1.4.3"
 jsonrpsee = { version = "0.26.0", features = ["server"] }
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+serde_json = "1"
 tempfile = "3"
 tokio = { version = "1", features = ["full", "test-util"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+hex = "0.4"
