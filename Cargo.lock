@@ -6850,6 +6850,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "reth-exex-types"
+version = "1.10.2"
+dependencies = [
+ "alloy-eips",
+ "alloy-primitives",
+ "reth-chain-state",
+ "reth-execution-types",
+ "reth-primitives-traits",
+]
+
+[[package]]
 name = "reth-fs-util"
 version = "1.10.2"
 dependencies = [
@@ -7286,6 +7297,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "reth-prune"
+version = "1.10.2"
+dependencies = [
+ "alloy-consensus",
+ "alloy-eips",
+ "alloy-primitives",
+ "itertools 0.14.0",
+ "metrics",
+ "rayon",
+ "reth-config",
+ "reth-db-api",
+ "reth-errors",
+ "reth-exex-types",
+ "reth-metrics",
+ "reth-primitives-traits",
+ "reth-provider",
+ "reth-prune-types",
+ "reth-stages-types",
+ "reth-static-file-types",
+ "reth-tokio-util",
+ "rustc-hash",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "reth-prune-types"
 version = "1.10.2"
 dependencies = [
@@ -7628,6 +7666,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "reth-stages-api"
+version = "1.10.2"
+dependencies = [
+ "alloy-eips",
+ "alloy-primitives",
+ "aquamarine",
+ "auto_impl",
+ "futures-util",
+ "metrics",
+ "reth-consensus",
+ "reth-errors",
+ "reth-metrics",
+ "reth-network-p2p",
+ "reth-primitives-traits",
+ "reth-provider",
+ "reth-prune",
+ "reth-stages-types",
+ "reth-static-file",
+ "reth-static-file-types",
+ "reth-tokio-util",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "reth-stages-types"
 version = "1.10.2"
 dependencies = [
@@ -7637,6 +7701,25 @@ dependencies = [
  "reth-codecs",
  "reth-trie-common",
  "serde",
+]
+
+[[package]]
+name = "reth-static-file"
+version = "1.10.2"
+dependencies = [
+ "alloy-primitives",
+ "parking_lot",
+ "rayon",
+ "reth-codecs",
+ "reth-db-api",
+ "reth-primitives-traits",
+ "reth-provider",
+ "reth-prune-types",
+ "reth-stages-types",
+ "reth-static-file-types",
+ "reth-storage-errors",
+ "reth-tokio-util",
+ "tracing",
 ]
 
 [[package]]
@@ -8155,6 +8238,7 @@ name = "rpc-eth"
 version = "0.1.0"
 dependencies = [
  "alloy-consensus",
+ "alloy-eips",
  "alloy-primitives",
  "alloy-rpc-types",
  "app",
@@ -8165,21 +8249,27 @@ dependencies = [
  "reth-chain-state",
  "reth-chainspec",
  "reth-consensus",
+ "reth-db-api",
  "reth-ethereum-primitives",
  "reth-evm-ethereum",
+ "reth-execution-types",
  "reth-network-api",
  "reth-primitives-traits",
  "reth-provider",
+ "reth-prune",
  "reth-rpc",
  "reth-rpc-builder",
  "reth-rpc-eth-api",
  "reth-rpc-eth-types",
  "reth-rpc-server-types",
+ "reth-stages-api",
  "reth-storage-api",
  "reth-storage-errors",
  "reth-tasks",
  "reth-transaction-pool",
+ "reth-trie",
  "revm",
+ "revm-database",
  "serde",
  "state",
  "state-memory",
