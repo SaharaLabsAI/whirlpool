@@ -43,11 +43,13 @@ revm-database = { version = "10.0.0", default-features = false }
 
 # --- Reth network / pool / evm / consensus ---
 reth-network-api = { path = "../../vendor/reth/crates/net/network-api" }
+reth-network-peers = { path = "../../vendor/reth/crates/net/peers" }
 reth-eth-wire-types = { path = "../../vendor/reth/crates/net/eth-wire-types" }
 reth-transaction-pool = { path = "../../vendor/reth/crates/transaction-pool" }
 reth-evm-ethereum = { path = "../../vendor/reth/crates/ethereum/evm" }
 reth-consensus = { path = "../../vendor/reth/crates/consensus/consensus" }
 reth-tasks = { path = "../../vendor/reth/crates/tasks" }
+enr = { version = "0.13", default-features = false, features = ["rust-secp256k1"] }
 
 # --- Common ---
 serde = { version = "1" }
