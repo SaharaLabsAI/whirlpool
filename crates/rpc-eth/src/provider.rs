@@ -1,19 +1,24 @@
 use std::{
-    ops::{RangeBounds, RangeInclusive},
+    ops::{Bound, RangeBounds, RangeInclusive},
     sync::Arc,
 };
 
-use alloy_consensus::{transaction::TransactionMeta, Header};
+use alloy_consensus::{transaction::TransactionMeta, BlockBody, Header};
 use alloy_eips::{BlockHashOrNumber, BlockId, BlockNumberOrTag};
 use alloy_primitives::{
     Address, BlockHash, BlockNumber, Bytes, StorageKey, StorageValue, TxHash, TxNumber, B256,
 };
 use reth_chain_state::{CanonStateNotification, CanonStateNotifications, CanonStateSubscriptions};
 use reth_chainspec::{ChainInfo, ChainSpec, ChainSpecProvider};
-use reth_db_api::models::{AccountBeforeTx, StoredBlockBodyIndices};
+use reth_db_api::{
+    cursor::DbCursorRO,
+    models::{AccountBeforeTx, StoredBlockBodyIndices},
+    transaction::DbTx,
+    Database,
+};
 use reth_ethereum_primitives::{Block, EthPrimitives, Receipt, TransactionSigned};
 use reth_execution_types::ExecutionOutcome;
-use reth_primitives_traits::{Account, Bytecode, RecoveredBlock, SealedHeader};
+use reth_primitives_traits::{Account, Block as _, Bytecode, RecoveredBlock, SealedHeader};
 use reth_prune::{PruneCheckpoint, PruneSegment};
 use reth_stages_api::{StageCheckpoint, StageId};
 use reth_storage_api::{
@@ -29,8 +34,31 @@ use reth_trie::{
     updates::TrieUpdates, AccountProof, HashedPostState, HashedStorage, MultiProof,
     MultiProofTargets, StorageMultiProof, StorageProof, TrieInput,
 };
-use state_reth::RethStateDb;
+use state_reth::{
+    tables::{
+        BlockBodyIndices, CanonicalHeaders, HeaderNumbers, Headers, TransactionBlocks, Transactions,
+    },
+    RethStateDb,
+};
 use tokio::sync::broadcast;
+
+fn map_db_err(e: impl std::fmt::Display) -> ProviderError {
+    ProviderError::Database(reth_storage_errors::db::DatabaseError::Other(e.to_string()))
+}
+
+fn range_to_exclusive_bounds(range: impl RangeBounds<BlockNumber>) -> (BlockNumber, BlockNumber) {
+    let start = match range.start_bound() {
+        Bound::Included(&start) => start,
+        Bound::Excluded(&start) => start.saturating_add(1),
+        Bound::Unbounded => 0,
+    };
+    let end = match range.end_bound() {
+        Bound::Included(&end) => end.saturating_add(1),
+        Bound::Excluded(&end) => end,
+        Bound::Unbounded => u64::MAX,
+    };
+    (start, end)
+}
 
 #[derive(Clone, Debug)]
 pub struct WhirlpoolProvider {
@@ -54,39 +82,119 @@ impl WhirlpoolProvider {
     }
 }
 
+impl WhirlpoolProvider {
+    fn read_block_by_number(&self, number: BlockNumber) -> ProviderResult<Option<Block>> {
+        let tx = self.state_db.inner().tx().map_err(map_db_err)?;
+        let Some(header) = tx.get::<Headers>(number).map_err(map_db_err)? else {
+            return Ok(None);
+        };
+        let body_indices = tx
+            .get::<BlockBodyIndices>(number)
+            .map_err(map_db_err)?
+            .unwrap_or_default();
+
+        let mut transactions = Vec::with_capacity(body_indices.tx_count as usize);
+        for tx_num in body_indices.tx_num_range() {
+            let Some(transaction) = tx.get::<Transactions>(tx_num).map_err(map_db_err)? else {
+                return Ok(None);
+            };
+            transactions.push(transaction);
+        }
+
+        Ok(Some(Block::new(
+            header,
+            BlockBody {
+                transactions,
+                ommers: vec![],
+                withdrawals: None,
+            },
+        )))
+    }
+
+    fn recovered_block_by_number(
+        &self,
+        number: BlockNumber,
+        sealed: bool,
+    ) -> ProviderResult<Option<RecoveredBlock<Block>>> {
+        let Some(block) = self.read_block_by_number(number)? else {
+            return Ok(None);
+        };
+
+        if sealed {
+            let Some(hash) = self.block_hash(number)? else {
+                return Ok(None);
+            };
+            return block
+                .seal_unchecked(hash)
+                .try_recover()
+                .map(Some)
+                .map_err(|_| ProviderError::SenderRecoveryError);
+        }
+
+        block
+            .try_into_recovered()
+            .map(Some)
+            .map_err(|_| ProviderError::SenderRecoveryError)
+    }
+}
+
 impl NodePrimitivesProvider for WhirlpoolProvider {
     type Primitives = EthPrimitives;
 }
 
 impl BlockHashReader for WhirlpoolProvider {
-    fn block_hash(&self, _number: u64) -> ProviderResult<Option<B256>> {
-        Ok(None)
+    fn block_hash(&self, number: u64) -> ProviderResult<Option<B256>> {
+        let tx = self.state_db.inner().tx().map_err(map_db_err)?;
+        tx.get::<CanonicalHeaders>(number).map_err(map_db_err)
     }
 
     fn canonical_hashes_range(
         &self,
-        _start: BlockNumber,
-        _end: BlockNumber,
+        start: BlockNumber,
+        end: BlockNumber,
     ) -> ProviderResult<Vec<B256>> {
-        Ok(Vec::new())
+        let tx = self.state_db.inner().tx().map_err(map_db_err)?;
+        let mut hashes = Vec::new();
+        for number in start..end {
+            if let Some(hash) = tx.get::<CanonicalHeaders>(number).map_err(map_db_err)? {
+                hashes.push(hash);
+            }
+        }
+        Ok(hashes)
     }
 }
 
 impl BlockNumReader for WhirlpoolProvider {
     fn chain_info(&self) -> ProviderResult<ChainInfo> {
-        Ok(ChainInfo::default())
+        let tx = self.state_db.inner().tx().map_err(map_db_err)?;
+        let best_number = tx
+            .cursor_read::<CanonicalHeaders>()
+            .map_err(map_db_err)?
+            .last()
+            .map_err(map_db_err)?
+            .map(|(number, _)| number)
+            .unwrap_or(0);
+        let best_hash = tx
+            .get::<CanonicalHeaders>(best_number)
+            .map_err(map_db_err)?
+            .unwrap_or_default();
+        Ok(ChainInfo {
+            best_hash,
+            best_number,
+        })
     }
 
     fn best_block_number(&self) -> ProviderResult<BlockNumber> {
-        Ok(0)
+        Ok(self.chain_info()?.best_number)
     }
 
     fn last_block_number(&self) -> ProviderResult<BlockNumber> {
-        Ok(0)
+        self.best_block_number()
     }
 
-    fn block_number(&self, _hash: B256) -> ProviderResult<Option<BlockNumber>> {
-        Ok(None)
+    fn block_number(&self, hash: B256) -> ProviderResult<Option<BlockNumber>> {
+        let tx = self.state_db.inner().tx().map_err(map_db_err)?;
+        tx.get::<HeaderNumbers>(hash).map_err(map_db_err)
     }
 }
 
@@ -107,34 +215,78 @@ impl BlockIdReader for WhirlpoolProvider {
 impl HeaderProvider for WhirlpoolProvider {
     type Header = Header;
 
-    fn header(&self, _block_hash: BlockHash) -> ProviderResult<Option<Self::Header>> {
-        Ok(None)
+    fn header(&self, block_hash: BlockHash) -> ProviderResult<Option<Self::Header>> {
+        let tx = self.state_db.inner().tx().map_err(map_db_err)?;
+        let Some(number) = tx.get::<HeaderNumbers>(block_hash).map_err(map_db_err)? else {
+            return Ok(None);
+        };
+        tx.get::<Headers>(number).map_err(map_db_err)
     }
 
-    fn header_by_number(&self, _num: u64) -> ProviderResult<Option<Self::Header>> {
-        Ok(None)
+    fn header_by_number(&self, num: u64) -> ProviderResult<Option<Self::Header>> {
+        let tx = self.state_db.inner().tx().map_err(map_db_err)?;
+        tx.get::<Headers>(num).map_err(map_db_err)
     }
 
     fn headers_range(
         &self,
-        _range: impl RangeBounds<BlockNumber>,
+        range: impl RangeBounds<BlockNumber>,
     ) -> ProviderResult<Vec<Self::Header>> {
-        Ok(Vec::new())
+        let (start, end) = range_to_exclusive_bounds(range);
+        if start >= end {
+            return Ok(Vec::new());
+        }
+
+        let tx = self.state_db.inner().tx().map_err(map_db_err)?;
+        let mut headers = Vec::new();
+        for number in start..end {
+            if let Some(header) = tx.get::<Headers>(number).map_err(map_db_err)? {
+                headers.push(header);
+            }
+        }
+        Ok(headers)
     }
 
     fn sealed_header(
         &self,
-        _number: BlockNumber,
+        number: BlockNumber,
     ) -> ProviderResult<Option<SealedHeader<Self::Header>>> {
-        Ok(None)
+        let tx = self.state_db.inner().tx().map_err(map_db_err)?;
+        let Some(header) = tx.get::<Headers>(number).map_err(map_db_err)? else {
+            return Ok(None);
+        };
+        let Some(hash) = tx.get::<CanonicalHeaders>(number).map_err(map_db_err)? else {
+            return Ok(None);
+        };
+        Ok(Some(SealedHeader::new(header, hash)))
     }
 
     fn sealed_headers_while(
         &self,
-        _range: impl RangeBounds<BlockNumber>,
-        _predicate: impl FnMut(&SealedHeader<Self::Header>) -> bool,
+        range: impl RangeBounds<BlockNumber>,
+        mut predicate: impl FnMut(&SealedHeader<Self::Header>) -> bool,
     ) -> ProviderResult<Vec<SealedHeader<Self::Header>>> {
-        Ok(Vec::new())
+        let (start, end) = range_to_exclusive_bounds(range);
+        if start >= end {
+            return Ok(Vec::new());
+        }
+
+        let tx = self.state_db.inner().tx().map_err(map_db_err)?;
+        let mut headers = Vec::new();
+        for number in start..end {
+            let Some(header) = tx.get::<Headers>(number).map_err(map_db_err)? else {
+                continue;
+            };
+            let Some(hash) = tx.get::<CanonicalHeaders>(number).map_err(map_db_err)? else {
+                continue;
+            };
+            let sealed = SealedHeader::new(header, hash);
+            if !predicate(&sealed) {
+                break;
+            }
+            headers.push(sealed);
+        }
+        Ok(headers)
     }
 }
 
@@ -143,14 +295,29 @@ impl BlockReader for WhirlpoolProvider {
 
     fn find_block_by_hash(
         &self,
-        _hash: B256,
+        hash: B256,
         _source: BlockSource,
     ) -> ProviderResult<Option<Self::Block>> {
-        Ok(None)
+        let tx = self.state_db.inner().tx().map_err(map_db_err)?;
+        let Some(number) = tx.get::<HeaderNumbers>(hash).map_err(map_db_err)? else {
+            return Ok(None);
+        };
+        self.block(BlockHashOrNumber::Number(number))
     }
 
-    fn block(&self, _id: BlockHashOrNumber) -> ProviderResult<Option<Self::Block>> {
-        Ok(None)
+    fn block(&self, id: BlockHashOrNumber) -> ProviderResult<Option<Self::Block>> {
+        let number = match id {
+            BlockHashOrNumber::Hash(hash) => {
+                let tx = self.state_db.inner().tx().map_err(map_db_err)?;
+                tx.get::<HeaderNumbers>(hash).map_err(map_db_err)?
+            }
+            BlockHashOrNumber::Number(number) => Some(number),
+        };
+
+        let Some(number) = number else {
+            return Ok(None);
+        };
+        self.read_block_by_number(number)
     }
 
     fn pending_block(&self) -> ProviderResult<Option<RecoveredBlock<Self::Block>>> {
@@ -165,40 +332,67 @@ impl BlockReader for WhirlpoolProvider {
 
     fn recovered_block(
         &self,
-        _id: BlockHashOrNumber,
+        id: BlockHashOrNumber,
         _transaction_kind: TransactionVariant,
     ) -> ProviderResult<Option<RecoveredBlock<Self::Block>>> {
-        Ok(None)
+        let Some(number) = self.convert_hash_or_number(id)? else {
+            return Ok(None);
+        };
+        self.recovered_block_by_number(number, false)
     }
 
     fn sealed_block_with_senders(
         &self,
-        _id: BlockHashOrNumber,
+        id: BlockHashOrNumber,
         _transaction_kind: TransactionVariant,
     ) -> ProviderResult<Option<RecoveredBlock<Self::Block>>> {
-        Ok(None)
+        let Some(number) = self.convert_hash_or_number(id)? else {
+            return Ok(None);
+        };
+        self.recovered_block_by_number(number, true)
     }
 
-    fn block_range(&self, _range: RangeInclusive<BlockNumber>) -> ProviderResult<Vec<Self::Block>> {
-        Ok(Vec::new())
+    fn block_range(&self, range: RangeInclusive<BlockNumber>) -> ProviderResult<Vec<Self::Block>> {
+        let mut blocks = Vec::new();
+        for number in range {
+            if let Some(block) = self.read_block_by_number(number)? {
+                blocks.push(block);
+            }
+        }
+        Ok(blocks)
     }
 
     fn block_with_senders_range(
         &self,
-        _range: RangeInclusive<BlockNumber>,
+        range: RangeInclusive<BlockNumber>,
     ) -> ProviderResult<Vec<RecoveredBlock<Self::Block>>> {
-        Ok(Vec::new())
+        let mut blocks = Vec::new();
+        for number in range {
+            if let Some(block) = self.recovered_block_by_number(number, false)? {
+                blocks.push(block);
+            }
+        }
+        Ok(blocks)
     }
 
     fn recovered_block_range(
         &self,
-        _range: RangeInclusive<BlockNumber>,
+        range: RangeInclusive<BlockNumber>,
     ) -> ProviderResult<Vec<RecoveredBlock<Self::Block>>> {
-        Ok(Vec::new())
+        let mut blocks = Vec::new();
+        for number in range {
+            if let Some(block) = self.recovered_block_by_number(number, true)? {
+                blocks.push(block);
+            }
+        }
+        Ok(blocks)
     }
 
-    fn block_by_transaction_id(&self, _id: TxNumber) -> ProviderResult<Option<BlockNumber>> {
-        Ok(None)
+    fn block_by_transaction_id(&self, id: TxNumber) -> ProviderResult<Option<BlockNumber>> {
+        let tx = self.state_db.inner().tx().map_err(map_db_err)?;
+        let mut cursor = tx.cursor_read::<TransactionBlocks>().map_err(map_db_err)?;
+        let entry = cursor.seek(id).map_err(map_db_err)?;
+        Ok(entry.map(|(_, block_number)| block_number))
     }
 }
 
@@ -556,14 +750,22 @@ impl PruneCheckpointReader for WhirlpoolProvider {
 }
 
 impl BlockBodyIndicesProvider for WhirlpoolProvider {
-    fn block_body_indices(&self, _num: u64) -> ProviderResult<Option<StoredBlockBodyIndices>> {
-        Ok(None)
+    fn block_body_indices(&self, num: u64) -> ProviderResult<Option<StoredBlockBodyIndices>> {
+        let tx = self.state_db.inner().tx().map_err(map_db_err)?;
+        tx.get::<BlockBodyIndices>(num).map_err(map_db_err)
     }
 
     fn block_body_indices_range(
         &self,
-        _range: RangeInclusive<BlockNumber>,
+        range: RangeInclusive<BlockNumber>,
     ) -> ProviderResult<Vec<StoredBlockBodyIndices>> {
-        Ok(Vec::new())
+        let tx = self.state_db.inner().tx().map_err(map_db_err)?;
+        let mut indices = Vec::new();
+        for number in range {
+            if let Some(body_indices) = tx.get::<BlockBodyIndices>(number).map_err(map_db_err)? {
+                indices.push(body_indices);
+            }
+        }
+        Ok(indices)
     }
 }

@@ -89,7 +89,7 @@
 <!-- TASKS_START -->
 - [x] Task 01: Add reth RPC/provider dependencies [**S**] -> [tasks/01-rpc-eth-reth-dependencies.md](tasks/01-rpc-eth-reth-dependencies.md)
 - [x] Task 02: Scaffold `WhirlpoolProvider` and stub trait surface [**L**] -> [tasks/02-provider-scaffold-and-stub-traits.md](tasks/02-provider-scaffold-and-stub-traits.md)
-- [ ] Task 03: Implement provider block/header/hash readers [**M**] -> [tasks/03-provider-block-and-header-readers.md](tasks/03-provider-block-and-header-readers.md)
+- [x] Task 03: Implement provider block/header/hash readers [**M**] -> [tasks/03-provider-block-and-header-readers.md](tasks/03-provider-block-and-header-readers.md)
 - [ ] Task 04: Implement provider state, transaction, and receipt readers [**M**] -> [tasks/04-provider-state-tx-and-receipt-readers.md](tasks/04-provider-state-tx-and-receipt-readers.md)
 - [ ] Task 05: Implement provider chain context and subscription adapters [**M**] -> [tasks/05-provider-chain-context-and-subscriptions.md](tasks/05-provider-chain-context-and-subscriptions.md)
 - [ ] Task 06: Implement `WhirlpoolTxPool` and blob rejection [**M**] -> [tasks/06-txpool-adapter-and-blob-rejection.md](tasks/06-txpool-adapter-and-blob-rejection.md)
