@@ -44,7 +44,7 @@ async fn test_full_propose_verify_cycle() {
     let tx = TxLegacy {
         chain_id: Some(app_evm::config::SAHARA_CHAIN_ID),
         nonce: 0,
-        gas_price: 10,
+        gas_price: 2_000_000_000,
         gas_limit: 21_000,
         to: TxKind::Call(bob_addr),
         value: U256::from(1000),
@@ -136,7 +136,7 @@ async fn test_propose_with_in_memory_pool() {
     let tx = TxLegacy {
         chain_id: Some(app_evm::config::SAHARA_CHAIN_ID),
         nonce: 0,
-        gas_price: 10,
+        gas_price: 2_000_000_000,
         gas_limit: 21_000,
         to: TxKind::Call(bob_addr),
         value: U256::from(1000),

@@ -25,6 +25,7 @@ pub struct EvmBlock {
     pub transactions_root: [u8; 32],
     pub receipts_root: [u8; 32],
     pub gas_used: u64,
+    pub base_fee_per_gas: u64,
     pub timestamp: u64,
     pub transactions: Vec<Vec<u8>>,
 }
@@ -51,6 +52,7 @@ impl EvmBlock {
         hasher.update(self.transactions_root);
         hasher.update(self.receipts_root);
         hasher.update(self.gas_used.to_le_bytes());
+        hasher.update(self.base_fee_per_gas.to_le_bytes());
         hasher.update(self.timestamp.to_le_bytes());
         hasher.update((self.transactions.len() as u32).to_le_bytes());
         for tx in &self.transactions {
@@ -89,6 +91,7 @@ impl CodecWrite for EvmBlock {
         buf.put_slice(&self.transactions_root);
         buf.put_slice(&self.receipts_root);
         buf.put_u64(self.gas_used);
+        buf.put_u64(self.base_fee_per_gas);
         buf.put_u64(self.timestamp);
         buf.put_u32(self.transactions.len() as u32);
         for tx in &self.transactions {
@@ -106,6 +109,7 @@ impl EncodeSize for EvmBlock {
             + 32
             + 8
             + 8
+            + 8
             + 4
             + self
                 .transactions
@@ -119,7 +123,7 @@ impl CodecRead for EvmBlock {
     type Cfg = ();
 
     fn read_cfg(reader: &mut impl Buf, _cfg: &Self::Cfg) -> Result<Self, CodecError> {
-        if reader.remaining() < 124 {
+        if reader.remaining() < 132 {
             return Err(CodecError::Invalid("EvmBlock", "not enough bytes"));
         }
 
@@ -138,6 +142,7 @@ impl CodecRead for EvmBlock {
         reader.copy_to_slice(&mut receipts_root);
 
         let gas_used = reader.get_u64();
+        let base_fee_per_gas = reader.get_u64();
         let timestamp = reader.get_u64();
 
         let tx_count = reader.get_u32() as usize;
@@ -169,6 +174,7 @@ impl CodecRead for EvmBlock {
             transactions_root,
             receipts_root,
             gas_used,
+            base_fee_per_gas,
             timestamp,
             transactions,
         })
@@ -216,6 +222,7 @@ mod tests {
             transactions_root: [3u8; 32],
             receipts_root: [4u8; 32],
             gas_used: 42,
+            base_fee_per_gas: 1_000_000_000,
             timestamp: 1_700_000_000,
             transactions: vec![vec![0xaa, 0xbb], vec![0xcc]],
         }
@@ -244,6 +251,7 @@ mod tests {
         assert_eq!(decoded.transactions_root, block.transactions_root);
         assert_eq!(decoded.receipts_root, block.receipts_root);
         assert_eq!(decoded.gas_used, block.gas_used);
+        assert_eq!(decoded.base_fee_per_gas, block.base_fee_per_gas);
         assert_eq!(decoded.timestamp, block.timestamp);
         assert_eq!(decoded.transactions, block.transactions);
     }

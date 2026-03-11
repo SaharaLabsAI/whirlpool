@@ -4312,6 +4312,7 @@ version = "0.1.0"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
+ "alloy-genesis",
  "alloy-network",
  "alloy-primitives",
  "alloy-provider",
@@ -4324,6 +4325,7 @@ dependencies = [
  "hex",
  "jsonrpsee",
  "reqwest",
+ "reth-chainspec",
  "reth-rpc-builder",
  "revm",
  "rpc-eth",
@@ -10372,6 +10374,7 @@ dependencies = [
  "consensus-simplex",
  "mempool-mdbx",
  "p2p-commonware",
+ "reth-chainspec",
  "reth-revm",
  "revm",
  "rpc-eth",

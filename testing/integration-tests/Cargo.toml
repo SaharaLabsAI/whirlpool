@@ -18,11 +18,13 @@ revm = { version = "34" }
 alloy-primitives = { version = "1.5.0" }
 alloy-consensus = "1.4.3"
 alloy-eips = "1.4.3"
+alloy-genesis = "1.4.3"
 alloy-provider = { version = "1.4.3", default-features = false, features = ["reqwest", "reqwest-rustls-tls"] }
 alloy-network = "1.4.3"
 alloy-rpc-types = { version = "1.4.3", features = ["eth"] }
 alloy-signer = "1.4.3"
 alloy-signer-local = "1.4.3"
+reth-chainspec = { path = "../../vendor/reth/crates/chainspec" }
 jsonrpsee = { version = "0.26.0", features = ["server"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
 reth-rpc-builder = { path = "../../vendor/reth/crates/rpc/rpc-builder" }

@@ -9,6 +9,7 @@ use consensus::traits::ConsensusEngine;
 use consensus_simplex::{CommonwareConfig, CommonwareEngine, FinalizationSink};
 use mempool_mdbx::PersistentTxPool;
 use p2p_commonware::CommonwareNetworkProviderBuilder;
+use reth_chainspec::ChainSpec;
 use rpc_eth as rpc;
 use std::error::Error;
 use std::net::SocketAddr;
@@ -47,7 +48,19 @@ struct NodeInfo {
 
 type NodeResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
 
+/// Start a node with the default Sahara chain specification.
 pub fn start_node(config: NodeConfig) -> NodeResult<NodeHandle> {
+    start_node_with_chain_spec(config, None)
+}
+
+/// Start a node with an optional custom chain specification.
+///
+/// If `chain_spec` is `None`, the default Sahara chain spec is used.
+/// This is useful for tests that need pre-funded genesis accounts.
+pub fn start_node_with_chain_spec(
+    config: NodeConfig,
+    chain_spec: Option<Arc<ChainSpec>>,
+) -> NodeResult<NodeHandle> {
     let public_key = ed25519::PrivateKey::from_seed(config.identity.seed).public_key();
     let (info_tx, info_rx) = mpsc::channel::<NodeResult<NodeInfo>>();
 
@@ -83,6 +96,24 @@ pub fn start_node(config: NodeConfig) -> NodeResult<NodeHandle> {
             info!(?db_path, "Opening persistent state database");
             let reth_db =
                 state_reth::open_state_db(&db_path).expect("failed to open state database");
+
+            // Apply genesis allocations (pre-funded accounts) to the state DB if provided.
+            let genesis_alloc = chain_spec
+                .as_ref()
+                .map(|cs| &cs.genesis.alloc)
+                .filter(|a| !a.is_empty());
+            if let Some(alloc) = genesis_alloc {
+                let alloc_map: std::collections::HashMap<_, _> =
+                    alloc.iter().map(|(k, v)| (*k, v.clone())).collect();
+                reth_db
+                    .apply_genesis(&alloc_map)
+                    .expect("failed to apply genesis allocations");
+                info!(
+                    num_accounts = alloc.len(),
+                    "Applied genesis account allocations"
+                );
+            }
+
             let state_db = Arc::new(RwLock::new(reth_db.clone()));
             let block_storage = Arc::new(reth_db);
 
@@ -113,7 +144,7 @@ pub fn start_node(config: NodeConfig) -> NodeResult<NodeHandle> {
                 validators,
             };
 
-            let chain_spec = Arc::new(build_sahara_chain_spec());
+            let chain_spec = chain_spec.unwrap_or_else(|| Arc::new(build_sahara_chain_spec()));
             let evm_config = WhirlpoolEvmConfig::new(chain_spec.clone());
             let mempool_path = config.storage.mempool_dir();
             info!(?mempool_path, "Opening persistent mempool database");

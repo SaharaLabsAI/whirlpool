@@ -183,6 +183,7 @@ fn evm_block_to_rpc_block(evm_block: &app::EvmBlock, _full_transactions: bool) -
         transactions_root: B256::from_slice(&evm_block.transactions_root),
         receipts_root: B256::from_slice(&evm_block.receipts_root),
         gas_used: evm_block.gas_used,
+        base_fee_per_gas: Some(evm_block.base_fee_per_gas),
         timestamp: evm_block.timestamp,
         gas_limit: 30_000_000,
         ..Default::default()
@@ -343,6 +344,7 @@ use crate::context::EthRpcContext;
             transactions_root: [2u8; 32],
             receipts_root: [3u8; 32],
             gas_used: 21_000,
+            base_fee_per_gas: 1_000_000_000,
             timestamp: 1_000_000 + height,
             transactions: vec![vec![0xde, 0xad]],
         }

@@ -150,6 +150,7 @@ mod tests {
             transactions_root: [2u8; 32],
             receipts_root: [3u8; 32],
             gas_used: 0,
+            base_fee_per_gas: 1_000_000_000,
             timestamp: 0,
             transactions: vec![],
         }

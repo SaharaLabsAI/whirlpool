@@ -52,6 +52,72 @@ impl RethStateDb {
     pub fn inner(&self) -> &DatabaseEnv {
         &self.db
     }
+
+    /// Apply genesis account allocations to the database.
+    ///
+    /// Writes account balances, nonces, bytecode, and storage slots from the
+    /// genesis alloc to the state tables. This should be called once after
+    /// opening a fresh database before starting consensus.
+    pub fn apply_genesis(
+        &self,
+        alloc: &HashMap<Address, GenesisAccount>,
+    ) -> Result<(), RethStateError> {
+        let tx = self.db.tx_mut().map_err(RethStateError::Database)?;
+        for (address, account) in alloc {
+            let nonce = account.nonce.unwrap_or_default();
+            let mut info = AccountInfo {
+                balance: account.balance,
+                nonce,
+                code_hash: KECCAK_EMPTY,
+                code: None,
+                account_id: None,
+            };
+
+            // Store bytecode if present.
+            if let Some(ref code_bytes) = account.code {
+                let code = Bytecode::new_raw(code_bytes.clone());
+                let code_hash = code.hash_slow();
+                info.code_hash = code_hash;
+                tx.put::<Bytecodes>(code_hash, reth_primitives_traits::Bytecode(code))
+                    .map_err(RethStateError::Database)?;
+            }
+
+            // Store account in plain + hashed tables.
+            let reth_account = info_to_account(&info);
+            tx.put::<PlainAccountState>(*address, reth_account)
+                .map_err(RethStateError::Database)?;
+            let hashed_addr = keccak256(address);
+            tx.put::<HashedAccounts>(hashed_addr, reth_account)
+                .map_err(RethStateError::Database)?;
+
+            // Store genesis storage if present.
+            if let Some(ref genesis_storage) = account.storage {
+                for (key, value) in genesis_storage {
+                    let slot = U256::from_be_bytes(key.0);
+                    let val = U256::from_be_bytes(value.0);
+                    if !val.is_zero() {
+                        let entry = StorageEntry::new(B256::from(slot.to_be_bytes::<32>()), val);
+                        let mut cursor = tx
+                            .cursor_dup_write::<PlainStorageState>()
+                            .map_err(RethStateError::Database)?;
+                        cursor
+                            .upsert(*address, &entry)
+                            .map_err(RethStateError::Database)?;
+                        let hashed_slot = keccak256(B256::from(slot.to_be_bytes::<32>()));
+                        let hashed_entry = StorageEntry::new(hashed_slot, val);
+                        let mut hcursor = tx
+                            .cursor_dup_write::<HashedStorages>()
+                            .map_err(RethStateError::Database)?;
+                        hcursor
+                            .upsert(hashed_addr, &hashed_entry)
+                            .map_err(RethStateError::Database)?;
+                    }
+                }
+            }
+        }
+        tx.commit().map_err(RethStateError::Database)?;
+        Ok(())
+    }
 }
 
 impl StateDb for RethStateDb {
@@ -62,9 +128,8 @@ impl StateDb for RethStateDb {
         Self: Sized,
     {
         // RethStateDb requires a path — keep temp dirs alive globally in tests.
-        let temp_dir = Arc::new(
-            tempfile::tempdir().expect("failed to create tempdir for RethStateDb::new()"),
-        );
+        let temp_dir =
+            Arc::new(tempfile::tempdir().expect("failed to create tempdir for RethStateDb::new()"));
         let db = init_db(
             temp_dir.path(),
             DatabaseArguments::new(ClientVersion::default()),

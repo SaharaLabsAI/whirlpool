@@ -1,6 +1,7 @@
 use std::sync::{Arc, Mutex, RwLock};
 
 use alloy_consensus::TxReceipt;
+use alloy_eips::eip1559::{calc_next_block_base_fee, BaseFeeParams};
 use alloy_eips::eip2718::{Decodable2718, Encodable2718};
 use alloy_primitives::{bytes::BufMut, Address, Bytes, B256, U256};
 use alloy_trie::{root::ordered_trie_root_with_encoder, EMPTY_ROOT_HASH};
@@ -34,9 +35,14 @@ pub fn build_header_from_evm_block(block: &EvmBlock) -> Header {
         receipts_root: B256::from(block.receipts_root),
         gas_limit: 30_000_000,
         gas_used: block.gas_used,
+        base_fee_per_gas: Some(block.base_fee_per_gas),
         timestamp: block.timestamp,
         difficulty: U256::ZERO,
         extra_data: Bytes::default(),
+        // Post-Cancun fields required by the EVM environment.
+        // Set to zero since we do not support blob transactions.
+        excess_blob_gas: Some(0),
+        blob_gas_used: Some(0),
         ..Header::default()
     }
 }
@@ -71,6 +77,9 @@ pub struct EvmApplication<DB> {
     state_db: Arc<RwLock<DB>>,
     tx_source: Arc<dyn TxSource + Send + Sync>,
     pending_receipts: Arc<Mutex<Option<Vec<Receipt>>>>,
+    /// Cache the last proposed block to avoid draining txs on duplicate proposals
+    /// at the same height (which happens in simplex consensus).
+    last_proposed: Arc<Mutex<Option<(u64, EvmBlock, ExecutionResult, Vec<Receipt>)>>>,
 }
 
 impl<DB> EvmApplication<DB> {
@@ -84,6 +93,7 @@ impl<DB> EvmApplication<DB> {
             state_db,
             tx_source,
             pending_receipts: Arc::new(Mutex::new(None)),
+            last_proposed: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -131,6 +141,7 @@ where
                 transactions_root: EMPTY_ROOT_HASH.0,
                 receipts_root: EMPTY_ROOT_HASH.0,
                 gas_used: 0,
+                base_fee_per_gas: 1_000_000_000,
                 timestamp: 0,
                 transactions: vec![],
             }
@@ -144,6 +155,21 @@ where
     ) -> impl std::future::Future<Output = Result<(Self::Block, Self::Result), Self::Error>> + Send
     {
         async move {
+            // Return cached block if we already proposed at this height.
+            // Simplex consensus may call propose() multiple times for the same height;
+            // re-draining the mempool would lose transactions.
+            {
+                let cache = self.last_proposed.lock().unwrap();
+                if let Some((cached_height, ref block, ref result, ref receipts)) = *cache {
+                    if cached_height == height {
+                        // Re-set pending_receipts since store_finalized_block takes them
+                        let mut guard = self.pending_receipts.lock().unwrap();
+                        *guard = Some(receipts.clone());
+                        return Ok((block.clone(), result.clone()));
+                    }
+                }
+            }
+
             let raw_pending = self.tx_source.pending();
             let decoded_pending: Vec<(Vec<u8>, RecoveredTx)> = raw_pending
                 .iter()
@@ -190,13 +216,17 @@ where
             let mut executed_raw_txs = Vec::new();
             for (raw_tx, tx) in decoded_pending {
                 match builder.execute_transaction(tx.clone()) {
-                    Ok(_) => executed_raw_txs.push(raw_tx),
+                    Ok(_) => {
+                        executed_raw_txs.push(raw_tx);
+                    }
                     Err(reth_evm::execute::BlockExecutionError::Validation(
                         reth_evm::execute::BlockValidationError::InvalidTx { .. },
                     )) => {
                         continue;
                     }
-                    Err(err) => return Err(EvmAppError::Execution(err.to_string())),
+                    Err(err) => {
+                        return Err(EvmAppError::Execution(err.to_string()));
+                    }
                 }
             }
 
@@ -248,6 +278,13 @@ where
                 );
             }
 
+            let base_fee_per_gas = calc_next_block_base_fee(
+                parent.gas_used,
+                30_000_000,
+                parent.base_fee_per_gas,
+                BaseFeeParams::ethereum(),
+            );
+
             let block = EvmBlock {
                 height,
                 parent_id: parent.compute_id(),
@@ -255,6 +292,7 @@ where
                 transactions_root: transactions_root.0,
                 receipts_root: receipts_root.0,
                 gas_used,
+                base_fee_per_gas,
                 timestamp,
                 transactions: executed_raw_txs,
             };
@@ -265,6 +303,13 @@ where
                 gas_used,
                 receipt_count: execution_result.receipts.len(),
             };
+
+            // Cache so duplicate proposals at the same height don't re-drain txs
+            {
+                let receipts_clone = self.pending_receipts.lock().unwrap().clone().unwrap_or_default();
+                let mut cache = self.last_proposed.lock().unwrap();
+                *cache = Some((height, block.clone(), result.clone(), receipts_clone));
+            }
 
             Ok((block, result))
         }
@@ -434,6 +479,7 @@ mod tests {
             transactions_root: [3u8; 32],
             receipts_root: [4u8; 32],
             gas_used: 21_000,
+            base_fee_per_gas: 1_000_000_000,
             timestamp: 1_234_567_890,
             transactions: vec![],
         };
@@ -445,6 +491,7 @@ mod tests {
         assert_eq!(header.transactions_root, B256::from([3u8; 32]));
         assert_eq!(header.receipts_root, B256::from([4u8; 32]));
         assert_eq!(header.gas_used, 21_000);
+        assert_eq!(header.base_fee_per_gas, Some(1_000_000_000));
         assert_eq!(header.timestamp, 1_234_567_890);
 
         let expected_hash = header.hash_slow();
@@ -539,7 +586,7 @@ mod tests {
         let tx = TxLegacy {
             chain_id: Some(crate::config::SAHARA_CHAIN_ID),
             nonce: 0,
-            gas_price: 10,
+            gas_price: 2_000_000_000,
             gas_limit: 21_000,
             to: TxKind::Call(receiver),
             value: U256::from(1000),
@@ -585,7 +632,7 @@ mod tests {
         let tx = TxLegacy {
             chain_id: Some(crate::config::SAHARA_CHAIN_ID),
             nonce: 0,
-            gas_price: 10,
+            gas_price: 2_000_000_000,
             gas_limit: 100_000,
             to: TxKind::Create,
             value: U256::ZERO,
@@ -637,7 +684,7 @@ mod tests {
         let tx = TxLegacy {
             chain_id: Some(crate::config::SAHARA_CHAIN_ID),
             nonce: 0,
-            gas_price: 10,
+            gas_price: 2_000_000_000,
             gas_limit: 21_000,
             to: TxKind::Call(receiver),
             value: U256::from(1000),
@@ -736,7 +783,7 @@ mod tests {
         let tx = TxLegacy {
             chain_id: Some(crate::config::SAHARA_CHAIN_ID),
             nonce: 0,
-            gas_price: 10,
+            gas_price: 2_000_000_000,
             gas_limit: 21_000,
             to: TxKind::Call(receiver),
             value: U256::from(1000),
@@ -864,7 +911,7 @@ mod tests {
         let tx = TxLegacy {
             chain_id: Some(crate::config::SAHARA_CHAIN_ID),
             nonce: 0,
-            gas_price: 10,
+            gas_price: 2_000_000_000,
             gas_limit: 21_000,
             to: TxKind::Call(receiver),
             value: U256::from(1000),
@@ -909,7 +956,7 @@ mod tests {
         let tx = TxLegacy {
             chain_id: Some(crate::config::SAHARA_CHAIN_ID),
             nonce: 0,
-            gas_price: 10,
+            gas_price: 2_000_000_000,
             gas_limit: 21_000,
             to: TxKind::Call(receiver),
             value: U256::from(1000),

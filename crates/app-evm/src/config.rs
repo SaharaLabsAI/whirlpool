@@ -1,21 +1,31 @@
-use alloy_genesis::Genesis;
-use alloy_primitives::U256;
+use alloy_genesis::{Genesis, GenesisAccount};
+use alloy_primitives::{Address, U256};
 use core::convert::Infallible;
 use reth_chainspec::{Chain, ChainSpec, ChainSpecBuilder};
 use reth_ethereum_primitives::EthPrimitives;
 use reth_evm::{ConfigureEvm, EvmEnvFor, ExecutionCtxFor, NextBlockEnvAttributes};
 use reth_evm_ethereum::EthEvmConfig;
 use reth_primitives_traits::{BlockTy, HeaderTy, SealedBlock, SealedHeader};
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 pub const SAHARA_CHAIN_ID: u64 = 313_371;
 
 pub fn build_sahara_chain_spec() -> ChainSpec {
+    build_sahara_chain_spec_with_alloc(BTreeMap::new())
+}
+
+/// Build the Sahara chain spec with pre-funded genesis accounts.
+///
+/// This is useful for integration tests that need accounts with ETH balances
+/// at genesis to submit transactions.
+pub fn build_sahara_chain_spec_with_alloc(alloc: BTreeMap<Address, GenesisAccount>) -> ChainSpec {
     ChainSpecBuilder::default()
         .chain(Chain::from_id(SAHARA_CHAIN_ID))
         .genesis(Genesis {
             gas_limit: 30_000_000,
             difficulty: U256::ZERO,
+            alloc,
             ..Default::default()
         })
         .cancun_activated()

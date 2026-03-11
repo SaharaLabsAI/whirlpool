@@ -18,6 +18,7 @@ pub fn evmblock_to_header(block: &EvmBlock) -> Header {
         transactions_root: B256::from_slice(&block.transactions_root),
         receipts_root: B256::from_slice(&block.receipts_root),
         gas_used: block.gas_used,
+        base_fee_per_gas: Some(block.base_fee_per_gas),
         timestamp: block.timestamp,
         ..Default::default()
     }

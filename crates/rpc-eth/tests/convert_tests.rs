@@ -30,6 +30,7 @@ fn sample_block(transactions: Vec<Vec<u8>>) -> EvmBlock {
         transactions_root: [0x33; 32],
         receipts_root: [0x44; 32],
         gas_used: 55_555,
+        base_fee_per_gas: 1_000_000_000,
         timestamp: 1_700_000_123,
         transactions,
     }

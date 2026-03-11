@@ -16,7 +16,11 @@ use crate::tables::{
 };
 
 impl BlockStorage for RethStateDb {
-    fn store_block(&self, block: &EvmBlock, receipts: &[AppReceipt]) -> Result<(), BlockStorageError> {
+    fn store_block(
+        &self,
+        block: &EvmBlock,
+        receipts: &[AppReceipt],
+    ) -> Result<(), BlockStorageError> {
         if block.transactions.len() != receipts.len() {
             return Err(BlockStorageError::Codec(
                 "transactions/receipts length mismatch".to_string(),
@@ -59,8 +63,13 @@ impl BlockStorage for RethStateDb {
             transactions_root: B256::from(block.transactions_root),
             receipts_root: B256::from(block.receipts_root),
             gas_used: block.gas_used,
+            base_fee_per_gas: Some(block.base_fee_per_gas),
             timestamp: block.timestamp,
             number: block.height,
+            // Post-Cancun fields required by the EVM environment.
+            // Set to zero since we do not support blob transactions.
+            excess_blob_gas: Some(0),
+            blob_gas_used: Some(0),
             ..Header::default()
         };
 
@@ -159,6 +168,7 @@ impl BlockStorage for RethStateDb {
             transactions_root: header.transactions_root.into(),
             receipts_root: header.receipts_root.into(),
             gas_used: header.gas_used,
+            base_fee_per_gas: header.base_fee_per_gas.unwrap_or(0),
             timestamp: header.timestamp,
             transactions,
         }))
@@ -196,7 +206,10 @@ impl BlockStorage for RethStateDb {
         Ok(latest)
     }
 
-    fn get_receipts_by_block(&self, number: u64) -> Result<Option<Vec<AppReceipt>>, BlockStorageError> {
+    fn get_receipts_by_block(
+        &self,
+        number: u64,
+    ) -> Result<Option<Vec<AppReceipt>>, BlockStorageError> {
         let tx = self
             .inner()
             .tx()
@@ -282,6 +295,7 @@ mod tests {
             transactions_root: [3u8.wrapping_add(height as u8); 32],
             receipts_root: [4u8.wrapping_add(height as u8); 32],
             gas_used: 21_000 * tx_count as u64,
+            base_fee_per_gas: 1_000_000_000,
             timestamp: 1_700_000_000 + height,
             transactions: (0..tx_count)
                 .map(|i| make_raw_tx((height * 1000) + i as u64))

@@ -6,7 +6,7 @@ use std::{
 use alloy_consensus::{transaction::TransactionMeta, BlockBody, BlockHeader, Header};
 use alloy_eips::{BlockHashOrNumber, BlockId, BlockNumberOrTag};
 use alloy_primitives::{
-    Address, BlockHash, BlockNumber, Bytes, StorageKey, StorageValue, TxHash, TxNumber, B256,
+    Address, BlockHash, BlockNumber, Bytes, StorageKey, StorageValue, TxHash, TxNumber, B256, U256,
 };
 use reth_chain_state::{
     CanonStateNotification, CanonStateNotifications, CanonStateSubscriptions,
@@ -39,6 +39,7 @@ use reth_trie::{
     updates::TrieUpdates, AccountProof, HashedPostState, HashedStorage, MultiProof,
     MultiProofTargets, StorageMultiProof, StorageProof, TrieInput,
 };
+use state::StateDb as StateDbTrait;
 use state_reth::{
     tables::{
         BlockBodyIndices, CanonicalHeaders, HeaderNumbers, Headers, PlainAccountState, Receipts,
@@ -420,19 +421,28 @@ impl BlockReader for WhirlpoolProvider {
 }
 
 impl BlockReaderIdExt for WhirlpoolProvider {
-    fn block_by_id(&self, _id: BlockId) -> ProviderResult<Option<Self::Block>> {
-        Ok(None)
+    fn block_by_id(&self, id: BlockId) -> ProviderResult<Option<Self::Block>> {
+        match self.block_number_for_id(id)? {
+            Some(number) => self.read_block_by_number(number),
+            None => Ok(None),
+        }
     }
 
     fn sealed_header_by_id(
         &self,
-        _id: BlockId,
+        id: BlockId,
     ) -> ProviderResult<Option<SealedHeader<Self::Header>>> {
-        Ok(None)
+        match self.block_number_for_id(id)? {
+            Some(number) => self.sealed_header(number),
+            None => Ok(None),
+        }
     }
 
-    fn header_by_id(&self, _id: BlockId) -> ProviderResult<Option<Self::Header>> {
-        Ok(None)
+    fn header_by_id(&self, id: BlockId) -> ProviderResult<Option<Self::Header>> {
+        match self.block_number_for_id(id)? {
+            Some(number) => self.header_by_number(number),
+            None => Ok(None),
+        }
     }
 }
 
@@ -797,16 +807,29 @@ impl StateReader for WhirlpoolProvider {
 impl StateProvider for WhirlpoolProvider {
     fn storage(
         &self,
-        _account: Address,
-        _storage_key: StorageKey,
+        account: Address,
+        storage_key: StorageKey,
     ) -> ProviderResult<Option<StorageValue>> {
-        Ok(None)
+        let index = U256::from_be_bytes(storage_key.0);
+        let value = StateDbTrait::get_storage(&*self.state_db, account, index)
+            .map_err(|e| map_db_err(e))?;
+        if value.is_zero() {
+            Ok(None)
+        } else {
+            Ok(Some(value))
+        }
     }
 }
 
 impl BytecodeReader for WhirlpoolProvider {
-    fn bytecode_by_hash(&self, _code_hash: &B256) -> ProviderResult<Option<Bytecode>> {
-        Ok(None)
+    fn bytecode_by_hash(&self, code_hash: &B256) -> ProviderResult<Option<Bytecode>> {
+        let bytecode = StateDbTrait::get_code_by_hash(&*self.state_db, *code_hash)
+            .map_err(|e| map_db_err(e))?;
+        if bytecode.bytes().is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(Bytecode(bytecode)))
+        }
     }
 }
 
