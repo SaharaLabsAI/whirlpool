@@ -1,7 +1,7 @@
 use app::traits::TxSource;
 use app::ApplicationAdapter;
 use app_evm::executor::EvmApplication;
-use app_evm::{build_sahara_chain_spec, WhirlpoolEvmConfig, SAHARA_CHAIN_ID};
+use app_evm::{build_sahara_chain_spec, WhirlpoolEvmConfig};
 use commonware_cryptography::ed25519;
 use commonware_cryptography::Signer;
 use commonware_runtime::{tokio, Metrics, Runner};
@@ -114,7 +114,7 @@ pub fn start_node(config: NodeConfig) -> NodeResult<NodeHandle> {
             };
 
             let chain_spec = Arc::new(build_sahara_chain_spec());
-            let evm_config = WhirlpoolEvmConfig::new(chain_spec);
+            let evm_config = WhirlpoolEvmConfig::new(chain_spec.clone());
             let mempool_path = config.storage.mempool_dir();
             info!(?mempool_path, "Opening persistent mempool database");
             let tx_pool: Arc<dyn TxSource> = Arc::new(
@@ -134,10 +134,13 @@ pub fn start_node(config: NodeConfig) -> NodeResult<NodeHandle> {
             let _running = engine.start().expect("failed to start consensus engine");
             info!("Consensus engine created and started successfully");
 
-            let mut rpc_ctx =
-                rpc::context::EthRpcContext::new(tx_pool, state_db, block_storage, SAHARA_CHAIN_ID);
-            rpc_ctx.block_height = height;
-            let (_rpc_handle, rpc_addr) = rpc::server::start_rpc_server(rpc_ctx, config.rpc.bind_addr)
+            let rpc_config = rpc::RpcConfig {
+                state_db: block_storage.clone(),
+                chain_spec,
+                tx_source: tx_pool.clone(),
+                addr: config.rpc.bind_addr,
+            };
+            let (_rpc_handle, rpc_addr) = rpc::start_rpc_server(rpc_config)
                 .await
                 .expect("failed to start RPC server");
             info!(%rpc_addr, %dialable_addr, "JSON-RPC server started");
