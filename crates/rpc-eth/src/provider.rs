@@ -38,8 +38,8 @@ use reth_trie::{
 };
 use state_reth::{
     tables::{
-        BlockBodyIndices, CanonicalHeaders, HeaderNumbers, Headers, Receipts, TransactionBlocks,
-        TransactionHashNumbers, Transactions,
+        BlockBodyIndices, CanonicalHeaders, HeaderNumbers, Headers, PlainAccountState, Receipts,
+        TransactionBlocks, TransactionHashNumbers, Transactions,
     },
     RethStateDb,
 };
@@ -682,8 +682,9 @@ impl ReceiptProvider for WhirlpoolProvider {
 impl ReceiptProviderIdExt for WhirlpoolProvider {}
 
 impl AccountReader for WhirlpoolProvider {
-    fn basic_account(&self, _address: &Address) -> ProviderResult<Option<Account>> {
-        Ok(None)
+    fn basic_account(&self, address: &Address) -> ProviderResult<Option<Account>> {
+        let tx = self.state_db.inner().tx().map_err(map_db_err)?;
+        tx.get::<PlainAccountState>(*address).map_err(map_db_err)
     }
 }
 
