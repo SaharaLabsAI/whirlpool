@@ -14,7 +14,7 @@ Replace rpc-eth's hand-rolled 10-method stub with reth's production JSON-RPC sta
 
 ### Phase 2: Pool + Network (pool.rs, network.rs)
 6. Create `WhirlpoolTxPool` wrapping `Arc<dyn TxSource>`, impl `TransactionPool`
-7. Create `WhirlpoolNetwork`, impl `NetworkInfo`
+7. Create `WhirlpoolNetwork`, impl `NetworkInfo + Peers` with deterministic empty-peer behavior
 
 ### Phase 3: Server Wiring (server.rs)
 8. Replace `start_rpc_server` to use `RpcModuleBuilder`

@@ -8,8 +8,8 @@ All design documents have been completed and are ready for plan generation.
 - [x] agent/workspace.md — workspace integration, Cargo.toml changes
 - [x] agent/domains.md — domain boundaries, interface contracts
 - [x] agent/blockers.md — no blockers
-- [x] agent/requirements.md — REQ-1..REQ-7 (in scratch/agent/)
-- [x] agent/tests.md — TST-1..TST-12 QA baseline (in scratch/agent/)
+- [x] agent/requirements.md — REQ-1..REQ-7
+- [x] agent/tests.md — TST-1..TST-12 QA baseline
 - [x] agent/crate-contracts/rpc-eth.md — public API, invariants
 - [x] agent/flows.md — 5 architecture flows
 - [x] agent/handoff.md — implementation order, file list, constraints

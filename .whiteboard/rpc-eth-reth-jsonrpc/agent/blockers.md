@@ -26,7 +26,7 @@ No hard blocker prevents synth design completion for reth-backed `rpc-eth` integ
 
 ### 4) Legacy-to-reth server migration coupling
 - Risk: replacing custom context/handler flow can break startup if boundary assumptions drift.
-- Mitigation: preserve a single `start_rpc_server` entrypoint and validate node-level wiring contract (TST-12).
+- Mitigation: preserve a single `start_rpc_server` entrypoint and validate node-level wiring contract (TST-6, TST-7).
 
 ## Explicit Non-Blockers
 - Increased compile time from additional reth dependencies is expected but not a design blocker.

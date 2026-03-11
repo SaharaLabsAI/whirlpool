@@ -35,7 +35,7 @@ Structured reference docs optimized for fast LLM lookup. Each contains type sign
 | [architecture/simplex-adapter.md](architecture/simplex-adapter.md) | Adapter bridge: CommonwareBlock, AppAdapter, CommonwareEngine, CommonwareConfig, Mailbox, FinalizationSink | `consensus-simplex` |
 | [architecture/whirlpool-node.md](architecture/whirlpool-node.md) | Node library exports: `config` (CLI/TOML) and `node` lifecycle | `whirlpool-node` (lib) |
 | [crates/whirlpool-node.md](crates/whirlpool-node.md) | EVM binary entrypoint and node configuration | `whirlpool-node` (bin) |
-| [crates/rpc-eth.md](crates/rpc-eth.md) | Ethereum JSON-RPC server: `eth_*` methods, context, receipt store | `rpc-eth` |
+| [crates/rpc-eth.md](crates/rpc-eth.md) | Ethereum JSON-RPC server: reth-backed adapters (WhirlpoolProvider, WhirlpoolTxPool, WhirlpoolNetwork), RpcConfig API, blob exclusion | `rpc-eth` |
 | [crates/state-reth.md](crates/state-reth.md) | Persistent state implementation: RethStateDb, MDBX, state root | `state-reth` |
 | [crates/mempool.md](crates/mempool.md) | Persistent transaction pool: MempoolStore, MDBX, FIFO ordering | `mempool` |
 

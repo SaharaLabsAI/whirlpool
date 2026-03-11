@@ -1,7 +1,7 @@
 {
-  "active_plan": "/home/dev/sahara/web3/agent/playground/whirlpool/.sisyphus/plans/node-config-startup-wiring/INDEX.md",
-  "started_at": "2026-03-10T04:00:00.000Z",
+  "active_plan": "/home/dev/sahara/web3/agent/playground/whirlpool/.sisyphus/plans/config-toml-multinode-test/INDEX.md",
+  "started_at": "2026-03-10T14:30:00.000Z",
   "session_ids": [],
-  "plan_name": "node-config-startup-wiring",
-  "worktree_path": "/home/dev/sahara/web3/agent/playground/whirlpool"
+  "plan_name": "config-toml-multinode-test",
+  "worktree_path": "/home/dev/sahara/web3/agent/playground/whirlpool-config-toml"
 }

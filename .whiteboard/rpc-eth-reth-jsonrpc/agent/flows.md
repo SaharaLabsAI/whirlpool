@@ -75,6 +75,6 @@ HTTP Client → JSON-RPC: {"method": "eth_blobBaseFee", "params": []}
     │
     └── reth EthApi::blob_base_fee()
             │
-            └── WhirlpoolProvider returns 0 blob base fee / header without blob fields
-                    → Response: "0x0" or unsupported error
+            └── Adapter contract enforces explicit unsupported-feature response
+                    └── No blob fee calculation and no blob sidecar path
 ```

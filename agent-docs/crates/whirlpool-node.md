@@ -9,13 +9,13 @@ Location: `crates/whirlpool-node/`
 - `consensus`: core interface traits from `consensus::traits`.
 - `consensus-simplex`: simplex adapter and engine.
 - `app`: application adapter + `TxSource` trait.
-- `app-evm`: EVM app implementation + `app_evm::traits::StateProvider`.
+- `app-evm`: EVM app implementation + `app_evm::traits::StateProvider` + `build_sahara_chain_spec()`.
 - `mempool`: `PersistentTxPool` for transaction storage.
 - `state`: `StateDb` trait, `StateError`, and `BlockStorage` trait.
 - `state-reth`: `RethStateDb` implementation for persistent state and block storage.
 - `state-memory`: `InMemoryStateDb` implementation (test code only).
 - `p2p-commonware`: network provider bridge.
-- `rpc-eth`: Ethereum JSON-RPC server (extracted from former `rpc/` module).
+- `rpc-eth`: `RpcConfig`, `start_rpc_server()` — Ethereum JSON-RPC server (reth-backed).
 - `clap`: CLI argument parsing (derive macros).
 
 ## config.rs Configuration
@@ -27,6 +27,15 @@ Location: `crates/whirlpool-node/`
 ## node.rs Lifecycle
 - **start_node(NodeConfig) -> NodeHandle**: Spawns consensus and RPC threads. Returns a handle with `Drop` implementation for teardown (crates/whirlpool-node/src/node.rs:50).
 - **NodeHandle**: Tracks RPC/P2P addresses and the thread join handle (crates/whirlpool-node/src/node.rs:26).
+
+### RPC Wiring (node.rs)
+The node constructs an `rpc_eth::RpcConfig` with:
+- `state_db`: `Arc<RethStateDb>` (shared with EVM application).
+- `chain_spec`: `Arc<ChainSpec>` from `build_sahara_chain_spec()` (cloned before EVM config takes ownership).
+- `tx_source`: `Arc<PersistentTxPool>` (implements `TxSource`).
+- `addr`: RPC listen address from `NodeConfig`.
+
+Then calls `rpc_eth::start_rpc_server(config)` to get `(RpcServerHandle, SocketAddr)`.
 
 ## main.rs Entrypoint
 Minimal wrapper:
@@ -44,7 +53,7 @@ Recovery relies on two persistence layers working together:
 - `PersistingFinalizationSink<DB, BS>`: `EventSink` implementation that persists finalized blocks to `BlockStorage` before delegating to the inner `FinalizationSink`.
 
 ## RPC
-The RPC implementation lives in the separate `rpc-eth` crate. See `agent-docs/crates/rpc-eth.md`. It uses the `RethStateDb` as its `BlockStorage` backend.
+The RPC implementation uses reth's production JSON-RPC stack via the `rpc-eth` crate. See `agent-docs/crates/rpc-eth.md`. The server serves all standard `eth_*` methods backed by `RethStateDb` (MDBX). Blob (EIP-4844) support is excluded.
 
 ## Import Migration Rule
 Use canonical `::traits::` paths for interface types; avoid non-canonical crate-root trait imports.

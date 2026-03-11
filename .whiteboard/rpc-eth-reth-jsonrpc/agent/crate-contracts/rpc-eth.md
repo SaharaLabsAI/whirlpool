@@ -37,7 +37,7 @@ pub enum RpcError {
 ### Internal Types (not exported)
 - `WhirlpoolProvider` — implements ~20 reth storage/provider traits
 - `WhirlpoolTxPool` — implements `TransactionPool`
-- `WhirlpoolNetwork` — implements `NetworkInfo`
+- `WhirlpoolNetwork` — implements `NetworkInfo + Peers`
 
 ## Dependencies
 
@@ -49,7 +49,7 @@ pub enum RpcError {
 - `reth-rpc` (EthApi concrete implementation)
 - `reth-provider` + `reth-storage-api` (provider traits to implement)
 - `reth-transaction-pool` (TransactionPool trait)
-- `reth-network-api` (NetworkInfo trait)
+- `reth-network-api` (NetworkInfo + Peers traits)
 - `reth-evm-ethereum` (EthEvmConfig)
 - `reth-consensus` (NoopConsensus)
 
@@ -57,9 +57,9 @@ pub enum RpcError {
 - `whirlpool-node` — calls `start_rpc_server(RpcConfig)`
 
 ## Invariants
-1. Server exposes all standard `eth_*` methods except blob-related ones
-2. `eth_blobBaseFee` returns unsupported/zero response
-3. Type-3 (blob) transactions rejected at pool level
-4. Provider reads are thread-safe (Arc<RwLock<StateDb>> for mutable state)
+1. Server exposes standard `eth_*` methods required by requirements, with blob method explicitly unsupported
+2. `eth_blobBaseFee` returns unsupported-feature style error
+3. Type-3 (blob) transactions are rejected at tx-pool adapter boundary
+4. Provider reads remain thread-safe and deterministic under adapter contracts
 5. Server runs on tokio runtime (same as whirlpool-node)
 6. No vendor code modifications — all adaptation via wrapper types
