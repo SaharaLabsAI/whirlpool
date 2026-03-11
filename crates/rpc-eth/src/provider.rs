@@ -3,7 +3,7 @@ use std::{
     sync::Arc,
 };
 
-use alloy_consensus::{transaction::TransactionMeta, BlockBody, Header};
+use alloy_consensus::{transaction::TransactionMeta, BlockBody, BlockHeader, Header};
 use alloy_eips::{BlockHashOrNumber, BlockId, BlockNumberOrTag};
 use alloy_primitives::{
     Address, BlockHash, BlockNumber, Bytes, StorageKey, StorageValue, TxHash, TxNumber, B256,
@@ -18,7 +18,9 @@ use reth_db_api::{
 };
 use reth_ethereum_primitives::{Block, EthPrimitives, Receipt, TransactionSigned};
 use reth_execution_types::ExecutionOutcome;
-use reth_primitives_traits::{Account, Block as _, Bytecode, RecoveredBlock, SealedHeader};
+use reth_primitives_traits::{
+    Account, Block as _, Bytecode, RecoveredBlock, SealedHeader, SignerRecoverable,
+};
 use reth_prune::{PruneCheckpoint, PruneSegment};
 use reth_stages_api::{StageCheckpoint, StageId};
 use reth_storage_api::{
@@ -36,7 +38,8 @@ use reth_trie::{
 };
 use state_reth::{
     tables::{
-        BlockBodyIndices, CanonicalHeaders, HeaderNumbers, Headers, TransactionBlocks, Transactions,
+        BlockBodyIndices, CanonicalHeaders, HeaderNumbers, Headers, Receipts, TransactionBlocks,
+        TransactionHashNumbers, Transactions,
     },
     RethStateDb,
 };
@@ -47,6 +50,20 @@ fn map_db_err(e: impl std::fmt::Display) -> ProviderError {
 }
 
 fn range_to_exclusive_bounds(range: impl RangeBounds<BlockNumber>) -> (BlockNumber, BlockNumber) {
+    let start = match range.start_bound() {
+        Bound::Included(&start) => start,
+        Bound::Excluded(&start) => start.saturating_add(1),
+        Bound::Unbounded => 0,
+    };
+    let end = match range.end_bound() {
+        Bound::Included(&end) => end.saturating_add(1),
+        Bound::Excluded(&end) => end,
+        Bound::Unbounded => u64::MAX,
+    };
+    (start, end)
+}
+
+fn tx_range_to_exclusive_bounds(range: impl RangeBounds<TxNumber>) -> (TxNumber, TxNumber) {
     let start = match range.start_bound() {
         Bound::Included(&start) => start,
         Bound::Excluded(&start) => start.saturating_add(1),
@@ -416,95 +433,249 @@ impl BlockReaderIdExt for WhirlpoolProvider {
 impl TransactionsProvider for WhirlpoolProvider {
     type Transaction = TransactionSigned;
 
-    fn transaction_id(&self, _tx_hash: TxHash) -> ProviderResult<Option<TxNumber>> {
-        Ok(None)
+    fn transaction_id(&self, tx_hash: TxHash) -> ProviderResult<Option<TxNumber>> {
+        let tx = self.state_db.inner().tx().map_err(map_db_err)?;
+        tx.get::<TransactionHashNumbers>(tx_hash)
+            .map_err(map_db_err)
     }
 
-    fn transaction_by_id(&self, _id: TxNumber) -> ProviderResult<Option<Self::Transaction>> {
-        Ok(None)
+    fn transaction_by_id(&self, id: TxNumber) -> ProviderResult<Option<Self::Transaction>> {
+        let tx = self.state_db.inner().tx().map_err(map_db_err)?;
+        tx.get::<Transactions>(id).map_err(map_db_err)
     }
 
     fn transaction_by_id_unhashed(
         &self,
-        _id: TxNumber,
+        id: TxNumber,
     ) -> ProviderResult<Option<Self::Transaction>> {
-        Ok(None)
+        self.transaction_by_id(id)
     }
 
-    fn transaction_by_hash(&self, _hash: TxHash) -> ProviderResult<Option<Self::Transaction>> {
-        Ok(None)
+    fn transaction_by_hash(&self, hash: TxHash) -> ProviderResult<Option<Self::Transaction>> {
+        let Some(id) = self.transaction_id(hash)? else {
+            return Ok(None);
+        };
+        self.transaction_by_id(id)
     }
 
     fn transaction_by_hash_with_meta(
         &self,
-        _hash: TxHash,
+        hash: TxHash,
     ) -> ProviderResult<Option<(Self::Transaction, TransactionMeta)>> {
-        Ok(None)
+        let tx = self.state_db.inner().tx().map_err(map_db_err)?;
+        let Some(tx_num) = tx.get::<TransactionHashNumbers>(hash).map_err(map_db_err)? else {
+            return Ok(None);
+        };
+        let Some(transaction) = tx.get::<Transactions>(tx_num).map_err(map_db_err)? else {
+            return Ok(None);
+        };
+        let Some(block_number) = tx.get::<TransactionBlocks>(tx_num).map_err(map_db_err)? else {
+            return Ok(None);
+        };
+        let Some(header) = tx.get::<Headers>(block_number).map_err(map_db_err)? else {
+            return Ok(None);
+        };
+        let block_hash = tx
+            .get::<CanonicalHeaders>(block_number)
+            .map_err(map_db_err)?
+            .unwrap_or_default();
+        let body_indices = tx
+            .get::<BlockBodyIndices>(block_number)
+            .map_err(map_db_err)?
+            .unwrap_or_default();
+        let tx_index = tx_num.saturating_sub(body_indices.first_tx_num());
+
+        let meta = TransactionMeta {
+            tx_hash: hash,
+            index: tx_index,
+            block_hash,
+            block_number,
+            base_fee: header.base_fee_per_gas(),
+            excess_blob_gas: header.excess_blob_gas(),
+            timestamp: header.timestamp(),
+        };
+        Ok(Some((transaction, meta)))
     }
 
     fn transactions_by_block(
         &self,
-        _block_id: BlockHashOrNumber,
+        block_id: BlockHashOrNumber,
     ) -> ProviderResult<Option<Vec<Self::Transaction>>> {
-        Ok(None)
+        let Some(block_number) = self.convert_hash_or_number(block_id)? else {
+            return Ok(None);
+        };
+        let Some(body_indices) = self.block_body_indices(block_number)? else {
+            return Ok(None);
+        };
+
+        if body_indices.tx_num_range().is_empty() {
+            return Ok(Some(Vec::new()));
+        }
+
+        self.transactions_by_tx_range(body_indices.tx_num_range())
+            .map(Some)
     }
 
     fn transactions_by_block_range(
         &self,
-        _range: impl RangeBounds<BlockNumber>,
+        range: impl RangeBounds<BlockNumber>,
     ) -> ProviderResult<Vec<Vec<Self::Transaction>>> {
-        Ok(Vec::default())
+        let (start, end) = range_to_exclusive_bounds(range);
+        if start >= end {
+            return Ok(Vec::new());
+        }
+
+        let mut transactions = Vec::with_capacity(end.saturating_sub(start) as usize);
+        for block_number in start..end {
+            match self.block_body_indices(block_number)? {
+                Some(body_indices) if !body_indices.tx_num_range().is_empty() => {
+                    transactions.push(self.transactions_by_tx_range(body_indices.tx_num_range())?);
+                }
+                _ => transactions.push(Vec::new()),
+            }
+        }
+        Ok(transactions)
     }
 
     fn transactions_by_tx_range(
         &self,
-        _range: impl RangeBounds<TxNumber>,
+        range: impl RangeBounds<TxNumber>,
     ) -> ProviderResult<Vec<Self::Transaction>> {
-        Ok(Vec::default())
+        let (start, end) = tx_range_to_exclusive_bounds(range);
+        if start >= end {
+            return Ok(Vec::new());
+        }
+
+        let tx = self.state_db.inner().tx().map_err(map_db_err)?;
+        let mut transactions = Vec::new();
+        for tx_num in start..end {
+            if let Some(transaction) = tx.get::<Transactions>(tx_num).map_err(map_db_err)? {
+                transactions.push(transaction);
+            }
+        }
+        Ok(transactions)
     }
 
     fn senders_by_tx_range(
         &self,
-        _range: impl RangeBounds<TxNumber>,
+        range: impl RangeBounds<TxNumber>,
     ) -> ProviderResult<Vec<Address>> {
-        Ok(Vec::default())
+        let transactions = self.transactions_by_tx_range(range)?;
+        transactions
+            .into_iter()
+            .map(|transaction| {
+                transaction
+                    .recover_signer()
+                    .map_err(|_| ProviderError::SenderRecoveryError)
+            })
+            .collect()
     }
 
-    fn transaction_sender(&self, _id: TxNumber) -> ProviderResult<Option<Address>> {
-        Ok(None)
+    fn transaction_sender(&self, id: TxNumber) -> ProviderResult<Option<Address>> {
+        let Some(transaction) = self.transaction_by_id(id)? else {
+            return Ok(None);
+        };
+        transaction
+            .recover_signer()
+            .map(Some)
+            .map_err(|_| ProviderError::SenderRecoveryError)
     }
 }
 
 impl ReceiptProvider for WhirlpoolProvider {
     type Receipt = Receipt;
 
-    fn receipt(&self, _id: TxNumber) -> ProviderResult<Option<Self::Receipt>> {
-        Ok(None)
+    fn receipt(&self, id: TxNumber) -> ProviderResult<Option<Self::Receipt>> {
+        let tx = self.state_db.inner().tx().map_err(map_db_err)?;
+        tx.get::<Receipts>(id).map_err(map_db_err)
     }
 
-    fn receipt_by_hash(&self, _hash: TxHash) -> ProviderResult<Option<Self::Receipt>> {
-        Ok(None)
+    fn receipt_by_hash(&self, hash: TxHash) -> ProviderResult<Option<Self::Receipt>> {
+        let Some(id) = self.transaction_id(hash)? else {
+            return Ok(None);
+        };
+        self.receipt(id)
     }
 
     fn receipts_by_block(
         &self,
-        _block: BlockHashOrNumber,
+        block: BlockHashOrNumber,
     ) -> ProviderResult<Option<Vec<Self::Receipt>>> {
-        Ok(None)
+        let Some(block_number) = self.convert_hash_or_number(block)? else {
+            return Ok(None);
+        };
+        let Some(body_indices) = self.block_body_indices(block_number)? else {
+            return Ok(None);
+        };
+
+        if body_indices.tx_num_range().is_empty() {
+            return Ok(Some(Vec::new()));
+        }
+
+        self.receipts_by_tx_range(body_indices.tx_num_range())
+            .map(Some)
     }
 
     fn receipts_by_tx_range(
         &self,
-        _range: impl RangeBounds<TxNumber>,
+        range: impl RangeBounds<TxNumber>,
     ) -> ProviderResult<Vec<Self::Receipt>> {
-        Ok(Vec::new())
+        let (start, end) = tx_range_to_exclusive_bounds(range);
+        if start >= end {
+            return Ok(Vec::new());
+        }
+
+        let tx = self.state_db.inner().tx().map_err(map_db_err)?;
+        let mut receipts = Vec::new();
+        for tx_num in start..end {
+            if let Some(receipt) = tx.get::<Receipts>(tx_num).map_err(map_db_err)? {
+                receipts.push(receipt);
+            }
+        }
+        Ok(receipts)
     }
 
     fn receipts_by_block_range(
         &self,
-        _block_range: RangeInclusive<BlockNumber>,
+        block_range: RangeInclusive<BlockNumber>,
     ) -> ProviderResult<Vec<Vec<Self::Receipt>>> {
-        Ok(Vec::new())
+        if block_range.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut block_body_indices =
+            Vec::with_capacity(block_range.end().saturating_sub(*block_range.start()) as usize + 1);
+        for block_number in block_range {
+            block_body_indices.push(self.block_body_indices(block_number)?.unwrap_or_default());
+        }
+
+        let non_empty_blocks: Vec<_> = block_body_indices
+            .iter()
+            .filter(|indices| indices.tx_count() > 0)
+            .collect();
+        if non_empty_blocks.is_empty() {
+            return Ok(vec![Vec::new(); block_body_indices.len()]);
+        }
+
+        let first_tx = non_empty_blocks[0].first_tx_num();
+        let last_tx = non_empty_blocks[non_empty_blocks.len() - 1].last_tx_num();
+        let mut receipts_iter = self.receipts_by_tx_range(first_tx..=last_tx)?.into_iter();
+
+        let mut receipts = Vec::with_capacity(block_body_indices.len());
+        for indices in &block_body_indices {
+            if indices.tx_count() == 0 {
+                receipts.push(Vec::new());
+            } else {
+                receipts.push(
+                    receipts_iter
+                        .by_ref()
+                        .take(indices.tx_count() as usize)
+                        .collect(),
+                );
+            }
+        }
+
+        Ok(receipts)
     }
 }
 
