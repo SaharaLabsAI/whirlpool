@@ -19,6 +19,7 @@ Persistent state storage implementation backed by reth-db (MDBX/libmdbx).
 ## Public API
 - `open_state_db(path: &Path) -> Result<RethStateDb, RethStateError>`: primary entry point.
 - `RethStateDb::open(path: &Path) -> Result<Self, RethStateError>`: opens or creates MDBX environment.
+- `RethStateDb::apply_genesis(chain_spec: &ChainSpec) -> Result<(), RethStateError>`: writes genesis account state (balance, nonce, code, storage) from the chain spec's genesis allocations into MDBX. Writes to both Plain and Hashed tables. Used by `start_node_with_chain_spec()` for integration tests with pre-funded accounts.
 
 ## Trait Implementations
 - `state::traits::StateDb`: persistent implementation with dual-writes (Plain + Hashed tables).
@@ -29,7 +30,7 @@ Persistent state storage implementation backed by reth-db (MDBX/libmdbx).
 ## Internal Design
 - **Persistence**: uses `reth_db::DatabaseEnv` (MDBX).
 - **Dual-Writes**: state is written to both Plain and Hashed tables to support both direct lookups and Merkle trie generation.
-- **Block Storage**: `store_block` validates tx/receipt length before opening a write tx, decodes 2718 txs once, writes canonical header/body/tx/receipt records atomically, and treats identical `(number, hash)` re-inserts as idempotent no-ops. `get_latest_block_number` uses `cursor_read::<CanonicalHeaders>().last()` for O(log N) tip recovery.
+- **Block Storage**: `store_block` validates tx/receipt length before opening a write tx, decodes 2718 txs once, writes canonical header/body/tx/receipt records atomically, and treats identical `(number, hash)` re-inserts as idempotent no-ops. Stored headers include `base_fee_per_gas` from EvmBlock and post-Cancun blob gas fields (`excess_blob_gas: Some(0)`, `blob_gas_used: Some(0)`). `get_latest_block_number` uses `cursor_read::<CanonicalHeaders>().last()` for O(log N) tip recovery.
 - **Trie**: Keccak256 hashing for state root computation via `compute_state_root`.
 - **Concurrency**: `Arc<DatabaseEnv>` enables `Clone + Send + Sync`.
 

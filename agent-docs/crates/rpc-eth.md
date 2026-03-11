@@ -26,7 +26,12 @@ Location: `crates/rpc-eth/`
 ### Adapter Pattern
 Three adapter types bridge Whirlpool's backend into reth's RPC trait requirements:
 
-1. **WhirlpoolProvider** (`provider.rs`, ~960 lines): Wraps `Arc<RethStateDb>` + `Arc<ChainSpec>`. Implements ~22 reth provider traits with real MDBX-backed reads for blocks, headers, transactions, receipts, and accounts. Includes `CanonStateSubscriptions` via `broadcast::channel` and `PersistedBlockSubscriptions` via `watch::channel`. Noop stubs for traits not yet needed (e.g., `EvmEnvProvider`, `WithdrawalsProvider`).
+1. **WhirlpoolProvider** (`provider.rs`, ~960 lines): Wraps `Arc<RethStateDb>` + `Arc<ChainSpec>`. Implements ~22 reth provider traits with real MDBX-backed reads for blocks, headers, transactions, receipts, accounts, bytecodes, and storage. Key implementations:
+   - `BlockReaderIdExt`: `block_by_id`, `sealed_header_by_id`, `header_by_id` resolve `BlockId` (Latest/Number/Hash) to block numbers via `convert_block_number` → MDBX lookups.
+   - `bytecode_by_hash`: reads from MDBX `Bytecodes` table, wraps `revm::state::Bytecode` → `reth_primitives_traits::Bytecode`.
+   - `storage`: reads from MDBX `PlainStorageState` table.
+   - `CanonStateSubscriptions` via `broadcast::channel` and `PersistedBlockSubscriptions` via `watch::channel`.
+   - Noop stubs for traits not yet needed (e.g., `EvmEnvProvider`, `WithdrawalsProvider`).
 
 2. **WhirlpoolTxPool** (`pool.rs`, ~380 lines): Wraps `Arc<dyn TxSource>`. Implements `TransactionPool` trait. Decodes incoming transactions via RLP, rejects EIP-4844 (Type-3) blob transactions at ingress with `PoolError::other`. Non-blob transactions are forwarded to `TxSource::push()`.
 
@@ -108,7 +113,7 @@ All standard `eth_*` methods from `RpcModuleSelection::standard_modules()` are s
 ## Key Design Notes
 - `WhirlpoolProvider` constructor creates internal `broadcast::channel(16)` for canon state notifications and `watch::channel(None)` for persisted block subscriptions.
 - MDBX access pattern: `self.state_db.inner().tx().map_err(map_db_err)?` for read-only transactions.
-- State tables used: `CanonicalHeaders`, `HeaderNumbers`, `Headers`, `BlockBodyIndices`, `Transactions`, `TransactionHashNumbers`, `TransactionBlocks`, `Receipts`, `HeaderTerminalDifficulties`, `PlainAccountState`.
+- State tables used: `CanonicalHeaders`, `HeaderNumbers`, `Headers`, `BlockBodyIndices`, `Transactions`, `TransactionHashNumbers`, `TransactionBlocks`, `Receipts`, `HeaderTerminalDifficulties`, `PlainAccountState`, `PlainStorageState`, `Bytecodes`.
 - On empty DB: `eth_blockNumber` returns 0, `eth_getBalance` returns 0, `eth_gasPrice` returns error ("block not found: latest").
 
 ## Status

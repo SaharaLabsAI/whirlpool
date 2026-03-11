@@ -9,7 +9,8 @@ Location: `crates/whirlpool-node/`
 - `consensus`: core interface traits from `consensus::traits`.
 - `consensus-simplex`: simplex adapter and engine.
 - `app`: application adapter + `TxSource` trait.
-- `app-evm`: EVM app implementation + `app_evm::traits::StateProvider` + `build_sahara_chain_spec()`.
+- `app-evm`: EVM app implementation + `app_evm::traits::StateProvider` + `build_sahara_chain_spec()` / `build_sahara_chain_spec_with_alloc()`.
+- `reth-chainspec`: `ChainSpec` type for custom chain spec injection.
 - `mempool`: `PersistentTxPool` for transaction storage.
 - `state`: `StateDb` trait, `StateError`, and `BlockStorage` trait.
 - `state-reth`: `RethStateDb` implementation for persistent state and block storage.
@@ -26,6 +27,7 @@ Location: `crates/whirlpool-node/`
 
 ## node.rs Lifecycle
 - **start_node(NodeConfig) -> NodeHandle**: Spawns consensus and RPC threads. Returns a handle with `Drop` implementation for teardown (crates/whirlpool-node/src/node.rs:50).
+- **start_node_with_chain_spec(NodeConfig, Option<Arc<ChainSpec>>) -> NodeHandle**: Variant that accepts an optional custom `ChainSpec`. When provided, applies genesis allocations from the chain spec to the MDBX database via `RethStateDb::apply_genesis()` before starting the node. Used for integration tests with pre-funded accounts.
 - **NodeHandle**: Tracks RPC/P2P addresses and the thread join handle (crates/whirlpool-node/src/node.rs:26).
 
 ### RPC Wiring (node.rs)

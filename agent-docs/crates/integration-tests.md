@@ -8,11 +8,14 @@ Location: `testing/integration-tests/`
 
 ## Dependency Boundaries
 - `app`: application traits and tx source (`InMemoryTxPool`).
-- `app-evm`: EVM application, `build_sahara_chain_spec()` for chain spec construction.
+- `app-evm`: EVM application, `build_sahara_chain_spec()` / `build_sahara_chain_spec_with_alloc()` for chain spec construction.
 - `rpc-eth`: `RpcConfig`, `start_rpc_server` — Ethereum JSON-RPC server wiring.
 - `state-reth`: `RethStateDb`, `open_state_db()` — persistent MDBX state for RPC tests.
+- `whirlpool-node`: `start_node_with_chain_spec()` — in-process node for full-node tests.
 - `reth-rpc-builder`: `RpcServerHandle` type (test server lifecycle).
+- `reth-chainspec`: `ChainSpec` type for custom chain specs.
 - `alloy-primitives`: Ethereum types (Address, B256, U256).
+- `alloy-genesis`: `GenesisAccount` for pre-funded genesis allocations.
 - `serde_json`: JSON construction for raw HTTP RPC calls.
 - `reqwest`: HTTP client for raw RPC calls.
 - `tempfile`: `TempDir` for ephemeral MDBX databases.
@@ -84,6 +87,23 @@ Per-method param validation tests mirroring reth `rpc-builder/tests/it/http.rs`.
 - `contract_eth_protocol_version`: accept success or error.
 
 **Excluded (blob tx):** No tests for `eth_sendTransaction` with type-3 blobs, `eth_blobBaseFee` param variants, or any EIP-4844-specific methods beyond what `tst10` already covers.
+
+**Full-node transaction tests (3 total, `test_*_full_node`):**
+Boot an in-process whirlpool node with pre-funded genesis accounts, submit real transactions, wait for block inclusion, and verify state changes.
+
+Shared helpers:
+- `allocate_port() -> u16`: Finds an available TCP port via ephemeral binding.
+- `start_funded_node(seed, funded_addresses) -> (NodeHandle, SocketAddr)`: Builds a custom chain spec with pre-funded accounts (100 ETH each), starts a node via `start_node_with_chain_spec()`.
+- `wait_for_block(addr, min_height, timeout)`: Polls `eth_blockNumber` until target height reached.
+- `wait_for_receipt(addr, tx_hash, timeout) -> serde_json::Value`: Polls `eth_getTransactionReceipt` until non-null.
+- `send_raw_tx(addr, raw_hex) -> String`: Submits via `eth_sendRawTransaction`, returns tx hash.
+- `sign_eip1559_tx(key, nonce, to, value, data, gas_limit) -> (TxHash, raw_hex)`: Signs an EIP-1559 transaction with chain_id=313371, max_fee=20gwei, max_priority_fee=1gwei.
+- `deploy_minimal_contract(addr, key, nonce) -> (TxHash, raw_hex)`: Deploys a minimal contract that returns `uint256(42)`. Init code: 21 bytes, runtime: 10 bytes.
+
+Tests:
+- `test_eth_transfer_full_node` (seed=100): Fund sender with 100 ETH → send 1 ETH to recipient → verify receipt status=1 → verify recipient balance via `eth_getBalance`.
+- `test_contract_deploy_full_node` (seed=101): Deploy minimal contract → verify receipt status=1, `contractAddress` present → verify deployed code via `eth_getCode` → verify `eth_call` returns 42.
+- `test_contract_call_full_node` (seed=102): Deploy contract → call `eth_call` against deployed address → verify return value is `uint256(42)` (ABI-encoded).
 
 ### `tests/multinode_consensus.rs`
 End-to-end consensus test for a 4-node network using `whirlpool_node::node::start_node`.
