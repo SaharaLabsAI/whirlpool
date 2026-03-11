@@ -358,3 +358,495 @@ async fn tst11_request_shape_permutations() {
         "eth_accounts should expose no unlocked accounts in test RPC: {accounts}"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Contract tests: per-method param validation
+//
+// Each test calls one RPC method with valid params (expect success or a
+// well-formed null/result on empty DB) and with invalid/missing params
+// (expect a JSON-RPC error). Mirrors the approach from
+// vendor/reth rpc-builder/tests/it/http.rs but excludes blob tx methods.
+//
+// Methods already covered in tst4–tst11 are NOT duplicated here:
+//   eth_chainId (tst4), eth_blockNumber (tst5), eth_getBalance (tst6),
+//   eth_syncing (tst7), eth_getBlockByNumber (tst8),
+//   eth_sendRawTransaction + blob rejection (tst9), eth_blobBaseFee (tst10),
+//   eth_gasPrice / eth_accounts / invalid method (tst11).
+// ---------------------------------------------------------------------------
+
+/// Assert that the JSON-RPC response contains a result (no error).
+/// Accepts null results (valid for lookups on empty DB).
+fn assert_rpc_ok(body: &serde_json::Value, method: &str) {
+    assert!(
+        body.get("error").is_none() || body["error"].is_null(),
+        "{method}: expected success but got error: {body}"
+    );
+}
+
+/// Assert that the JSON-RPC response contains an error object.
+fn assert_rpc_err(body: &serde_json::Value, method: &str) {
+    assert!(
+        body["error"].is_object(),
+        "{method}: expected error but got success: {body}"
+    );
+}
+
+fn rpc_req(method: &str, params: serde_json::Value) -> serde_json::Value {
+    serde_json::json!({
+        "jsonrpc": "2.0",
+        "method": method,
+        "params": params,
+        "id": 1,
+    })
+}
+
+const ZERO_ADDR: &str = "0x0000000000000000000000000000000000000000";
+const ZERO_HASH: &str = "0x0000000000000000000000000000000000000000000000000000000000000000";
+
+// ---- Address + optional block param methods --------------------------------
+
+#[tokio::test(flavor = "current_thread")]
+async fn contract_eth_get_transaction_count() {
+    let _guard = lock_rpc_tests();
+    let server = start_test_rpc().await;
+    let client = test_client();
+
+    // Valid: address + latest block tag
+    let ok = post_json(client, &server, rpc_req("eth_getTransactionCount", serde_json::json!([ZERO_ADDR, "latest"]))).await;
+    assert_rpc_ok(&ok, "eth_getTransactionCount");
+
+    // Valid: address only (optional block)
+    let ok2 = post_json(client, &server, rpc_req("eth_getTransactionCount", serde_json::json!([ZERO_ADDR]))).await;
+    assert_rpc_ok(&ok2, "eth_getTransactionCount (no block)");
+
+    // Invalid: no params
+    let err = post_json(client, &server, rpc_req("eth_getTransactionCount", serde_json::json!([]))).await;
+    assert_rpc_err(&err, "eth_getTransactionCount (no params)");
+
+    // Invalid: bad address
+    let err2 = post_json(client, &server, rpc_req("eth_getTransactionCount", serde_json::json!(["not_an_address", "latest"]))).await;
+    assert_rpc_err(&err2, "eth_getTransactionCount (bad address)");
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn contract_eth_get_code() {
+    let _guard = lock_rpc_tests();
+    let server = start_test_rpc().await;
+    let client = test_client();
+
+    let ok = post_json(client, &server, rpc_req("eth_getCode", serde_json::json!([ZERO_ADDR, "latest"]))).await;
+    assert_rpc_ok(&ok, "eth_getCode");
+
+    let err = post_json(client, &server, rpc_req("eth_getCode", serde_json::json!([]))).await;
+    assert_rpc_err(&err, "eth_getCode (no params)");
+
+    let err2 = post_json(client, &server, rpc_req("eth_getCode", serde_json::json!(["not_an_address", "latest"]))).await;
+    assert_rpc_err(&err2, "eth_getCode (bad address)");
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn contract_eth_get_storage_at() {
+    let _guard = lock_rpc_tests();
+    let server = start_test_rpc().await;
+    let client = test_client();
+
+    let ok = post_json(client, &server, rpc_req("eth_getStorageAt", serde_json::json!([ZERO_ADDR, ZERO_HASH, "latest"]))).await;
+    assert_rpc_ok(&ok, "eth_getStorageAt");
+
+    let err = post_json(client, &server, rpc_req("eth_getStorageAt", serde_json::json!([]))).await;
+    assert_rpc_err(&err, "eth_getStorageAt (no params)");
+
+    let err2 = post_json(client, &server, rpc_req("eth_getStorageAt", serde_json::json!(["not_an_address", ZERO_HASH, "latest"]))).await;
+    assert_rpc_err(&err2, "eth_getStorageAt (bad address)");
+}
+
+// ---- Hash-param methods ----------------------------------------------------
+
+#[tokio::test(flavor = "current_thread")]
+async fn contract_eth_get_block_by_hash() {
+    let _guard = lock_rpc_tests();
+    let server = start_test_rpc().await;
+    let client = test_client();
+
+    // Valid: returns null for non-existent hash on empty DB
+    let ok = post_json(client, &server, rpc_req("eth_getBlockByHash", serde_json::json!([ZERO_HASH, false]))).await;
+    assert_rpc_ok(&ok, "eth_getBlockByHash");
+
+    // Invalid: no params
+    let err = post_json(client, &server, rpc_req("eth_getBlockByHash", serde_json::json!([]))).await;
+    assert_rpc_err(&err, "eth_getBlockByHash (no params)");
+
+    // Invalid: bad hash
+    let err2 = post_json(client, &server, rpc_req("eth_getBlockByHash", serde_json::json!(["0xbadhash", false]))).await;
+    assert_rpc_err(&err2, "eth_getBlockByHash (bad hash)");
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn contract_eth_get_transaction_by_hash() {
+    let _guard = lock_rpc_tests();
+    let server = start_test_rpc().await;
+    let client = test_client();
+
+    let ok = post_json(client, &server, rpc_req("eth_getTransactionByHash", serde_json::json!([ZERO_HASH]))).await;
+    assert_rpc_ok(&ok, "eth_getTransactionByHash");
+
+    let err = post_json(client, &server, rpc_req("eth_getTransactionByHash", serde_json::json!([]))).await;
+    assert_rpc_err(&err, "eth_getTransactionByHash (no params)");
+
+    let err2 = post_json(client, &server, rpc_req("eth_getTransactionByHash", serde_json::json!(["0xbadhash"]))).await;
+    assert_rpc_err(&err2, "eth_getTransactionByHash (bad hash)");
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn contract_eth_get_transaction_receipt() {
+    let _guard = lock_rpc_tests();
+    let server = start_test_rpc().await;
+    let client = test_client();
+
+    let ok = post_json(client, &server, rpc_req("eth_getTransactionReceipt", serde_json::json!([ZERO_HASH]))).await;
+    assert_rpc_ok(&ok, "eth_getTransactionReceipt");
+
+    let err = post_json(client, &server, rpc_req("eth_getTransactionReceipt", serde_json::json!([]))).await;
+    assert_rpc_err(&err, "eth_getTransactionReceipt (no params)");
+
+    let err2 = post_json(client, &server, rpc_req("eth_getTransactionReceipt", serde_json::json!(["0xbadhash"]))).await;
+    assert_rpc_err(&err2, "eth_getTransactionReceipt (bad hash)");
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn contract_eth_get_block_transaction_count_by_hash() {
+    let _guard = lock_rpc_tests();
+    let server = start_test_rpc().await;
+    let client = test_client();
+
+    let ok = post_json(client, &server, rpc_req("eth_getBlockTransactionCountByHash", serde_json::json!([ZERO_HASH]))).await;
+    assert_rpc_ok(&ok, "eth_getBlockTransactionCountByHash");
+
+    let err = post_json(client, &server, rpc_req("eth_getBlockTransactionCountByHash", serde_json::json!([]))).await;
+    assert_rpc_err(&err, "eth_getBlockTransactionCountByHash (no params)");
+
+    let err2 = post_json(client, &server, rpc_req("eth_getBlockTransactionCountByHash", serde_json::json!(["0xbadhash"]))).await;
+    assert_rpc_err(&err2, "eth_getBlockTransactionCountByHash (bad hash)");
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn contract_eth_get_uncle_count_by_block_hash() {
+    let _guard = lock_rpc_tests();
+    let server = start_test_rpc().await;
+    let client = test_client();
+
+    let ok = post_json(client, &server, rpc_req("eth_getUncleCountByBlockHash", serde_json::json!([ZERO_HASH]))).await;
+    assert_rpc_ok(&ok, "eth_getUncleCountByBlockHash");
+
+    let err = post_json(client, &server, rpc_req("eth_getUncleCountByBlockHash", serde_json::json!([]))).await;
+    assert_rpc_err(&err, "eth_getUncleCountByBlockHash (no params)");
+}
+
+// ---- Number-param methods --------------------------------------------------
+
+#[tokio::test(flavor = "current_thread")]
+async fn contract_eth_get_block_transaction_count_by_number() {
+    let _guard = lock_rpc_tests();
+    let server = start_test_rpc().await;
+    let client = test_client();
+
+    let ok = post_json(client, &server, rpc_req("eth_getBlockTransactionCountByNumber", serde_json::json!(["0x0"]))).await;
+    assert_rpc_ok(&ok, "eth_getBlockTransactionCountByNumber");
+
+    let err = post_json(client, &server, rpc_req("eth_getBlockTransactionCountByNumber", serde_json::json!([]))).await;
+    assert_rpc_err(&err, "eth_getBlockTransactionCountByNumber (no params)");
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn contract_eth_get_uncle_count_by_block_number() {
+    let _guard = lock_rpc_tests();
+    let server = start_test_rpc().await;
+    let client = test_client();
+
+    let ok = post_json(client, &server, rpc_req("eth_getUncleCountByBlockNumber", serde_json::json!(["0x0"]))).await;
+    assert_rpc_ok(&ok, "eth_getUncleCountByBlockNumber");
+
+    let err = post_json(client, &server, rpc_req("eth_getUncleCountByBlockNumber", serde_json::json!([]))).await;
+    assert_rpc_err(&err, "eth_getUncleCountByBlockNumber (no params)");
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn contract_eth_get_block_receipts() {
+    let _guard = lock_rpc_tests();
+    let server = start_test_rpc().await;
+    let client = test_client();
+
+    let ok = post_json(client, &server, rpc_req("eth_getBlockReceipts", serde_json::json!(["0x0"]))).await;
+    assert_rpc_ok(&ok, "eth_getBlockReceipts");
+
+    // No params — should error
+    let err = post_json(client, &server, rpc_req("eth_getBlockReceipts", serde_json::json!([]))).await;
+    assert_rpc_err(&err, "eth_getBlockReceipts (no params)");
+}
+
+// ---- Index methods (uncle/tx by block + index) -----------------------------
+
+#[tokio::test(flavor = "current_thread")]
+async fn contract_eth_get_uncle_by_block_hash_and_index() {
+    let _guard = lock_rpc_tests();
+    let server = start_test_rpc().await;
+    let client = test_client();
+
+    let ok = post_json(client, &server, rpc_req("eth_getUncleByBlockHashAndIndex", serde_json::json!([ZERO_HASH, "0x0"]))).await;
+    assert_rpc_ok(&ok, "eth_getUncleByBlockHashAndIndex");
+
+    let err = post_json(client, &server, rpc_req("eth_getUncleByBlockHashAndIndex", serde_json::json!([]))).await;
+    assert_rpc_err(&err, "eth_getUncleByBlockHashAndIndex (no params)");
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn contract_eth_get_uncle_by_block_number_and_index() {
+    let _guard = lock_rpc_tests();
+    let server = start_test_rpc().await;
+    let client = test_client();
+
+    let ok = post_json(client, &server, rpc_req("eth_getUncleByBlockNumberAndIndex", serde_json::json!(["0x0", "0x0"]))).await;
+    assert_rpc_ok(&ok, "eth_getUncleByBlockNumberAndIndex");
+
+    let err = post_json(client, &server, rpc_req("eth_getUncleByBlockNumberAndIndex", serde_json::json!([]))).await;
+    assert_rpc_err(&err, "eth_getUncleByBlockNumberAndIndex (no params)");
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn contract_eth_get_transaction_by_block_hash_and_index() {
+    let _guard = lock_rpc_tests();
+    let server = start_test_rpc().await;
+    let client = test_client();
+
+    let ok = post_json(client, &server, rpc_req("eth_getTransactionByBlockHashAndIndex", serde_json::json!([ZERO_HASH, "0x0"]))).await;
+    assert_rpc_ok(&ok, "eth_getTransactionByBlockHashAndIndex");
+
+    let err = post_json(client, &server, rpc_req("eth_getTransactionByBlockHashAndIndex", serde_json::json!([]))).await;
+    assert_rpc_err(&err, "eth_getTransactionByBlockHashAndIndex (no params)");
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn contract_eth_get_transaction_by_block_number_and_index() {
+    let _guard = lock_rpc_tests();
+    let server = start_test_rpc().await;
+    let client = test_client();
+
+    let ok = post_json(client, &server, rpc_req("eth_getTransactionByBlockNumberAndIndex", serde_json::json!(["0x0", "0x0"]))).await;
+    assert_rpc_ok(&ok, "eth_getTransactionByBlockNumberAndIndex");
+
+    let err = post_json(client, &server, rpc_req("eth_getTransactionByBlockNumberAndIndex", serde_json::json!([]))).await;
+    assert_rpc_err(&err, "eth_getTransactionByBlockNumberAndIndex (no params)");
+}
+
+// ---- Fee / estimate / call methods (expect error on empty DB) --------------
+
+#[tokio::test(flavor = "current_thread")]
+async fn contract_eth_fee_history() {
+    let _guard = lock_rpc_tests();
+    let server = start_test_rpc().await;
+    let client = test_client();
+
+    // On empty DB, feeHistory may error because no blocks exist
+    let resp = post_json(client, &server, rpc_req("eth_feeHistory", serde_json::json!(["0x1", "latest", [25, 75]]))).await;
+    // Accept either success or error — both are valid on empty DB
+    assert!(
+        resp.get("result").is_some() || resp["error"].is_object(),
+        "eth_feeHistory: unexpected response: {resp}"
+    );
+
+    // Invalid: no params
+    let err = post_json(client, &server, rpc_req("eth_feeHistory", serde_json::json!([]))).await;
+    assert_rpc_err(&err, "eth_feeHistory (no params)");
+
+    // Invalid: bad block count type
+    let err2 = post_json(client, &server, rpc_req("eth_feeHistory", serde_json::json!(["not_a_number", "latest", []]))).await;
+    assert_rpc_err(&err2, "eth_feeHistory (bad block count)");
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn contract_eth_estimate_gas() {
+    let _guard = lock_rpc_tests();
+    let server = start_test_rpc().await;
+    let client = test_client();
+
+    // On empty DB, estimateGas errors (no block)
+    let err = post_json(client, &server, rpc_req("eth_estimateGas", serde_json::json!([{"to": ZERO_ADDR}]))).await;
+    assert_rpc_err(&err, "eth_estimateGas (empty DB)");
+
+    // Invalid: no params
+    let err2 = post_json(client, &server, rpc_req("eth_estimateGas", serde_json::json!([]))).await;
+    assert_rpc_err(&err2, "eth_estimateGas (no params)");
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn contract_eth_call() {
+    let _guard = lock_rpc_tests();
+    let server = start_test_rpc().await;
+    let client = test_client();
+
+    // On empty DB, eth_call errors (no block)
+    let err = post_json(client, &server, rpc_req("eth_call", serde_json::json!([{"to": ZERO_ADDR}, "latest"]))).await;
+    assert_rpc_err(&err, "eth_call (empty DB)");
+
+    // Invalid: no params
+    let err2 = post_json(client, &server, rpc_req("eth_call", serde_json::json!([]))).await;
+    assert_rpc_err(&err2, "eth_call (no params)");
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn contract_eth_create_access_list() {
+    let _guard = lock_rpc_tests();
+    let server = start_test_rpc().await;
+    let client = test_client();
+
+    // On empty DB, createAccessList errors (no block)
+    let err = post_json(client, &server, rpc_req("eth_createAccessList", serde_json::json!([{"to": ZERO_ADDR}, "latest"]))).await;
+    assert_rpc_err(&err, "eth_createAccessList (empty DB)");
+
+    // Invalid: no params
+    let err2 = post_json(client, &server, rpc_req("eth_createAccessList", serde_json::json!([]))).await;
+    assert_rpc_err(&err2, "eth_createAccessList (no params)");
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn contract_eth_max_priority_fee_per_gas() {
+    let _guard = lock_rpc_tests();
+    let server = start_test_rpc().await;
+    let client = test_client();
+
+    // On empty DB, maxPriorityFeePerGas errors (no block for fee oracle)
+    let resp = post_json(client, &server, rpc_req("eth_maxPriorityFeePerGas", serde_json::json!([]))).await;
+    assert!(
+        resp["error"].is_object()
+            || resp["result"].as_str().is_some_and(|v| v.starts_with("0x")),
+        "eth_maxPriorityFeePerGas: expected error or hex on empty DB: {resp}"
+    );
+}
+
+// ---- net_ / web3_ methods --------------------------------------------------
+
+#[tokio::test(flavor = "current_thread")]
+async fn contract_net_version() {
+    let _guard = lock_rpc_tests();
+    let server = start_test_rpc().await;
+    let client = test_client();
+
+    let ok = post_json(client, &server, rpc_req("net_version", serde_json::json!([]))).await;
+    assert_rpc_ok(&ok, "net_version");
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn contract_net_peer_count() {
+    let _guard = lock_rpc_tests();
+    let server = start_test_rpc().await;
+    let client = test_client();
+
+    let ok = post_json(client, &server, rpc_req("net_peerCount", serde_json::json!([]))).await;
+    assert_rpc_ok(&ok, "net_peerCount");
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn contract_net_listening() {
+    let _guard = lock_rpc_tests();
+    let server = start_test_rpc().await;
+    let client = test_client();
+
+    let ok = post_json(client, &server, rpc_req("net_listening", serde_json::json!([]))).await;
+    assert_rpc_ok(&ok, "net_listening");
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn contract_web3_client_version() {
+    let _guard = lock_rpc_tests();
+    let server = start_test_rpc().await;
+    let client = test_client();
+
+    let ok = post_json(client, &server, rpc_req("web3_clientVersion", serde_json::json!([]))).await;
+    assert_rpc_ok(&ok, "web3_clientVersion");
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn contract_web3_sha3() {
+    let _guard = lock_rpc_tests();
+    let server = start_test_rpc().await;
+    let client = test_client();
+
+    let ok = post_json(client, &server, rpc_req("web3_sha3", serde_json::json!(["0x68656c6c6f"]))).await;
+    assert_rpc_ok(&ok, "web3_sha3");
+    // Verify it returns keccak256("hello")
+    assert_eq!(
+        ok["result"].as_str().unwrap_or_default(),
+        "0x1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8",
+        "web3_sha3 keccak256 mismatch"
+    );
+
+    // Invalid: no params
+    let err = post_json(client, &server, rpc_req("web3_sha3", serde_json::json!([]))).await;
+    assert_rpc_err(&err, "web3_sha3 (no params)");
+
+    // Invalid: bad hex
+    let err2 = post_json(client, &server, rpc_req("web3_sha3", serde_json::json!(["not_hex"]))).await;
+    assert_rpc_err(&err2, "web3_sha3 (bad hex)");
+}
+
+// ---- Unimplemented methods (expect error) ----------------------------------
+
+#[tokio::test(flavor = "current_thread")]
+async fn contract_eth_coinbase() {
+    let _guard = lock_rpc_tests();
+    let server = start_test_rpc().await;
+    let client = test_client();
+
+    let err = post_json(client, &server, rpc_req("eth_coinbase", serde_json::json!([]))).await;
+    assert_rpc_err(&err, "eth_coinbase (unimplemented)");
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn contract_eth_mining() {
+    let _guard = lock_rpc_tests();
+    let server = start_test_rpc().await;
+    let client = test_client();
+
+    let resp = post_json(client, &server, rpc_req("eth_mining", serde_json::json!([]))).await;
+    // eth_mining may return false or error depending on implementation
+    assert!(
+        resp["error"].is_object() || resp["result"] == serde_json::Value::Bool(false),
+        "eth_mining: expected error or false: {resp}"
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn contract_eth_get_work() {
+    let _guard = lock_rpc_tests();
+    let server = start_test_rpc().await;
+    let client = test_client();
+
+    let err = post_json(client, &server, rpc_req("eth_getWork", serde_json::json!([]))).await;
+    assert_rpc_err(&err, "eth_getWork (unimplemented)");
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn contract_eth_submit_work() {
+    let _guard = lock_rpc_tests();
+    let server = start_test_rpc().await;
+    let client = test_client();
+
+    let err = post_json(client, &server, rpc_req("eth_submitWork", serde_json::json!(["0x0", ZERO_HASH, ZERO_HASH]))).await;
+    assert_rpc_err(&err, "eth_submitWork (unimplemented)");
+}
+
+// ---- eth_protocolVersion ---------------------------------------------------
+
+#[tokio::test(flavor = "current_thread")]
+async fn contract_eth_protocol_version() {
+    let _guard = lock_rpc_tests();
+    let server = start_test_rpc().await;
+    let client = test_client();
+
+    let resp = post_json(client, &server, rpc_req("eth_protocolVersion", serde_json::json!([]))).await;
+    // protocolVersion may be implemented or not — accept success or unimplemented error
+    assert!(
+        resp.get("result").is_some() || resp["error"].is_object(),
+        "eth_protocolVersion: unexpected response: {resp}"
+    );
+}
