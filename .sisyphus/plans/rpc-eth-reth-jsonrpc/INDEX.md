@@ -96,7 +96,7 @@
 - [x] Task 07: Implement `WhirlpoolNetwork` [**S**] -> [tasks/07-network-adapter.md](tasks/07-network-adapter.md)
 - [x] Task 08: Add `convert.rs` block and transaction conversion helpers [**M**] -> [tasks/08-conversion-layer.md](tasks/08-conversion-layer.md)
 - [x] Task 09: Rewire `server.rs` through `RpcModuleBuilder` [**M**] -> [tasks/09-rpcmodulebuilder-server-wiring.md](tasks/09-rpcmodulebuilder-server-wiring.md)
-- [ ] Task 10: Rewrite `lib.rs` and remove legacy RPC surface [**S**] -> [tasks/10-public-api-and-legacy-surface-removal.md](tasks/10-public-api-and-legacy-surface-removal.md)
+- [x] Task 10: Rewrite `lib.rs` and remove legacy RPC surface [**S**] -> [tasks/10-public-api-and-legacy-surface-removal.md](tasks/10-public-api-and-legacy-surface-removal.md)
 - [ ] Task 11: Update `whirlpool-node` for `RpcConfig` startup [**M**] -> [tasks/11-whirlpool-node-rpc-wiring.md](tasks/11-whirlpool-node-rpc-wiring.md)
 - [ ] Task 12: Add basic reth-backed RPC integration coverage [**L**] -> [tasks/12-basic-reth-rpc-integration-tests.md](tasks/12-basic-reth-rpc-integration-tests.md)
 - [ ] Task 13: Add blob exclusion and remaining RPC integration coverage [**M**] -> [tasks/13-blob-and-remaining-rpc-integration-tests.md](tasks/13-blob-and-remaining-rpc-integration-tests.md)
