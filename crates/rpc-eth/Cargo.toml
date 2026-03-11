@@ -4,18 +4,48 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+# --- Whirlpool crates ---
 app = { path = "../app" }
 state = { path = "../state" }
+state-reth = { path = "../state-reth" }
 
+# --- Legacy deps (still used by existing source; removed when source is rewritten) ---
 jsonrpsee = { version = "0.26.0", features = ["server", "macros"] }
-
 alloy-consensus = "1.4.3"
 alloy-primitives = { version = "1.5.0" }
 alloy-rpc-types = { version = "1.4.3", features = ["eth"] }
-
-serde = { version = "1" }
 async-trait = "0.1"
+
+# --- Reth RPC stack ---
+reth-rpc = { path = "../../vendor/reth/crates/rpc/rpc" }
+reth-rpc-builder = { path = "../../vendor/reth/crates/rpc/rpc-builder" }
+reth-rpc-eth-api = { path = "../../vendor/reth/crates/rpc/rpc-eth-api" }
+reth-rpc-eth-types = { path = "../../vendor/reth/crates/rpc/rpc-eth-types" }
+reth-rpc-server-types = { path = "../../vendor/reth/crates/rpc/rpc-server-types" }
+
+# --- Reth provider / storage ---
+reth-provider = { path = "../../vendor/reth/crates/storage/provider" }
+reth-storage-api = { path = "../../vendor/reth/crates/storage/storage-api" }
+reth-storage-errors = { path = "../../vendor/reth/crates/storage/errors" }
+reth-chain-state = { path = "../../vendor/reth/crates/chain-state" }
+
+# --- Reth primitives / types ---
+reth-primitives-traits = { path = "../../vendor/reth/crates/primitives-traits" }
+reth-ethereum-primitives = { path = "../../vendor/reth/crates/ethereum/primitives" }
+reth-chainspec = { path = "../../vendor/reth/crates/chainspec" }
+
+# --- Reth network / pool / evm / consensus ---
+reth-network-api = { path = "../../vendor/reth/crates/net/network-api" }
+reth-transaction-pool = { path = "../../vendor/reth/crates/transaction-pool" }
+reth-evm-ethereum = { path = "../../vendor/reth/crates/ethereum/evm" }
+reth-consensus = { path = "../../vendor/reth/crates/consensus/consensus" }
+reth-tasks = { path = "../../vendor/reth/crates/tasks" }
+
+# --- Common ---
+serde = { version = "1" }
 tracing = "0.1"
+tokio = { version = "1", features = ["full"] }
+parking_lot = "0.12"
 
 [dev-dependencies]
 state-memory = { path = "../state-memory" }
