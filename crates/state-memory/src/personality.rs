@@ -139,4 +139,27 @@ mod tests {
             Some(replacement)
         );
     }
+
+    #[test]
+    fn in_memory_store_drops_state_across_instances() {
+        let first_store = InMemoryPersonalityStorage::new();
+        first_store
+            .put(stored_personality("# First", 1))
+            .expect("write must succeed");
+        assert_eq!(first_store.len().expect("len must succeed"), 1);
+
+        let replacement_store = InMemoryPersonalityStorage::new();
+        assert!(
+            replacement_store
+                .is_empty()
+                .expect("empty check must succeed"),
+            "new in-memory store should not retain prior process state"
+        );
+        assert_eq!(
+            replacement_store
+                .get_latest(b"persona-1")
+                .expect("latest lookup must succeed"),
+            None
+        );
+    }
 }

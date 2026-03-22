@@ -63,7 +63,7 @@ ZERO HUMAN INTERVENTION. Every task writes evidence under `.sisyphus/evidence/ad
 - [x] Task 3: Extend mixed proposal and verification without EVM regression [**L**] -> [tasks/03-mixed-proposal-verification.md](tasks/03-mixed-proposal-verification.md)
 - [x] Task 4: Add prototype personality store and finalization flushing [**M**] -> [tasks/04-finalization-store.md](tasks/04-finalization-store.md)
 - [x] Task 5: Wire workspace and dual RPC node composition [**M**] -> [tasks/05-workspace-and-node-wiring.md](tasks/05-workspace-and-node-wiring.md)
-- [ ] Task 6: Integration verification and final audit [**M**] -> [tasks/06-integration-and-audit.md](tasks/06-integration-and-audit.md)
+- [x] Task 6: Integration verification and final audit [**M**] -> [tasks/06-integration-and-audit.md](tasks/06-integration-and-audit.md)
 <!-- TASKS_END -->
 
 ## Artifact Registry
@@ -76,7 +76,7 @@ ZERO HUMAN INTERVENTION. Every task writes evidence under `.sisyphus/evidence/ad
 | TST-004 | Mixed block preservation | `propose_mixed_block_preserves_mem_and_executes_evm`, `verify_accepts_mixed_block_with_mem_transactions` | `crates/app-evm/src/executor.rs` | Task 3 | done |
 | TST-005 | Finalization-only visibility | `store_is_empty_before_finalized_writes`, `prefinalized_events_do_not_make_personality_visible`, `finalized_events_persist_personality_writes` | `crates/state-memory/src/personality.rs`, `crates/whirlpool-node/src/persisting_sink.rs` | Task 4 | done |
 | TST-006 | Replacement semantics | `latest_finalized_write_replaces_existing_personality` | `crates/state-memory/src/personality.rs` | Task 4 | done |
-| TST-007 | Prototype volatility documentation | pending | docs or integration verification | Task 6 | pending |
+| TST-007 | Prototype volatility documentation | `in_memory_store_drops_state_across_instances` | `crates/state-memory/src/personality.rs` | Task 6 | done |
 <!-- ARTIFACTS_END -->
 
 ## Final Verification

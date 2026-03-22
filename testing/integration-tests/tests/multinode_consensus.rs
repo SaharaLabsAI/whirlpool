@@ -27,6 +27,7 @@ async fn test_four_node_consensus() {
 
     let p2p_ports: Vec<u16> = (0..num_nodes).map(|_| allocate_port()).collect();
     let rpc_ports: Vec<u16> = (0..num_nodes).map(|_| allocate_port()).collect();
+    let mem_rpc_ports: Vec<u16> = (0..num_nodes).map(|_| allocate_port()).collect();
     let tempdirs: Vec<_> = (0..num_nodes)
         .map(|_| tempfile::tempdir().expect("tempdir"))
         .collect();
@@ -54,6 +55,7 @@ async fn test_four_node_consensus() {
             identity: IdentityConfig { seed: i as u64 },
             rpc: RpcConfig {
                 bind_addr: format!("127.0.0.1:{}", rpc_ports[i]).parse().unwrap(),
+                mem_bind_addr: format!("127.0.0.1:{}", mem_rpc_ports[i]).parse().unwrap(),
             },
             storage: StorageConfig {
                 data_dir: tempdirs[i].path().to_path_buf(),
