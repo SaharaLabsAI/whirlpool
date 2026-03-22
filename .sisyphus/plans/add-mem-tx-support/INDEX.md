@@ -62,7 +62,7 @@ ZERO HUMAN INTERVENTION. Every task writes evidence under `.sisyphus/evidence/ad
 - [x] Task 2: Add `rpc-mem` ingress and submission tests [**M**] -> [tasks/02-rpc-mem-ingress.md](tasks/02-rpc-mem-ingress.md)
 - [x] Task 3: Extend mixed proposal and verification without EVM regression [**L**] -> [tasks/03-mixed-proposal-verification.md](tasks/03-mixed-proposal-verification.md)
 - [x] Task 4: Add prototype personality store and finalization flushing [**M**] -> [tasks/04-finalization-store.md](tasks/04-finalization-store.md)
-- [ ] Task 5: Wire workspace and dual RPC node composition [**M**] -> [tasks/05-workspace-and-node-wiring.md](tasks/05-workspace-and-node-wiring.md)
+- [x] Task 5: Wire workspace and dual RPC node composition [**M**] -> [tasks/05-workspace-and-node-wiring.md](tasks/05-workspace-and-node-wiring.md)
 - [ ] Task 6: Integration verification and final audit [**M**] -> [tasks/06-integration-and-audit.md](tasks/06-integration-and-audit.md)
 <!-- TASKS_END -->
 

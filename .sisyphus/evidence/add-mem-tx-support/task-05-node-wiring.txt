@@ -1,0 +1,21 @@
+Task 05 validation evidence
+
+Command:
+- nix develop --command cargo build -p whirlpool-node -p rpc-mem -p app-mem
+- nix develop --command cargo test -p integration-tests --test rpc_integration test_dual_rpc_servers_share_node_tx_source
+
+Result:
+- PASS
+
+Implemented files:
+- crates/whirlpool-node/Cargo.toml
+- crates/whirlpool-node/src/config.rs
+- crates/whirlpool-node/src/node.rs
+- testing/integration-tests/Cargo.toml
+- testing/integration-tests/tests/rpc_integration.rs
+
+Covered behavior:
+- whirlpool-node starts separate Ethereum and mem RPC servers from shared node state
+- mem RPC submissions use the shared opaque-byte TxSource contract
+- Ethereum RPC behavior remains available on the Ethereum endpoint
+- mem_submitPersonality is not exposed on the Ethereum RPC endpoint

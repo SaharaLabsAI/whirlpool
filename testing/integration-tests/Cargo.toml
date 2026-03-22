@@ -8,7 +8,9 @@ edition.workspace = true
 [dependencies]
 app = { path = "../../crates/app" }
 app-evm = { path = "../../crates/app-evm" }
+app-mem = { path = "../../crates/app-mem" }
 rpc-eth = { path = "../../crates/rpc-eth" }
+rpc-mem = { path = "../../crates/rpc-mem" }
 state = { path = "../../crates/state" }
 state-memory = { path = "../../crates/state-memory" }
 state-reth = { path = "../../crates/state-reth" }

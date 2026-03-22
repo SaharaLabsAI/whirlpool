@@ -10,7 +10,8 @@ use consensus_simplex::{CommonwareConfig, CommonwareEngine, FinalizationSink};
 use mempool_mdbx::PersistentTxPool;
 use p2p_commonware::CommonwareNetworkProviderBuilder;
 use reth_chainspec::ChainSpec;
-use rpc_eth as rpc;
+use rpc_eth as eth_rpc;
+use rpc_mem::{self as mem_rpc, TxSourceMemoryTxService};
 use state_memory::InMemoryPersonalityStorage;
 use std::error::Error;
 use std::net::SocketAddr;
@@ -27,6 +28,7 @@ use state::BlockStorage;
 
 pub struct NodeHandle {
     pub rpc_addr: SocketAddr,
+    pub mem_rpc_addr: SocketAddr,
     pub p2p_addr: SocketAddr,
     pub public_key: ed25519::PublicKey,
     thread: Option<JoinHandle<()>>,
@@ -43,6 +45,7 @@ impl Drop for NodeHandle {
 
 struct NodeInfo {
     rpc_addr: SocketAddr,
+    mem_rpc_addr: SocketAddr,
     p2p_addr: SocketAddr,
     public_key: ed25519::PublicKey,
 }
@@ -168,19 +171,28 @@ pub fn start_node_with_chain_spec(
             let _running = engine.start().expect("failed to start consensus engine");
             info!("Consensus engine created and started successfully");
 
-            let rpc_config = rpc::RpcConfig {
+            let eth_rpc_config = eth_rpc::RpcConfig {
                 state_db: block_storage.clone(),
-                chain_spec,
+                chain_spec: chain_spec.clone(),
                 tx_source: tx_pool.clone(),
                 addr: config.rpc.bind_addr,
             };
-            let (_rpc_handle, rpc_addr) = rpc::start_rpc_server(rpc_config)
+            let (_eth_rpc_handle, rpc_addr) = eth_rpc::start_rpc_server(eth_rpc_config)
                 .await
-                .expect("failed to start RPC server");
-            info!(%rpc_addr, %dialable_addr, "JSON-RPC server started");
+                .expect("failed to start Ethereum RPC server");
+
+            let mem_rpc_service = Arc::new(TxSourceMemoryTxService::new(tx_pool.clone()));
+            let (_mem_rpc_handle, mem_rpc_addr) = mem_rpc::start_rpc_server(
+                mem_rpc_service,
+                config.rpc.mem_bind_addr,
+            )
+            .await
+            .expect("failed to start memory RPC server");
+            info!(%rpc_addr, %mem_rpc_addr, %dialable_addr, "JSON-RPC servers started");
 
             let _ = info_tx.send(Ok(NodeInfo {
                 rpc_addr,
+                mem_rpc_addr,
                 p2p_addr: dialable_addr,
                 public_key: public_key.clone(),
             }));
@@ -196,6 +208,7 @@ pub fn start_node_with_chain_spec(
 
     Ok(NodeHandle {
         rpc_addr: node_info.rpc_addr,
+        mem_rpc_addr: node_info.mem_rpc_addr,
         p2p_addr: node_info.p2p_addr,
         public_key: node_info.public_key,
         thread: Some(thread),

@@ -18,6 +18,7 @@ pub const BLOCK_INTERVAL: Duration = Duration::from_secs(5);
 pub const BIND_ADDR: &str = "127.0.0.1:0";
 pub const VALIDATOR_SEED: u64 = 0;
 pub const RPC_BIND_ADDR: &str = "127.0.0.1:8545";
+pub const MEM_RPC_BIND_ADDR: &str = "127.0.0.1:8645";
 pub const DEFAULT_DATA_DIR: &str = "data";
 pub const DEFAULT_MAX_MESSAGE_SIZE: u32 = 1024 * 1024;
 
@@ -40,6 +41,8 @@ pub struct NodeArgs {
     pub validator: Vec<String>,
     #[arg(long)]
     pub rpc_addr: Option<SocketAddr>,
+    #[arg(long)]
+    pub mem_rpc_addr: Option<SocketAddr>,
     #[arg(long)]
     pub data_dir: Option<PathBuf>,
     #[arg(long)]
@@ -79,6 +82,7 @@ pub struct IdentityConfig {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RpcConfig {
     pub bind_addr: SocketAddr,
+    pub mem_bind_addr: SocketAddr,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -99,6 +103,7 @@ pub struct TomlConfig {
     pub bootstrap_peers: Option<Vec<String>>,
     pub validator_seed: Option<u64>,
     pub rpc_addr: Option<String>,
+    pub mem_rpc_addr: Option<String>,
     pub data_dir: Option<String>,
     pub max_message_size: Option<u32>,
     pub network_namespace: Option<String>,
@@ -214,6 +219,9 @@ impl Default for RpcConfig {
             bind_addr: RPC_BIND_ADDR
                 .parse()
                 .expect("default RPC bind address must be valid"),
+            mem_bind_addr: MEM_RPC_BIND_ADDR
+                .parse()
+                .expect("default mem RPC bind address must be valid"),
         }
     }
 }
@@ -352,6 +360,13 @@ pub fn load_config(args: NodeArgs) -> Result<NodeConfig, ConfigError> {
             None => defaults.rpc.bind_addr,
         },
     };
+    let mem_rpc_addr = match args.mem_rpc_addr {
+        Some(addr) => addr,
+        None => match file_config.as_ref().and_then(|cfg| cfg.mem_rpc_addr.clone()) {
+            Some(value) => parse_socket_addr("mem_rpc_addr", value)?,
+            None => defaults.rpc.mem_bind_addr,
+        },
+    };
     let validator_seed = args
         .validator_seed
         .or_else(|| file_config.as_ref().and_then(|cfg| cfg.validator_seed))
@@ -416,7 +431,10 @@ pub fn load_config(args: NodeArgs) -> Result<NodeConfig, ConfigError> {
         identity: IdentityConfig {
             seed: validator_seed,
         },
-        rpc: RpcConfig { bind_addr: rpc_addr },
+        rpc: RpcConfig {
+            bind_addr: rpc_addr,
+            mem_bind_addr: mem_rpc_addr,
+        },
         storage: StorageConfig { data_dir },
         consensus: ConsensusStartupConfig {
             namespace: consensus_namespace
@@ -470,6 +488,7 @@ impl From<NodeArgs> for NodeConfig {
             },
             rpc: RpcConfig {
                 bind_addr: args.rpc_addr.unwrap_or(defaults.rpc.bind_addr),
+                mem_bind_addr: args.mem_rpc_addr.unwrap_or(defaults.rpc.mem_bind_addr),
             },
             storage: StorageConfig {
                 data_dir: args.data_dir.unwrap_or(defaults.storage.data_dir),
@@ -526,6 +545,7 @@ mod tests {
         assert_eq!(config.network.max_message_size, 1_048_576);
         assert_eq!(config.identity.seed, 0);
         assert_eq!(config.rpc.bind_addr, RPC_BIND_ADDR.parse().unwrap());
+        assert_eq!(config.rpc.mem_bind_addr, MEM_RPC_BIND_ADDR.parse().unwrap());
         assert_eq!(config.storage.data_dir, PathBuf::from("data"));
         assert_eq!(config.consensus.namespace, b"sahara-chain-v0");
         assert_eq!(config.consensus.block_interval, Duration::from_secs(5));
@@ -590,6 +610,7 @@ mod tests {
             validator_seed: Some(42),
             validator: validators.clone(),
             rpc_addr: Some("0.0.0.0:8080".parse().unwrap()),
+            mem_rpc_addr: Some("0.0.0.0:8180".parse().unwrap()),
             data_dir: Some(PathBuf::from("/tmp/whirlpool")),
             max_message_size: Some(2_000_000),
             network_namespace: Some("custom-net".to_string()),
@@ -608,6 +629,7 @@ mod tests {
         assert_eq!(config.network.namespace, b"custom-net");
         assert_eq!(config.identity.seed, 42);
         assert_eq!(config.rpc.bind_addr, "0.0.0.0:8080".parse().unwrap());
+        assert_eq!(config.rpc.mem_bind_addr, "0.0.0.0:8180".parse().unwrap());
         assert_eq!(config.storage.data_dir, PathBuf::from("/tmp/whirlpool"));
         assert_eq!(config.consensus.namespace, b"custom-cons");
         assert_eq!(config.consensus.block_interval, Duration::from_millis(2000));
@@ -656,7 +678,7 @@ mod tests {
         let bootstrap_key = ed25519::PrivateKey::from_seed(45).public_key();
         let bootstrap_peer = format!("{}@127.0.0.1:4010", hex(bootstrap_key.as_ref()));
         let path = write_config_file(&format!(
-            "listen_addr = \"127.0.0.1:4011\"\ndialable_addr = \"10.0.0.1:4011\"\nbootstrap_peers = [\"{bootstrap_peer}\"]\nvalidator_seed = 99\nrpc_addr = \"127.0.0.1:9555\"\ndata_dir = \"custom-data\"\nmax_message_size = 2097152\nnetwork_namespace = \"toml-net\"\nconsensus_namespace = \"toml-consensus\"\nblock_interval_ms = 1234\nvalidators = [\"{validator}\"]\n"
+            "listen_addr = \"127.0.0.1:4011\"\ndialable_addr = \"10.0.0.1:4011\"\nbootstrap_peers = [\"{bootstrap_peer}\"]\nvalidator_seed = 99\nrpc_addr = \"127.0.0.1:9555\"\nmem_rpc_addr = \"127.0.0.1:9655\"\ndata_dir = \"custom-data\"\nmax_message_size = 2097152\nnetwork_namespace = \"toml-net\"\nconsensus_namespace = \"toml-consensus\"\nblock_interval_ms = 1234\nvalidators = [\"{validator}\"]\n"
         ));
 
         let config = load_config(NodeArgs {
@@ -668,6 +690,7 @@ mod tests {
             validator_seed: None,
             validator: vec![],
             rpc_addr: None,
+            mem_rpc_addr: None,
             data_dir: None,
             max_message_size: None,
             network_namespace: None,
@@ -681,6 +704,7 @@ mod tests {
         assert_eq!(config.network.bootstrap_peers.len(), 1);
         assert_eq!(config.identity.seed, 99);
         assert_eq!(config.rpc.bind_addr, "127.0.0.1:9555".parse().unwrap());
+        assert_eq!(config.rpc.mem_bind_addr, "127.0.0.1:9655".parse().unwrap());
         assert_eq!(config.storage.data_dir, PathBuf::from("custom-data"));
         assert_eq!(config.network.max_message_size, 2_097_152);
         assert_eq!(config.network.namespace, b"toml-net");
@@ -692,7 +716,7 @@ mod tests {
     #[test]
     fn tst_02_cli_overrides_toml() {
         let path = write_config_file(
-            "listen_addr = \"127.0.0.1:4011\"\nrpc_addr = \"127.0.0.1:9555\"\nvalidator_seed = 7\nmax_message_size = 1000\nnetwork_namespace = \"toml-net\"\nvalidators = [\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"]\n",
+            "listen_addr = \"127.0.0.1:4011\"\nrpc_addr = \"127.0.0.1:9555\"\nmem_rpc_addr = \"127.0.0.1:9655\"\nvalidator_seed = 7\nmax_message_size = 1000\nnetwork_namespace = \"toml-net\"\nvalidators = [\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"]\n",
         );
         let cli_validators = validator_hexes(&[2, 3]);
 
@@ -705,6 +729,7 @@ mod tests {
             validator_seed: Some(42),
             validator: cli_validators.clone(),
             rpc_addr: Some("0.0.0.0:8546".parse().unwrap()),
+            mem_rpc_addr: Some("0.0.0.0:8646".parse().unwrap()),
             data_dir: None,
             max_message_size: Some(2048),
             network_namespace: Some("cli-net".into()),
@@ -715,6 +740,7 @@ mod tests {
 
         assert_eq!(config.network.listen_addr, "0.0.0.0:5000".parse().unwrap());
         assert_eq!(config.rpc.bind_addr, "0.0.0.0:8546".parse().unwrap());
+        assert_eq!(config.rpc.mem_bind_addr, "0.0.0.0:8646".parse().unwrap());
         assert_eq!(config.identity.seed, 42);
         assert_eq!(config.network.max_message_size, 2048);
         assert_eq!(config.network.namespace, b"cli-net");
@@ -733,6 +759,7 @@ mod tests {
             validator_seed: Some(88),
             validator: vec![validator],
             rpc_addr: Some("0.0.0.0:8546".parse().unwrap()),
+            mem_rpc_addr: Some("0.0.0.0:8646".parse().unwrap()),
             data_dir: Some(PathBuf::from("compat-data")),
             max_message_size: Some(4096),
             network_namespace: Some("compat-net".into()),
@@ -765,6 +792,7 @@ mod tests {
             validator_seed: None,
             validator: vec![],
             rpc_addr: None,
+            mem_rpc_addr: None,
             data_dir: None,
             max_message_size: None,
             network_namespace: None,
@@ -791,6 +819,7 @@ mod tests {
             validator_seed: None,
             validator: vec![],
             rpc_addr: None,
+            mem_rpc_addr: None,
             data_dir: None,
             max_message_size: None,
             network_namespace: None,
@@ -815,6 +844,7 @@ mod tests {
             validator_seed: None,
             validator: vec![],
             rpc_addr: None,
+            mem_rpc_addr: None,
             data_dir: None,
             max_message_size: None,
             network_namespace: None,
@@ -842,6 +872,7 @@ mod tests {
             validator_seed: None,
             validator: vec![],
             rpc_addr: None,
+            mem_rpc_addr: None,
             data_dir: None,
             max_message_size: Some(8192),
             network_namespace: Some("cli-net".into()),
@@ -871,6 +902,7 @@ mod tests {
             validator_seed: None,
             validator: vec![],
             rpc_addr: None,
+            mem_rpc_addr: None,
             data_dir: None,
             max_message_size: None,
             network_namespace: None,

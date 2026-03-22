@@ -9,6 +9,7 @@ app-evm = { path = "../app-evm" }
 app-mem = { path = "../app-mem" }
 mempool-mdbx = { path = "../mempool-mdbx" }
 rpc-eth = { path = "../rpc-eth" }
+rpc-mem = { path = "../rpc-mem" }
 reth-chainspec = { path = "../../vendor/reth/crates/chainspec" }
 reth-revm = { path = "../../vendor/reth/crates/revm" }
 state = { path = "../state" }
