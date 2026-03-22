@@ -6,6 +6,7 @@ edition.workspace = true
 [dependencies]
 app = { path = "../app" }
 app-evm = { path = "../app-evm" }
+app-mem = { path = "../app-mem" }
 mempool-mdbx = { path = "../mempool-mdbx" }
 rpc-eth = { path = "../rpc-eth" }
 reth-chainspec = { path = "../../vendor/reth/crates/chainspec" }

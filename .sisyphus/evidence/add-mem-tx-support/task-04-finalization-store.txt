@@ -1,0 +1,29 @@
+Task 04 validation evidence
+
+Command:
+- nix develop --command cargo test -p state-memory
+- nix develop --command cargo test -p whirlpool-node
+
+Result:
+- PASS
+
+Implemented files:
+- crates/state/src/lib.rs
+- crates/state/src/personality_storage.rs
+- crates/state-memory/Cargo.toml
+- crates/state-memory/src/lib.rs
+- crates/state-memory/src/personality.rs
+- crates/whirlpool-node/Cargo.toml
+- crates/whirlpool-node/src/node.rs
+- crates/whirlpool-node/src/persisting_sink.rs
+- Cargo.lock
+
+Covered behavior:
+- store_is_empty_before_finalized_writes
+- latest_finalized_write_replaces_existing_personality
+- prefinalized_events_do_not_make_personality_visible
+- finalized_events_persist_personality_writes
+- personality_storage_failure_does_not_block_finalization
+- block_storage_failure_does_not_block_personality_flush
+- finalized personality writes remain invisible before finalization
+- latest finalized write replaces visible personality state while signer+nonce lookups remain queryable

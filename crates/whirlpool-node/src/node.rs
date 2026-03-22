@@ -11,6 +11,7 @@ use mempool_mdbx::PersistentTxPool;
 use p2p_commonware::CommonwareNetworkProviderBuilder;
 use reth_chainspec::ChainSpec;
 use rpc_eth as rpc;
+use state_memory::InMemoryPersonalityStorage;
 use std::error::Error;
 use std::net::SocketAddr;
 use std::num::NonZeroUsize;
@@ -116,6 +117,7 @@ pub fn start_node_with_chain_spec(
 
             let state_db = Arc::new(RwLock::new(reth_db.clone()));
             let block_storage = Arc::new(reth_db);
+            let personality_storage = Arc::new(InMemoryPersonalityStorage::new());
 
             let recovered_height = block_storage
                 .get_latest_block_number()
@@ -157,6 +159,7 @@ pub fn start_node_with_chain_spec(
                 inner_sink,
                 evm_app.clone(),
                 block_storage.clone(),
+                personality_storage,
             ));
 
             let app = Arc::new(ApplicationAdapter::new(evm_app));

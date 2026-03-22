@@ -9159,6 +9159,7 @@ dependencies = [
  "revm",
  "sha2 0.10.9",
  "state",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -10386,6 +10387,7 @@ dependencies = [
  "alloy-primitives",
  "app",
  "app-evm",
+ "app-mem",
  "bytes",
  "clap",
  "commonware-codec",
