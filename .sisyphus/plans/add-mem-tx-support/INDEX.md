@@ -59,7 +59,7 @@ ZERO HUMAN INTERVENTION. Every task writes evidence under `.sisyphus/evidence/ad
 ## Task List
 <!-- TASKS_START -->
 - [x] Task 1: Add `app-mem` crate contracts and behavior tests [**M**] -> [tasks/01-app-mem-crate-and-tests.md](tasks/01-app-mem-crate-and-tests.md)
-- [ ] Task 2: Add `rpc-mem` ingress and submission tests [**M**] -> [tasks/02-rpc-mem-ingress.md](tasks/02-rpc-mem-ingress.md)
+- [x] Task 2: Add `rpc-mem` ingress and submission tests [**M**] -> [tasks/02-rpc-mem-ingress.md](tasks/02-rpc-mem-ingress.md)
 - [ ] Task 3: Extend mixed proposal and verification without EVM regression [**L**] -> [tasks/03-mixed-proposal-verification.md](tasks/03-mixed-proposal-verification.md)
 - [ ] Task 4: Add prototype personality store and finalization flushing [**M**] -> [tasks/04-finalization-store.md](tasks/04-finalization-store.md)
 - [ ] Task 5: Wire workspace and dual RPC node composition [**M**] -> [tasks/05-workspace-and-node-wiring.md](tasks/05-workspace-and-node-wiring.md)
@@ -70,7 +70,7 @@ ZERO HUMAN INTERVENTION. Every task writes evidence under `.sisyphus/evidence/ad
 <!-- ARTIFACTS_START -->
 | TestID | Planned Name | Actual Name | Location | Created By | Status |
 |--------|-------------|-------------|----------|------------|--------|
-| TST-001 | Mixed ingress happy path | pending | `testing/integration-tests` | Task 6 | pending |
+| TST-001 | Mixed ingress happy path | `submit_personality_enqueues_bytes_and_returns_hash`, `rpc_server_accepts_valid_submission` | `crates/rpc-mem/tests/submit_contract.rs` | Task 2 | done |
 | TST-002 | Oversize markdown rejection | `rejects_oversize_markdown` | `crates/app-mem/src/lib.rs` | Task 1 | done |
 | TST-003 | Hash mismatch rejection | `rejects_markdown_hash_mismatch` | `crates/app-mem/src/lib.rs` | Task 1 | done |
 | TST-004 | Mixed block preservation | pending | `crates/app-evm` integration tests | Task 3 | pending |

@@ -7,6 +7,7 @@ members = [
     "crates/p2p",
     "crates/p2p-commonware",
     "crates/rpc-eth",
+    "crates/rpc-mem",
     "crates/whirlpool-node",
     "crates/state",
     "crates/state-memory",

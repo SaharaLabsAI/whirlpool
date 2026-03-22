@@ -8390,6 +8390,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "rpc-mem"
+version = "0.1.0"
+dependencies = [
+ "app",
+ "app-mem",
+ "async-trait",
+ "hex",
+ "jsonrpsee",
+ "serde",
+ "thiserror 2.0.18",
+ "tokio",
+]
+
+[[package]]
 name = "ruint"
 version = "1.17.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
