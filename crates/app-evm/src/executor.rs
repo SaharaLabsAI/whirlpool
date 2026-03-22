@@ -9,6 +9,7 @@ use app::{
     traits::{Application, TxSource},
     EvmBlock, ExecutionResult, Receipt,
 };
+use app_mem::decode_personality_tx;
 use reth_ethereum_primitives::TransactionSigned;
 use reth_evm::{
     execute::{BlockBuilder, BlockExecutor},
@@ -24,6 +25,12 @@ use crate::error::EvmAppError;
 pub use crate::traits::StateProvider;
 
 pub type RecoveredTx = Recovered<TransactionSigned>;
+
+#[derive(Clone)]
+enum ClassifiedTx {
+    Evm { raw_tx: Vec<u8>, tx: RecoveredTx },
+    Mem { raw_tx: Vec<u8> },
+}
 
 /// Converts an `EvmBlock` into an Ethereum `Header`.
 pub fn build_header_from_evm_block(block: &EvmBlock) -> Header {
@@ -57,18 +64,39 @@ fn build_sealed_header(block: &EvmBlock) -> SealedHeader {
 pub fn decode_transactions(raw_txs: &[Vec<u8>]) -> Result<Vec<RecoveredTx>, EvmAppError> {
     raw_txs
         .iter()
-        .map(|raw_tx| {
-            let mut input = raw_tx.as_slice();
-            let tx = TransactionSigned::decode_2718(&mut input)
-                .map_err(|err| EvmAppError::InvalidBlock(err.to_string()))?;
-
-            let signer = tx
-                .try_recover()
-                .map_err(|err| EvmAppError::InvalidBlock(err.to_string()))?;
-
-            Ok(tx.with_signer(signer))
-        })
+        .map(|raw_tx| decode_evm_transaction(raw_tx))
         .collect()
+}
+
+fn decode_evm_transaction(raw_tx: &[u8]) -> Result<RecoveredTx, EvmAppError> {
+    let mut input = raw_tx;
+    let tx = TransactionSigned::decode_2718(&mut input)
+        .map_err(|err| EvmAppError::InvalidBlock(err.to_string()))?;
+
+    let signer = tx
+        .try_recover()
+        .map_err(|err| EvmAppError::InvalidBlock(err.to_string()))?;
+
+    Ok(tx.with_signer(signer))
+}
+
+fn classify_transaction(raw_tx: &[u8]) -> Result<ClassifiedTx, EvmAppError> {
+    if let Ok(tx) = decode_evm_transaction(raw_tx) {
+        return Ok(ClassifiedTx::Evm {
+            raw_tx: raw_tx.to_vec(),
+            tx,
+        });
+    }
+
+    decode_personality_tx(raw_tx)
+        .map(|_| ClassifiedTx::Mem {
+            raw_tx: raw_tx.to_vec(),
+        })
+        .map_err(|err| EvmAppError::InvalidTransaction(err.to_string()))
+}
+
+fn classify_transactions(raw_txs: &[Vec<u8>]) -> Result<Vec<ClassifiedTx>, EvmAppError> {
+    raw_txs.iter().map(|raw_tx| classify_transaction(raw_tx)).collect()
 }
 
 #[derive(Clone)]
@@ -171,14 +199,7 @@ where
             }
 
             let raw_pending = self.tx_source.pending();
-            let decoded_pending: Vec<(Vec<u8>, RecoveredTx)> = raw_pending
-                .iter()
-                .filter_map(|raw| {
-                    decode_transactions(std::slice::from_ref(raw))
-                        .ok()
-                        .and_then(|mut decoded| decoded.pop().map(|tx| (raw.clone(), tx)))
-                })
-                .collect();
+            let classified_pending = classify_transactions(&raw_pending)?;
 
             let parent_header = build_sealed_header(parent);
 
@@ -214,19 +235,22 @@ where
                 .map_err(|err| EvmAppError::Execution(err.to_string()))?;
 
             let mut executed_raw_txs = Vec::new();
-            for (raw_tx, tx) in decoded_pending {
-                match builder.execute_transaction(tx.clone()) {
-                    Ok(_) => {
-                        executed_raw_txs.push(raw_tx);
-                    }
-                    Err(reth_evm::execute::BlockExecutionError::Validation(
-                        reth_evm::execute::BlockValidationError::InvalidTx { .. },
-                    )) => {
-                        continue;
-                    }
-                    Err(err) => {
-                        return Err(EvmAppError::Execution(err.to_string()));
-                    }
+            for classified_tx in classified_pending {
+                match classified_tx {
+                    ClassifiedTx::Evm { raw_tx, tx } => match builder.execute_transaction(tx.clone()) {
+                        Ok(_) => {
+                            executed_raw_txs.push(raw_tx);
+                        }
+                        Err(reth_evm::execute::BlockExecutionError::Validation(
+                            reth_evm::execute::BlockValidationError::InvalidTx { .. },
+                        )) => {
+                            continue;
+                        }
+                        Err(err) => {
+                            return Err(EvmAppError::Execution(err.to_string()));
+                        }
+                    },
+                    ClassifiedTx::Mem { raw_tx } => executed_raw_txs.push(raw_tx),
                 }
             }
 
@@ -321,10 +345,7 @@ where
         block: &Self::Block,
     ) -> impl std::future::Future<Output = Result<Self::Result, Self::Error>> + Send {
         async move {
-            // 1. Decode ALL transactions (must succeed or fail entire verification)
-            let decoded_txs = decode_transactions(&block.transactions).map_err(|_| {
-                EvmAppError::InvalidTransaction("Failed to decode all transactions".into())
-            })?;
+            let classified_txs = classify_transactions(&block.transactions)?;
 
             // 2. Clone state for isolated re-execution
             let mut exec_state = {
@@ -366,10 +387,12 @@ where
                 .map_err(|err| EvmAppError::Execution(err.to_string()))?;
 
             // 5. Execute all transactions
-            for tx in decoded_txs {
-                builder.execute_transaction(tx).map_err(|err| {
-                    EvmAppError::Execution(format!("Transaction execution failed: {}", err))
-                })?;
+            for classified_tx in classified_txs {
+                if let ClassifiedTx::Evm { tx, .. } = classified_tx {
+                    builder.execute_transaction(tx).map_err(|err| {
+                        EvmAppError::Execution(format!("Transaction execution failed: {}", err))
+                    })?;
+                }
             }
 
             // 6. Finish execution
@@ -467,6 +490,7 @@ mod tests {
     use alloy_consensus::{SignableTransaction, TxLegacy};
     use alloy_eips::eip2718::Encodable2718;
     use alloy_primitives::{Address, Signature, TxKind};
+    use app_mem::{compute_markdown_hash, PersonalityMarkdownTx, SignatureScheme};
     use reth_primitives_traits::SignerRecoverable;
     use state_memory::InMemoryStateDb;
 
@@ -563,6 +587,47 @@ mod tests {
 
         let app = EvmApplication::new(config, db.clone(), source);
         (app, db)
+    }
+
+    fn sample_mem_tx() -> Vec<u8> {
+        PersonalityMarkdownTx::new(
+            b"signer-1".to_vec(),
+            b"persona-1".to_vec(),
+            7,
+            b"# Persona\nBe precise.".to_vec(),
+            SignatureScheme::RawSecp256k1,
+            vec![0x11; 65],
+        )
+        .encode()
+        .expect("mem tx should encode")
+    }
+
+    fn tampered_mem_tx() -> Vec<u8> {
+        let mut tx = PersonalityMarkdownTx::new(
+            b"signer-1".to_vec(),
+            b"persona-1".to_vec(),
+            7,
+            b"# Persona\nBe precise.".to_vec(),
+            SignatureScheme::RawSecp256k1,
+            vec![0x11; 65],
+        );
+        tx.markdown_hash = compute_markdown_hash(b"different markdown");
+        tx.encode().expect_err("hash mismatch should fail during encode");
+
+        let mut encoded = Vec::new();
+        encoded.push(tx.version);
+        encoded.extend_from_slice(&(tx.signer.len() as u32).to_le_bytes());
+        encoded.extend_from_slice(&tx.signer);
+        encoded.extend_from_slice(&(tx.personality_id.len() as u32).to_le_bytes());
+        encoded.extend_from_slice(&tx.personality_id);
+        encoded.extend_from_slice(&tx.nonce.to_le_bytes());
+        encoded.extend_from_slice(&(tx.markdown_bytes.len() as u32).to_le_bytes());
+        encoded.extend_from_slice(&tx.markdown_bytes);
+        encoded.extend_from_slice(&tx.markdown_hash);
+        encoded.push(tx.signature_scheme.to_wire());
+        encoded.extend_from_slice(&(tx.signature.len() as u32).to_le_bytes());
+        encoded.extend_from_slice(&tx.signature);
+        encoded
     }
 
     #[tokio::test]
@@ -667,19 +732,121 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn propose_skips_invalid_transactions() {
-        let (app, _) = setup_app(vec![vec![0xde, 0xad, 0xbe, 0xef]]).await;
+    async fn propose_preserves_valid_mem_transactions() {
+        let mem_tx = sample_mem_tx();
+        let (app, _) = setup_app(vec![mem_tx.clone()]).await;
         let parent = app.genesis().await;
 
+        let (block, result) = app.propose(&parent, 1).await.unwrap();
+
+        assert_eq!(block.transactions, vec![mem_tx]);
+        assert_eq!(block.gas_used, 0);
+        assert_eq!(result.gas_used, 0);
+        assert_eq!(result.receipt_count, 0);
+    }
+
+    #[tokio::test]
+    async fn propose_rejects_invalid_mem_transactions() {
+        let (app, _) = setup_app(vec![tampered_mem_tx()]).await;
+        let parent = app.genesis().await;
+
+        let err = app
+            .propose(&parent, 1)
+            .await
+            .expect_err("invalid mem tx should fail proposal deterministically");
+
+        assert!(matches!(err, EvmAppError::InvalidTransaction(_)));
+    }
+
+    #[tokio::test]
+    async fn propose_mixed_block_preserves_mem_and_executes_evm() {
+        let mem_tx = sample_mem_tx();
+        let receiver = Address::with_last_byte(2);
+
+        let tx = TxLegacy {
+            chain_id: Some(crate::config::SAHARA_CHAIN_ID),
+            nonce: 0,
+            gas_price: 2_000_000_000,
+            gas_limit: 21_000,
+            to: TxKind::Call(receiver),
+            value: U256::from(1000),
+            input: Bytes::default(),
+        };
+        let signature = Signature::test_signature();
+        let signed: TransactionSigned = tx.into_signed(signature).into();
+        let recovered = signed.recover_signer().unwrap();
+
+        let mut evm_tx = Vec::new();
+        signed.encode_2718(&mut evm_tx);
+
+        let (app, db) = setup_app(vec![mem_tx.clone(), evm_tx.clone()]).await;
+
+        {
+            let mut db = db.write().unwrap();
+            let info = revm::state::AccountInfo {
+                balance: U256::from(1_000_000_000_000_000_000u64),
+                nonce: 0,
+                ..Default::default()
+            };
+            db.insert_account(recovered, info);
+        }
+
+        let parent = app.genesis().await;
+        let (block, result) = app.propose(&parent, 1).await.unwrap();
+
+        assert_eq!(block.transactions, vec![mem_tx, evm_tx]);
+        assert!(block.gas_used > 0);
+        assert_eq!(result.receipt_count, 1);
+    }
+
+    #[tokio::test]
+    async fn verify_accepts_mixed_block_with_mem_transactions() {
+        let mem_tx = sample_mem_tx();
+        let receiver = Address::with_last_byte(2);
+        let tx = TxLegacy {
+            chain_id: Some(crate::config::SAHARA_CHAIN_ID),
+            nonce: 0,
+            gas_price: 2_000_000_000,
+            gas_limit: 21_000,
+            to: TxKind::Call(receiver),
+            value: U256::from(1000),
+            input: Bytes::default(),
+        };
+        let signature = Signature::test_signature();
+        let signed: TransactionSigned = tx.into_signed(signature).into();
+        let mut evm_tx = Vec::new();
+        signed.encode_2718(&mut evm_tx);
+
+        let (app, db) = setup_app(vec![mem_tx, evm_tx]).await;
+
+        let recovered = signed.recover_signer().unwrap();
+        {
+            let mut db = db.write().unwrap();
+            let info = revm::state::AccountInfo {
+                balance: U256::from(1_000_000_000_000_000_000u64),
+                nonce: 0,
+                ..Default::default()
+            };
+            db.insert_account(recovered, info);
+        }
+
+        let pre_state = db.read().unwrap().clone();
+
+        let parent = app.genesis().await;
         let (block, _) = app.propose(&parent, 1).await.unwrap();
 
-        // Should produce empty block, not fail
-        assert!(block.transactions.is_empty());
+        let chain_spec = Arc::new(crate::config::build_sahara_chain_spec());
+        let config = WhirlpoolEvmConfig::new(chain_spec);
+        let pre_db = Arc::new(RwLock::new(pre_state));
+        let source = Arc::new(MockTxSource { txs: vec![] });
+        let verifier_app = EvmApplication::new(config, pre_db, source);
+
+        let result = verifier_app.verify(&parent, &block).await;
+        assert!(result.is_ok(), "mixed block should verify: {:?}", result.err());
     }
 
     #[tokio::test]
     async fn verify_accepts_valid_block() {
-        // Setup a valid block with a transaction
         let receiver = Address::with_last_byte(2);
         let tx = TxLegacy {
             chain_id: Some(crate::config::SAHARA_CHAIN_ID),
@@ -697,7 +864,6 @@ mod tests {
 
         let (app, db) = setup_app(vec![encoded]).await;
 
-        // Fund sender
         let recovered = signed.recover_signer().unwrap();
         {
             let mut db = db.write().unwrap();
@@ -709,17 +875,14 @@ mod tests {
             db.insert_account(recovered, info);
         }
 
-        // Snapshot state before propose
         let pre_state = db.read().unwrap().clone();
 
         let parent = app.genesis().await;
         let (block, _) = app.propose(&parent, 1).await.unwrap();
 
-        // Create new app with pre-state to verify
         let chain_spec = Arc::new(crate::config::build_sahara_chain_spec());
         let config = WhirlpoolEvmConfig::new(chain_spec);
         let pre_db = Arc::new(RwLock::new(pre_state));
-        // Source doesn't matter for verify
         let source = Arc::new(MockTxSource { txs: vec![] });
         let verifier_app = EvmApplication::new(config, pre_db, source);
 
@@ -754,17 +917,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn verify_rejects_undecodable_transactions() {
+    async fn verify_rejects_invalid_mem_transactions() {
         let (app, db) = setup_app(vec![]).await;
         let pre_state = db.read().unwrap().clone();
 
         let parent = app.genesis().await;
         let (mut block, _) = app.propose(&parent, 1).await.unwrap();
+        block.transactions.push(tampered_mem_tx());
 
-        // Inject invalid RLP
-        block.transactions.push(vec![0xde, 0xad, 0xbe, 0xef]);
-
-        // Verifier
         let chain_spec = Arc::new(crate::config::build_sahara_chain_spec());
         let config = WhirlpoolEvmConfig::new(chain_spec);
         let pre_db = Arc::new(RwLock::new(pre_state));
@@ -772,7 +932,27 @@ mod tests {
         let verifier_app = EvmApplication::new(config, pre_db, source);
 
         let result = verifier_app.verify(&parent, &block).await;
-        // Should fail decoding
+        assert!(matches!(result, Err(EvmAppError::InvalidTransaction(_))));
+    }
+
+    #[tokio::test]
+    async fn verify_rejects_undecodable_transactions() {
+        let (app, db) = setup_app(vec![]).await;
+        let pre_state = db.read().unwrap().clone();
+
+        let parent = app.genesis().await;
+        let (mut block, _) = app.propose(&parent, 1).await.unwrap();
+
+        // Inject invalid payload that is neither valid EVM nor valid mem.
+        block.transactions.push(vec![0xde, 0xad, 0xbe, 0xef]);
+
+        let chain_spec = Arc::new(crate::config::build_sahara_chain_spec());
+        let config = WhirlpoolEvmConfig::new(chain_spec);
+        let pre_db = Arc::new(RwLock::new(pre_state));
+        let source = Arc::new(MockTxSource { txs: vec![] });
+        let verifier_app = EvmApplication::new(config, pre_db, source);
+
+        let result = verifier_app.verify(&parent, &block).await;
         assert!(matches!(result, Err(EvmAppError::InvalidTransaction(_))));
     }
 

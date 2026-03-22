@@ -5,6 +5,7 @@ edition.workspace = true
 
 [dependencies]
 app = { path = "../app" }
+app-mem = { path = "../app-mem" }
 state = { path = "../state" }
 state-memory = { path = "../state-memory" }
 state-reth = { path = "../state-reth" }
