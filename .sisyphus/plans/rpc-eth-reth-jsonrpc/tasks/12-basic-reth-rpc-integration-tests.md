@@ -30,7 +30,7 @@
   - `.whiteboard/rpc-eth-reth-jsonrpc/agent/handoff.md`
   - `.whiteboard/rpc-eth-reth-jsonrpc/e2e/rpc-eth-reth-jsonrpc-20260311-0522/scratch/agent/tests.md`
 - Codebase references:
-  - `testing/integration-tests/tests/rpc_integration.rs`
+  - `testing/integration-tests/tests/rpc_evm_integration.rs`
   - `testing/integration-tests/Cargo.toml`
   - `crates/whirlpool-node/src/main.rs`
 - Vendor references:
@@ -41,7 +41,7 @@
 - Reuse alloy `ProviderBuilder`-style clients only where they still match the reth test pattern.
 
 ## What to do
-1. Rewrite or extend `testing/integration-tests/tests/rpc_integration.rs` first so TST-4, TST-5, TST-6, and TST-7 exist before any follow-on integration adjustments.
+1. Rewrite or extend `testing/integration-tests/tests/rpc_evm_integration.rs` first so TST-4, TST-5, TST-6, and TST-7 exist before any follow-on integration adjustments.
 2. Add startup coverage that proves the reth-backed server accepts HTTP connections and exposes `eth_chainId`.
 3. Add basic latest-block and balance-path coverage using seeded `RethStateDb` / block-storage fixtures that flow through the new provider adapter.
 4. Align the harness structure with the reth `rpc-builder` HTTP test style called out in the design docs.
@@ -66,22 +66,22 @@
 - Do not change implementation code outside fixes required for these tests to pass.
 
 ## Acceptance Criteria
-- [ ] `testing/integration-tests/tests/rpc_integration.rs` includes TST-4, TST-5, TST-6, and TST-7 coverage.
+- [ ] `testing/integration-tests/tests/rpc_evm_integration.rs` includes TST-4, TST-5, TST-6, and TST-7 coverage.
 - [ ] The harness shape mirrors reth HTTP test patterns.
-- [ ] `nix develop --command cargo test -p integration-tests --test rpc_integration` passes.
+- [ ] `nix develop --command cargo test -p integration-tests --test rpc_evm_integration` passes.
 - [ ] `.sisyphus/evidence/task-12-basic-reth-rpc-integration-tests.md` records commands and outcomes.
 - [ ] The result is a coherent checkpoint suitable for a dedicated commit.
 
 ## Post-Task Gate
 - [ ] `nix develop --command cargo build -p rpc-eth`
 - [ ] `nix develop --command cargo build -p whirlpool-node`
-- [ ] `nix develop --command cargo test -p integration-tests --test rpc_integration`
+- [ ] `nix develop --command cargo test -p integration-tests --test rpc_evm_integration`
 - [ ] Evidence file records actual test names for TST-4 through TST-7.
 - [ ] Artifact Registry updates TST-4, TST-5, TST-6, and TST-7 with actual names/locations/status.
 - [ ] Create one dedicated git commit for this task before starting Task 13.
 
 ## Post-Task Reconciliation
-- Update Artifact Registry rows for TST-4 through TST-7 with exact test names and locations in `testing/integration-tests/tests/rpc_integration.rs`.
+- Update Artifact Registry rows for TST-4 through TST-7 with exact test names and locations in `testing/integration-tests/tests/rpc_evm_integration.rs`.
 
 ## QA Scenarios
 - Happy path: server boots and returns configured chain ID, latest block number, and funded balances.

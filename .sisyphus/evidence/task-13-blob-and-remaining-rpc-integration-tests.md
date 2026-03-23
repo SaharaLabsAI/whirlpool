@@ -1,7 +1,7 @@
 # Task 13 Evidence
 
 ## Scope
-Added the remaining RPC integration coverage in `testing/integration-tests/tests/rpc_integration.rs` for TST-8 through TST-11 without modifying `crates/rpc-eth/**` or `vendor/**`.
+Added the remaining RPC integration coverage in `testing/integration-tests/tests/rpc_evm_integration.rs` for TST-8 through TST-11 without modifying `crates/rpc-eth/**` or `vendor/**`.
 
 ## Changes made
 - Replaced the previous no-op test tx source with a `RecordingTxSource` backed by `Mutex<Vec<Vec<u8>>>` so tests can assert which raw transactions reached the RPC tx source.
@@ -44,7 +44,7 @@ nix develop --command bash -c "CARGO_BUILD_JOBS=1 RUSTFLAGS='-C codegen-units=1'
 
 ## Validation results
 - `nix develop --command bash -c "CARGO_BUILD_JOBS=1 RUSTFLAGS='-C codegen-units=1' cargo build -p integration-tests"` passed.
-- `nix develop --command bash -c "CARGO_BUILD_JOBS=1 RUSTFLAGS='-C codegen-units=1' cargo test -p integration-tests --test rpc_integration"` passed.
+- `nix develop --command bash -c "CARGO_BUILD_JOBS=1 RUSTFLAGS='-C codegen-units=1' cargo test -p integration-tests --test rpc_evm_integration"` passed.
 - `nix develop --command bash -c "CARGO_BUILD_JOBS=1 RUSTFLAGS='-C codegen-units=1' cargo test -p integration-tests"` passed.
 
 ## Notes

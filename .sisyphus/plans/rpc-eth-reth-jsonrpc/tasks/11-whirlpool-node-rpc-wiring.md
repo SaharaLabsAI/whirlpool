@@ -33,7 +33,7 @@
   - `crates/whirlpool-node/src/node.rs`
   - `crates/whirlpool-node/src/lib.rs`
   - `crates/rpc-eth/src/lib.rs`
-  - `testing/integration-tests/tests/rpc_integration.rs`
+  - `testing/integration-tests/tests/rpc_evm_integration.rs`
 
 ## What to do
 1. Add or update a node-level startup smoke test first so TST-12 becomes executable against the new `RpcConfig` boundary before fully removing the old wiring.
@@ -71,7 +71,7 @@
 - [ ] Create one dedicated git commit for this task before starting Task 12.
 
 ## Post-Task Reconciliation
-- Update the TST-12 row with actual startup smoke test details and any location changes in `testing/integration-tests/tests/rpc_integration.rs`.
+- Update the TST-12 row with actual startup smoke test details and any location changes in `testing/integration-tests/tests/rpc_evm_integration.rs`.
 
 ## QA Scenarios
 - Happy path: node startup creates the reth-backed RPC server without changing other startup phases.

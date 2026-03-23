@@ -82,7 +82,8 @@
 - [ ] `nix develop --command cargo test -p rpc-eth`
 - [ ] `nix develop --command cargo build -p whirlpool-node`
 - [ ] `nix develop --command cargo test -p whirlpool-node`
-- [ ] `nix develop --command cargo test -p integration-tests --test rpc_integration`
+- [ ] `nix develop --command cargo test -p integration-tests --test rpc_evm_integration`
+- [ ] `nix develop --command cargo test -p integration-tests --test rpc_mem_integration`
 - [ ] Evidence file exists and captures all command outcomes plus final REQ/TST reconciliation.
 
 ## Post-Task Reconciliation

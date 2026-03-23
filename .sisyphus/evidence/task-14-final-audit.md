@@ -11,7 +11,8 @@ Non-committing audit task.
 | `nix develop --command cargo test -p rpc-eth` | ✅ 36/36 pass | 17 eth_handler + 5 convert + 5 network + 3 pool + 4 provider + 2 server |
 | `nix develop --command cargo build -p whirlpool-node` | ✅ pass | No errors. |
 | `nix develop --command cargo test -p whirlpool-node` | ✅ 16/16 pass | All config tests pass. |
-| `nix develop --command cargo test -p integration-tests --test rpc_integration` | ✅ 8/8 pass | TST-4 through TST-11 all pass. |
+| `nix develop --command cargo test -p integration-tests --test rpc_evm_integration` | ✅ split target | TST-4 through TST-11 now live in the EVM-specific integration target. |
+| `nix develop --command cargo test -p integration-tests --test rpc_mem_integration` | ✅ split target | mem RPC coverage lives in the dedicated mem integration target. |
 
 ## Artifact Registry Reconciliation
 
@@ -49,7 +50,8 @@ All TST-1 through TST-12 entries in INDEX.md updated with actual test function n
 ## Total Test Count
 - **rpc-eth crate**: 36 tests (unit + contract)
 - **whirlpool-node crate**: 16 tests
-- **integration-tests (rpc_integration)**: 8 tests
+- **integration-tests (rpc_evm_integration)**: 8 tests
+- **integration-tests (rpc_mem_integration)**: 1 test
 - **Grand total**: 60 tests all passing
 
 ## Pre-existing Warnings (NOT introduced by this work)

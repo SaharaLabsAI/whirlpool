@@ -29,7 +29,7 @@
   - `.whiteboard/rpc-eth-reth-jsonrpc/agent/flows.md`
   - `.whiteboard/rpc-eth-reth-jsonrpc/e2e/rpc-eth-reth-jsonrpc-20260311-0522/scratch/agent/tests.md`
 - Codebase references:
-  - `testing/integration-tests/tests/rpc_integration.rs`
+  - `testing/integration-tests/tests/rpc_evm_integration.rs`
   - `crates/rpc-eth/src/server.rs`
   - `crates/rpc-eth/src/pool.rs`
 - Vendor references:
@@ -39,7 +39,7 @@
 - Reuse the same HTTP harness style from Task 12, adding the parameter permutations and unsupported-method checks highlighted by reth's tests.
 
 ## What to do
-1. Extend `testing/integration-tests/tests/rpc_integration.rs` first so TST-8, TST-9, TST-10, and TST-11 are defined before implementation fixes are applied.
+1. Extend `testing/integration-tests/tests/rpc_evm_integration.rs` first so TST-8, TST-9, TST-10, and TST-11 are defined before implementation fixes are applied.
 2. Add `eth_getBlockByNumber` coverage using seeded block fixtures and parameter permutations modeled after reth HTTP tests.
 3. Add `eth_sendRawTransaction` coverage that proves accepted transactions hit `TxSource` and blob/Type-3 payloads are rejected.
 4. Add explicit `eth_blobBaseFee` unsupported-method assertions and any remaining request-shape permutations required by TST-11.
@@ -64,16 +64,16 @@
 - Do not touch `vendor/**`.
 
 ## Acceptance Criteria
-- [ ] TST-8, TST-9, TST-10, and TST-11 coverage exists and passes in `testing/integration-tests/tests/rpc_integration.rs`.
+- [ ] TST-8, TST-9, TST-10, and TST-11 coverage exists and passes in `testing/integration-tests/tests/rpc_evm_integration.rs`.
 - [ ] Blob requests receive the unsupported behavior required by the design.
-- [ ] `nix develop --command cargo test -p integration-tests --test rpc_integration` passes.
+- [ ] `nix develop --command cargo test -p integration-tests --test rpc_evm_integration` passes.
 - [ ] `.sisyphus/evidence/task-13-blob-and-remaining-rpc-integration-tests.md` records commands and outcomes.
 - [ ] The result is a coherent checkpoint suitable for a dedicated commit.
 
 ## Post-Task Gate
 - [ ] `nix develop --command cargo build -p rpc-eth`
 - [ ] `nix develop --command cargo build -p whirlpool-node`
-- [ ] `nix develop --command cargo test -p integration-tests --test rpc_integration`
+- [ ] `nix develop --command cargo test -p integration-tests --test rpc_evm_integration`
 - [ ] Evidence file records actual test names for TST-8 through TST-11.
 - [ ] Artifact Registry updates TST-8, TST-9, TST-10, and TST-11 with actual names/locations/status.
 - [ ] Create one dedicated git commit for this task before starting Task 14.

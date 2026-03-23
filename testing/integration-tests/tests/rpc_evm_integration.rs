@@ -16,12 +16,10 @@ use alloy_signer::Signer as AlloySigner;
 use alloy_signer_local::PrivateKeySigner;
 use app::traits::TxSource;
 use app_evm::{build_sahara_chain_spec, build_sahara_chain_spec_with_alloc, SAHARA_CHAIN_ID};
-use app_mem::SUPPORTED_PERSONALITY_TX_VERSION;
 use commonware_cryptography::{ed25519, Signer as CwSigner};
 use reqwest::Client;
 use reth_chainspec::ChainSpec;
 use rpc_eth::{start_rpc_server, RpcConfig};
-use rpc_mem::SubmitPersonalityRequest;
 use tempfile::TempDir;
 use whirlpool_node::config::{
     ConsensusStartupConfig, DEFAULT_MAX_MESSAGE_SIZE, IdentityConfig, NetworkConfig, NodeConfig,
@@ -1243,67 +1241,6 @@ async fn test_contract_deploy_full_node() {
         code_response["result"].as_str(),
         Some(deployed_contract_runtime()),
         "deployed contract runtime bytecode should match"
-    );
-}
-
-#[tokio::test(flavor = "current_thread")]
-async fn test_dual_rpc_servers_share_node_tx_source() {
-    let signer = PrivateKeySigner::random();
-    let funded_address = signer.address();
-    let (handle, _tempdir) = start_funded_node(
-        103,
-        funded_address,
-        U256::from(100_000_000_000_000_000_000u128),
-    );
-
-    wait_for_block(handle.rpc_addr, 1, Duration::from_secs(30)).await;
-
-    let client = test_client();
-    let request = SubmitPersonalityRequest {
-        version: SUPPORTED_PERSONALITY_TX_VERSION,
-        signer: "0x1111111111111111111111111111111111111111".to_string(),
-        personality_id: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_string(),
-        nonce: 1,
-        markdown: "# hello mem rpc".to_string(),
-        signature_scheme: "raw_secp256k1".to_string(),
-        signature: format!("0x{}", "11".repeat(65)),
-    };
-
-    let mem_response = post_json_to_addr(
-        client,
-        handle.mem_rpc_addr,
-        rpc_req("mem_submitPersonality", serde_json::json!([request])),
-    )
-    .await;
-    assert!(
-        mem_response["error"].is_null() || mem_response.get("error").is_none(),
-        "mem_submitPersonality should succeed: {mem_response}"
-    );
-    assert!(
-        mem_response["result"]["tx_hash"].as_str().is_some(),
-        "mem_submitPersonality should return a tx hash: {mem_response}"
-    );
-
-    let eth_response = post_json_to_addr(
-        client,
-        handle.rpc_addr,
-        rpc_req("eth_blockNumber", serde_json::json!([])),
-    )
-    .await;
-    assert!(
-        eth_response["error"].is_null() || eth_response.get("error").is_none(),
-        "eth_blockNumber should still succeed on the Ethereum RPC server: {eth_response}"
-    );
-
-    let wrong_server_response = post_json_to_addr(
-        client,
-        handle.rpc_addr,
-        rpc_req("mem_submitPersonality", serde_json::json!([serde_json::json!({})])),
-    )
-    .await;
-    assert!(
-        wrong_server_response["error"].is_object(),
-        "mem_submitPersonality should not be exposed on the Ethereum RPC server: {wrong_server_response}"
     );
 }
 

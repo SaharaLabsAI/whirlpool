@@ -20,13 +20,14 @@
   - New `crates/rpc-eth/src/provider.rs`, `pool.rs`, `network.rs`, and `convert.rs` modules.
   - Rewritten `crates/rpc-eth/src/server.rs` and `lib.rs` around `RpcConfig` + `start_rpc_server`.
   - `crates/whirlpool-node/src/main.rs` and/or `crates/whirlpool-node/src/node.rs` wired to the new server API.
-  - Integration coverage in `testing/integration-tests/tests/rpc_integration.rs` mirroring reth `rpc-builder` HTTP patterns.
+  - Integration coverage in `testing/integration-tests/tests/rpc_evm_integration.rs` mirroring reth `rpc-builder` HTTP patterns, plus `testing/integration-tests/tests/rpc_mem_integration.rs` for mem RPC endpoint coverage.
 - **Definition of Done**:
   - `nix develop --command cargo build -p rpc-eth`
   - `nix develop --command cargo test -p rpc-eth`
   - `nix develop --command cargo build -p whirlpool-node`
   - `nix develop --command cargo test -p whirlpool-node`
-  - `nix develop --command cargo test -p integration-tests --test rpc_integration`
+  - `nix develop --command cargo test -p integration-tests --test rpc_evm_integration`
+- `nix develop --command cargo test -p integration-tests --test rpc_mem_integration`
 - **Must Have**:
   - Respect `agent/handoff.md` ordering and keep every task independently commit-ready.
   - Put behavior tests first within each implementation task.
@@ -82,7 +83,7 @@
 
 ### Agent Dispatch Summary
 - Provider-heavy tasks rely on `crates/rpc-eth/src/provider.rs` and should stay in one implementation lane to preserve trait-signature continuity.
-- Integration tasks should reuse the existing `testing/integration-tests/tests/rpc_integration.rs` harness instead of inventing a second RPC test crate.
+- Integration tasks should reuse the existing `testing/integration-tests/tests/rpc_evm_integration.rs` harness for Ethereum RPC coverage and keep mem RPC assertions in `testing/integration-tests/tests/rpc_mem_integration.rs`.
 - The final audit task is `non-committing`; every earlier task must be commit-ready before Task 14 begins.
 
 ## Task List
@@ -110,15 +111,15 @@
 | TST-1 | provider trait contract coverage | `provider_satisfies_rpc_node_core_bounds`, `canon_state_subscriptions_yields_receiver`, `account_reader_returns_none_for_unknown`, `chain_spec_provider_returns_spec` | `crates/rpc-eth/tests/provider_contract.rs` | Task 02/05 | ✅ pass |
 | TST-2 | txpool adapter contract coverage | `pool_satisfies_rpc_node_core_bounds`, `blob_transactions_are_rejected`, `non_blob_transactions_are_forwarded` | `crates/rpc-eth/tests/pool_contract.rs` | Task 06 | ✅ pass |
 | TST-3 | network adapter contract coverage | `chain_id_round_trips`, `network_satisfies_rpc_builder_bounds`, `is_not_syncing`, `get_all_peers_returns_empty`, `network_status_returns_ok` | `crates/rpc-eth/tests/network_contract.rs` | Task 07 | ✅ pass |
-| TST-4 | RPC startup over HTTP | `tst4_server_returns_chain_id` | `testing/integration-tests/tests/rpc_integration.rs` | Task 12 | ✅ pass |
-| TST-5 | `eth_chainId` reth path coverage | `tst4_server_returns_chain_id` (merged with TST-4) | `testing/integration-tests/tests/rpc_integration.rs` | Task 12 | ✅ pass |
-| TST-6 | `eth_blockNumber` latest block coverage | `tst5_latest_block_number` | `testing/integration-tests/tests/rpc_integration.rs` | Task 12 | ✅ pass |
-| TST-7 | `eth_getBalance` state bridge coverage | `tst6_balance_query_returns_zero_for_empty_db` | `testing/integration-tests/tests/rpc_integration.rs` | Task 12 | ✅ pass |
-| TST-8 | `eth_getBlockByNumber` block bridge coverage | `tst8_get_block_by_number` | `testing/integration-tests/tests/rpc_integration.rs` | Task 13 | ✅ pass |
-| TST-9 | `eth_sendRawTransaction` tx submission coverage | `tst9_send_raw_transaction_acceptance_and_blob_rejection` | `testing/integration-tests/tests/rpc_integration.rs` | Task 13 | ✅ pass |
-| TST-10 | blob exclusion / unsupported method coverage | `tst10_blob_base_fee_behavior` | `testing/integration-tests/tests/rpc_integration.rs` | Task 13 | ✅ pass |
-| TST-11 | reth rpc-builder style permutations | `tst11_request_shape_permutations` | `testing/integration-tests/tests/rpc_integration.rs` | Task 13 | ✅ pass |
-| TST-12 | `whirlpool-node` startup RPC smoke | `tst7_eth_syncing_returns_false` (covers server health; full node startup omitted — requires multi-crate orchestration beyond scope) | `testing/integration-tests/tests/rpc_integration.rs` | Task 12/13 | ✅ pass (partial) |
+| TST-4 | RPC startup over HTTP | `tst4_server_returns_chain_id` | `testing/integration-tests/tests/rpc_evm_integration.rs` | Task 12 | ✅ pass |
+| TST-5 | `eth_chainId` reth path coverage | `tst4_server_returns_chain_id` (merged with TST-4) | `testing/integration-tests/tests/rpc_evm_integration.rs` | Task 12 | ✅ pass |
+| TST-6 | `eth_blockNumber` latest block coverage | `tst5_latest_block_number` | `testing/integration-tests/tests/rpc_evm_integration.rs` | Task 12 | ✅ pass |
+| TST-7 | `eth_getBalance` state bridge coverage | `tst6_balance_query_returns_zero_for_empty_db` | `testing/integration-tests/tests/rpc_evm_integration.rs` | Task 12 | ✅ pass |
+| TST-8 | `eth_getBlockByNumber` block bridge coverage | `tst8_get_block_by_number` | `testing/integration-tests/tests/rpc_evm_integration.rs` | Task 13 | ✅ pass |
+| TST-9 | `eth_sendRawTransaction` tx submission coverage | `tst9_send_raw_transaction_acceptance_and_blob_rejection` | `testing/integration-tests/tests/rpc_evm_integration.rs` | Task 13 | ✅ pass |
+| TST-10 | blob exclusion / unsupported method coverage | `tst10_blob_base_fee_behavior` | `testing/integration-tests/tests/rpc_evm_integration.rs` | Task 13 | ✅ pass |
+| TST-11 | reth rpc-builder style permutations | `tst11_request_shape_permutations` | `testing/integration-tests/tests/rpc_evm_integration.rs` | Task 13 | ✅ pass |
+| TST-12 | `whirlpool-node` startup RPC smoke | `tst7_eth_syncing_returns_false` (covers server health; full node startup omitted — requires multi-crate orchestration beyond scope) | `testing/integration-tests/tests/rpc_evm_integration.rs` | Task 12/13 | ✅ pass (partial) |
 <!-- ARTIFACTS_END -->
 
 ## Final Verification

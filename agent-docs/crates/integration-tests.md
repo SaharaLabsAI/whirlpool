@@ -23,7 +23,7 @@ Location: `testing/integration-tests/`
 
 ## Test Files
 
-### `tests/rpc_integration.rs`
+### `tests/rpc_evm_integration.rs`
 Uses a shared test harness:
 - `start_test_rpc() -> TestRpcServer`: Creates ephemeral `TempDir` + `RethStateDb` + `ChainSpec` via `build_sahara_chain_spec()`, wires through `RpcConfig` + `start_rpc_server()`. Returns handle, address, and temp dir.
 - `RecordingTxSource`: Test `TxSource` implementation that records submitted transactions for assertion.
@@ -113,8 +113,11 @@ End-to-end consensus test for a 4-node network using `whirlpool_node::node::star
 
 ## Running
 ```bash
-# Run only RPC integration tests
-nix develop --command cargo test -p integration-tests --test rpc_integration
+# Run only EVM RPC integration tests
+nix develop --command cargo test -p integration-tests --test rpc_evm_integration
+
+# Run only mem RPC integration tests
+nix develop --command cargo test -p integration-tests --test rpc_mem_integration
 
 # Run only consensus integration tests
 nix develop --command cargo test -p integration-tests --test multinode_consensus
