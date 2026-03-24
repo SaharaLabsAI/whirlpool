@@ -92,7 +92,7 @@ def validate_skill(skill_path: str):
 
 def main():
     if len(sys.argv) != 2:
-        print("Usage: python3 scripts/quick_validate_skill.py <skill_directory>")
+        print("Usage: python3 devtools/scripts/quick_validate_skill.py <skill_directory>")
         return 1
 
     valid, message = validate_skill(sys.argv[1])
