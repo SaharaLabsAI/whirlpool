@@ -1,0 +1,28 @@
+Task 02 validation evidence
+
+Command:
+- nix develop --command cargo build -p rpc-mem
+- nix develop --command cargo test -p rpc-mem
+
+Result:
+- PASS
+
+Implemented files:
+- Cargo.lock
+- crates/rpc-mem/Cargo.toml
+- crates/rpc-mem/src/error.rs
+- crates/rpc-mem/src/lib.rs
+- crates/rpc-mem/tests/get_personality_contract.rs
+- crates/rpc-mem/tests/submit_regression.rs
+- agent-docs/crates/rpc-mem.md
+- agent-docs/index.md
+- .sisyphus/plans/add-get-personality-to-rpc-mem/INDEX.md
+
+Covered behavior:
+- rpc_server_returns_latest_finalized_personality_entry
+- rpc_server_returns_null_when_personality_is_missing
+- rpc_server_rejects_malformed_personality_hex_without_calling_service
+- tx_source_service_reads_latest_finalized_personality_from_storage
+- tx_source_service_returns_none_for_missing_storage_entry
+- rpc_server_accepts_valid_submission
+- rpc_server_rejects_oversize_submission

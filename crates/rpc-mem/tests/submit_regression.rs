@@ -4,8 +4,8 @@ use app::traits::TxSource;
 use jsonrpsee::core::{client::ClientT, rpc_params};
 use jsonrpsee::http_client::HttpClientBuilder;
 use rpc_mem::{
-    MemoryTxService, SubmitPersonalityRequest, SubmitPersonalityResponse, TxSourceMemoryTxService,
-    start_rpc_server,
+    start_rpc_server, MemoryTxService, SubmitPersonalityRequest, SubmitPersonalityResponse,
+    TxSourceMemoryTxService,
 };
 
 #[derive(Debug, Default)]
@@ -15,13 +15,19 @@ struct RecordingTxSource {
 
 impl RecordingTxSource {
     fn pushed(&self) -> Vec<Vec<u8>> {
-        self.pushed.lock().expect("poisoned tx source mutex").clone()
+        self.pushed
+            .lock()
+            .expect("poisoned tx source mutex")
+            .clone()
     }
 }
 
 impl TxSource for RecordingTxSource {
     fn push(&self, tx: Vec<u8>) {
-        self.pushed.lock().expect("poisoned tx source mutex").push(tx);
+        self.pushed
+            .lock()
+            .expect("poisoned tx source mutex")
+            .push(tx);
     }
 
     fn pending(&self) -> Vec<Vec<u8>> {
@@ -44,7 +50,8 @@ fn sample_request() -> SubmitPersonalityRequest {
 #[tokio::test]
 async fn rpc_server_accepts_valid_submission() {
     let tx_source = Arc::new(RecordingTxSource::default());
-    let service: Arc<dyn MemoryTxService> = Arc::new(TxSourceMemoryTxService::new(tx_source.clone()));
+    let service: Arc<dyn MemoryTxService> =
+        Arc::new(TxSourceMemoryTxService::new(tx_source.clone()));
     let (handle, addr) = start_rpc_server(service, "127.0.0.1:0".parse().unwrap())
         .await
         .expect("server should start");
@@ -67,7 +74,8 @@ async fn rpc_server_accepts_valid_submission() {
 #[tokio::test]
 async fn rpc_server_rejects_oversize_submission() {
     let tx_source = Arc::new(RecordingTxSource::default());
-    let service: Arc<dyn MemoryTxService> = Arc::new(TxSourceMemoryTxService::new(tx_source.clone()));
+    let service: Arc<dyn MemoryTxService> =
+        Arc::new(TxSourceMemoryTxService::new(tx_source.clone()));
     let (handle, addr) = start_rpc_server(service, "127.0.0.1:0".parse().unwrap())
         .await
         .expect("server should start");
@@ -84,7 +92,10 @@ async fn rpc_server_rejects_oversize_submission() {
         .expect_err("oversize markdown should fail");
 
     assert!(err.to_string().contains("markdown length"));
-    assert!(tx_source.pushed().is_empty(), "rejected request must not enqueue bytes");
+    assert!(
+        tx_source.pushed().is_empty(),
+        "rejected request must not enqueue bytes"
+    );
 
     handle.stop().expect("server should stop");
     handle.stopped().await;

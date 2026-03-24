@@ -12,7 +12,10 @@ use jsonrpsee::server::{ServerBuilder, ServerHandle};
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use serde::{Deserialize, Serialize};
-use state::StoredPersonality;
+use state::{PersonalityStorage, StoredPersonality};
+
+type PersonalityLookup =
+    dyn Fn(&[u8]) -> Result<Option<StoredPersonality>, RpcMemError> + Send + Sync;
 
 pub trait MemoryTxService: Send + Sync {
     fn submit_personality(
@@ -20,17 +23,42 @@ pub trait MemoryTxService: Send + Sync {
         request: SubmitPersonalityRequest,
     ) -> Result<[u8; 32], RpcMemError>;
 
-    fn get_personality(&self, personality_id: Vec<u8>) -> Result<Option<StoredPersonality>, RpcMemError>;
+    fn get_personality(
+        &self,
+        personality_id: Vec<u8>,
+    ) -> Result<Option<StoredPersonality>, RpcMemError>;
 }
 
 #[derive(Clone)]
 pub struct TxSourceMemoryTxService {
     tx_source: Arc<dyn TxSource>,
+    personality_lookup: Arc<PersonalityLookup>,
 }
 
 impl TxSourceMemoryTxService {
     pub fn new(tx_source: Arc<dyn TxSource>) -> Self {
-        Self { tx_source }
+        Self {
+            tx_source,
+            personality_lookup: Arc::new(|_| Err(RpcMemError::ReadCapabilityUnavailable)),
+        }
+    }
+
+    pub fn with_personality_storage<PS>(
+        tx_source: Arc<dyn TxSource>,
+        personality_storage: Arc<PS>,
+    ) -> Self
+    where
+        PS: PersonalityStorage + 'static,
+        PS::Error: std::fmt::Display,
+    {
+        Self {
+            tx_source,
+            personality_lookup: Arc::new(move |personality_id| {
+                personality_storage
+                    .get_latest(personality_id)
+                    .map_err(|err| RpcMemError::PersonalityRead(err.to_string()))
+            }),
+        }
     }
 }
 
@@ -46,8 +74,11 @@ impl MemoryTxService for TxSourceMemoryTxService {
         Ok(tx_hash)
     }
 
-    fn get_personality(&self, _personality_id: Vec<u8>) -> Result<Option<StoredPersonality>, RpcMemError> {
-        Err(RpcMemError::ReadCapabilityUnavailable)
+    fn get_personality(
+        &self,
+        personality_id: Vec<u8>,
+    ) -> Result<Option<StoredPersonality>, RpcMemError> {
+        (self.personality_lookup)(&personality_id)
     }
 }
 
@@ -123,7 +154,8 @@ impl TryFrom<StoredPersonality> for GetPersonalityResponse {
             signer: encode_hex(&entry.signer),
             personality_id: encode_hex(&entry.personality_id),
             nonce: entry.nonce,
-            markdown: String::from_utf8(entry.markdown).map_err(RpcMemError::InvalidStoredMarkdown)?,
+            markdown: String::from_utf8(entry.markdown)
+                .map_err(RpcMemError::InvalidStoredMarkdown)?,
             markdown_hash: encode_hex(&entry.markdown_hash),
         })
     }
@@ -137,22 +169,27 @@ pub async fn start_rpc_server(
     let local_addr = server.local_addr()?;
     let mut module = RpcModule::new(service);
 
-    module.register_method("mem_submitPersonality", |params, service, _| -> RpcResult<SubmitPersonalityResponse> {
-        let request: SubmitPersonalityRequest = params.one()?;
-        let tx_hash = service
-            .submit_personality(request)
-            .map_err(rpc_error_from_service)?;
+    module.register_method(
+        "mem_submitPersonality",
+        |params, service, _| -> RpcResult<SubmitPersonalityResponse> {
+            let request: SubmitPersonalityRequest = params.one()?;
+            let tx_hash = service
+                .submit_personality(request)
+                .map_err(rpc_error_from_service)?;
 
-        Ok(SubmitPersonalityResponse {
-            tx_hash: encode_hex(&tx_hash),
-        })
-    })?;
+            Ok(SubmitPersonalityResponse {
+                tx_hash: encode_hex(&tx_hash),
+            })
+        },
+    )?;
 
     module.register_method(
         "mem_getPersonality",
         |params, service, _| -> RpcResult<Option<GetPersonalityResponse>> {
             let request: GetPersonalityRequest = params.one()?;
-            let personality_id = request.personality_id_bytes().map_err(rpc_error_from_service)?;
+            let personality_id = request
+                .personality_id_bytes()
+                .map_err(rpc_error_from_service)?;
             let response = service
                 .get_personality(personality_id)
                 .map_err(rpc_error_from_service)?

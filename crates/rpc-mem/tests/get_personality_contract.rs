@@ -3,10 +3,13 @@ use std::sync::{Arc, Mutex};
 use jsonrpsee::core::{client::ClientT, rpc_params};
 use jsonrpsee::http_client::HttpClientBuilder;
 use rpc_mem::{
-    GetPersonalityRequest, GetPersonalityResponse, MemoryTxService, RpcMemError,
-    SubmitPersonalityRequest, start_rpc_server,
+    start_rpc_server, GetPersonalityRequest, GetPersonalityResponse, MemoryTxService, RpcMemError,
+    SubmitPersonalityRequest, TxSourceMemoryTxService,
 };
-use state::StoredPersonality;
+use state::{PersonalityStorage, StoredPersonality};
+use state_memory::InMemoryPersonalityStorage;
+
+use app::traits::TxSource;
 
 #[derive(Debug)]
 struct FakeMemoryTxService {
@@ -38,7 +41,10 @@ impl MemoryTxService for FakeMemoryTxService {
         Ok([0x11; 32])
     }
 
-    fn get_personality(&self, personality_id: Vec<u8>) -> Result<Option<StoredPersonality>, RpcMemError> {
+    fn get_personality(
+        &self,
+        personality_id: Vec<u8>,
+    ) -> Result<Option<StoredPersonality>, RpcMemError> {
         self.lookup_calls
             .lock()
             .expect("poisoned lookup call mutex")
@@ -66,6 +72,17 @@ fn sample_stored_personality() -> StoredPersonality {
 fn sample_request() -> GetPersonalityRequest {
     GetPersonalityRequest {
         personality_id: "0xefefefefefefefefefefefefefefefef".to_string(),
+    }
+}
+
+#[derive(Debug, Default)]
+struct RecordingTxSource;
+
+impl TxSource for RecordingTxSource {
+    fn push(&self, _tx: Vec<u8>) {}
+
+    fn pending(&self) -> Vec<Vec<u8>> {
+        Vec::new()
     }
 }
 
@@ -150,9 +167,42 @@ async fn rpc_server_rejects_malformed_personality_hex_without_calling_service() 
         .await
         .expect_err("invalid personality id must fail validation");
 
-    assert!(err.to_string().contains("personality_id must be a 0x-prefixed hex string"));
+    assert!(err
+        .to_string()
+        .contains("personality_id must be a 0x-prefixed hex string"));
     assert!(service_handle.lookup_calls().is_empty());
 
     handle.stop().expect("server should stop");
     handle.stopped().await;
+}
+
+#[tokio::test]
+async fn tx_source_service_reads_latest_finalized_personality_from_storage() {
+    let tx_source: Arc<dyn TxSource> = Arc::new(RecordingTxSource);
+    let personality_storage = Arc::new(InMemoryPersonalityStorage::new());
+    personality_storage
+        .put(sample_stored_personality())
+        .expect("storing finalized personality should succeed");
+
+    let service = TxSourceMemoryTxService::with_personality_storage(tx_source, personality_storage);
+
+    let response = service
+        .get_personality(vec![0xef; 16])
+        .expect("storage-backed lookup should succeed");
+
+    assert_eq!(response, Some(sample_stored_personality()));
+}
+
+#[tokio::test]
+async fn tx_source_service_returns_none_for_missing_storage_entry() {
+    let tx_source: Arc<dyn TxSource> = Arc::new(RecordingTxSource);
+    let personality_storage = Arc::new(InMemoryPersonalityStorage::new());
+
+    let service = TxSourceMemoryTxService::with_personality_storage(tx_source, personality_storage);
+
+    let response = service
+        .get_personality(vec![0xaa; 16])
+        .expect("missing storage lookup should succeed");
+
+    assert_eq!(response, None);
 }

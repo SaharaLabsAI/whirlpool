@@ -69,7 +69,7 @@ Step-by-step instructions for common tasks and workflows.
 | Understand block flow | `architecture/block-lifecycle.md` -> `guides/block-lifecycle-walkthrough.md` |
 | Extend node/mempool | `architecture/whirlpool-node.md` -> `guides/whirlpool-node-components.md` + `crates/mempool.md` |
 | Update EVM node tx sourcing | `crates/app.md` + `crates/whirlpool-node.md` + `crates/mempool.md` |
-| Add/modify RPC methods | `crates/rpc-eth.md` |
+| Add/modify RPC methods | `crates/rpc-eth.md` + `crates/rpc-mem.md` |
 | Check code style | `reference/coding-conventions.md` |
 | Write a commit message | `reference/git-conventions.md` |
 | Add/run e2e integration tests | `crates/integration-tests.md` |
@@ -87,6 +87,7 @@ Step-by-step instructions for common tasks and workflows.
 | `app` | `crates/app/src/` | `crates/app.md` | — |
 | `app-evm` | `crates/app-evm/src/` | `crates/app-evm.md` | — |
 | `mempool` | `crates/mempool/src/` | `crates/mempool.md` | — |
+| `rpc-mem` | `crates/rpc-mem/src/` | `crates/rpc-mem.md` | — |
 | `whirlpool-node` | `crates/whirlpool-node/src/` | `architecture/whirlpool-node.md` (lib) + `crates/whirlpool-node.md` (EVM bin) | `guides/whirlpool-node-components.md` |
 | `rpc-eth` | `crates/rpc-eth/src/` | `crates/rpc-eth.md` | — |
 | `integration-tests` | `testing/integration-tests/tests/` | `crates/integration-tests.md` | — |
