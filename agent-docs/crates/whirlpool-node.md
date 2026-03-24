@@ -1,7 +1,7 @@
 # whirlpool-node: EVM Consensus Binary
 
 ## Summary
-`whirlpool-node` runs Commonware consensus with `EvmApplication` on Sahara Chain.
+`whirlpool-node` runs Commonware consensus with `CompositeApplication` on Sahara Chain.
 
 Location: `crates/whirlpool-node/`
 
@@ -9,7 +9,9 @@ Location: `crates/whirlpool-node/`
 - `consensus`: core interface traits from `consensus::traits`.
 - `consensus-simplex`: simplex adapter and engine.
 - `app`: application adapter + `TxSource` trait.
-- `app-evm`: EVM app implementation + `app_evm::traits::StateProvider` + `build_sahara_chain_spec()` / `build_sahara_chain_spec_with_alloc()`.
+- `app-composite`: consensus-facing mixed app implementation that drains the shared mempool and delegates by tx family.
+- `app-evm`: pure EVM execution implementation + `app_evm::traits::StateProvider` + `build_sahara_chain_spec()` / `build_sahara_chain_spec_with_alloc()`.
+- `tx-dispatch`: neutral mixed-tx classification used indirectly through `app-composite`.
 - `reth-chainspec`: `ChainSpec` type for custom chain spec injection.
 - `mempool`: `PersistentTxPool` for transaction storage.
 - `state`: `StateDb` trait, `StateError`, and `BlockStorage` trait.
@@ -32,7 +34,7 @@ Location: `crates/whirlpool-node/`
 
 ### RPC Wiring (node.rs)
 The node constructs an `rpc_eth::RpcConfig` with:
-- `state_db`: `Arc<RethStateDb>` (shared with EVM application).
+- `state_db`: `Arc<RethStateDb>` (shared with composite/EVM application state).
 - `chain_spec`: `Arc<ChainSpec>` from `build_sahara_chain_spec()` (cloned before EVM config takes ownership).
 - `tx_source`: `Arc<PersistentTxPool>` (implements `TxSource`).
 - `addr`: RPC listen address from `NodeConfig`.
@@ -40,6 +42,12 @@ The node constructs an `rpc_eth::RpcConfig` with:
 Then calls `rpc_eth::start_rpc_server(config)` to get `(RpcServerHandle, SocketAddr)`.
 
 For mem RPC, the node shares the same `Arc<PersistentTxPool>` submit path and the finalized `Arc<InMemoryPersonalityStorage>` used by `PersistingFinalizationSink`, then starts `rpc_mem` with `TxSourceMemoryTxService::with_personality_storage(...)`. This keeps `mem_submitPersonality` unchanged while enabling finalized-only `mem_getPersonality` reads on the dedicated mem RPC server.
+
+### Mixed App Wiring
+- `PersistentTxPool` remains the single raw-byte mempool for both `eth_sendRawTransaction` and `mem_submitPersonality`.
+- `CompositeApplication` drains that shared source during proposal.
+- `CompositeApplication` classifies bytes into EVM vs mem lanes and delegates EVM execution to `app-evm`.
+- `PersistingFinalizationSink` persists block receipts through `CompositeApplication::store_finalized_block()` and finalized personality writes by decoding mem transactions from the finalized block payload.
 
 ## main.rs Entrypoint
 Minimal wrapper:

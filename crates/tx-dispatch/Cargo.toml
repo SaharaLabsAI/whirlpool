@@ -1,0 +1,11 @@
+[package]
+name = "tx-dispatch"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+app-mem = { path = "../app-mem" }
+reth-ethereum-primitives = { path = "../../vendor/reth/crates/ethereum/primitives" }
+reth-primitives-traits = { path = "../../vendor/reth/crates/primitives-traits" }
+alloy-eips = "1.4.3"
+thiserror = "2"

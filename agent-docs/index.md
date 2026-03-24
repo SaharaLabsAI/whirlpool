@@ -35,6 +35,8 @@ Structured reference docs optimized for fast LLM lookup. Each contains type sign
 | [architecture/simplex-adapter.md](architecture/simplex-adapter.md) | Adapter bridge: CommonwareBlock, AppAdapter, CommonwareEngine, CommonwareConfig, Mailbox, FinalizationSink | `consensus-simplex` |
 | [architecture/whirlpool-node.md](architecture/whirlpool-node.md) | Node library exports: `config` (CLI/TOML) and `node` lifecycle | `whirlpool-node` (lib) |
 | [crates/whirlpool-node.md](crates/whirlpool-node.md) | EVM binary entrypoint and node configuration | `whirlpool-node` (bin) |
+| [crates/app-composite.md](crates/app-composite.md) | Composite consensus application that classifies mixed tx streams and delegates execution to domain apps | `app-composite` |
+| [crates/tx-dispatch.md](crates/tx-dispatch.md) | Neutral transaction decoding and classification across EVM and mem tx families | `tx-dispatch` |
 | [crates/rpc-eth.md](crates/rpc-eth.md) | Ethereum JSON-RPC server: reth-backed adapters (WhirlpoolProvider, WhirlpoolTxPool, WhirlpoolNetwork), RpcConfig API, blob exclusion | `rpc-eth` |
 | [crates/state-reth.md](crates/state-reth.md) | Persistent state implementation: RethStateDb, MDBX, state root | `state-reth` |
 | [crates/mempool.md](crates/mempool.md) | Persistent transaction pool: MempoolStore, MDBX, FIFO ordering | `mempool` |
@@ -69,6 +71,7 @@ Step-by-step instructions for common tasks and workflows.
 | Understand block flow | `architecture/block-lifecycle.md` -> `guides/block-lifecycle-walkthrough.md` |
 | Extend node/mempool | `architecture/whirlpool-node.md` -> `guides/whirlpool-node-components.md` + `crates/mempool.md` |
 | Update EVM node tx sourcing | `crates/app.md` + `crates/whirlpool-node.md` + `crates/mempool.md` |
+| Understand mixed EVM/mem tx routing | `crates/app-composite.md` + `crates/tx-dispatch.md` + `crates/app-evm.md` |
 | Add/modify RPC methods | `crates/rpc-eth.md` + `crates/rpc-mem.md` |
 | Check code style | `reference/coding-conventions.md` |
 | Write a commit message | `reference/git-conventions.md` |
@@ -86,7 +89,9 @@ Step-by-step instructions for common tasks and workflows.
 | `state-reth` | `crates/state-reth/src/` | `crates/state-reth.md` | — |
 | `app` | `crates/app/src/` | `crates/app.md` | — |
 | `app-evm` | `crates/app-evm/src/` | `crates/app-evm.md` | — |
+| `app-composite` | `crates/app-composite/src/` | `crates/app-composite.md` | — |
 | `mempool` | `crates/mempool/src/` | `crates/mempool.md` | — |
+| `tx-dispatch` | `crates/tx-dispatch/src/` | `crates/tx-dispatch.md` | — |
 | `rpc-mem` | `crates/rpc-mem/src/` | `crates/rpc-mem.md` | — |
 | `whirlpool-node` | `crates/whirlpool-node/src/` | `architecture/whirlpool-node.md` (lib) + `crates/whirlpool-node.md` (EVM bin) | `guides/whirlpool-node-components.md` |
 | `rpc-eth` | `crates/rpc-eth/src/` | `crates/rpc-eth.md` | — |

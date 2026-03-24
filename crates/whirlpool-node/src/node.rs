@@ -1,6 +1,6 @@
 use app::traits::TxSource;
 use app::ApplicationAdapter;
-use app_evm::executor::EvmApplication;
+use app_composite::CompositeApplication;
 use app_evm::{build_sahara_chain_spec, WhirlpoolEvmConfig};
 use commonware_cryptography::ed25519;
 use commonware_cryptography::Signer;
@@ -158,7 +158,7 @@ pub fn start_node_with_chain_spec(
             let tx_pool: Arc<dyn TxSource> = Arc::new(
                 PersistentTxPool::open(&mempool_path).expect("failed to open mempool database"),
             );
-            let evm_app = EvmApplication::new(evm_config, state_db.clone(), tx_pool.clone());
+            let evm_app = CompositeApplication::new(evm_config, state_db.clone(), tx_pool.clone());
 
             let sink = Arc::new(PersistingFinalizationSink::new(
                 inner_sink,

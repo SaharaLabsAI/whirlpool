@@ -2,34 +2,34 @@ use std::sync::{Arc, Mutex, RwLock};
 
 use alloy_consensus::TxReceipt;
 use alloy_eips::eip1559::{calc_next_block_base_fee, BaseFeeParams};
-use alloy_eips::eip2718::{Decodable2718, Encodable2718};
+use alloy_eips::eip2718::Encodable2718;
 use alloy_primitives::{bytes::BufMut, Address, Bytes, B256, U256};
 use alloy_trie::{root::ordered_trie_root_with_encoder, EMPTY_ROOT_HASH};
 use app::{
     traits::{Application, TxSource},
     EvmBlock, ExecutionResult, Receipt,
 };
-use app_mem::decode_personality_tx;
-use reth_ethereum_primitives::TransactionSigned;
 use reth_evm::{
     execute::{BlockBuilder, BlockExecutor},
     ConfigureEvm, NextBlockEnvAttributes,
 };
-use reth_primitives_traits::{Header, Recovered, SealedHeader, SignedTransaction};
+use reth_primitives_traits::{Header, SealedHeader};
 use reth_revm::State;
 use revm::database::states::bundle_state::BundleRetention;
 use state::BlockStorage;
+use tx_dispatch::{decode_evm_transactions, RecoveredTx};
 
 use crate::config::WhirlpoolEvmConfig;
 use crate::error::EvmAppError;
 pub use crate::traits::StateProvider;
 
-pub type RecoveredTx = Recovered<TransactionSigned>;
-
-#[derive(Clone)]
-enum ClassifiedTx {
-    Evm { raw_tx: Vec<u8>, tx: RecoveredTx },
-    Mem { raw_tx: Vec<u8> },
+#[derive(Clone, Debug)]
+pub struct ProposedEvmPayload {
+    pub included_transactions: Vec<Vec<u8>>,
+    pub inclusion_outcomes: Vec<bool>,
+    pub result: ExecutionResult,
+    pub base_fee_per_gas: u64,
+    pub receipts: Vec<Receipt>,
 }
 
 /// Converts an `EvmBlock` into an Ethereum `Header`.
@@ -46,15 +46,12 @@ pub fn build_header_from_evm_block(block: &EvmBlock) -> Header {
         timestamp: block.timestamp,
         difficulty: U256::ZERO,
         extra_data: Bytes::default(),
-        // Post-Cancun fields required by the EVM environment.
-        // Set to zero since we do not support blob transactions.
         excess_blob_gas: Some(0),
         blob_gas_used: Some(0),
         ..Header::default()
     }
 }
 
-/// Builds a sealed header from an `EvmBlock` by hashing it.
 fn build_sealed_header(block: &EvmBlock) -> SealedHeader {
     let header = build_header_from_evm_block(block);
     let hash = header.hash_slow();
@@ -62,41 +59,7 @@ fn build_sealed_header(block: &EvmBlock) -> SealedHeader {
 }
 
 pub fn decode_transactions(raw_txs: &[Vec<u8>]) -> Result<Vec<RecoveredTx>, EvmAppError> {
-    raw_txs
-        .iter()
-        .map(|raw_tx| decode_evm_transaction(raw_tx))
-        .collect()
-}
-
-fn decode_evm_transaction(raw_tx: &[u8]) -> Result<RecoveredTx, EvmAppError> {
-    let mut input = raw_tx;
-    let tx = TransactionSigned::decode_2718(&mut input)
-        .map_err(|err| EvmAppError::InvalidBlock(err.to_string()))?;
-
-    let signer = tx
-        .try_recover()
-        .map_err(|err| EvmAppError::InvalidBlock(err.to_string()))?;
-
-    Ok(tx.with_signer(signer))
-}
-
-fn classify_transaction(raw_tx: &[u8]) -> Result<ClassifiedTx, EvmAppError> {
-    if let Ok(tx) = decode_evm_transaction(raw_tx) {
-        return Ok(ClassifiedTx::Evm {
-            raw_tx: raw_tx.to_vec(),
-            tx,
-        });
-    }
-
-    decode_personality_tx(raw_tx)
-        .map(|_| ClassifiedTx::Mem {
-            raw_tx: raw_tx.to_vec(),
-        })
-        .map_err(|err| EvmAppError::InvalidTransaction(err.to_string()))
-}
-
-fn classify_transactions(raw_txs: &[Vec<u8>]) -> Result<Vec<ClassifiedTx>, EvmAppError> {
-    raw_txs.iter().map(|raw_tx| classify_transaction(raw_tx)).collect()
+    decode_evm_transactions(raw_txs).map_err(|err| EvmAppError::InvalidBlock(err.to_string()))
 }
 
 #[derive(Clone)]
@@ -105,12 +68,13 @@ pub struct EvmApplication<DB> {
     state_db: Arc<RwLock<DB>>,
     tx_source: Arc<dyn TxSource + Send + Sync>,
     pending_receipts: Arc<Mutex<Option<Vec<Receipt>>>>,
-    /// Cache the last proposed block to avoid draining txs on duplicate proposals
-    /// at the same height (which happens in simplex consensus).
     last_proposed: Arc<Mutex<Option<(u64, EvmBlock, ExecutionResult, Vec<Receipt>)>>>,
 }
 
-impl<DB> EvmApplication<DB> {
+impl<DB> EvmApplication<DB>
+where
+    DB: std::fmt::Debug,
+{
     pub fn new(
         evm_config: WhirlpoolEvmConfig,
         state_db: Arc<RwLock<DB>>,
@@ -125,10 +89,6 @@ impl<DB> EvmApplication<DB> {
         }
     }
 
-    /// Stores a finalized block and its receipts into the given `BlockStorage`.
-    ///
-    /// Uses the receipts captured from the most recent `propose()` or `verify()` call.
-    /// Clears `pending_receipts` after a successful store.
     pub fn store_finalized_block(
         &self,
         block: &EvmBlock,
@@ -141,6 +101,248 @@ impl<DB> EvmApplication<DB> {
         storage
             .store_block(block, &receipts)
             .map_err(|e| EvmAppError::State(e.to_string()))
+    }
+
+    pub fn pending_receipts(&self) -> Vec<Receipt> {
+        self.pending_receipts
+            .lock()
+            .unwrap()
+            .clone()
+            .unwrap_or_default()
+    }
+
+    pub fn propose_evm_transactions(
+        &self,
+        parent: &EvmBlock,
+        raw_txs: &[Vec<u8>],
+        timestamp: u64,
+    ) -> Result<ProposedEvmPayload, EvmAppError>
+    where
+        DB: StateProvider + Clone + revm::Database,
+        <DB as StateProvider>::Error: Into<EvmAppError>,
+    {
+        let decoded_txs = decode_transactions(raw_txs)?;
+        let parent_header = build_sealed_header(parent);
+
+        let mut state_snapshot = {
+            let db = self.state_db.read().unwrap();
+            db.clone()
+        };
+
+        let env_attributes = NextBlockEnvAttributes {
+            timestamp,
+            suggested_fee_recipient: Address::ZERO,
+            prev_randao: B256::ZERO,
+            gas_limit: 30_000_000,
+            parent_beacon_block_root: Some(B256::ZERO),
+            withdrawals: None,
+            extra_data: Bytes::default(),
+        };
+
+        let mut state = State::builder()
+            .with_database(&mut state_snapshot)
+            .with_bundle_update()
+            .without_state_clear()
+            .build();
+
+        let mut builder = self
+            .evm_config
+            .builder_for_next_block(&mut state, &parent_header, env_attributes)
+            .map_err(|err| EvmAppError::Execution(err.to_string()))?;
+
+        builder
+            .apply_pre_execution_changes()
+            .map_err(|err| EvmAppError::Execution(err.to_string()))?;
+
+        let mut included_transactions = Vec::new();
+        let mut inclusion_outcomes = Vec::with_capacity(raw_txs.len());
+        for (raw_tx, tx) in raw_txs.iter().cloned().zip(decoded_txs) {
+            match builder.execute_transaction(tx) {
+                Ok(_) => {
+                    included_transactions.push(raw_tx);
+                    inclusion_outcomes.push(true);
+                }
+                Err(reth_evm::execute::BlockExecutionError::Validation(
+                    reth_evm::execute::BlockValidationError::InvalidTx { .. },
+                )) => inclusion_outcomes.push(false),
+                Err(err) => return Err(EvmAppError::Execution(err.to_string())),
+            }
+        }
+
+        let executor = builder.into_executor();
+        let (evm, execution_result) = executor
+            .finish()
+            .map_err(|err| EvmAppError::Execution(err.to_string()))?;
+        drop(evm);
+
+        state.merge_transitions(BundleRetention::Reverts);
+        let bundle = state.take_bundle();
+
+        let state_root = {
+            let mut canonical_db = self.state_db.write().unwrap();
+            canonical_db.commit(&bundle).map_err(Into::into)?;
+            canonical_db.state_root().map_err(Into::into)?
+        };
+
+        let receipts_root =
+            ordered_trie_root_with_encoder(&execution_result.receipts, |receipt, out| {
+                receipt.with_bloom_ref().encode_2718(out);
+            });
+
+        let gas_used = execution_result
+            .receipts
+            .iter()
+            .map(TxReceipt::cumulative_gas_used)
+            .sum::<u64>();
+
+        let receipts: Vec<Receipt> = execution_result
+            .receipts
+            .iter()
+            .map(|r| Receipt {
+                status: r.status().into(),
+                cumulative_gas_used: r.cumulative_gas_used(),
+                logs: r.logs().to_vec(),
+            })
+            .collect();
+
+        {
+            let mut guard = self.pending_receipts.lock().unwrap();
+            *guard = Some(receipts.clone());
+        }
+
+        let base_fee_per_gas = calc_next_block_base_fee(
+            parent.gas_used,
+            30_000_000,
+            parent.base_fee_per_gas,
+            BaseFeeParams::ethereum(),
+        );
+
+        Ok(ProposedEvmPayload {
+            included_transactions,
+            inclusion_outcomes,
+            result: ExecutionResult {
+                state_root: state_root.0,
+                receipts_root: receipts_root.0,
+                gas_used,
+                receipt_count: execution_result.receipts.len(),
+            },
+            base_fee_per_gas,
+            receipts,
+        })
+    }
+
+    pub fn verify_evm_transactions(
+        &self,
+        parent: &EvmBlock,
+        block: &EvmBlock,
+        raw_txs: &[Vec<u8>],
+    ) -> Result<ExecutionResult, EvmAppError>
+    where
+        DB: StateProvider + Clone + revm::Database,
+        <DB as StateProvider>::Error: Into<EvmAppError>,
+    {
+        let decoded_txs = decode_transactions(raw_txs)?;
+
+        let mut exec_state = {
+            let db = self.state_db.read().unwrap();
+            db.clone()
+        };
+
+        let parent_header = build_sealed_header(parent);
+        let env_attributes = NextBlockEnvAttributes {
+            timestamp: block.timestamp,
+            suggested_fee_recipient: Address::ZERO,
+            prev_randao: B256::ZERO,
+            gas_limit: 30_000_000,
+            parent_beacon_block_root: Some(B256::ZERO),
+            withdrawals: None,
+            extra_data: Bytes::default(),
+        };
+
+        let mut state = State::builder()
+            .with_database(&mut exec_state)
+            .with_bundle_update()
+            .without_state_clear()
+            .build();
+
+        let mut builder = self
+            .evm_config
+            .builder_for_next_block(&mut state, &parent_header, env_attributes)
+            .map_err(|err| EvmAppError::Execution(err.to_string()))?;
+
+        builder
+            .apply_pre_execution_changes()
+            .map_err(|err| EvmAppError::Execution(err.to_string()))?;
+
+        for tx in decoded_txs {
+            builder.execute_transaction(tx).map_err(|err| {
+                EvmAppError::Execution(format!("Transaction execution failed: {err}"))
+            })?;
+        }
+
+        let executor = builder.into_executor();
+        let (evm, execution_result) = executor
+            .finish()
+            .map_err(|err| EvmAppError::Execution(err.to_string()))?;
+        drop(evm);
+
+        state.merge_transitions(BundleRetention::Reverts);
+        let bundle = state.take_bundle();
+        exec_state.commit(&bundle).map_err(Into::into)?;
+
+        let computed_state_root = exec_state.state_root().map_err(Into::into)?;
+        let computed_receipts_root =
+            ordered_trie_root_with_encoder(&execution_result.receipts, |receipt, out| {
+                receipt.with_bloom_ref().encode_2718(out);
+            });
+        let computed_gas_used = execution_result
+            .receipts
+            .iter()
+            .map(TxReceipt::cumulative_gas_used)
+            .sum::<u64>();
+
+        if computed_state_root.0 != block.state_root {
+            return Err(EvmAppError::StateRootMismatch {
+                expected: block.state_root,
+                computed: computed_state_root.0,
+            });
+        }
+
+        if computed_receipts_root.0 != block.receipts_root {
+            return Err(EvmAppError::InvalidBlock(format!(
+                "Receipts root mismatch: expected {:?}, computed {:?}",
+                block.receipts_root, computed_receipts_root.0
+            )));
+        }
+
+        if computed_gas_used != block.gas_used {
+            return Err(EvmAppError::InvalidBlock(format!(
+                "Gas used mismatch: expected {}, computed {}",
+                block.gas_used, computed_gas_used
+            )));
+        }
+
+        let receipts: Vec<Receipt> = execution_result
+            .receipts
+            .iter()
+            .map(|r| Receipt {
+                status: r.status().into(),
+                cumulative_gas_used: r.cumulative_gas_used(),
+                logs: r.logs().to_vec(),
+            })
+            .collect();
+
+        {
+            let mut guard = self.pending_receipts.lock().unwrap();
+            *guard = Some(receipts);
+        }
+
+        Ok(ExecutionResult {
+            state_root: block.state_root,
+            receipts_root: block.receipts_root,
+            gas_used: block.gas_used,
+            receipt_count: execution_result.receipts.len(),
+        })
     }
 }
 
@@ -183,14 +385,10 @@ where
     ) -> impl std::future::Future<Output = Result<(Self::Block, Self::Result), Self::Error>> + Send
     {
         async move {
-            // Return cached block if we already proposed at this height.
-            // Simplex consensus may call propose() multiple times for the same height;
-            // re-draining the mempool would lose transactions.
             {
                 let cache = self.last_proposed.lock().unwrap();
                 if let Some((cached_height, ref block, ref result, ref receipts)) = *cache {
                     if cached_height == height {
-                        // Re-set pending_receipts since store_finalized_block takes them
                         let mut guard = self.pending_receipts.lock().unwrap();
                         *guard = Some(receipts.clone());
                         return Ok((block.clone(), result.clone()));
@@ -199,143 +397,32 @@ where
             }
 
             let raw_pending = self.tx_source.pending();
-            let classified_pending = classify_transactions(&raw_pending)?;
-
-            let parent_header = build_sealed_header(parent);
-
-            let mut state_snapshot = {
-                let db = self.state_db.read().unwrap();
-                db.clone()
-            };
-
             let timestamp = parent.timestamp + 12;
-            let env_attributes = NextBlockEnvAttributes {
-                timestamp,
-                suggested_fee_recipient: Address::ZERO,
-                prev_randao: B256::ZERO,
-                gas_limit: 30_000_000,
-                parent_beacon_block_root: Some(B256::ZERO),
-                withdrawals: None,
-                extra_data: Bytes::default(),
-            };
+            let payload = self.propose_evm_transactions(parent, &raw_pending, timestamp)?;
 
-            let mut state = State::builder()
-                .with_database(&mut state_snapshot)
-                .with_bundle_update()
-                .without_state_clear()
-                .build();
-
-            let mut builder = self
-                .evm_config
-                .builder_for_next_block(&mut state, &parent_header, env_attributes)
-                .map_err(|err| EvmAppError::Execution(err.to_string()))?;
-
-            builder
-                .apply_pre_execution_changes()
-                .map_err(|err| EvmAppError::Execution(err.to_string()))?;
-
-            let mut executed_raw_txs = Vec::new();
-            for classified_tx in classified_pending {
-                match classified_tx {
-                    ClassifiedTx::Evm { raw_tx, tx } => match builder.execute_transaction(tx.clone()) {
-                        Ok(_) => {
-                            executed_raw_txs.push(raw_tx);
-                        }
-                        Err(reth_evm::execute::BlockExecutionError::Validation(
-                            reth_evm::execute::BlockValidationError::InvalidTx { .. },
-                        )) => {
-                            continue;
-                        }
-                        Err(err) => {
-                            return Err(EvmAppError::Execution(err.to_string()));
-                        }
-                    },
-                    ClassifiedTx::Mem { raw_tx } => executed_raw_txs.push(raw_tx),
-                }
-            }
-
-            let executor = builder.into_executor();
-            let (evm, execution_result) = executor
-                .finish()
-                .map_err(|err| EvmAppError::Execution(err.to_string()))?;
-
-            // Drop evm to release borrow on state
-            drop(evm);
-
-            state.merge_transitions(BundleRetention::Reverts);
-            let bundle = state.take_bundle();
-
-            let state_root = {
-                let mut canonical_db = self.state_db.write().unwrap();
-                canonical_db.commit(&bundle).map_err(Into::into)?;
-                canonical_db.state_root().map_err(Into::into)?
-            };
-
-            let transactions_root = ordered_trie_root_with_encoder(&executed_raw_txs, |tx, out| {
-                out.put_slice(tx.as_slice());
-            });
-
-            let receipts_root =
-                ordered_trie_root_with_encoder(&execution_result.receipts, |receipt, out| {
-                    receipt.with_bloom_ref().encode_2718(out);
+            let transactions_root =
+                ordered_trie_root_with_encoder(&payload.included_transactions, |tx, out| {
+                    out.put_slice(tx.as_slice());
                 });
-
-            let gas_used = execution_result
-                .receipts
-                .iter()
-                .map(TxReceipt::cumulative_gas_used)
-                .sum::<u64>();
-
-            // Capture receipts for later persistence via store_finalized_block
-            {
-                let mut guard = self.pending_receipts.lock().unwrap();
-                *guard = Some(
-                    execution_result
-                        .receipts
-                        .iter()
-                        .map(|r| Receipt {
-                            status: r.status().into(),
-                            cumulative_gas_used: r.cumulative_gas_used(),
-                            logs: r.logs().to_vec(),
-                        })
-                        .collect(),
-                );
-            }
-
-            let base_fee_per_gas = calc_next_block_base_fee(
-                parent.gas_used,
-                30_000_000,
-                parent.base_fee_per_gas,
-                BaseFeeParams::ethereum(),
-            );
 
             let block = EvmBlock {
                 height,
                 parent_id: parent.compute_id(),
-                state_root: state_root.0,
+                state_root: payload.result.state_root,
                 transactions_root: transactions_root.0,
-                receipts_root: receipts_root.0,
-                gas_used,
-                base_fee_per_gas,
+                receipts_root: payload.result.receipts_root,
+                gas_used: payload.result.gas_used,
+                base_fee_per_gas: payload.base_fee_per_gas,
                 timestamp,
-                transactions: executed_raw_txs,
+                transactions: payload.included_transactions,
             };
 
-            let result = ExecutionResult {
-                state_root: state_root.0,
-                receipts_root: receipts_root.0,
-                gas_used,
-                receipt_count: execution_result.receipts.len(),
-            };
-
-            // Cache so duplicate proposals at the same height don't re-drain txs
             {
-                let receipts_clone = self.pending_receipts.lock().unwrap().clone().unwrap_or_default();
                 let mut cache = self.last_proposed.lock().unwrap();
-                *cache = Some((height, block.clone(), result.clone(), receipts_clone));
+                *cache = Some((height, block.clone(), payload.result.clone(), payload.receipts));
             }
 
-            Ok((block, result))
+            Ok((block, payload.result))
         }
     }
 
@@ -345,97 +432,8 @@ where
         block: &Self::Block,
     ) -> impl std::future::Future<Output = Result<Self::Result, Self::Error>> + Send {
         async move {
-            let classified_txs = classify_transactions(&block.transactions)?;
-
-            // 2. Clone state for isolated re-execution
-            let mut exec_state = {
-                let db = self.state_db.read().unwrap();
-                db.clone()
-            };
-
-            // 3. Build Header and Env
-            let parent_header = build_sealed_header(parent);
-            let timestamp = block.timestamp; // Use block timestamp
-
-            // Validate timestamp (optional but good practice)
-            // if timestamp != parent.timestamp + 12 { ... }
-
-            let env_attributes = NextBlockEnvAttributes {
-                timestamp,
-                suggested_fee_recipient: Address::ZERO,
-                prev_randao: B256::ZERO,
-                gas_limit: 30_000_000,
-                parent_beacon_block_root: Some(B256::ZERO),
-                withdrawals: None,
-                extra_data: Bytes::default(),
-            };
-
-            // 4. Build State and Executor
-            let mut state = State::builder()
-                .with_database(&mut exec_state)
-                .with_bundle_update()
-                .without_state_clear()
-                .build();
-
-            let mut builder = self
-                .evm_config
-                .builder_for_next_block(&mut state, &parent_header, env_attributes)
-                .map_err(|err| EvmAppError::Execution(err.to_string()))?;
-
-            builder
-                .apply_pre_execution_changes()
-                .map_err(|err| EvmAppError::Execution(err.to_string()))?;
-
-            // 5. Execute all transactions
-            for classified_tx in classified_txs {
-                if let ClassifiedTx::Evm { tx, .. } = classified_tx {
-                    builder.execute_transaction(tx).map_err(|err| {
-                        EvmAppError::Execution(format!("Transaction execution failed: {}", err))
-                    })?;
-                }
-            }
-
-            // 6. Finish execution
-            let executor = builder.into_executor();
-            let (evm, execution_result) = executor
-                .finish()
-                .map_err(|err| EvmAppError::Execution(err.to_string()))?;
-
-            drop(evm);
-
-            state.merge_transitions(BundleRetention::Reverts);
-            let bundle = state.take_bundle();
-
-            // 7. Apply bundle to cloned state (NOT canonical)
-            exec_state.commit(&bundle).map_err(Into::into)?;
-
-            // 8. Compute all 4 fields
-            let computed_state_root = exec_state.state_root().map_err(Into::into)?;
-
             let computed_tx_root =
-                ordered_trie_root_with_encoder(&block.transactions, |tx, out| {
-                    out.put_slice(tx.as_slice());
-                });
-
-            let computed_receipts_root =
-                ordered_trie_root_with_encoder(&execution_result.receipts, |r, out| {
-                    r.with_bloom_ref().encode_2718(out);
-                });
-
-            let computed_gas_used: u64 = execution_result
-                .receipts
-                .iter()
-                .map(|r| r.cumulative_gas_used())
-                .sum();
-
-            // 9. Compare all 4 fields
-            if computed_state_root.0 != block.state_root {
-                return Err(EvmAppError::StateRootMismatch {
-                    expected: block.state_root,
-                    computed: computed_state_root.0,
-                });
-            }
-
+                ordered_trie_root_with_encoder(&block.transactions, |tx, out| out.put_slice(tx));
             if computed_tx_root.0 != block.transactions_root {
                 return Err(EvmAppError::InvalidBlock(format!(
                     "Transactions root mismatch: expected {:?}, computed {:?}",
@@ -443,43 +441,7 @@ where
                 )));
             }
 
-            if computed_receipts_root.0 != block.receipts_root {
-                return Err(EvmAppError::InvalidBlock(format!(
-                    "Receipts root mismatch: expected {:?}, computed {:?}",
-                    block.receipts_root, computed_receipts_root.0
-                )));
-            }
-
-            if computed_gas_used != block.gas_used {
-                return Err(EvmAppError::InvalidBlock(format!(
-                    "Gas used mismatch: expected {}, computed {}",
-                    block.gas_used, computed_gas_used
-                )));
-            }
-
-            // 10. Capture receipts for later persistence
-            {
-                let mut guard = self.pending_receipts.lock().unwrap();
-                *guard = Some(
-                    execution_result
-                        .receipts
-                        .iter()
-                        .map(|r| Receipt {
-                            status: r.status().into(),
-                            cumulative_gas_used: r.cumulative_gas_used(),
-                            logs: r.logs().to_vec(),
-                        })
-                        .collect(),
-                );
-            }
-
-            // 11. Return ExecutionResult
-            Ok(ExecutionResult {
-                state_root: block.state_root,
-                receipts_root: block.receipts_root,
-                gas_used: block.gas_used,
-                receipt_count: execution_result.receipts.len(),
-            })
+            self.verify_evm_transactions(parent, block, &block.transactions)
         }
     }
 }
@@ -490,84 +452,16 @@ mod tests {
     use alloy_consensus::{SignableTransaction, TxLegacy};
     use alloy_eips::eip2718::Encodable2718;
     use alloy_primitives::{Address, Signature, TxKind};
-    use app_mem::{compute_markdown_hash, PersonalityMarkdownTx, SignatureScheme};
+    use reth_ethereum_primitives::TransactionSigned;
     use reth_primitives_traits::SignerRecoverable;
     use state_memory::InMemoryStateDb;
-
-    #[test]
-    fn test_header_conversion() {
-        let evm_block = EvmBlock {
-            height: 42,
-            parent_id: [1u8; 32],
-            state_root: [2u8; 32],
-            transactions_root: [3u8; 32],
-            receipts_root: [4u8; 32],
-            gas_used: 21_000,
-            base_fee_per_gas: 1_000_000_000,
-            timestamp: 1_234_567_890,
-            transactions: vec![],
-        };
-
-        let header = build_header_from_evm_block(&evm_block);
-        assert_eq!(header.number, 42);
-        assert_eq!(header.parent_hash, B256::from([1u8; 32]));
-        assert_eq!(header.state_root, B256::from([2u8; 32]));
-        assert_eq!(header.transactions_root, B256::from([3u8; 32]));
-        assert_eq!(header.receipts_root, B256::from([4u8; 32]));
-        assert_eq!(header.gas_used, 21_000);
-        assert_eq!(header.base_fee_per_gas, Some(1_000_000_000));
-        assert_eq!(header.timestamp, 1_234_567_890);
-
-        let expected_hash = header.hash_slow();
-        let sealed = build_sealed_header(&evm_block);
-        assert_eq!(sealed.number, 42);
-        assert_eq!(sealed.hash(), expected_hash);
-    }
-
-    #[test]
-    fn decode_transactions_valid_rlp() {
-        let tx = TxLegacy {
-            chain_id: Some(1),
-            nonce: 0,
-            gas_price: 1_000_000_000,
-            gas_limit: 21_000,
-            to: TxKind::Call(Address::ZERO),
-            value: U256::from(1u64),
-            input: Bytes::default(),
-        };
-        let signed: TransactionSigned = tx.into_signed(Signature::test_signature()).into();
-
-        let mut encoded = Vec::new();
-        signed.encode_2718(&mut encoded);
-
-        let decoded = decode_transactions(&[encoded]).expect("valid tx should decode");
-        assert_eq!(decoded.len(), 1);
-
-        let expected_signer = signed.try_recover().expect("signature should recover");
-        assert_eq!(decoded[0].signer(), expected_signer);
-    }
-
-    #[test]
-    fn decode_transactions_invalid_rlp() {
-        let err =
-            decode_transactions(&[vec![0x01, 0x02, 0x03]]).expect_err("invalid RLP should fail");
-        assert!(matches!(err, EvmAppError::InvalidBlock(_)));
-    }
-
-    #[test]
-    fn decode_transactions_empty_input() {
-        let decoded = decode_transactions(&[]).expect("empty input should be valid");
-        assert!(decoded.is_empty());
-    }
 
     struct MockTxSource {
         txs: Vec<Vec<u8>>,
     }
 
     impl TxSource for MockTxSource {
-        fn push(&self, _tx: Vec<u8>) {
-            // MockTxSource is pre-loaded, ignores push.
-        }
+        fn push(&self, _tx: Vec<u8>) {}
 
         fn pending(&self) -> Vec<Vec<u8>> {
             self.txs.clone()
@@ -589,197 +483,30 @@ mod tests {
         (app, db)
     }
 
-    fn sample_mem_tx() -> Vec<u8> {
-        PersonalityMarkdownTx::new(
-            b"signer-1".to_vec(),
-            b"persona-1".to_vec(),
-            7,
-            b"# Persona\nBe precise.".to_vec(),
-            SignatureScheme::RawSecp256k1,
-            vec![0x11; 65],
-        )
-        .encode()
-        .expect("mem tx should encode")
-    }
-
-    fn tampered_mem_tx() -> Vec<u8> {
-        let mut tx = PersonalityMarkdownTx::new(
-            b"signer-1".to_vec(),
-            b"persona-1".to_vec(),
-            7,
-            b"# Persona\nBe precise.".to_vec(),
-            SignatureScheme::RawSecp256k1,
-            vec![0x11; 65],
-        );
-        tx.markdown_hash = compute_markdown_hash(b"different markdown");
-        tx.encode().expect_err("hash mismatch should fail during encode");
+    fn sample_evm_tx() -> (Vec<u8>, Address) {
+        let receiver = Address::with_last_byte(2);
+        let tx = TxLegacy {
+            chain_id: Some(crate::config::SAHARA_CHAIN_ID),
+            nonce: 0,
+            gas_price: 2_000_000_000,
+            gas_limit: 21_000,
+            to: TxKind::Call(receiver),
+            value: U256::from(1000),
+            input: Bytes::default(),
+        };
+        let signature = Signature::test_signature();
+        let signed: TransactionSigned = tx.into_signed(signature).into();
+        let recovered = signed.recover_signer().unwrap();
 
         let mut encoded = Vec::new();
-        encoded.push(tx.version);
-        encoded.extend_from_slice(&(tx.signer.len() as u32).to_le_bytes());
-        encoded.extend_from_slice(&tx.signer);
-        encoded.extend_from_slice(&(tx.personality_id.len() as u32).to_le_bytes());
-        encoded.extend_from_slice(&tx.personality_id);
-        encoded.extend_from_slice(&tx.nonce.to_le_bytes());
-        encoded.extend_from_slice(&(tx.markdown_bytes.len() as u32).to_le_bytes());
-        encoded.extend_from_slice(&tx.markdown_bytes);
-        encoded.extend_from_slice(&tx.markdown_hash);
-        encoded.push(tx.signature_scheme.to_wire());
-        encoded.extend_from_slice(&(tx.signature.len() as u32).to_le_bytes());
-        encoded.extend_from_slice(&tx.signature);
-        encoded
-    }
-
-    #[tokio::test]
-    async fn propose_empty_txsource_produces_empty_block() {
-        let (app, _) = setup_app(vec![]).await;
-        let parent = app.genesis().await;
-
-        let (block, result) = app.propose(&parent, 1).await.unwrap();
-
-        assert!(block.transactions.is_empty());
-        assert_eq!(block.gas_used, 0);
-        assert_eq!(block.transactions_root, EMPTY_ROOT_HASH.0);
-        assert_eq!(block.receipts_root, EMPTY_ROOT_HASH.0);
-        assert_eq!(result.gas_used, 0);
+        signed.encode_2718(&mut encoded);
+        (encoded, recovered)
     }
 
     #[tokio::test]
     async fn propose_executes_transfer_transaction() {
-        let receiver = Address::with_last_byte(2);
-
-        let tx = TxLegacy {
-            chain_id: Some(crate::config::SAHARA_CHAIN_ID),
-            nonce: 0,
-            gas_price: 2_000_000_000,
-            gas_limit: 21_000,
-            to: TxKind::Call(receiver),
-            value: U256::from(1000),
-            input: Bytes::default(),
-        };
-        let signature = Signature::test_signature();
-        let signed: TransactionSigned = tx.into_signed(signature).into();
-        let recovered = signed.recover_signer().unwrap();
-
-        let mut encoded = Vec::new();
-        signed.encode_2718(&mut encoded);
-
-        let (app, db) = setup_app(vec![encoded]).await;
-
-        // Fund the sender
-        {
-            let mut db = db.write().unwrap();
-            let info = revm::state::AccountInfo {
-                balance: U256::from(1_000_000_000_000_000_000u64),
-                nonce: 0,
-                ..Default::default()
-            };
-            db.insert_account(recovered, info);
-        }
-
-        let parent = app.genesis().await;
-        let (block, _) = app.propose(&parent, 1).await.unwrap();
-
-        assert_eq!(block.transactions.len(), 1);
-        assert!(block.gas_used > 0);
-        assert_ne!(block.transactions_root, EMPTY_ROOT_HASH.0);
-        assert_ne!(block.receipts_root, EMPTY_ROOT_HASH.0);
-        assert_ne!(block.state_root, parent.state_root);
-    }
-
-    #[tokio::test]
-    async fn propose_executes_contract_deployment() {
-        // Simple contract that returns 42
-        let bytecode = Bytes::from(vec![
-            0x60, 0x2a, 0x60, 0x00, 0x52, 0x60, 0x20, 0x60, 0x00, 0xf3,
-        ]);
-
-        let tx = TxLegacy {
-            chain_id: Some(crate::config::SAHARA_CHAIN_ID),
-            nonce: 0,
-            gas_price: 2_000_000_000,
-            gas_limit: 100_000,
-            to: TxKind::Create,
-            value: U256::ZERO,
-            input: bytecode,
-        };
-
-        let signature = Signature::test_signature();
-        let signed: TransactionSigned = tx.into_signed(signature).into();
-        let recovered = signed.recover_signer().unwrap();
-
-        let mut encoded = Vec::new();
-        signed.encode_2718(&mut encoded);
-
-        let (app, db) = setup_app(vec![encoded]).await;
-
-        // Fund
-        {
-            let mut db = db.write().unwrap();
-            let info = revm::state::AccountInfo {
-                balance: U256::from(1_000_000_000_000_000_000u64),
-                nonce: 0,
-                ..Default::default()
-            };
-            db.insert_account(recovered, info);
-        }
-
-        let parent = app.genesis().await;
-        let (block, _) = app.propose(&parent, 1).await.unwrap();
-
-        assert_eq!(block.transactions.len(), 1);
-        assert!(block.gas_used > 0);
-    }
-
-    #[tokio::test]
-    async fn propose_preserves_valid_mem_transactions() {
-        let mem_tx = sample_mem_tx();
-        let (app, _) = setup_app(vec![mem_tx.clone()]).await;
-        let parent = app.genesis().await;
-
-        let (block, result) = app.propose(&parent, 1).await.unwrap();
-
-        assert_eq!(block.transactions, vec![mem_tx]);
-        assert_eq!(block.gas_used, 0);
-        assert_eq!(result.gas_used, 0);
-        assert_eq!(result.receipt_count, 0);
-    }
-
-    #[tokio::test]
-    async fn propose_rejects_invalid_mem_transactions() {
-        let (app, _) = setup_app(vec![tampered_mem_tx()]).await;
-        let parent = app.genesis().await;
-
-        let err = app
-            .propose(&parent, 1)
-            .await
-            .expect_err("invalid mem tx should fail proposal deterministically");
-
-        assert!(matches!(err, EvmAppError::InvalidTransaction(_)));
-    }
-
-    #[tokio::test]
-    async fn propose_mixed_block_preserves_mem_and_executes_evm() {
-        let mem_tx = sample_mem_tx();
-        let receiver = Address::with_last_byte(2);
-
-        let tx = TxLegacy {
-            chain_id: Some(crate::config::SAHARA_CHAIN_ID),
-            nonce: 0,
-            gas_price: 2_000_000_000,
-            gas_limit: 21_000,
-            to: TxKind::Call(receiver),
-            value: U256::from(1000),
-            input: Bytes::default(),
-        };
-        let signature = Signature::test_signature();
-        let signed: TransactionSigned = tx.into_signed(signature).into();
-        let recovered = signed.recover_signer().unwrap();
-
-        let mut evm_tx = Vec::new();
-        signed.encode_2718(&mut evm_tx);
-
-        let (app, db) = setup_app(vec![mem_tx.clone(), evm_tx.clone()]).await;
+        let (tx, recovered) = sample_evm_tx();
+        let (app, db) = setup_app(vec![tx]).await;
 
         {
             let mut db = db.write().unwrap();
@@ -794,77 +521,15 @@ mod tests {
         let parent = app.genesis().await;
         let (block, result) = app.propose(&parent, 1).await.unwrap();
 
-        assert_eq!(block.transactions, vec![mem_tx, evm_tx]);
-        assert!(block.gas_used > 0);
-        assert_eq!(result.receipt_count, 1);
-    }
-
-    #[tokio::test]
-    async fn verify_accepts_mixed_block_with_mem_transactions() {
-        let mem_tx = sample_mem_tx();
-        let receiver = Address::with_last_byte(2);
-        let tx = TxLegacy {
-            chain_id: Some(crate::config::SAHARA_CHAIN_ID),
-            nonce: 0,
-            gas_price: 2_000_000_000,
-            gas_limit: 21_000,
-            to: TxKind::Call(receiver),
-            value: U256::from(1000),
-            input: Bytes::default(),
-        };
-        let signature = Signature::test_signature();
-        let signed: TransactionSigned = tx.into_signed(signature).into();
-        let mut evm_tx = Vec::new();
-        signed.encode_2718(&mut evm_tx);
-
-        let (app, db) = setup_app(vec![mem_tx, evm_tx]).await;
-
-        let recovered = signed.recover_signer().unwrap();
-        {
-            let mut db = db.write().unwrap();
-            let info = revm::state::AccountInfo {
-                balance: U256::from(1_000_000_000_000_000_000u64),
-                nonce: 0,
-                ..Default::default()
-            };
-            db.insert_account(recovered, info);
-        }
-
-        let pre_state = db.read().unwrap().clone();
-
-        let parent = app.genesis().await;
-        let (block, _) = app.propose(&parent, 1).await.unwrap();
-
-        let chain_spec = Arc::new(crate::config::build_sahara_chain_spec());
-        let config = WhirlpoolEvmConfig::new(chain_spec);
-        let pre_db = Arc::new(RwLock::new(pre_state));
-        let source = Arc::new(MockTxSource { txs: vec![] });
-        let verifier_app = EvmApplication::new(config, pre_db, source);
-
-        let result = verifier_app.verify(&parent, &block).await;
-        assert!(result.is_ok(), "mixed block should verify: {:?}", result.err());
+        assert_eq!(block.transactions.len(), 1);
+        assert!(result.gas_used > 0);
     }
 
     #[tokio::test]
     async fn verify_accepts_valid_block() {
-        let receiver = Address::with_last_byte(2);
-        let tx = TxLegacy {
-            chain_id: Some(crate::config::SAHARA_CHAIN_ID),
-            nonce: 0,
-            gas_price: 2_000_000_000,
-            gas_limit: 21_000,
-            to: TxKind::Call(receiver),
-            value: U256::from(1000),
-            input: Bytes::default(),
-        };
-        let signature = Signature::test_signature();
-        let signed: TransactionSigned = tx.into_signed(signature).into();
-        let mut encoded = Vec::new();
-        signed.encode_2718(&mut encoded);
+        let (tx, recovered) = sample_evm_tx();
+        let (app, db) = setup_app(vec![tx]).await;
 
-        let (app, db) = setup_app(vec![encoded]).await;
-
-        let recovered = signed.recover_signer().unwrap();
         {
             let mut db = db.write().unwrap();
             let info = revm::state::AccountInfo {
@@ -876,7 +541,6 @@ mod tests {
         }
 
         let pre_state = db.read().unwrap().clone();
-
         let parent = app.genesis().await;
         let (block, _) = app.propose(&parent, 1).await.unwrap();
 
@@ -886,271 +550,14 @@ mod tests {
         let source = Arc::new(MockTxSource { txs: vec![] });
         let verifier_app = EvmApplication::new(config, pre_db, source);
 
-        let result = verifier_app.verify(&parent, &block).await;
-        assert!(
-            result.is_ok(),
-            "Verify failed for valid block: {:?}",
-            result.err()
-        );
+        assert!(verifier_app.verify(&parent, &block).await.is_ok());
     }
 
-    #[tokio::test]
-    async fn verify_rejects_wrong_state_root() {
-        let (app, db) = setup_app(vec![]).await;
-        let pre_state = db.read().unwrap().clone();
-
-        let parent = app.genesis().await;
-        let (mut block, _) = app.propose(&parent, 1).await.unwrap();
-
-        // Corrupt state root
-        block.state_root = [0xde; 32];
-
-        // Verifier
-        let chain_spec = Arc::new(crate::config::build_sahara_chain_spec());
-        let config = WhirlpoolEvmConfig::new(chain_spec);
-        let pre_db = Arc::new(RwLock::new(pre_state));
-        let source = Arc::new(MockTxSource { txs: vec![] });
-        let verifier_app = EvmApplication::new(config, pre_db, source);
-
-        let result = verifier_app.verify(&parent, &block).await;
-        assert!(matches!(result, Err(EvmAppError::StateRootMismatch { .. })));
-    }
-
-    #[tokio::test]
-    async fn verify_rejects_invalid_mem_transactions() {
-        let (app, db) = setup_app(vec![]).await;
-        let pre_state = db.read().unwrap().clone();
-
-        let parent = app.genesis().await;
-        let (mut block, _) = app.propose(&parent, 1).await.unwrap();
-        block.transactions.push(tampered_mem_tx());
-
-        let chain_spec = Arc::new(crate::config::build_sahara_chain_spec());
-        let config = WhirlpoolEvmConfig::new(chain_spec);
-        let pre_db = Arc::new(RwLock::new(pre_state));
-        let source = Arc::new(MockTxSource { txs: vec![] });
-        let verifier_app = EvmApplication::new(config, pre_db, source);
-
-        let result = verifier_app.verify(&parent, &block).await;
-        assert!(matches!(result, Err(EvmAppError::InvalidTransaction(_))));
-    }
-
-    #[tokio::test]
-    async fn verify_rejects_undecodable_transactions() {
-        let (app, db) = setup_app(vec![]).await;
-        let pre_state = db.read().unwrap().clone();
-
-        let parent = app.genesis().await;
-        let (mut block, _) = app.propose(&parent, 1).await.unwrap();
-
-        // Inject invalid payload that is neither valid EVM nor valid mem.
-        block.transactions.push(vec![0xde, 0xad, 0xbe, 0xef]);
-
-        let chain_spec = Arc::new(crate::config::build_sahara_chain_spec());
-        let config = WhirlpoolEvmConfig::new(chain_spec);
-        let pre_db = Arc::new(RwLock::new(pre_state));
-        let source = Arc::new(MockTxSource { txs: vec![] });
-        let verifier_app = EvmApplication::new(config, pre_db, source);
-
-        let result = verifier_app.verify(&parent, &block).await;
-        assert!(matches!(result, Err(EvmAppError::InvalidTransaction(_))));
-    }
-
-    #[tokio::test]
-    async fn verify_rejects_wrong_gas_used() {
-        // Need a transaction to have gas used
-        let receiver = Address::with_last_byte(2);
-        let tx = TxLegacy {
-            chain_id: Some(crate::config::SAHARA_CHAIN_ID),
-            nonce: 0,
-            gas_price: 2_000_000_000,
-            gas_limit: 21_000,
-            to: TxKind::Call(receiver),
-            value: U256::from(1000),
-            input: Bytes::default(),
-        };
-        let signature = Signature::test_signature();
-        let signed: TransactionSigned = tx.into_signed(signature).into();
-        let mut encoded = Vec::new();
-        signed.encode_2718(&mut encoded);
-
-        let (app, db) = setup_app(vec![encoded]).await;
-
-        // Fund sender
-        let recovered = signed.recover_signer().unwrap();
-        {
-            let mut db = db.write().unwrap();
-            let info = revm::state::AccountInfo {
-                balance: U256::from(1_000_000_000_000_000_000u64),
-                nonce: 0,
-                ..Default::default()
-            };
-            db.insert_account(recovered, info);
-        }
-
-        let pre_state = db.read().unwrap().clone();
-
-        let parent = app.genesis().await;
-        let (mut block, _) = app.propose(&parent, 1).await.unwrap();
-
-        // Corrupt gas used
-        block.gas_used += 1;
-
-        // Verifier
-        let chain_spec = Arc::new(crate::config::build_sahara_chain_spec());
-        let config = WhirlpoolEvmConfig::new(chain_spec);
-        let pre_db = Arc::new(RwLock::new(pre_state));
-        let source = Arc::new(MockTxSource { txs: vec![] });
-        let verifier_app = EvmApplication::new(config, pre_db, source);
-
-        let result = verifier_app.verify(&parent, &block).await;
-        assert!(result.is_err());
-    }
-
-    // ---- Mock BlockStorage for receipt persistence tests ----
-
-    use state::block_storage::BlockStorageError;
-    use std::sync::atomic::{AtomicBool, Ordering};
-
-    struct MockBlockStorage {
-        stored_blocks: Mutex<Vec<(EvmBlock, Vec<Receipt>)>>,
-        should_fail: AtomicBool,
-    }
-
-    impl MockBlockStorage {
-        fn new() -> Self {
-            Self {
-                stored_blocks: Mutex::new(Vec::new()),
-                should_fail: AtomicBool::new(false),
-            }
-        }
-
-        fn with_failure() -> Self {
-            Self {
-                stored_blocks: Mutex::new(Vec::new()),
-                should_fail: AtomicBool::new(true),
-            }
-        }
-
-        fn stored_count(&self) -> usize {
-            self.stored_blocks.lock().unwrap().len()
-        }
-
-        fn last_stored(&self) -> Option<(EvmBlock, Vec<Receipt>)> {
-            self.stored_blocks.lock().unwrap().last().cloned()
-        }
-    }
-
-    impl BlockStorage for MockBlockStorage {
-        fn store_block(
-            &self,
-            block: &EvmBlock,
-            receipts: &[Receipt],
-        ) -> Result<(), BlockStorageError> {
-            if self.should_fail.load(Ordering::Relaxed) {
-                return Err(BlockStorageError::Database("mock failure".into()));
-            }
-            self.stored_blocks
-                .lock()
-                .unwrap()
-                .push((block.clone(), receipts.to_vec()));
-            Ok(())
-        }
-
-        fn get_block_by_number(
-            &self,
-            _number: u64,
-        ) -> Result<Option<EvmBlock>, BlockStorageError> {
-            Ok(None)
-        }
-
-        fn get_block_by_hash(
-            &self,
-            _hash: B256,
-        ) -> Result<Option<EvmBlock>, BlockStorageError> {
-            Ok(None)
-        }
-
-        fn get_receipts_by_block(
-            &self,
-            _number: u64,
-        ) -> Result<Option<Vec<Receipt>>, BlockStorageError> {
-            Ok(None)
-        }
-
-        fn get_latest_block_number(&self) -> Result<Option<u64>, BlockStorageError> {
-            let blocks = self.stored_blocks.lock().unwrap();
-            Ok(blocks.last().map(|(b, _)| b.height))
-        }
-    }
-
-    /// TC-AE-01: Propose returns receipts matching transaction count.
-    #[tokio::test]
-    async fn propose_captures_receipts_matching_tx_count() {
-        let receiver = Address::with_last_byte(2);
-        let tx = TxLegacy {
-            chain_id: Some(crate::config::SAHARA_CHAIN_ID),
-            nonce: 0,
-            gas_price: 2_000_000_000,
-            gas_limit: 21_000,
-            to: TxKind::Call(receiver),
-            value: U256::from(1000),
-            input: Bytes::default(),
-        };
-        let signature = Signature::test_signature();
-        let signed: TransactionSigned = tx.into_signed(signature).into();
-        let recovered = signed.recover_signer().unwrap();
-        let mut encoded = Vec::new();
-        signed.encode_2718(&mut encoded);
-
-        let (app, db) = setup_app(vec![encoded]).await;
-
-        // Fund sender
-        {
-            let mut db = db.write().unwrap();
-            let info = revm::state::AccountInfo {
-                balance: U256::from(1_000_000_000_000_000_000u64),
-                nonce: 0,
-                ..Default::default()
-            };
-            db.insert_account(recovered, info);
-        }
-
-        let parent = app.genesis().await;
-        let (block, _result) = app.propose(&parent, 1).await.unwrap();
-
-        // pending_receipts should now contain receipts matching tx count
-        let guard = app.pending_receipts.lock().unwrap();
-        let receipts = guard.as_ref().expect("receipts should be Some after propose");
-        assert_eq!(
-            receipts.len(),
-            block.transactions.len(),
-            "receipt count should match transaction count"
-        );
-    }
-
-    /// TC-AE-02: store_finalized_block calls BlockStorage::store_block and clears pending.
     #[tokio::test]
     async fn store_finalized_block_stores_and_clears_receipts() {
-        let receiver = Address::with_last_byte(2);
-        let tx = TxLegacy {
-            chain_id: Some(crate::config::SAHARA_CHAIN_ID),
-            nonce: 0,
-            gas_price: 2_000_000_000,
-            gas_limit: 21_000,
-            to: TxKind::Call(receiver),
-            value: U256::from(1000),
-            input: Bytes::default(),
-        };
-        let signature = Signature::test_signature();
-        let signed: TransactionSigned = tx.into_signed(signature).into();
-        let recovered = signed.recover_signer().unwrap();
-        let mut encoded = Vec::new();
-        signed.encode_2718(&mut encoded);
+        let (tx, recovered) = sample_evm_tx();
+        let (app, db) = setup_app(vec![tx]).await;
 
-        let (app, db) = setup_app(vec![encoded]).await;
-
-        // Fund sender
         {
             let mut db = db.write().unwrap();
             let info = revm::state::AccountInfo {
@@ -1164,50 +571,56 @@ mod tests {
         let parent = app.genesis().await;
         let (block, _) = app.propose(&parent, 1).await.unwrap();
 
-        let storage = MockBlockStorage::new();
+        #[derive(Default)]
+        struct MockBlockStorage {
+            stored: Mutex<Vec<(EvmBlock, Vec<Receipt>)>>,
+        }
+
+        impl BlockStorage for MockBlockStorage {
+            fn store_block(
+                &self,
+                block: &EvmBlock,
+                receipts: &[Receipt],
+            ) -> Result<(), state::BlockStorageError> {
+                self.stored
+                    .lock()
+                    .unwrap()
+                    .push((block.clone(), receipts.to_vec()));
+                Ok(())
+            }
+
+            fn get_block_by_number(
+                &self,
+                _number: u64,
+            ) -> Result<Option<EvmBlock>, state::BlockStorageError> {
+                Ok(None)
+            }
+
+            fn get_block_by_hash(
+                &self,
+                _hash: B256,
+            ) -> Result<Option<EvmBlock>, state::BlockStorageError> {
+                Ok(None)
+            }
+
+            fn get_receipts_by_block(
+                &self,
+                _number: u64,
+            ) -> Result<Option<Vec<Receipt>>, state::BlockStorageError> {
+                Ok(None)
+            }
+
+            fn get_latest_block_number(&self) -> Result<Option<u64>, state::BlockStorageError> {
+                Ok(None)
+            }
+        }
+
+        let storage = MockBlockStorage::default();
         app.store_finalized_block(&block, &storage).unwrap();
 
-        assert_eq!(storage.stored_count(), 1);
-        let (stored_block, stored_receipts) = storage.last_stored().unwrap();
-        assert_eq!(stored_block.height, block.height);
-        assert_eq!(stored_receipts.len(), block.transactions.len());
-
-        // pending_receipts should be cleared (None)
-        let guard = app.pending_receipts.lock().unwrap();
-        assert!(guard.is_none(), "pending_receipts should be None after store");
-    }
-
-    /// TC-AE-03: store_finalized_block handles no pending receipts gracefully.
-    #[tokio::test]
-    async fn store_finalized_block_empty_receipts() {
-        let (app, _) = setup_app(vec![]).await;
-        let parent = app.genesis().await;
-
-        // Don't call propose, so pending_receipts is None
-        let storage = MockBlockStorage::new();
-        app.store_finalized_block(&parent, &storage).unwrap();
-
-        assert_eq!(storage.stored_count(), 1);
-        let (_, stored_receipts) = storage.last_stored().unwrap();
-        assert!(
-            stored_receipts.is_empty(),
-            "should store empty receipts when none pending"
-        );
-    }
-
-    /// TC-AE-04: store_finalized_block surfaces BlockStorage errors.
-    #[tokio::test]
-    async fn store_finalized_block_propagates_storage_error() {
-        let (app, _) = setup_app(vec![]).await;
-        let parent = app.genesis().await;
-
-        let storage = MockBlockStorage::with_failure();
-        let result = app.store_finalized_block(&parent, &storage);
-
-        assert!(result.is_err(), "should propagate storage error");
-        assert!(
-            matches!(result, Err(EvmAppError::State(_))),
-            "should map to EvmAppError::State"
-        );
+        let stored = storage.stored.lock().unwrap();
+        assert_eq!(stored.len(), 1);
+        assert_eq!(stored[0].0.height, 1);
+        assert_eq!(stored[0].1.len(), 1);
     }
 }

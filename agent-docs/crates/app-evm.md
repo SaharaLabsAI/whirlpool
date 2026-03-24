@@ -1,7 +1,7 @@
 # app-evm
 
 ## Purpose
-EVM configuration and execution integration for Whirlpool applications.
+Pure EVM configuration and execution integration for Whirlpool applications.
 
 ## Interface/Implementation Split
 - Interface module: `crates/app-evm/src/traits.rs`
@@ -24,7 +24,8 @@ EVM configuration and execution integration for Whirlpool applications.
 - `From<state_reth::RethStateError>`: persistent state error conversion.
 
 ## Execution Implementation
-The `EvmApplication` executor uses `.map_err(Into::into)` on all `StateProvider` calls to convert into `EvmAppError`.
+`EvmApplication` is now EVM-only. Mixed mem/personality transaction routing moved out to `app-composite` + `tx-dispatch`.
+The executor uses `.map_err(Into::into)` on all `StateProvider` calls to convert into `EvmAppError`.
 
 ## EIP-1559 Base Fee
 `EvmApplication::propose()` uses `calc_next_block_base_fee` from `reth-primitives-traits` to compute the `base_fee_per_gas` for each new block based on the parent block's gas usage and base fee. Genesis base fee defaults to 1 gwei (1_000_000_000).
@@ -38,10 +39,13 @@ The `EvmApplication` executor uses `.map_err(Into::into)` on all `StateProvider`
 
 ## Key Types
 - `WhirlpoolEvmConfig`: wrapper for EVM configuration.
-- `EvmApplication`: application implementation that executes EVM blocks.
+- `EvmApplication`: application implementation that executes EVM-only blocks.
   - `pending_receipts: Arc<Mutex<Option<Vec<Receipt>>>>`: temporary storage for receipts between execution and persistence.
   - `last_proposed: Arc<Mutex<Option<(u64, EvmBlock, ExecutionResult, Vec<Receipt>)>>>`: cache for the most recent proposal at a given height; prevents duplicate mempool drain when simplex calls `propose()` multiple times for the same height.
+  - `propose_evm_transactions(&self, parent, raw_txs, timestamp) -> Result<ProposedEvmPayload, EvmAppError>`: executes a candidate EVM tx list and returns included txs plus execution artifacts.
+  - `verify_evm_transactions(&self, parent, block, raw_txs) -> Result<ExecutionResult, EvmAppError>`: replays only the EVM subset of a block.
   - `store_finalized_block(&self, block: &EvmBlock, storage: &dyn BlockStorage) -> Result<(), EvmAppError>`: persists block and receipts.
+- `ProposedEvmPayload`: result of EVM-only proposal execution, including included transactions, inclusion outcomes, receipts, and execution result.
 - `EvmAppError`: EVM application error type.
 
 ## Public Functions
@@ -50,4 +54,4 @@ The `EvmApplication` executor uses `.map_err(Into::into)` on all `StateProvider`
 - `build_sahara_chain_spec_with_alloc(alloc: BTreeMap<Address, GenesisAccount>) -> Arc<ChainSpec>`: builds a Sahara chain spec with pre-funded genesis accounts. Used for integration tests requiring funded accounts.
 
 ## Status
-Complete. Traits are stable and execution/persistence logic is implemented.
+Active. This crate is now the pure EVM execution layer used directly by `app-composite`.

@@ -8,4 +8,4 @@ pub use config::{
     SAHARA_CHAIN_ID,
 };
 pub use error::EvmAppError;
-pub use executor::build_header_from_evm_block;
+pub use executor::{build_header_from_evm_block, EvmApplication, ProposedEvmPayload};

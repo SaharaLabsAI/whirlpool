@@ -3,7 +3,7 @@
 //! to the inner `FinalizationSink`.
 
 use app::EvmBlock;
-use app_evm::executor::EvmApplication;
+use app_composite::CompositeApplication;
 use app_mem::PersonalityMarkdownTx;
 use consensus::event::{ConsensusEvent, EventSink};
 use consensus_simplex::FinalizationSink;
@@ -15,7 +15,7 @@ use tracing::{error, info};
 /// before delegating to the underlying `FinalizationSink`.
 pub struct PersistingFinalizationSink<DB, BS, PS> {
     inner: FinalizationSink<EvmBlock>,
-    evm_app: EvmApplication<DB>,
+    evm_app: CompositeApplication<DB>,
     block_storage: Arc<BS>,
     personality_storage: Arc<PS>,
 }
@@ -23,7 +23,7 @@ pub struct PersistingFinalizationSink<DB, BS, PS> {
 impl<DB, BS, PS> PersistingFinalizationSink<DB, BS, PS> {
     pub fn new(
         inner: FinalizationSink<EvmBlock>,
-        evm_app: EvmApplication<DB>,
+        evm_app: CompositeApplication<DB>,
         block_storage: Arc<BS>,
         personality_storage: Arc<PS>,
     ) -> Self {
@@ -76,7 +76,7 @@ impl<DB, BS, PS> PersistingFinalizationSink<DB, BS, PS> {
 
 impl<DB, BS, PS> EventSink for PersistingFinalizationSink<DB, BS, PS>
 where
-    DB: StateDb + Send + Sync + 'static,
+    DB: StateDb + Send + Sync + 'static + std::fmt::Debug,
     BS: BlockStorage + 'static,
     PS: PersonalityStorage + 'static,
     <PS as PersonalityStorage>::Error: std::fmt::Display,
@@ -129,8 +129,8 @@ mod tests {
     use super::PersistingFinalizationSink;
     use app::traits::TxSource;
     use app::{EvmBlock, Receipt};
+    use app_composite::CompositeApplication;
     use app_evm::{build_sahara_chain_spec, WhirlpoolEvmConfig};
-    use app_evm::executor::EvmApplication;
     use app_mem::{PersonalityMarkdownTx, SignatureScheme};
     use consensus::event::{ConsensusEvent, EventSink};
     use consensus_simplex::FinalizationSink;
@@ -310,12 +310,12 @@ mod tests {
         }
     }
 
-    fn test_app() -> EvmApplication<InMemoryStateDb> {
+    fn test_app() -> CompositeApplication<InMemoryStateDb> {
         let chain_spec = Arc::new(build_sahara_chain_spec());
         let config = WhirlpoolEvmConfig::new(chain_spec);
         let state_db = Arc::new(RwLock::new(InMemoryStateDb::new()));
         let tx_source: Arc<dyn TxSource + Send + Sync> = Arc::new(EmptyTxSource);
-        EvmApplication::new(config, state_db, tx_source)
+        CompositeApplication::new(config, state_db, tx_source)
     }
 
     #[tokio::test]

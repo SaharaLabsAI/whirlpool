@@ -5,6 +5,7 @@ edition.workspace = true
 
 [dependencies]
 app = { path = "../app" }
+app-composite = { path = "../app-composite" }
 app-evm = { path = "../app-evm" }
 app-mem = { path = "../app-mem" }
 mempool-mdbx = { path = "../mempool-mdbx" }

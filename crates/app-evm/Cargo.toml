@@ -5,11 +5,11 @@ edition.workspace = true
 
 [dependencies]
 app = { path = "../app" }
-app-mem = { path = "../app-mem" }
 state = { path = "../state" }
 state-memory = { path = "../state-memory" }
 state-reth = { path = "../state-reth" }
 consensus = { path = "../consensus" }
+tx-dispatch = { path = "../tx-dispatch" }
 reth-evm = { path = "../../vendor/reth/crates/evm/evm" }
 reth-evm-ethereum = { path = "../../vendor/reth/crates/ethereum/evm" }
 reth-ethereum-primitives = { path = "../../vendor/reth/crates/ethereum/primitives" }

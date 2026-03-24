@@ -1,0 +1,24 @@
+[package]
+name = "app-composite"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+app = { path = "../app" }
+app-evm = { path = "../app-evm" }
+app-mem = { path = "../app-mem" }
+state = { path = "../state" }
+tx-dispatch = { path = "../tx-dispatch" }
+reth-primitives-traits = { path = "../../vendor/reth/crates/primitives-traits" }
+alloy-primitives = "1.5.0"
+alloy-trie = "0.9"
+revm = "34"
+thiserror = "2"
+
+[dev-dependencies]
+state-memory = { path = "../state-memory" }
+tokio = { version = "1", features = ["rt", "macros"] }
+alloy-consensus = "1.4.3"
+alloy-eips = "1.4.3"
+reth-ethereum-primitives = { path = "../../vendor/reth/crates/ethereum/primitives" }
+revm = "34"
