@@ -39,6 +39,8 @@ The node constructs an `rpc_eth::RpcConfig` with:
 
 Then calls `rpc_eth::start_rpc_server(config)` to get `(RpcServerHandle, SocketAddr)`.
 
+For mem RPC, the node shares the same `Arc<PersistentTxPool>` submit path and the finalized `Arc<InMemoryPersonalityStorage>` used by `PersistingFinalizationSink`, then starts `rpc_mem` with `TxSourceMemoryTxService::with_personality_storage(...)`. This keeps `mem_submitPersonality` unchanged while enabling finalized-only `mem_getPersonality` reads on the dedicated mem RPC server.
+
 ## main.rs Entrypoint
 Minimal wrapper:
 1. `NodeArgs::parse()`
@@ -55,7 +57,11 @@ Recovery relies on two persistence layers working together:
 - `PersistingFinalizationSink<DB, BS>`: `EventSink` implementation that persists finalized blocks to `BlockStorage` before delegating to the inner `FinalizationSink`.
 
 ## RPC
-The RPC implementation uses reth's production JSON-RPC stack via the `rpc-eth` crate. See `agent-docs/crates/rpc-eth.md`. The server serves all standard `eth_*` methods backed by `RethStateDb` (MDBX). Blob (EIP-4844) support is excluded.
+The node runs two RPC servers:
+- `rpc-eth`: reth-backed `eth_*` methods served from `RethStateDb` (MDBX). Blob (EIP-4844) support is excluded.
+- `rpc-mem`: `mem_submitPersonality` plus finalized-only `mem_getPersonality`, backed by the shared mempool submit path and finalized personality storage.
+
+`mem_*` methods are not mounted on the Ethereum RPC listener; they are exposed only on `NodeHandle::mem_rpc_addr`.
 
 ## Import Migration Rule
 Use canonical `::traits::` paths for interface types; avoid non-canonical crate-root trait imports.

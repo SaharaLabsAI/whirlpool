@@ -86,15 +86,17 @@ pub fn start_node_with_chain_spec(
             let dialable_addr = config.network.dialable_addr;
             let bootstrappers = config.network.bootstrap_peers.clone();
 
-            let (network_provider, oracle_handle) =
-                CommonwareNetworkProviderBuilder::new(signer.clone(), config.network.namespace.clone())
-                    .listen_addr(listen_addr)
-                    .dialable_addr(dialable_addr)
-                    .max_message_size(config.network.max_message_size)
-                    .initial_validators(0, validators.clone())
-                    .bootstrappers(bootstrappers)
-                    .build(context.with_label("network"))
-                    .await;
+            let (network_provider, oracle_handle) = CommonwareNetworkProviderBuilder::new(
+                signer.clone(),
+                config.network.namespace.clone(),
+            )
+            .listen_addr(listen_addr)
+            .dialable_addr(dialable_addr)
+            .max_message_size(config.network.max_message_size)
+            .initial_validators(0, validators.clone())
+            .bootstrappers(bootstrappers)
+            .build(context.with_label("network"))
+            .await;
 
             let db_path = config.storage.state_dir();
             info!(?db_path, "Opening persistent state database");
@@ -162,7 +164,7 @@ pub fn start_node_with_chain_spec(
                 inner_sink,
                 evm_app.clone(),
                 block_storage.clone(),
-                personality_storage,
+                personality_storage.clone(),
             ));
 
             let app = Arc::new(ApplicationAdapter::new(evm_app));
@@ -181,13 +183,14 @@ pub fn start_node_with_chain_spec(
                 .await
                 .expect("failed to start Ethereum RPC server");
 
-            let mem_rpc_service = Arc::new(TxSourceMemoryTxService::new(tx_pool.clone()));
-            let (_mem_rpc_handle, mem_rpc_addr) = mem_rpc::start_rpc_server(
-                mem_rpc_service,
-                config.rpc.mem_bind_addr,
-            )
-            .await
-            .expect("failed to start memory RPC server");
+            let mem_rpc_service = Arc::new(TxSourceMemoryTxService::with_personality_storage(
+                tx_pool.clone(),
+                personality_storage,
+            ));
+            let (_mem_rpc_handle, mem_rpc_addr) =
+                mem_rpc::start_rpc_server(mem_rpc_service, config.rpc.mem_bind_addr)
+                    .await
+                    .expect("failed to start memory RPC server");
             info!(%rpc_addr, %mem_rpc_addr, %dialable_addr, "JSON-RPC servers started");
 
             let _ = info_tx.send(Ok(NodeInfo {

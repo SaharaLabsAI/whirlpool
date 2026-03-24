@@ -55,7 +55,7 @@ ZERO HUMAN INTERVENTION. Each task writes evidence under `.sisyphus/evidence/add
 <!-- TASKS_START -->
 - [x] Task 1: Define rpc-mem read contracts and behavior tests [**M**] -> [tasks/01-rpc-mem-read-contracts-and-tests.md](tasks/01-rpc-mem-read-contracts-and-tests.md)
 - [x] Task 2: Implement rpc-mem read method and deterministic response mapping [**M**] -> [tasks/02-rpc-mem-read-method-and-mapping.md](tasks/02-rpc-mem-read-method-and-mapping.md)
-- [ ] Task 3: Wire whirlpool-node read-capable rpc-mem service adapter [**M**] -> [tasks/03-whirlpool-node-read-adapter-wiring.md](tasks/03-whirlpool-node-read-adapter-wiring.md)
+- [x] Task 3: Wire whirlpool-node read-capable rpc-mem service adapter [**M**] -> [tasks/03-whirlpool-node-read-adapter-wiring.md](tasks/03-whirlpool-node-read-adapter-wiring.md)
 - [ ] Task 4: Integration verification and contract audit [**M**] -> [tasks/04-integration-verification-and-audit.md](tasks/04-integration-verification-and-audit.md)
 <!-- TASKS_END -->
 

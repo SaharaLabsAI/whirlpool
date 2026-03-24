@@ -1,0 +1,25 @@
+Task 03 validation evidence
+
+Command:
+- nix develop --command cargo build -p whirlpool-node
+- nix develop --command cargo test -p whirlpool-node
+- nix develop --command cargo test -p integration-tests --test rpc_mem_integration
+
+Result:
+- PASS
+
+Implemented files:
+- crates/whirlpool-node/src/node.rs
+- testing/integration-tests/tests/rpc_mem_integration.rs
+- agent-docs/crates/whirlpool-node.md
+- agent-docs/crates/integration-tests.md
+- .sisyphus/plans/add-get-personality-to-rpc-mem/INDEX.md
+
+Covered behavior:
+- test_mem_submit_personality_on_mem_rpc_only
+- test_mem_get_personality_returns_null_when_missing
+- test_mem_get_personality_returns_finalized_entry_after_submit
+
+Notes:
+- `whirlpool-node` now starts `rpc-mem` with `TxSourceMemoryTxService::with_personality_storage(...)`.
+- Finalized personality reads use the same in-memory storage handle already passed to `PersistingFinalizationSink`.

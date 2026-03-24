@@ -111,6 +111,12 @@ End-to-end consensus test for a 4-node network using `whirlpool_node::node::star
 - Uses distinct ephemeral data directories, P2P ports, and RPC ports for each node.
 - Validates that heights across nodes remain synchronized within 1 block.
 
+### `tests/rpc_mem_integration.rs`
+Full-node mem RPC coverage using `whirlpool_node::node::start_node_with_chain_spec` with per-test tempdirs and dedicated mem RPC ports.
+- `test_mem_submit_personality_on_mem_rpc_only`: verifies `mem_submitPersonality` succeeds on `NodeHandle::mem_rpc_addr` and is absent from the Ethereum RPC server.
+- `test_mem_get_personality_returns_null_when_missing`: verifies `mem_getPersonality` returns JSON `null` for unknown IDs on the mem RPC server and is absent from the Ethereum RPC server.
+- `test_mem_get_personality_returns_finalized_entry_after_submit`: submits a personality tx, waits for finalization, then verifies `mem_getPersonality` returns the finalized entry with deterministic `tx_hash`, `markdown_hash`, and stored fields.
+
 ## Running
 ```bash
 # Run only EVM RPC integration tests
