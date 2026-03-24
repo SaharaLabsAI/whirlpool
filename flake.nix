@@ -48,6 +48,12 @@
           pkgs.perl
         ];
 
+        pythonEnv = pkgs.python3.withPackages (
+          ps: with ps; [
+            pyyaml
+          ]
+        );
+
         withClang = prev: {
           buildInputs = prev.buildInputs or [ ] ++ [
             pkgs.clang
@@ -101,6 +107,7 @@
               packages = nativeBuildInputs ++ [
                 pkgs.rust-analyzer
                 pkgs.cargo-nextest
+                pythonEnv
               ];
 
               # Remove the hardening added by nix to fix jmalloc compilation error.

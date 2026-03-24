@@ -1,0 +1,4 @@
+interface:
+  display_name: "Whirlpool Mem Personality"
+  short_description: "Use Whirlpool mem personality RPC flow"
+  default_prompt: "Use $whirlpool-mem-personality to submit a personality mem tx, wait for finalization, and verify the stored result on a Whirlpool node."
