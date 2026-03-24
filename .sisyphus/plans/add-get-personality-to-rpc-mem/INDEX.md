@@ -53,7 +53,7 @@ ZERO HUMAN INTERVENTION. Each task writes evidence under `.sisyphus/evidence/add
 
 ## Task List
 <!-- TASKS_START -->
-- [ ] Task 1: Define rpc-mem read contracts and behavior tests [**M**] -> [tasks/01-rpc-mem-read-contracts-and-tests.md](tasks/01-rpc-mem-read-contracts-and-tests.md)
+- [x] Task 1: Define rpc-mem read contracts and behavior tests [**M**] -> [tasks/01-rpc-mem-read-contracts-and-tests.md](tasks/01-rpc-mem-read-contracts-and-tests.md)
 - [ ] Task 2: Implement rpc-mem read method and deterministic response mapping [**M**] -> [tasks/02-rpc-mem-read-method-and-mapping.md](tasks/02-rpc-mem-read-method-and-mapping.md)
 - [ ] Task 3: Wire whirlpool-node read-capable rpc-mem service adapter [**M**] -> [tasks/03-whirlpool-node-read-adapter-wiring.md](tasks/03-whirlpool-node-read-adapter-wiring.md)
 - [ ] Task 4: Integration verification and contract audit [**M**] -> [tasks/04-integration-verification-and-audit.md](tasks/04-integration-verification-and-audit.md)
@@ -63,10 +63,10 @@ ZERO HUMAN INTERVENTION. Each task writes evidence under `.sisyphus/evidence/add
 <!-- ARTIFACTS_START -->
 | TestID | Planned Name | Actual Name | Location | Created By | Status |
 |--------|--------------|-------------|----------|------------|--------|
-| TST-1 | RPC get personality returns latest finalized entry | (pending) | `crates/rpc-mem/tests/get_personality_contract.rs` | Task 1 | pending |
-| TST-2 | RPC get personality returns null/not-found when absent | (pending) | `crates/rpc-mem/tests/get_personality_contract.rs` | Task 1 | pending |
-| TST-3 | RPC get personality rejects malformed identity hex | (pending) | `crates/rpc-mem/tests/get_personality_contract.rs` | Task 1 | pending |
-| TST-4 | Submit path remains functional | (pending) | `crates/rpc-mem/tests/submit_regression.rs` | Task 1 | pending |
+| TST-1 | RPC get personality returns latest finalized entry | `rpc_server_returns_latest_finalized_personality_entry` | `crates/rpc-mem/tests/get_personality_contract.rs` | Task 1 | done |
+| TST-2 | RPC get personality returns null/not-found when absent | `rpc_server_returns_null_when_personality_is_missing` | `crates/rpc-mem/tests/get_personality_contract.rs` | Task 1 | done |
+| TST-3 | RPC get personality rejects malformed identity hex | `rpc_server_rejects_malformed_personality_hex_without_calling_service` | `crates/rpc-mem/tests/get_personality_contract.rs` | Task 1 | done |
+| TST-4 | Submit path remains functional | `rpc_server_accepts_valid_submission`, `rpc_server_rejects_oversize_submission` | `crates/rpc-mem/tests/submit_regression.rs` | Task 1 | done |
 <!-- ARTIFACTS_END -->
 
 ## Final Verification

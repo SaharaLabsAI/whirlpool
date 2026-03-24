@@ -8402,6 +8402,7 @@ dependencies = [
  "hex",
  "jsonrpsee",
  "serde",
+ "state",
  "thiserror 2.0.18",
  "tokio",
 ]

@@ -12,6 +12,10 @@ pub enum RpcMemError {
         #[source]
         source: hex::FromHexError,
     },
+    #[error("stored markdown must be valid UTF-8: {0}")]
+    InvalidStoredMarkdown(#[source] std::string::FromUtf8Error),
+    #[error("personality read capability is not available for this rpc-mem service")]
+    ReadCapabilityUnavailable,
     #[error(transparent)]
     Mem(#[from] app_mem::MemTxError),
     #[error(transparent)]

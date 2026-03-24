@@ -10,6 +10,7 @@ async-trait = "0.1"
 hex = "0.4"
 jsonrpsee = { version = "0.26.0", features = ["client", "server", "macros"] }
 serde = { version = "1", features = ["derive"] }
+state = { path = "../state" }
 thiserror = "2"
 
 [dev-dependencies]

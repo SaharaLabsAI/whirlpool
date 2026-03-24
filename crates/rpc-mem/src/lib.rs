@@ -12,12 +12,15 @@ use jsonrpsee::server::{ServerBuilder, ServerHandle};
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use serde::{Deserialize, Serialize};
+use state::StoredPersonality;
 
 pub trait MemoryTxService: Send + Sync {
     fn submit_personality(
         &self,
         request: SubmitPersonalityRequest,
     ) -> Result<[u8; 32], RpcMemError>;
+
+    fn get_personality(&self, personality_id: Vec<u8>) -> Result<Option<StoredPersonality>, RpcMemError>;
 }
 
 #[derive(Clone)]
@@ -41,6 +44,10 @@ impl MemoryTxService for TxSourceMemoryTxService {
         let tx_hash = tx.tx_hash()?;
         self.tx_source.push(encoded);
         Ok(tx_hash)
+    }
+
+    fn get_personality(&self, _personality_id: Vec<u8>) -> Result<Option<StoredPersonality>, RpcMemError> {
+        Err(RpcMemError::ReadCapabilityUnavailable)
     }
 }
 
@@ -84,6 +91,44 @@ pub struct SubmitPersonalityResponse {
     pub tx_hash: String,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GetPersonalityRequest {
+    pub personality_id: String,
+}
+
+impl GetPersonalityRequest {
+    fn personality_id_bytes(&self) -> Result<Vec<u8>, RpcMemError> {
+        decode_hex_field("personality_id", &self.personality_id)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GetPersonalityResponse {
+    pub tx_hash: String,
+    pub block_height: u64,
+    pub signer: String,
+    pub personality_id: String,
+    pub nonce: u64,
+    pub markdown: String,
+    pub markdown_hash: String,
+}
+
+impl TryFrom<StoredPersonality> for GetPersonalityResponse {
+    type Error = RpcMemError;
+
+    fn try_from(entry: StoredPersonality) -> Result<Self, Self::Error> {
+        Ok(Self {
+            tx_hash: encode_hex(&entry.tx_hash),
+            block_height: entry.block_height,
+            signer: encode_hex(&entry.signer),
+            personality_id: encode_hex(&entry.personality_id),
+            nonce: entry.nonce,
+            markdown: String::from_utf8(entry.markdown).map_err(RpcMemError::InvalidStoredMarkdown)?,
+            markdown_hash: encode_hex(&entry.markdown_hash),
+        })
+    }
+}
+
 pub async fn start_rpc_server(
     service: Arc<dyn MemoryTxService>,
     addr: SocketAddr,
@@ -99,12 +144,32 @@ pub async fn start_rpc_server(
             .map_err(rpc_error_from_service)?;
 
         Ok(SubmitPersonalityResponse {
-            tx_hash: format!("0x{}", hex::encode(tx_hash)),
+            tx_hash: encode_hex(&tx_hash),
         })
     })?;
 
+    module.register_method(
+        "mem_getPersonality",
+        |params, service, _| -> RpcResult<Option<GetPersonalityResponse>> {
+            let request: GetPersonalityRequest = params.one()?;
+            let personality_id = request.personality_id_bytes().map_err(rpc_error_from_service)?;
+            let response = service
+                .get_personality(personality_id)
+                .map_err(rpc_error_from_service)?
+                .map(GetPersonalityResponse::try_from)
+                .transpose()
+                .map_err(rpc_error_from_service)?;
+
+            Ok(response)
+        },
+    )?;
+
     let handle = server.start(module);
     Ok((handle, local_addr))
+}
+
+fn encode_hex(value: &[u8]) -> String {
+    format!("0x{}", hex::encode(value))
 }
 
 fn parse_signature_scheme(value: &str) -> Result<SignatureScheme, RpcMemError> {
