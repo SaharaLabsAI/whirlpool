@@ -1,0 +1,26 @@
+Task 04 final audit evidence
+
+Commands:
+- nix develop --command cargo build --workspace
+- nix develop --command cargo test -p rpc-mem
+- nix develop --command cargo test -p whirlpool-node
+
+Result:
+- PASS
+
+REQ coverage summary:
+- REQ-1 / REQ-3 / REQ-4 / REQ-6 / REQ-7: covered by rpc-mem request/response contract tests in `crates/rpc-mem/tests/get_personality_contract.rs` and submit regression tests in `crates/rpc-mem/tests/submit_regression.rs`.
+- REQ-2 / REQ-5: covered by whirlpool-node wiring in `crates/whirlpool-node/src/node.rs`, persistence behavior in `crates/whirlpool-node/src/persisting_sink.rs`, and full-node mem RPC coverage in `testing/integration-tests/tests/rpc_mem_integration.rs`.
+
+TST coverage summary:
+- TST-1: `rpc_server_returns_latest_finalized_personality_entry` in `crates/rpc-mem/tests/get_personality_contract.rs`; `test_mem_get_personality_returns_finalized_entry_after_submit` in `testing/integration-tests/tests/rpc_mem_integration.rs`.
+- TST-2: `rpc_server_returns_null_when_personality_is_missing` in `crates/rpc-mem/tests/get_personality_contract.rs`; `test_mem_get_personality_returns_null_when_missing` in `testing/integration-tests/tests/rpc_mem_integration.rs`.
+- TST-3: `rpc_server_rejects_malformed_personality_hex_without_calling_service` in `crates/rpc-mem/tests/get_personality_contract.rs`.
+- TST-4: `rpc_server_accepts_valid_submission` and `rpc_server_rejects_oversize_submission` in `crates/rpc-mem/tests/submit_regression.rs`; `test_mem_submit_personality_on_mem_rpc_only` in `testing/integration-tests/tests/rpc_mem_integration.rs`.
+
+Accepted gaps:
+- None.
+
+Notes:
+- Final audit kept `vendor/**` unchanged.
+- Validation emitted a pre-existing deprecation warning from `vendor/commonware/utils/src/channels/tracked.rs`; it did not block build or tests.
