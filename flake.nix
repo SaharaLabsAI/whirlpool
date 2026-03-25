@@ -110,6 +110,14 @@
                 pythonEnv
               ];
 
+              shellHook = ''
+                repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+                demo_path="$repo_root/devtools/demo/personality"
+                if [ -d "$demo_path" ]; then
+                  export PATH="$demo_path:$PATH"
+                fi
+              '';
+
               # Remove the hardening added by nix to fix jmalloc compilation error.
               # More info: https://github.com/tikv/jemallocator/issues/108
               hardeningDisable = [ "fortify" ];

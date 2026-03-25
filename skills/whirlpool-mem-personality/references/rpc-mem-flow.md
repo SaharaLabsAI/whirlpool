@@ -38,14 +38,25 @@ Use this reference when you need the exact request contract or to debug why a su
   - `markdown`
   - `markdown_hash`
 
+## Demo local-store convention
+
+When operating through `devtools/demo/personality/codex_personality.py`, fetched profiles are persisted under:
+
+- `devtools/demo/personality/.run/fetched-profiles/`
+- `devtools/demo/personality/.run/fetched-profiles/index.json`
+
+Use this as the default location so `fetch`, `profiles`, and `launch-codex --profile` reference the same fetched artifacts.
+
 ## Verification loop
 
 1. Record the current block height from `eth_blockNumber` if you need a progress baseline.
 2. Submit the personality payload through `mem_submitPersonality`.
-3. Repeatedly call `mem_getPersonality` with the same `personality_id`.
+3. Repeatedly call `mem_getPersonality` with the selected `personality_id`.
 4. Stop when the result becomes a JSON object instead of `null`.
 5. Verify:
    - `tx_hash` matches the deterministic hash for the submitted payload.
+   - `eth_getTransactionByHash(tx_hash)` returns the corresponding transaction object.
+   - `eth_getTransactionReceipt(tx_hash)` returns the corresponding mined receipt.
    - `signer`, `personality_id`, `nonce`, and `markdown` match the request.
    - `markdown_hash` matches the submitted markdown bytes.
    - `block_height` is greater than the pre-submit baseline when that baseline was captured.

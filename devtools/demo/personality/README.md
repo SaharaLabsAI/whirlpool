@@ -1,11 +1,12 @@
 # Whirlpool Codex Personality Demo
 
-This demo shows two separate capabilities:
+This demo shows an end-to-end skill-mediated flow:
 
-1. Persist a Codex personality document into `whirlpool-node` through the mem RPC flow, then fetch the finalized markdown back out and start a fresh Codex session from it.
-2. Show Codex's built-in live style switching with `/personality`.
-
-The custom Whirlpool-backed personality is applied on a fresh Codex launch. Arbitrary Whirlpool markdown is not treated as a supported hot-load mechanism for an already-running Codex session.
+1. Persist a Codex personality document into `whirlpool-node` through `mem_submitPersonality` using `$whirlpool-mem-personality`.
+2. Fetch the finalized markdown back out through the same skill.
+3. Store fetched profiles in a shared local profile store.
+4. Launch Codex with `--profile` resolved from that same store.
+5. Optionally show Codex's built-in live style switching with `/personality`.
 
 ## Files
 
@@ -14,6 +15,7 @@ The custom Whirlpool-backed personality is applied on a fresh Codex launch. Arbi
 - `codex_personality.py`: end-to-end runner implementation.
 - `profiles/`: ready-to-demo personality markdown variants.
 - `.run/`: runtime state, logs, generated bootstrap files, and a workspace-local `CODEX_HOME`.
+- `.run/fetched-profiles/`: canonical fetched-profile store used by `fetch`, `profiles`, and `launch-codex --profile`.
 
 ## Prerequisites
 
@@ -42,11 +44,30 @@ From the repo root:
 ```bash
 devtools/demo/personality/codex_personality.sh start
 devtools/demo/personality/codex_personality.sh save --profile leon
-devtools/demo/personality/codex_personality.sh fetch
-devtools/demo/personality/codex_personality.sh launch-codex
+devtools/demo/personality/codex_personality.sh fetch --profile leon-final
+devtools/demo/personality/codex_personality.sh profiles
+devtools/demo/personality/codex_personality.sh launch-codex --profile leon-final
 ```
 
-Available `--profile` values for `save` are `default`, `leon`, `ada`, and `sherry`.
+`save --profile` accepts built-in profile values: `default`, `leon`, `ada`, and `sherry`.
+Each profile is mapped to its own remote `personality_id` in `.run/fetched-profiles/registry.json`. Re-saving the same profile reuses that ID and increments nonce.
+
+`fetch` selectors:
+
+1. `--profile <name>`: resolve remote `personality_id` from local registry and fetch it.
+2. `--personality-id <0x...>`: fetch directly by explicit remote ID.
+
+When `--profile` is provided to `fetch`, that value is also used as the local fetched-profile alias.
+
+`launch-codex --profile` resolves in this order:
+
+1. Explicit filesystem path.
+2. `.run/fetched-profiles/<value>.md`.
+3. Matching index entry by `name`, `tx_hash`, `markdown_hash`, or `personality_id`.
+
+If `launch-codex` is called without `--profile`, it uses the most recently fetched profile from the profile store, and falls back to built-in `default` when the store is empty.
+
+`launch-codex --profile` also accepts built-in names (`default`, `leon`, `ada`, `sherry`) for direct launch without fetch.
 
 After Codex opens, you can demonstrate built-in live switching with:
 
@@ -76,9 +97,14 @@ The script writes these runtime files under `devtools/demo/personality/.run/`:
 - `save-events.jsonl`
 - `save-message.txt`
 - `submit-response.json`
+- `submit-tx.json`
+- `submit-receipt.json`
 - `fetch-response.json`
+- `fetch-events.jsonl`
+- `fetch-message.txt`
 - `personality.md`
 - `codex-bootstrap.md`
+- `fetched-profiles/index.json`
 
 `personality.md` contains the finalized markdown returned by `mem_getPersonality`.
 

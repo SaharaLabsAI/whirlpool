@@ -14,9 +14,26 @@ Read [references/rpc-mem-flow.md](references/rpc-mem-flow.md) when you need exac
 1. Confirm the target node exposes a dedicated mem RPC address.
 2. Send `mem_submitPersonality` to the mem RPC listener, not the Ethereum RPC listener.
 3. Treat a successful submit response as acceptance into the shared tx source, not proof of finalized persistence.
-4. Poll `mem_getPersonality` with the same `personality_id` until it returns a non-null object.
+4. Poll `mem_getPersonality` with the requested `personality_id` until it returns a non-null object.
 5. Verify the finalized record matches the submitted `signer`, `personality_id`, `nonce`, `markdown`, and deterministic hashes.
-6. If needed, query `eth_blockNumber` on the Ethereum RPC listener to confirm the chain is advancing while waiting.
+6. Query `eth_getTransactionByHash` and `eth_getTransactionReceipt` on the Ethereum RPC listener for the finalized `tx_hash`.
+7. If needed, query `eth_blockNumber` on the Ethereum RPC listener to confirm the chain is advancing while waiting.
+
+## Demo Profile Store Contract
+
+For the demo tooling (`devtools/demo/personality/codex_personality.py`), use this shared local store:
+
+- Profile directory: `devtools/demo/personality/.run/fetched-profiles/`
+- Profile index: `devtools/demo/personality/.run/fetched-profiles/index.json`
+
+When asked to fetch and persist a profile for later launch:
+
+1. Resolve the target `personality_id` from the caller input (`profile` mapping or explicit `personality_id`).
+2. Fetch finalized personality via `mem_getPersonality`.
+3. Write raw markdown to the requested local profile path under the shared store.
+4. Return metadata needed for index updates (`name`, `tx_hash`, `markdown_hash`, `personality_id`, `nonce`, `block_height`).
+
+This contract keeps `fetch`, `profiles`, and `launch-codex --profile` aligned on the same profile artifacts.
 
 ## Operating Rules
 
@@ -24,6 +41,7 @@ Read [references/rpc-mem-flow.md](references/rpc-mem-flow.md) when you need exac
 - Expect `mem_*` methods only on the node's mem RPC listener. Calls to the Ethereum RPC server should fail.
 - Keep request encoding strict: hex fields must be `0x`-prefixed, `markdown` must be UTF-8 text, and `signature_scheme` must be `raw_secp256k1`.
 - Prefer verifying returned `tx_hash` and `markdown_hash` deterministically when the submitting payload is known.
+- When reporting save results, include the submitted tx payload, finalized `tx_hash`, `eth_getTransactionByHash` result, and `eth_getTransactionReceipt` result.
 - Use repo truth when available. The canonical behavior is covered by `agent-docs/crates/rpc-mem.md`, `agent-docs/crates/whirlpool-node.md`, and `testing/integration-tests/tests/rpc_mem_integration.rs`.
 
 ## Non-Goals
