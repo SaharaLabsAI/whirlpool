@@ -10,8 +10,9 @@ The custom Whirlpool-backed personality is applied on a fresh Codex launch. Arbi
 ## Files
 
 - `whirlpool-node-demo.toml`: static one-node config for the demo node.
-- `demo_whirlpool_codex_personality.sh`: thin shell wrapper that preserves the original command.
-- `demo_whirlpool_codex_personality.py`: end-to-end runner implementation.
+- `codex_personality.sh`: thin shell wrapper that preserves the original command.
+- `codex_personality.py`: end-to-end runner implementation.
+- `profiles/`: ready-to-demo personality markdown variants.
 - `.run/`: runtime state, logs, generated bootstrap files, and a workspace-local `CODEX_HOME`.
 
 ## Prerequisites
@@ -39,11 +40,13 @@ The `save` subcommand runs `codex exec` with `--sandbox danger-full-access` so t
 From the repo root:
 
 ```bash
-devtools/demo/personality/demo_whirlpool_codex_personality.sh start
-devtools/demo/personality/demo_whirlpool_codex_personality.sh save
-devtools/demo/personality/demo_whirlpool_codex_personality.sh fetch
-devtools/demo/personality/demo_whirlpool_codex_personality.sh launch-codex
+devtools/demo/personality/codex_personality.sh start
+devtools/demo/personality/codex_personality.sh save --profile leon
+devtools/demo/personality/codex_personality.sh fetch
+devtools/demo/personality/codex_personality.sh launch-codex
 ```
+
+Available `--profile` values for `save` are `default`, `leon`, `ada`, and `sherry`.
 
 After Codex opens, you can demonstrate built-in live switching with:
 
@@ -56,13 +59,13 @@ After Codex opens, you can demonstrate built-in live switching with:
 To inspect current state:
 
 ```bash
-devtools/demo/personality/demo_whirlpool_codex_personality.sh status
+devtools/demo/personality/codex_personality.sh status
 ```
 
 To stop the node:
 
 ```bash
-devtools/demo/personality/demo_whirlpool_codex_personality.sh stop
+devtools/demo/personality/codex_personality.sh stop
 ```
 
 ## Generated Artifacts
@@ -80,3 +83,13 @@ The script writes these runtime files under `devtools/demo/personality/.run/`:
 `personality.md` contains the finalized markdown returned by `mem_getPersonality`.
 
 `codex-bootstrap.md` wraps that finalized markdown as the initial prompt for a fresh Codex session.
+
+## Demo Profiles
+
+The `profiles/` directory includes three style variants designed for visibly different demo output:
+
+- `leon.md`: steady, tactical, protective, concise.
+- `ada.md`: sparse, precise, cool, high-signal.
+- `sherry.md`: collaborative, empathetic, explanatory.
+
+These are written as "inspired by" character archetypes. Keep the demo grounded in response style, not roleplay.

@@ -20,6 +20,7 @@ from urllib.request import Request, urlopen
 ROOT_DIR = Path(__file__).resolve().parents[3]
 DEMO_DIR = ROOT_DIR / "devtools" / "demo" / "personality"
 RUN_DIR = DEMO_DIR / ".run"
+PROFILES_DIR = DEMO_DIR / "profiles"
 CONFIG_FILE = DEMO_DIR / "whirlpool-node-demo.toml"
 NODE_LOG_FILE = RUN_DIR / "whirlpool-node.log"
 NODE_PID_FILE = RUN_DIR / "node.pid"
@@ -30,6 +31,7 @@ FETCH_RESPONSE_FILE = RUN_DIR / "fetch-response.json"
 PERSONALITY_FILE = RUN_DIR / "personality.md"
 BOOTSTRAP_FILE = RUN_DIR / "codex-bootstrap.md"
 SAVE_PROMPT_FILE = RUN_DIR / "save-prompt.md"
+PROFILE_NAME_FILE = RUN_DIR / "profile-name.txt"
 CODEX_HOME_DIR = RUN_DIR / "codex-home"
 CARGO_BUILD_JOBS = os.environ.get("CARGO_BUILD_JOBS", "1")
 
@@ -56,6 +58,13 @@ PERSONALITY_MARKDOWN = """# Codex Demo Personality
 - Prefer short progress updates and avoid filler.
 """
 
+PROFILE_FILES = {
+    "default": None,
+    "leon": PROFILES_DIR / "leon.md",
+    "ada": PROFILES_DIR / "ada.md",
+    "sherry": PROFILES_DIR / "sherry.md",
+}
+
 
 def fail(message: str) -> None:
     print(message, file=sys.stderr)
@@ -65,6 +74,15 @@ def fail(message: str) -> None:
 def require_tool(tool: str) -> None:
     if shutil.which(tool) is None:
         fail(f"missing required tool: {tool}")
+
+
+def resolve_personality_markdown(profile_name: str) -> str:
+    profile_path = PROFILE_FILES.get(profile_name)
+    if profile_path is None:
+        return PERSONALITY_MARKDOWN
+    if not profile_path.exists():
+        fail(f"missing profile file: {profile_path}")
+    return profile_path.read_text(encoding="utf-8")
 
 
 def ensure_run_dir() -> None:
@@ -214,8 +232,9 @@ def demo_codex(*args: str, stdin_path: Path | None = None, stdout_path: Path | N
             stdout_handle.close()
 
 
-def write_save_prompt() -> None:
-    markdown_json = json.dumps(PERSONALITY_MARKDOWN)
+def write_save_prompt(profile_name: str) -> None:
+    personality_markdown = resolve_personality_markdown(profile_name)
+    markdown_json = json.dumps(personality_markdown)
     SAVE_PROMPT_FILE.write_text(
         f"""Use $whirlpool-mem-personality to submit a Whirlpool mem personality update and verify that it becomes visible through finalized state.
 
@@ -245,6 +264,7 @@ Requirements:
 """,
         encoding="utf-8",
     )
+    PROFILE_NAME_FILE.write_text(profile_name + "\n", encoding="utf-8")
 
 
 def generate_bootstrap_file() -> None:
@@ -315,6 +335,7 @@ def start_node() -> None:
         PERSONALITY_FILE,
         BOOTSTRAP_FILE,
         SAVE_PROMPT_FILE,
+        PROFILE_NAME_FILE,
     ):
         path.unlink(missing_ok=True)
 
@@ -352,7 +373,7 @@ def start_node() -> None:
     print(f"whirlpool-node started on {ETH_RPC_URL} (mem RPC {MEM_RPC_URL})")
 
 
-def save_personality() -> None:
+def save_personality(profile_name: str) -> None:
     require_tool("codex")
     require_tool("python3")
     ensure_run_dir()
@@ -361,7 +382,7 @@ def save_personality() -> None:
         fail("whirlpool-node is not running; start it first")
 
     ensure_demo_codex_home()
-    write_save_prompt()
+    write_save_prompt(profile_name)
     demo_codex(
         "exec",
         "--cd",
@@ -383,7 +404,7 @@ def save_personality() -> None:
     )
     SUBMIT_RESPONSE_FILE.write_text(json.dumps(response, indent=2) + "\n", encoding="utf-8")
     check_eth_rpc_rejects_mem_methods()
-    print("personality submitted and verified via Codex skill")
+    print(f"personality profile '{profile_name}' submitted and verified via Codex skill")
 
 
 def fetch_personality() -> None:
@@ -470,6 +491,10 @@ def status() -> None:
     print(f"save result: {SUBMIT_MESSAGE_FILE}" if SUBMIT_MESSAGE_FILE.exists() else "save result: missing")
     print(f"personality markdown: {PERSONALITY_FILE}" if PERSONALITY_FILE.exists() else "personality markdown: missing")
     print(f"bootstrap prompt: {BOOTSTRAP_FILE}" if BOOTSTRAP_FILE.exists() else "bootstrap prompt: missing")
+    if PROFILE_NAME_FILE.exists():
+        print(f"saved profile: {PROFILE_NAME_FILE.read_text(encoding='utf-8').strip()}")
+    else:
+        print("saved profile: missing")
 
 
 def stop_node() -> None:
@@ -499,6 +524,12 @@ def parse_args() -> argparse.Namespace:
         "command",
         choices=["start", "save", "fetch", "launch-codex", "hot-switch-demo", "status", "stop"],
     )
+    parser.add_argument(
+        "--profile",
+        choices=tuple(PROFILE_FILES.keys()),
+        default="default",
+        help="personality profile to submit with the save command",
+    )
     return parser.parse_args()
 
 
@@ -506,13 +537,15 @@ def main() -> None:
     args = parse_args()
     commands = {
         "start": start_node,
-        "save": save_personality,
         "fetch": fetch_personality,
         "launch-codex": launch_codex,
         "hot-switch-demo": hot_switch_demo,
         "status": status,
         "stop": stop_node,
     }
+    if args.command == "save":
+        save_personality(args.profile)
+        return
     commands[args.command]()
 
 
