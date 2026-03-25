@@ -44,12 +44,14 @@ From the repo root:
 ```bash
 devtools/demo/personality/codex_personality.sh start
 devtools/demo/personality/codex_personality.sh save --profile leon
+devtools/demo/personality/codex_personality.sh save --profile generated-v1 --profile-file /tmp/generated-personality.md
 devtools/demo/personality/codex_personality.sh fetch --profile leon-final
 devtools/demo/personality/codex_personality.sh profiles
 devtools/demo/personality/codex_personality.sh launch-codex --profile leon-final
 ```
 
 `save --profile` accepts built-in profile values: `default`, `leon`, and `ada`.
+`save --profile-file <path>` submits markdown from an arbitrary file (no code changes needed); optionally pair it with `--profile <name>` to control the registry alias.
 Each profile is mapped to its own remote `personality_id` in `.run/fetched-profiles/registry.json`. Re-saving the same profile reuses that ID and increments nonce.
 
 `fetch` selectors:

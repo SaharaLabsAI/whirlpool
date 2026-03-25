@@ -431,8 +431,7 @@ def demo_codex(*args: str, stdin_path: Path | None = None, stdout_path: Path | N
             stdout_handle.close()
 
 
-def write_save_prompt(profile_name: str, personality_id: str, nonce: int) -> None:
-    personality_markdown = resolve_personality_markdown(profile_name)
+def write_save_prompt(profile_name: str, personality_markdown: str, personality_id: str, nonce: int) -> None:
     markdown_json = json.dumps(personality_markdown)
     SAVE_PROMPT_FILE.write_text(
         f"""Use $whirlpool-mem-personality to submit a Whirlpool mem personality update and verify that it becomes visible through finalized state.
@@ -703,7 +702,11 @@ def start_node() -> None:
     print(f"whirlpool-node started on {ETH_RPC_URL} (mem RPC {MEM_RPC_URL})")
 
 
-def save_personality(profile_name: str, personality_id_override: str | None) -> None:
+def save_personality(
+    profile_name: str | None,
+    profile_file: str | None,
+    personality_id_override: str | None,
+) -> None:
     require_tool("codex")
     require_tool("python3")
     ensure_run_dir()
@@ -711,12 +714,29 @@ def save_personality(profile_name: str, personality_id_override: str | None) -> 
     if not node_is_running():
         fail("whirlpool-node is not running; start it first")
 
-    profile_state = resolve_personality_profile(profile_name, personality_id_override)
+    if profile_file:
+        profile_path = Path(profile_file).expanduser()
+        if not profile_path.exists():
+            fail(f"missing profile file: {profile_path}")
+        if not profile_path.is_file():
+            fail(f"profile file is not a regular file: {profile_path}")
+        resolved_profile_name = (profile_name or profile_path.stem).strip()
+        if not resolved_profile_name:
+            fail("save requires a non-empty profile name when using --profile-file")
+        personality_markdown = profile_path.read_text(encoding="utf-8")
+    else:
+        resolved_profile_name = profile_name or "default"
+        if resolved_profile_name not in PROFILE_FILES:
+            allowed = ", ".join(sorted(PROFILE_FILES))
+            fail(f"unknown save profile '{resolved_profile_name}'. allowed: {allowed}")
+        personality_markdown = resolve_personality_markdown(resolved_profile_name)
+
+    profile_state = resolve_personality_profile(resolved_profile_name, personality_id_override)
     personality_id = str(profile_state["personality_id"])
     nonce = int(profile_state["next_nonce"])
 
     ensure_demo_codex_home()
-    write_save_prompt(profile_name, personality_id, nonce)
+    write_save_prompt(resolved_profile_name, personality_markdown, personality_id, nonce)
     demo_codex(
         "exec",
         "--cd",
@@ -749,7 +769,7 @@ def save_personality(profile_name: str, personality_id_override: str | None) -> 
         finalized_nonce_int = int(finalized_nonce)
     except (TypeError, ValueError):
         fail(f"finalized save result missing valid nonce: {finalized_nonce}")
-    update_profile_after_finalize(profile_name, personality_id, finalized_nonce_int)
+    update_profile_after_finalize(resolved_profile_name, personality_id, finalized_nonce_int)
 
     tx_response = rpc_call(ETH_RPC_URL, "eth_getTransactionByHash", [tx_hash])
     SUBMIT_TX_FILE.write_text(json.dumps(tx_response, indent=2) + "\n", encoding="utf-8")
@@ -757,7 +777,7 @@ def save_personality(profile_name: str, personality_id_override: str | None) -> 
     SUBMIT_RECEIPT_FILE.write_text(json.dumps(receipt_response, indent=2) + "\n", encoding="utf-8")
 
     check_eth_rpc_rejects_mem_methods()
-    print(f"personality profile '{profile_name}' submitted and verified via Codex skill")
+    print(f"personality profile '{resolved_profile_name}' submitted and verified via Codex skill")
     print(f"personality_id: {personality_id}")
     print(f"nonce: {finalized_nonce_int}")
     print(f"finalized tx hash: {tx_hash}")
@@ -939,10 +959,15 @@ def parse_args() -> argparse.Namespace:
         "--profile",
         default=None,
         help=(
-            "save: built-in profile name (default/leon/ada); "
+            "save: built-in profile name (default/leon/ada), or alias name with --profile-file; "
             "fetch: profile name used to resolve personality_id from registry and save local alias; "
             "launch-codex: fetched profile name/id/path"
         ),
+    )
+    parser.add_argument(
+        "--profile-file",
+        default=None,
+        help="save: path to markdown file to submit instead of built-in profile content",
     )
     parser.add_argument(
         "--personality-id",
@@ -954,6 +979,8 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    if args.command != "save" and args.profile_file is not None:
+        fail("--profile-file is only supported with save")
     commands = {
         "start": start_node,
         "profiles": list_profiles,
@@ -962,11 +989,7 @@ def main() -> None:
         "stop": stop_node,
     }
     if args.command == "save":
-        profile_name = args.profile or "default"
-        if profile_name not in PROFILE_FILES:
-            allowed = ", ".join(sorted(PROFILE_FILES))
-            fail(f"unknown save profile '{profile_name}'. allowed: {allowed}")
-        save_personality(profile_name, args.personality_id)
+        save_personality(args.profile, args.profile_file, args.personality_id)
         return
     if args.command == "fetch":
         fetch_personality(args.profile, args.personality_id)
