@@ -262,32 +262,13 @@ def node_pid() -> int | None:
 
 def find_demo_node_pid() -> int | None:
     config_marker = str(CONFIG_FILE)
-    commands = (
-        ["pgrep", "-f", f"whirlpool-node.*{config_marker}"],
-        ["pgrep", "-f", f"cargo.*run.*-p\\s+whirlpool-node.*{config_marker}"],
-        ["pgrep", "-f", "whirlpool-node"],
-    )
-    for cmd in commands:
-        try:
-            output = subprocess.check_output(cmd, text=True, stderr=subprocess.DEVNULL).strip()
-        except (FileNotFoundError, subprocess.CalledProcessError):
-            continue
-        for line in output.splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                pid = int(line)
-            except ValueError:
-                continue
-            if process_is_running(pid):
-                return pid
-
-    # Fallback when pgrep is unavailable.
     try:
         ps_output = subprocess.check_output(["ps", "-eo", "pid=,args="], text=True)
     except (FileNotFoundError, subprocess.CalledProcessError):
         return None
+
+    preferred: list[int] = []
+    fallback: list[int] = []
     for row in ps_output.splitlines():
         row = row.strip()
         if not row:
@@ -298,12 +279,29 @@ def find_demo_node_pid() -> int | None:
         pid_str, args = parts
         if "whirlpool-node" not in args:
             continue
+        # Avoid matching helper commands that only mention the literal string.
+        if "pgrep" in args:
+            continue
+        if "grep whirlpool-node" in args:
+            continue
+        if "codex_personality.py" in args:
+            continue
+        if "codex-linux-sandbox" in args:
+            continue
         try:
             pid = int(pid_str)
         except ValueError:
             continue
-        if process_is_running(pid):
-            return pid
+        if not process_is_running(pid):
+            continue
+        if config_marker in args:
+            preferred.append(pid)
+        else:
+            fallback.append(pid)
+    if preferred:
+        return preferred[0]
+    if fallback:
+        return fallback[0]
     return None
 
 
