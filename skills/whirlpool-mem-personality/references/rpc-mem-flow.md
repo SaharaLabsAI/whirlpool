@@ -47,7 +47,7 @@ When operating through `devtools/demo/personality/codex_personality.py`, fetched
 
 Use this as the default location so `fetch`, `profiles`, and `launch-codex --profile` reference the same fetched artifacts.
 
-When asked to create a new personality, use `save --profile-file` (plus optional `--profile` alias) and this fetched-profile store workflow. Do not implement personality creation by editing built-in profile mappings in `devtools/demo/personality/codex_personality.py` or by documenting new built-in profiles in `devtools/demo/personality/README.md`.
+When asked to create a new personality, first present the full generated markdown to the user and require explicit confirmation. Only then use `save --profile-file` (plus optional `--profile` alias) and this fetched-profile store workflow. Do not implement personality creation by editing built-in profile mappings in `devtools/demo/personality/codex_personality.py` or by documenting new built-in profiles in `devtools/demo/personality/README.md`, and do not auto-save without confirmation.
 
 ## Verification loop
 
@@ -57,8 +57,7 @@ When asked to create a new personality, use `save --profile-file` (plus optional
 4. Stop when the result becomes a JSON object instead of `null`.
 5. Verify:
    - `tx_hash` matches the deterministic hash for the submitted payload.
-   - `eth_getTransactionByHash(tx_hash)` returns the corresponding transaction object.
-   - `eth_getTransactionReceipt(tx_hash)` returns the corresponding mined receipt.
+   - `mem_getTransactionByHash(tx_hash)` returns the corresponding finalized mem transaction object.
    - `signer`, `personality_id`, `nonce`, and `markdown` match the request.
    - `markdown_hash` matches the submitted markdown bytes.
    - `block_height` is greater than the pre-submit baseline when that baseline was captured.

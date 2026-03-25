@@ -1,4 +1,4 @@
 interface:
   display_name: "Whirlpool Mem Personality"
   short_description: "Use Whirlpool mem personality RPC flow"
-  default_prompt: "Use $whirlpool-mem-personality to submit or fetch a personality mem tx, wait for finalization, verify the stored result, and persist fetched markdown for demo profile launch; treat new personality creation as save/fetch profile-file workflow, not built-in profile code/doc edits."
+  default_prompt: "Use $whirlpool-mem-personality to submit or fetch a personality mem tx, wait for finalization, verify the stored result via mem RPC methods (including mem_getTransactionByHash), and persist fetched markdown for demo profile launch; treat new personality creation as save/fetch profile-file workflow (not built-in profile code/doc edits), and require full markdown preview plus explicit user confirmation before any save."
