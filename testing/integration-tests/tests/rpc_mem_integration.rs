@@ -110,6 +110,48 @@ async fn wait_for_mem_get_personality(
     }
 }
 
+async fn wait_for_mem_get_transaction_by_hash(
+    client: &Client,
+    rpc_addr: SocketAddr,
+    tx_hash: &str,
+    timeout: Duration,
+) -> serde_json::Value {
+    let deadline = Instant::now() + timeout;
+
+    loop {
+        let response = post_json_to_addr(
+            client,
+            rpc_addr,
+            rpc_req(
+                "mem_getTransactionByHash",
+                serde_json::json!([serde_json::json!({
+                    "tx_hash": tx_hash,
+                })]),
+            ),
+        )
+        .await;
+
+        if response["error"].is_object() {
+            panic!(
+                "mem_getTransactionByHash returned an error while waiting for finalized data: {response}"
+            );
+        }
+
+        if response["result"].is_object() {
+            return response;
+        }
+
+        if Instant::now() >= deadline {
+            panic!(
+                "timed out after {:?} waiting for mem_getTransactionByHash({tx_hash}) to return data; last response: {response}",
+                timeout
+            );
+        }
+
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+}
+
 fn parse_rpc_u64(value: &serde_json::Value, field: &str) -> u64 {
     let hex = value
         .as_str()
@@ -381,5 +423,163 @@ async fn test_mem_get_personality_returns_finalized_entry_after_submit() {
     assert!(
         result["block_height"].as_u64().is_some_and(|height| height > initial_height),
         "mem_getPersonality should report a finalized block height above the initial height: {response}"
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn test_mem_get_transaction_by_hash_returns_null_when_missing() {
+    let signer = Address::repeat_byte(0x13);
+    let (handle, _tempdir) =
+        start_funded_node(106, signer, U256::from(100_000_000_000_000_000_000u128));
+
+    wait_for_block(handle.rpc_addr, 1, Duration::from_secs(30)).await;
+
+    let client = test_client();
+    let missing_hash = format!("0x{}", "33".repeat(32));
+    let response = post_json_to_addr(
+        &client,
+        handle.mem_rpc_addr,
+        rpc_req(
+            "mem_getTransactionByHash",
+            serde_json::json!([serde_json::json!({
+                "tx_hash": missing_hash.clone(),
+            })]),
+        ),
+    )
+    .await;
+
+    assert_rpc_success(&response, "mem_getTransactionByHash");
+    assert!(
+        response["result"].is_null(),
+        "mem_getTransactionByHash should return null for a missing tx hash: {response}"
+    );
+
+    let wrong_server_response = post_json_to_addr(
+        &client,
+        handle.rpc_addr,
+        rpc_req(
+            "mem_getTransactionByHash",
+            serde_json::json!([serde_json::json!({
+                "tx_hash": missing_hash,
+            })]),
+        ),
+    )
+    .await;
+    assert!(
+        wrong_server_response["error"].is_object(),
+        "mem_getTransactionByHash should not be exposed on the Ethereum RPC server: {wrong_server_response}"
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn test_mem_get_transaction_by_hash_rejects_malformed_hash() {
+    let signer = Address::repeat_byte(0x14);
+    let (handle, _tempdir) =
+        start_funded_node(107, signer, U256::from(100_000_000_000_000_000_000u128));
+
+    wait_for_block(handle.rpc_addr, 1, Duration::from_secs(30)).await;
+
+    let client = test_client();
+    let response = post_json_to_addr(
+        &client,
+        handle.mem_rpc_addr,
+        rpc_req(
+            "mem_getTransactionByHash",
+            serde_json::json!([serde_json::json!({
+                "tx_hash": "1234",
+            })]),
+        ),
+    )
+    .await;
+
+    assert!(
+        response["error"].is_object(),
+        "mem_getTransactionByHash should reject malformed tx_hash input: {response}"
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn test_mem_get_transaction_by_hash_returns_finalized_entry_after_submit() {
+    let signer = Address::repeat_byte(0x23);
+    let (handle, _tempdir) =
+        start_funded_node(108, signer, U256::from(100_000_000_000_000_000_000u128));
+
+    wait_for_block(handle.rpc_addr, 1, Duration::from_secs(30)).await;
+
+    let client = test_client();
+    let signer_hex = format!("{signer:#x}");
+    let personality_id = "0xcccccccccccccccccccccccccccccccc".to_string();
+    let markdown = "# hello finalized mem tx rpc".to_string();
+    let signature = format!("0x{}", "23".repeat(65));
+    let request = SubmitPersonalityRequest {
+        version: SUPPORTED_PERSONALITY_TX_VERSION,
+        signer: signer_hex.clone(),
+        personality_id: personality_id.clone(),
+        nonce: 8,
+        markdown: markdown.clone(),
+        signature_scheme: "raw_secp256k1".to_string(),
+        signature: signature.clone(),
+    };
+    let expected_tx = PersonalityMarkdownTx::new(
+        hex::decode(signer_hex.trim_start_matches("0x")).expect("signer hex should decode"),
+        hex::decode(personality_id.trim_start_matches("0x"))
+            .expect("personality_id hex should decode"),
+        request.nonce,
+        markdown.clone().into_bytes(),
+        SignatureScheme::RawSecp256k1,
+        hex::decode(signature.trim_start_matches("0x")).expect("signature hex should decode"),
+    );
+    let expected_tx_hash = format!(
+        "0x{}",
+        hex::encode(expected_tx.tx_hash().expect("tx hash should compute"))
+    );
+    let expected_markdown_hash = format!("0x{}", hex::encode(expected_tx.markdown_hash));
+
+    let submit_response = post_json_to_addr(
+        &client,
+        handle.mem_rpc_addr,
+        rpc_req("mem_submitPersonality", serde_json::json!([request])),
+    )
+    .await;
+    assert_rpc_success(&submit_response, "mem_submitPersonality");
+    assert_eq!(
+        submit_response["result"]["tx_hash"].as_str(),
+        Some(expected_tx_hash.as_str()),
+        "mem_submitPersonality should return the deterministic tx hash"
+    );
+
+    let response = wait_for_mem_get_transaction_by_hash(
+        &client,
+        handle.mem_rpc_addr,
+        &expected_tx_hash,
+        Duration::from_secs(30),
+    )
+    .await;
+    let result = &response["result"];
+
+    assert_eq!(result["tx_hash"].as_str(), Some(expected_tx_hash.as_str()));
+    assert_eq!(
+        result["version"].as_u64(),
+        Some(SUPPORTED_PERSONALITY_TX_VERSION as u64)
+    );
+    assert_eq!(result["signer"].as_str(), Some(signer_hex.as_str()));
+    assert_eq!(
+        result["personality_id"].as_str(),
+        Some(personality_id.as_str())
+    );
+    assert_eq!(result["nonce"].as_u64(), Some(8));
+    assert_eq!(result["markdown"].as_str(), Some(markdown.as_str()));
+    assert_eq!(
+        result["signature_scheme"].as_str(),
+        Some("raw_secp256k1")
+    );
+    assert_eq!(result["signature"].as_str(), Some(signature.as_str()));
+    assert_eq!(
+        result["markdown_hash"].as_str(),
+        Some(expected_markdown_hash.as_str())
+    );
+    assert!(
+        result["block_height"].as_u64().is_some_and(|height| height >= 1),
+        "mem_getTransactionByHash should report a finalized block height: {response}"
     );
 }

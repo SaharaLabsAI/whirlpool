@@ -1,7 +1,8 @@
 use std::sync::RwLock;
 
 use state::{
-    PersonalityBySignerNonce, PersonalityLatestById, PersonalityStorage, StoredPersonality,
+    PersonalityBySignerNonce, PersonalityByTxHash, PersonalityLatestById, PersonalityStorage,
+    StoredPersonality,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -13,6 +14,7 @@ pub enum InMemoryPersonalityStorageError {
 #[derive(Debug, Default)]
 pub struct InMemoryPersonalityStorage {
     by_personality_id: RwLock<PersonalityLatestById>,
+    by_tx_hash: RwLock<PersonalityByTxHash>,
     by_signer_nonce: RwLock<PersonalityBySignerNonce>,
 }
 
@@ -27,18 +29,24 @@ impl PersonalityStorage for InMemoryPersonalityStorage {
 
     fn put(&self, entry: StoredPersonality) -> Result<(), Self::Error> {
         let personality_id = entry.personality_id.clone();
+        let tx_hash = entry.tx_hash;
         let signer_nonce = (entry.signer.clone(), entry.nonce);
 
         let mut latest = self
             .by_personality_id
             .write()
             .map_err(|_| InMemoryPersonalityStorageError::Internal("latest map poisoned".into()))?;
+        let mut by_hash = self
+            .by_tx_hash
+            .write()
+            .map_err(|_| InMemoryPersonalityStorageError::Internal("tx hash map poisoned".into()))?;
         let mut by_nonce = self
             .by_signer_nonce
             .write()
             .map_err(|_| InMemoryPersonalityStorageError::Internal("signer nonce map poisoned".into()))?;
 
         latest.insert(personality_id, entry.clone());
+        by_hash.insert(tx_hash, entry.clone());
         by_nonce.insert(signer_nonce, entry);
         Ok(())
     }
@@ -49,6 +57,20 @@ impl PersonalityStorage for InMemoryPersonalityStorage {
             .read()
             .map_err(|_| InMemoryPersonalityStorageError::Internal("latest map poisoned".into()))?;
         Ok(latest.get(personality_id).cloned())
+    }
+
+    fn get_by_tx_hash(&self, tx_hash: &[u8]) -> Result<Option<StoredPersonality>, Self::Error> {
+        let tx_hash: [u8; 32] = tx_hash.try_into().map_err(|_| {
+            InMemoryPersonalityStorageError::Internal(format!(
+                "invalid tx hash length: expected 32 bytes, got {}",
+                tx_hash.len()
+            ))
+        })?;
+        let by_hash = self
+            .by_tx_hash
+            .read()
+            .map_err(|_| InMemoryPersonalityStorageError::Internal("tx hash map poisoned".into()))?;
+        Ok(by_hash.get(&tx_hash).cloned())
     }
 
     fn get_by_signer_nonce(
@@ -81,11 +103,14 @@ mod tests {
         StoredPersonality {
             tx_hash: [nonce as u8; 32],
             block_height: nonce,
+            version: 1,
             signer: b"signer-1".to_vec(),
             personality_id: b"persona-1".to_vec(),
             nonce,
             markdown: markdown.as_bytes().to_vec(),
             markdown_hash: [markdown.len() as u8; 32],
+            signature_scheme: 1,
+            signature: vec![0x11; 65],
         }
     }
 
@@ -104,6 +129,12 @@ mod tests {
             store
                 .get_by_signer_nonce(b"signer-1", 1)
                 .expect("nonce lookup must succeed"),
+            None
+        );
+        assert_eq!(
+            store
+                .get_by_tx_hash(&[1u8; 32])
+                .expect("tx hash lookup must succeed"),
             None
         );
     }
@@ -136,6 +167,12 @@ mod tests {
             store
                 .get_by_signer_nonce(&replacement.signer, replacement.nonce)
                 .expect("replacement nonce lookup must succeed"),
+            Some(replacement.clone())
+        );
+        assert_eq!(
+            store
+                .get_by_tx_hash(&replacement.tx_hash)
+                .expect("tx hash lookup must succeed"),
             Some(replacement)
         );
     }
@@ -159,6 +196,12 @@ mod tests {
             replacement_store
                 .get_latest(b"persona-1")
                 .expect("latest lookup must succeed"),
+            None
+        );
+        assert_eq!(
+            replacement_store
+                .get_by_tx_hash(&[1u8; 32])
+                .expect("tx hash lookup must succeed"),
             None
         );
     }

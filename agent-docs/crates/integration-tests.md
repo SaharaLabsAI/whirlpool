@@ -116,6 +116,9 @@ Full-node mem RPC coverage using `whirlpool_node::node::start_node_with_chain_sp
 - `test_mem_submit_personality_on_mem_rpc_only`: verifies `mem_submitPersonality` succeeds on `NodeHandle::mem_rpc_addr` and is absent from the Ethereum RPC server.
 - `test_mem_get_personality_returns_null_when_missing`: verifies `mem_getPersonality` returns JSON `null` for unknown IDs on the mem RPC server and is absent from the Ethereum RPC server.
 - `test_mem_get_personality_returns_finalized_entry_after_submit`: submits a personality tx, waits for finalization, then verifies `mem_getPersonality` returns the finalized entry with deterministic `tx_hash`, `markdown_hash`, and stored fields.
+- `test_mem_get_transaction_by_hash_returns_null_when_missing`: verifies `mem_getTransactionByHash` returns JSON `null` for unknown tx hashes and is absent from the Ethereum RPC server.
+- `test_mem_get_transaction_by_hash_rejects_malformed_hash`: verifies malformed `tx_hash` input is rejected on the mem RPC server.
+- `test_mem_get_transaction_by_hash_returns_finalized_entry_after_submit`: submits a personality tx, waits for finalization, then verifies `mem_getTransactionByHash` returns decoded tx fields (`version`, `signature_scheme`, `signature`) plus finalized metadata.
 
 ## Running
 ```bash

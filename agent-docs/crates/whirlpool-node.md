@@ -41,7 +41,7 @@ The node constructs an `rpc_eth::RpcConfig` with:
 
 Then calls `rpc_eth::start_rpc_server(config)` to get `(RpcServerHandle, SocketAddr)`.
 
-For mem RPC, the node shares the same `Arc<PersistentTxPool>` submit path and the finalized `Arc<InMemoryPersonalityStorage>` used by `PersistingFinalizationSink`, then starts `rpc_mem` with `TxSourceMemoryTxService::with_personality_storage(...)`. This keeps `mem_submitPersonality` unchanged while enabling finalized-only `mem_getPersonality` reads on the dedicated mem RPC server.
+For mem RPC, the node shares the same `Arc<PersistentTxPool>` submit path and the finalized `Arc<InMemoryPersonalityStorage>` used by `PersistingFinalizationSink`, then starts `rpc_mem` with `TxSourceMemoryTxService::with_personality_storage(...)`. This keeps `mem_submitPersonality` unchanged while enabling finalized-only `mem_getPersonality` and `mem_getTransactionByHash` reads on the dedicated mem RPC server.
 
 ### Mixed App Wiring
 - `PersistentTxPool` remains the single raw-byte mempool for both `eth_sendRawTransaction` and `mem_submitPersonality`.
@@ -67,7 +67,7 @@ Recovery relies on two persistence layers working together:
 ## RPC
 The node runs two RPC servers:
 - `rpc-eth`: reth-backed `eth_*` methods served from `RethStateDb` (MDBX). Blob (EIP-4844) support is excluded.
-- `rpc-mem`: `mem_submitPersonality` plus finalized-only `mem_getPersonality`, backed by the shared mempool submit path and finalized personality storage.
+- `rpc-mem`: `mem_submitPersonality` plus finalized-only `mem_getPersonality` and `mem_getTransactionByHash`, backed by the shared mempool submit path and finalized personality storage.
 
 `mem_*` methods are not mounted on the Ethereum RPC listener; they are exposed only on `NodeHandle::mem_rpc_addr`.
 

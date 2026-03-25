@@ -5,11 +5,14 @@ use std::collections::HashMap;
 pub struct StoredPersonality {
     pub tx_hash: [u8; 32],
     pub block_height: u64,
+    pub version: u8,
     pub signer: Vec<u8>,
     pub personality_id: Vec<u8>,
     pub nonce: u64,
     pub markdown: Vec<u8>,
     pub markdown_hash: [u8; 32],
+    pub signature_scheme: u8,
+    pub signature: Vec<u8>,
 }
 
 /// Storage for finalized personality data.
@@ -18,6 +21,7 @@ pub trait PersonalityStorage: Send + Sync {
 
     fn put(&self, entry: StoredPersonality) -> Result<(), Self::Error>;
     fn get_latest(&self, personality_id: &[u8]) -> Result<Option<StoredPersonality>, Self::Error>;
+    fn get_by_tx_hash(&self, tx_hash: &[u8]) -> Result<Option<StoredPersonality>, Self::Error>;
     fn get_by_signer_nonce(
         &self,
         signer: &[u8],
@@ -31,4 +35,5 @@ pub trait PersonalityStorage: Send + Sync {
 
 pub type PersonalitySignerNonce = (Vec<u8>, u64);
 pub type PersonalityLatestById = HashMap<Vec<u8>, StoredPersonality>;
+pub type PersonalityByTxHash = HashMap<[u8; 32], StoredPersonality>;
 pub type PersonalityBySignerNonce = HashMap<PersonalitySignerNonce, StoredPersonality>;

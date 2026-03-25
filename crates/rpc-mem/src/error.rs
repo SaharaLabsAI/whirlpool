@@ -12,8 +12,16 @@ pub enum RpcMemError {
         #[source]
         source: hex::FromHexError,
     },
+    #[error("{field} must decode to exactly {expected} bytes (got {got})")]
+    InvalidHashLength {
+        field: &'static str,
+        expected: usize,
+        got: usize,
+    },
     #[error("stored markdown must be valid UTF-8: {0}")]
     InvalidStoredMarkdown(#[source] std::string::FromUtf8Error),
+    #[error("stored signature scheme is unsupported: {0}")]
+    UnsupportedStoredSignatureScheme(u8),
     #[error("failed to read finalized personality from storage: {0}")]
     PersonalityRead(String),
     #[error("personality read capability is not available for this rpc-mem service")]

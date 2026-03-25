@@ -8,7 +8,7 @@ pub use alloy_genesis::GenesisAccount;
 pub use block_storage::{BlockStorage, BlockStorageError};
 pub use error::StateError;
 pub use personality_storage::{
-    PersonalityBySignerNonce, PersonalityLatestById, PersonalitySignerNonce, PersonalityStorage,
-    StoredPersonality,
+    PersonalityBySignerNonce, PersonalityByTxHash, PersonalityLatestById, PersonalitySignerNonce,
+    PersonalityStorage, StoredPersonality,
 };
 pub use traits::StateDb;

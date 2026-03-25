@@ -16,6 +16,8 @@ use state::{PersonalityStorage, StoredPersonality};
 
 type PersonalityLookup =
     dyn Fn(&[u8]) -> Result<Option<StoredPersonality>, RpcMemError> + Send + Sync;
+type TransactionLookup =
+    dyn Fn(&[u8]) -> Result<Option<StoredPersonality>, RpcMemError> + Send + Sync;
 
 pub trait MemoryTxService: Send + Sync {
     fn submit_personality(
@@ -27,12 +29,18 @@ pub trait MemoryTxService: Send + Sync {
         &self,
         personality_id: Vec<u8>,
     ) -> Result<Option<StoredPersonality>, RpcMemError>;
+
+    fn get_transaction_by_hash(
+        &self,
+        tx_hash: [u8; 32],
+    ) -> Result<Option<StoredPersonality>, RpcMemError>;
 }
 
 #[derive(Clone)]
 pub struct TxSourceMemoryTxService {
     tx_source: Arc<dyn TxSource>,
     personality_lookup: Arc<PersonalityLookup>,
+    transaction_lookup: Arc<TransactionLookup>,
 }
 
 impl TxSourceMemoryTxService {
@@ -40,6 +48,7 @@ impl TxSourceMemoryTxService {
         Self {
             tx_source,
             personality_lookup: Arc::new(|_| Err(RpcMemError::ReadCapabilityUnavailable)),
+            transaction_lookup: Arc::new(|_| Err(RpcMemError::ReadCapabilityUnavailable)),
         }
     }
 
@@ -51,11 +60,18 @@ impl TxSourceMemoryTxService {
         PS: PersonalityStorage + 'static,
         PS::Error: std::fmt::Display,
     {
+        let personality_storage_for_latest = personality_storage.clone();
+        let personality_storage_for_tx_hash = personality_storage;
         Self {
             tx_source,
             personality_lookup: Arc::new(move |personality_id| {
-                personality_storage
+                personality_storage_for_latest
                     .get_latest(personality_id)
+                    .map_err(|err| RpcMemError::PersonalityRead(err.to_string()))
+            }),
+            transaction_lookup: Arc::new(move |tx_hash| {
+                personality_storage_for_tx_hash
+                    .get_by_tx_hash(tx_hash)
                     .map_err(|err| RpcMemError::PersonalityRead(err.to_string()))
             }),
         }
@@ -79,6 +95,13 @@ impl MemoryTxService for TxSourceMemoryTxService {
         personality_id: Vec<u8>,
     ) -> Result<Option<StoredPersonality>, RpcMemError> {
         (self.personality_lookup)(&personality_id)
+    }
+
+    fn get_transaction_by_hash(
+        &self,
+        tx_hash: [u8; 32],
+    ) -> Result<Option<StoredPersonality>, RpcMemError> {
+        (self.transaction_lookup)(&tx_hash)
     }
 }
 
@@ -161,6 +184,59 @@ impl TryFrom<StoredPersonality> for GetPersonalityResponse {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GetTransactionByHashRequest {
+    pub tx_hash: String,
+}
+
+impl GetTransactionByHashRequest {
+    fn tx_hash_bytes(&self) -> Result<[u8; 32], RpcMemError> {
+        let tx_hash = decode_hex_field("tx_hash", &self.tx_hash)?;
+        let got = tx_hash.len();
+        tx_hash
+            .try_into()
+            .map_err(|_| RpcMemError::InvalidHashLength {
+                field: "tx_hash",
+                expected: 32,
+                got,
+            })
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GetTransactionByHashResponse {
+    pub tx_hash: String,
+    pub block_height: u64,
+    pub version: u8,
+    pub signer: String,
+    pub personality_id: String,
+    pub nonce: u64,
+    pub markdown: String,
+    pub markdown_hash: String,
+    pub signature_scheme: String,
+    pub signature: String,
+}
+
+impl TryFrom<StoredPersonality> for GetTransactionByHashResponse {
+    type Error = RpcMemError;
+
+    fn try_from(entry: StoredPersonality) -> Result<Self, Self::Error> {
+        Ok(Self {
+            tx_hash: encode_hex(&entry.tx_hash),
+            block_height: entry.block_height,
+            version: entry.version,
+            signer: encode_hex(&entry.signer),
+            personality_id: encode_hex(&entry.personality_id),
+            nonce: entry.nonce,
+            markdown: String::from_utf8(entry.markdown)
+                .map_err(RpcMemError::InvalidStoredMarkdown)?,
+            markdown_hash: encode_hex(&entry.markdown_hash),
+            signature_scheme: render_signature_scheme(entry.signature_scheme)?,
+            signature: encode_hex(&entry.signature),
+        })
+    }
+}
+
 pub async fn start_rpc_server(
     service: Arc<dyn MemoryTxService>,
     addr: SocketAddr,
@@ -201,6 +277,22 @@ pub async fn start_rpc_server(
         },
     )?;
 
+    module.register_method(
+        "mem_getTransactionByHash",
+        |params, service, _| -> RpcResult<Option<GetTransactionByHashResponse>> {
+            let request: GetTransactionByHashRequest = params.one()?;
+            let tx_hash = request.tx_hash_bytes().map_err(rpc_error_from_service)?;
+            let response = service
+                .get_transaction_by_hash(tx_hash)
+                .map_err(rpc_error_from_service)?
+                .map(GetTransactionByHashResponse::try_from)
+                .transpose()
+                .map_err(rpc_error_from_service)?;
+
+            Ok(response)
+        },
+    )?;
+
     let handle = server.start(module);
     Ok((handle, local_addr))
 }
@@ -213,6 +305,13 @@ fn parse_signature_scheme(value: &str) -> Result<SignatureScheme, RpcMemError> {
     match value {
         "raw_secp256k1" => Ok(SignatureScheme::RawSecp256k1),
         other => Err(RpcMemError::UnsupportedSignatureScheme(other.to_string())),
+    }
+}
+
+fn render_signature_scheme(value: u8) -> Result<String, RpcMemError> {
+    match SignatureScheme::from_wire(value) {
+        Ok(SignatureScheme::RawSecp256k1) => Ok("raw_secp256k1".to_string()),
+        Err(_) => Err(RpcMemError::UnsupportedStoredSignatureScheme(value)),
     }
 }
 

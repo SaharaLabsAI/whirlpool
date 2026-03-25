@@ -57,11 +57,14 @@ impl<DB, BS, PS> PersistingFinalizationSink<DB, BS, PS> {
             let entry = StoredPersonality {
                 tx_hash,
                 block_height: block.height,
+                version: tx.version,
                 signer: finalized.signer,
                 personality_id: finalized.personality_id,
                 nonce: finalized.nonce,
                 markdown: finalized.markdown_bytes,
                 markdown_hash: finalized.markdown_hash,
+                signature_scheme: tx.signature_scheme.to_wire(),
+                signature: tx.signature,
             };
 
             self.personality_storage
@@ -275,6 +278,17 @@ mod tests {
                 .iter()
                 .rev()
                 .find(|entry| entry.signer == signer && entry.nonce == nonce)
+                .cloned())
+        }
+
+        fn get_by_tx_hash(&self, tx_hash: &[u8]) -> Result<Option<StoredPersonality>, Self::Error> {
+            Ok(self
+                .entries
+                .lock()
+                .unwrap()
+                .iter()
+                .rev()
+                .find(|entry| entry.tx_hash.as_slice() == tx_hash)
                 .cloned())
         }
 
