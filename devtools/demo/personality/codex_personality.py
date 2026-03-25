@@ -73,7 +73,6 @@ PROFILE_FILES = {
     "default": None,
     "leon": PROFILES_DIR / "leon.md",
     "ada": PROFILES_DIR / "ada.md",
-    "sherry": PROFILES_DIR / "sherry.md",
 }
 
 
@@ -940,7 +939,7 @@ def parse_args() -> argparse.Namespace:
         "--profile",
         default=None,
         help=(
-            "save: built-in profile name (default/leon/ada/sherry); "
+            "save: built-in profile name (default/leon/ada); "
             "fetch: profile name used to resolve personality_id from registry and save local alias; "
             "launch-codex: fetched profile name/id/path"
         ),

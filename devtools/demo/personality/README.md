@@ -49,7 +49,7 @@ devtools/demo/personality/codex_personality.sh profiles
 devtools/demo/personality/codex_personality.sh launch-codex --profile leon-final
 ```
 
-`save --profile` accepts built-in profile values: `default`, `leon`, `ada`, and `sherry`.
+`save --profile` accepts built-in profile values: `default`, `leon`, and `ada`.
 Each profile is mapped to its own remote `personality_id` in `.run/fetched-profiles/registry.json`. Re-saving the same profile reuses that ID and increments nonce.
 
 `fetch` selectors:
@@ -67,7 +67,7 @@ When `--profile` is provided to `fetch`, that value is also used as the local fe
 
 If `launch-codex` is called without `--profile`, it uses the most recently fetched profile from the profile store, and falls back to built-in `default` when the store is empty.
 
-`launch-codex --profile` also accepts built-in names (`default`, `leon`, `ada`, `sherry`) for direct launch without fetch.
+`launch-codex --profile` also accepts built-in names (`default`, `leon`, `ada`) for direct launch without fetch.
 
 After Codex opens, you can demonstrate built-in live switching with:
 
@@ -112,10 +112,9 @@ The script writes these runtime files under `devtools/demo/personality/.run/`:
 
 ## Demo Profiles
 
-The `profiles/` directory includes three style variants designed for visibly different demo output:
+The `profiles/` directory includes two style variants designed for visibly different demo output:
 
 - `leon.md`: steady, tactical, protective, concise.
 - `ada.md`: sparse, precise, cool, high-signal.
-- `sherry.md`: collaborative, empathetic, explanatory.
 
 These are written as "inspired by" character archetypes. Keep the demo grounded in response style, not roleplay.
