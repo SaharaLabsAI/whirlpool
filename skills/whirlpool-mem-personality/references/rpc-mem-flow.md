@@ -47,6 +47,8 @@ When operating through `devtools/demo/personality/codex_personality.py`, fetched
 
 Use this as the default location so `fetch`, `profiles`, and `launch-codex --profile` reference the same fetched artifacts.
 
+When asked to create a new personality, use `save --profile-file` (plus optional `--profile` alias) and this fetched-profile store workflow. Do not implement personality creation by editing built-in profile mappings in `devtools/demo/personality/codex_personality.py` or by documenting new built-in profiles in `devtools/demo/personality/README.md`.
+
 ## Verification loop
 
 1. Record the current block height from `eth_blockNumber` if you need a progress baseline.

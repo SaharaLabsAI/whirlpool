@@ -35,6 +35,22 @@ When asked to fetch and persist a profile for later launch:
 
 This contract keeps `fetch`, `profiles`, and `launch-codex --profile` aligned on the same profile artifacts.
 
+## Create-New-Personality Policy
+
+Interpret requests like "create new personality" as creating/submitting a new mem personality payload and local fetched-profile artifact, not adding a new built-in demo profile.
+
+Allowed path:
+
+1. Author markdown in a standalone file.
+2. Submit with `save --profile-file <path>` (optionally with `--profile <alias>`).
+3. Fetch/finalize and persist under `.run/fetched-profiles/`.
+
+Prohibited path:
+
+- Do not update `devtools/demo/personality/codex_personality.py` to add entries in `PROFILE_FILES`.
+- Do not update `devtools/demo/personality/README.md` to document a new built-in profile.
+- Do not treat personality creation as a built-in profile/code change workflow.
+
 ## Operating Rules
 
 - Treat personality visibility as finalized-only. `mem_getPersonality` may return `null` after a successful submit until consensus finalizes a block containing the mem tx.
@@ -49,3 +65,4 @@ This contract keeps `fetch`, `profiles`, and `launch-codex --profile` aligned on
 - Do not infer pending personality state from mempool admission alone.
 - Do not claim restart-safe durability for personality reads beyond the current implementation.
 - Do not route `mem_*` calls through the Ethereum RPC listener.
+- Do not create new built-in demo profiles via code/doc edits.
