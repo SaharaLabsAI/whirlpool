@@ -1,9 +1,9 @@
 # Whirlpool Codex Personality Demo
 
-This demo shows an end-to-end skill-mediated flow:
+This demo shows an end-to-end Whirlpool personality flow:
 
-1. Persist a Codex personality document into `whirlpool-node` through `mem_submitPersonality` using `$whirlpool-mem-personality`.
-2. Fetch the finalized markdown back out through the same skill.
+1. Persist a Codex personality document into `whirlpool-node` through `mem_submitPersonality` (direct mem RPC from the demo script).
+2. Fetch the finalized markdown back out through `mem_getPersonality`.
 3. Store fetched profiles in a shared local profile store.
 4. Launch Codex with `--profile` resolved from that same store.
 5. Optionally show Codex's built-in live style switching with `/personality`.
@@ -33,7 +33,7 @@ The script uses a workspace-local `CODEX_HOME` under `.run/codex-home` and symli
 
 That keeps the demo isolated from your primary Codex home while still making the Whirlpool skill available to the external `codex` process.
 
-The `save` subcommand runs `codex exec` with `--sandbox danger-full-access` so the external Codex session can reach the local demo node at `127.0.0.1:9545` and `127.0.0.1:9645`. Without that, the Codex child process may sandbox its own local HTTP calls and fail before it reaches `mem_submitPersonality`.
+The `save` subcommand is a direct local RPC flow (no nested `codex exec`). It uses mem RPC only for personality operations: submit with `mem_submitPersonality`, then poll `mem_getPersonality` until finalized.
 
 `start` now fails fast if the demo ports are already occupied instead of waiting for the RPC probe to time out.
 

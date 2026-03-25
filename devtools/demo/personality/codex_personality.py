@@ -394,6 +394,23 @@ def wait_for_finalized_personality(personality_id: str) -> None:
     fail(f"timed out waiting for mem_getPersonality({personality_id}) to finalize")
 
 
+def wait_for_finalized_personality_result(personality_id: str, output_path: Path) -> dict[str, Any]:
+    deadline = time.monotonic() + SAVE_TIMEOUT_SECONDS
+    while time.monotonic() < deadline:
+        response = rpc_call(
+            MEM_RPC_URL,
+            "mem_getPersonality",
+            [{"personality_id": personality_id}],
+        )
+        output_path.write_text(json.dumps(response, indent=2) + "\n", encoding="utf-8")
+        result = response.get("result")
+        if isinstance(result, dict):
+            return result
+        time.sleep(0.2)
+
+    fail(f"timed out waiting for mem_getPersonality({personality_id}) to finalize")
+
+
 def ensure_demo_codex_home() -> None:
     real_codex_home = Path.home() / ".codex"
     (CODEX_HOME_DIR / "skills").mkdir(parents=True, exist_ok=True)
@@ -489,6 +506,7 @@ Target endpoints:
 
 Requirements:
 - Poll `mem_getPersonality` on mem RPC until it returns a non-null object.
+- Do not call `mem_*` methods on Ethereum RPC.
 - Verify the finalized object has:
   - signer: `{SIGNER}`
   - personality_id: `{personality_id}`
@@ -707,7 +725,6 @@ def save_personality(
     profile_file: str | None,
     personality_id_override: str | None,
 ) -> None:
-    require_tool("codex")
     require_tool("python3")
     ensure_run_dir()
 
@@ -735,31 +752,32 @@ def save_personality(
     personality_id = str(profile_state["personality_id"])
     nonce = int(profile_state["next_nonce"])
 
-    ensure_demo_codex_home()
-    write_save_prompt(resolved_profile_name, personality_markdown, personality_id, nonce)
-    demo_codex(
-        "exec",
-        "--cd",
-        str(ROOT_DIR),
-        "--sandbox",
-        "danger-full-access",
-        "--json",
-        "-o",
-        str(SUBMIT_MESSAGE_FILE),
-        "-",
-        stdin_path=SAVE_PROMPT_FILE,
-        stdout_path=SUBMIT_EVENTS_FILE,
-    )
-
-    response = rpc_call(
+    submit_payload = {
+        "version": PERSONALITY_VERSION,
+        "signer": SIGNER,
+        "personality_id": personality_id,
+        "nonce": nonce,
+        "markdown": personality_markdown,
+        "signature_scheme": SIGNATURE_SCHEME,
+        "signature": SIGNATURE,
+    }
+    submit_response = rpc_call(
         MEM_RPC_URL,
-        "mem_getPersonality",
-        [{"personality_id": personality_id}],
+        "mem_submitPersonality",
+        [submit_payload],
     )
-    SUBMIT_RESPONSE_FILE.write_text(json.dumps(response, indent=2) + "\n", encoding="utf-8")
-    result = response.get("result")
-    if not isinstance(result, dict):
-        fail("save completed but mem_getPersonality did not return a finalized object; run fetch and retry")
+    SUBMIT_EVENTS_FILE.write_text(json.dumps(submit_response, indent=2) + "\n", encoding="utf-8")
+    if isinstance(submit_response.get("error"), dict):
+        fail(f"mem_submitPersonality failed: {submit_response['error']}")
+
+    submit_result = submit_response.get("result")
+    if not isinstance(submit_result, dict):
+        fail("mem_submitPersonality returned no result")
+    submitted_tx_hash = submit_result.get("tx_hash")
+    if not isinstance(submitted_tx_hash, str) or not submitted_tx_hash:
+        fail("mem_submitPersonality result missing tx_hash")
+
+    result = wait_for_finalized_personality_result(personality_id, SUBMIT_RESPONSE_FILE)
 
     tx_hash = result.get("tx_hash")
     if not isinstance(tx_hash, str) or not tx_hash:
@@ -771,22 +789,30 @@ def save_personality(
         fail(f"finalized save result missing valid nonce: {finalized_nonce}")
     update_profile_after_finalize(resolved_profile_name, personality_id, finalized_nonce_int)
 
-    tx_response = rpc_call(ETH_RPC_URL, "eth_getTransactionByHash", [tx_hash])
-    SUBMIT_TX_FILE.write_text(json.dumps(tx_response, indent=2) + "\n", encoding="utf-8")
-    receipt_response = rpc_call(ETH_RPC_URL, "eth_getTransactionReceipt", [tx_hash])
-    SUBMIT_RECEIPT_FILE.write_text(json.dumps(receipt_response, indent=2) + "\n", encoding="utf-8")
-
-    check_eth_rpc_rejects_mem_methods()
-    print(f"personality profile '{resolved_profile_name}' submitted and verified via Codex skill")
+    SUBMIT_MESSAGE_FILE.write_text(
+        json.dumps(
+            {
+                "profile": resolved_profile_name,
+                "submitted_payload": submit_payload,
+                "submit_response": submit_response,
+                "finalized": result,
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    print(f"personality profile '{resolved_profile_name}' submitted and finalized")
     print(f"personality_id: {personality_id}")
+    print(f"submitted tx hash: {submitted_tx_hash}")
     print(f"nonce: {finalized_nonce_int}")
     print(f"finalized tx hash: {tx_hash}")
-    print(f"submit tx response: {SUBMIT_TX_FILE}")
-    print(f"submit receipt response: {SUBMIT_RECEIPT_FILE}")
+    print(f"submit response: {SUBMIT_EVENTS_FILE}")
+    print(f"finalized response: {SUBMIT_RESPONSE_FILE}")
+    print(f"save summary: {SUBMIT_MESSAGE_FILE}")
 
 
 def fetch_personality(profile_ref: str | None, personality_id: str | None) -> None:
-    require_tool("codex")
     require_tool("python3")
     ensure_run_dir()
 
@@ -794,29 +820,18 @@ def fetch_personality(profile_ref: str | None, personality_id: str | None) -> No
         fail("whirlpool-node is not running; start it first")
 
     saved_name, resolved_personality_id = resolve_fetch_personality_id(profile_ref, personality_id)
-
-    ensure_demo_codex_home()
-    write_fetch_prompt(resolved_personality_id)
-    demo_codex(
-        "exec",
-        "--cd",
-        str(ROOT_DIR),
-        "--sandbox",
-        "danger-full-access",
-        "--json",
-        "-o",
-        str(FETCH_MESSAGE_FILE),
-        "-",
-        stdin_path=FETCH_PROMPT_FILE,
-        stdout_path=FETCH_EVENTS_FILE,
+    result = wait_for_finalized_personality_result(resolved_personality_id, FETCH_RESPONSE_FILE)
+    FETCH_MESSAGE_FILE.write_text(
+        json.dumps(
+            {
+                "personality_id": resolved_personality_id,
+                "finalized": result,
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
     )
-
-    wait_for_finalized_personality(resolved_personality_id)
-    check_eth_rpc_rejects_mem_methods()
-
-    result = rpc_result_field(FETCH_RESPONSE_FILE, "result")
-    if not isinstance(result, dict):
-        fail("mem_getPersonality did not return a finalized object")
 
     if result.get("signer") != SIGNER:
         fail(f"unexpected signer: {result.get('signer')}")
