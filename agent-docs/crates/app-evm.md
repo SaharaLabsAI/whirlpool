@@ -15,7 +15,7 @@ Pure EVM configuration and execution integration for Whirlpool applications.
 - `StateProvider` is now defined in `app_evm::traits`.
 - `type Error`: fallible operations associated error type.
 - Blanket impl delegates to `state::traits::StateDb`.
-- `state_root` and `commit` return `Result<_, Self::Error>`.
+- `state_root`, `commit`, `get_account`, and `insert_account` return `Result<_, Self::Error>`.
 
 ## Error Handling
 - `EvmAppError::State(String)` — wraps database and state-related errors.
@@ -30,15 +30,23 @@ The executor uses `.map_err(Into::into)` on all `StateProvider` calls to convert
 ## EIP-1559 Base Fee
 `EvmApplication::propose()` uses `calc_next_block_base_fee` from `reth-primitives-traits` to compute the `base_fee_per_gas` for each new block based on the parent block's gas usage and base fee. Genesis base fee defaults to 1 gwei (1_000_000_000).
 
+## Fee Routing
+- `DEFAULT_PROPOSER_FEE_RECIPIENT`: explicit deterministic EVM fee-recipient seam used for the current single-proposer reward path. This avoids assuming any implicit ed25519->EVM address mapping.
+- `COMMUNITY_POOL_ADDRESS` (from `community-pool` crate): fixed account credited with each block's burned amount.
+- `EvmApplication::propose_evm_transactions()` commits the execution bundle, then credits the community pool by `gas_used * base_fee_per_gas` before computing the block state root.
+- `EvmApplication::verify_evm_transactions()` mirrors the same burned-fee credit before recomputing the verification state root.
+
 ## Canonical Imports
 - `app_evm::traits::StateProvider`
 - `app_evm::build_sahara_chain_spec` / `app_evm::build_sahara_chain_spec_with_alloc`
+- `app_evm::DEFAULT_PROPOSER_FEE_RECIPIENT`
+- `community_pool::COMMUNITY_POOL_ADDRESS`
 - `state::traits::StateDb` (interface trait)
 - `state_reth::RethStateDb` (persistent implementation)
 - `state_memory::InMemoryStateDb` (test code only)
 
 ## Key Types
-- `WhirlpoolEvmConfig`: wrapper for EVM configuration.
+- `WhirlpoolEvmConfig`: wrapper for EVM configuration. Holds the chain spec plus the explicit `fee_recipient()` address used for priority-fee routing.
 - `EvmApplication`: application implementation that executes EVM-only blocks.
   - `pending_receipts: Arc<Mutex<Option<Vec<Receipt>>>>`: temporary storage for receipts between execution and persistence.
   - `last_proposed: Arc<Mutex<Option<(u64, EvmBlock, ExecutionResult, Vec<Receipt>)>>>`: cache for the most recent proposal at a given height; prevents duplicate mempool drain when simplex calls `propose()` multiple times for the same height.
@@ -54,4 +62,4 @@ The executor uses `.map_err(Into::into)` on all `StateProvider` calls to convert
 - `build_sahara_chain_spec_with_alloc(alloc: BTreeMap<Address, GenesisAccount>) -> Arc<ChainSpec>`: builds a Sahara chain spec with pre-funded genesis accounts. Used for integration tests requiring funded accounts.
 
 ## Status
-Active. This crate is now the pure EVM execution layer used directly by `app-composite`.
+Active. This crate remains the pure EVM execution layer used directly by `app-composite`, now with a narrow fee-accounting seam for community-pool burn credit plus deterministic proposer fee routing.

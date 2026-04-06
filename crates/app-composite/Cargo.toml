@@ -3,6 +3,9 @@ name = "app-composite"
 version.workspace = true
 edition.workspace = true
 
+[lib]
+doctest = false
+
 [dependencies]
 app = { path = "../app" }
 app-evm = { path = "../app-evm" }

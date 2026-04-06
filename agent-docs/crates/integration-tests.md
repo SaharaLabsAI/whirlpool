@@ -23,6 +23,16 @@ Location: `testing/integration-tests/`
 
 ## Test Files
 
+### `tests/community_pool.rs`
+Full-node fee-accounting coverage for the new community-pool slice.
+- Reuses the `rpc_evm_integration.rs` patterns for ephemeral ports, funded node startup, JSON-RPC helpers, EIP-1559 signing, block polling, and receipt polling, but keeps helpers local to this file.
+- Uses a zero-value EIP-1559 transfer with nonzero priority fee to isolate fee accounting from value transfer.
+- Fetches the exact finalized block referenced by the receipt's `blockNumber` and asserts the transaction hash is present before using block fee fields.
+
+Tests:
+- `test_community_pool_accrues_burned_amount_from_fee_only_transfer`: verifies `COMMUNITY_POOL_ADDRESS` balance delta equals `block.gasUsed * block.baseFeePerGas` for the finalized tx block.
+- `test_proposer_fee_recipient_accrues_priority_fee_from_fee_only_transfer`: verifies `DEFAULT_PROPOSER_FEE_RECIPIENT` balance delta equals the tx block's priority-fee remainder (`gas_used * max_priority_fee_per_gas` for the chosen single-tx fixture).
+
 ### `tests/rpc_evm_integration.rs`
 Uses a shared test harness:
 - `start_test_rpc() -> TestRpcServer`: Creates ephemeral `TempDir` + `RethStateDb` + `ChainSpec` via `build_sahara_chain_spec()`, wires through `RpcConfig` + `start_rpc_server()`. Returns handle, address, and temp dir.
@@ -124,6 +134,9 @@ Full-node mem RPC coverage using `whirlpool_node::node::start_node_with_chain_sp
 ```bash
 # Run only EVM RPC integration tests
 nix develop --command cargo test -p integration-tests --test rpc_evm_integration
+
+# Run only community-pool integration tests
+nix develop --command cargo test -p integration-tests --test community_pool
 
 # Run only mem RPC integration tests
 nix develop --command cargo test -p integration-tests --test rpc_mem_integration

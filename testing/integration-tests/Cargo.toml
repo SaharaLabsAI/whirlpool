@@ -9,6 +9,7 @@ edition.workspace = true
 app = { path = "../../crates/app" }
 app-evm = { path = "../../crates/app-evm" }
 app-mem = { path = "../../crates/app-mem" }
+community-pool = { path = "../../crates/community-pool" }
 rpc-eth = { path = "../../crates/rpc-eth" }
 rpc-mem = { path = "../../crates/rpc-mem" }
 state = { path = "../../crates/state" }

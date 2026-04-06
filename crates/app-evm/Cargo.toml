@@ -3,8 +3,12 @@ name = "app-evm"
 version.workspace = true
 edition.workspace = true
 
+[lib]
+doctest = false
+
 [dependencies]
 app = { path = "../app" }
+community-pool = { path = "../community-pool" }
 state = { path = "../state" }
 state-memory = { path = "../state-memory" }
 state-reth = { path = "../state-reth" }

@@ -2,6 +2,7 @@
 exclude = ["vendor"]
 resolver = "2"
 members = [
+    "crates/community-pool",
     "crates/consensus",
     "crates/consensus-simplex",
     "crates/p2p",

@@ -1009,6 +1009,7 @@ dependencies = [
  "alloy-primitives",
  "alloy-trie",
  "app",
+ "community-pool",
  "consensus",
  "futures",
  "reth-chainspec",
@@ -2382,6 +2383,13 @@ dependencies = [
  "rand 0.8.5",
  "thiserror 2.0.18",
  "zeroize",
+]
+
+[[package]]
+name = "community-pool"
+version = "0.1.0"
+dependencies = [
+ "alloy-primitives",
 ]
 
 [[package]]
@@ -4353,6 +4361,7 @@ dependencies = [
  "app-evm",
  "app-mem",
  "commonware-cryptography",
+ "community-pool",
  "hex",
  "jsonrpsee",
  "reqwest",

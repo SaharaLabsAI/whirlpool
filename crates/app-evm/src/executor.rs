@@ -9,6 +9,7 @@ use app::{
     traits::{Application, TxSource},
     EvmBlock, ExecutionResult, Receipt,
 };
+use community_pool::COMMUNITY_POOL_ADDRESS;
 use reth_evm::{
     execute::{BlockBuilder, BlockExecutor},
     ConfigureEvm, NextBlockEnvAttributes,
@@ -60,6 +61,40 @@ fn build_sealed_header(block: &EvmBlock) -> SealedHeader {
 
 pub fn decode_transactions(raw_txs: &[Vec<u8>]) -> Result<Vec<RecoveredTx>, EvmAppError> {
     decode_evm_transactions(raw_txs).map_err(|err| EvmAppError::InvalidBlock(err.to_string()))
+}
+
+fn credit_account_balance<DB>(
+    db: &mut DB,
+    address: Address,
+    amount: U256,
+) -> Result<(), EvmAppError>
+where
+    DB: StateProvider,
+    <DB as StateProvider>::Error: Into<EvmAppError>,
+{
+    if amount.is_zero() {
+        return Ok(());
+    }
+
+    let mut info = db
+        .get_account(address)
+        .map_err(Into::into)?
+        .unwrap_or_default();
+    info.balance += amount;
+    db.insert_account(address, info).map_err(Into::into)
+}
+
+fn credit_burned_fees<DB>(
+    db: &mut DB,
+    gas_used: u64,
+    base_fee_per_gas: u64,
+) -> Result<(), EvmAppError>
+where
+    DB: StateProvider,
+    <DB as StateProvider>::Error: Into<EvmAppError>,
+{
+    let burned_amount = U256::from(gas_used) * U256::from(base_fee_per_gas);
+    credit_account_balance(db, COMMUNITY_POOL_ADDRESS, burned_amount)
 }
 
 #[derive(Clone)]
@@ -131,7 +166,7 @@ where
 
         let env_attributes = NextBlockEnvAttributes {
             timestamp,
-            suggested_fee_recipient: Address::ZERO,
+            suggested_fee_recipient: self.evm_config.fee_recipient(),
             prev_randao: B256::ZERO,
             gas_limit: 30_000_000,
             parent_beacon_block_root: Some(B256::ZERO),
@@ -178,17 +213,6 @@ where
         state.merge_transitions(BundleRetention::Reverts);
         let bundle = state.take_bundle();
 
-        let state_root = {
-            let mut canonical_db = self.state_db.write().unwrap();
-            canonical_db.commit(&bundle).map_err(Into::into)?;
-            canonical_db.state_root().map_err(Into::into)?
-        };
-
-        let receipts_root =
-            ordered_trie_root_with_encoder(&execution_result.receipts, |receipt, out| {
-                receipt.with_bloom_ref().encode_2718(out);
-            });
-
         let gas_used = execution_result
             .receipts
             .iter()
@@ -216,6 +240,18 @@ where
             parent.base_fee_per_gas,
             BaseFeeParams::ethereum(),
         );
+
+        let state_root = {
+            let mut canonical_db = self.state_db.write().unwrap();
+            canonical_db.commit(&bundle).map_err(Into::into)?;
+            credit_burned_fees(&mut *canonical_db, gas_used, base_fee_per_gas)?;
+            canonical_db.state_root().map_err(Into::into)?
+        };
+
+        let receipts_root =
+            ordered_trie_root_with_encoder(&execution_result.receipts, |receipt, out| {
+                receipt.with_bloom_ref().encode_2718(out);
+            });
 
         Ok(ProposedEvmPayload {
             included_transactions,
@@ -251,7 +287,7 @@ where
         let parent_header = build_sealed_header(parent);
         let env_attributes = NextBlockEnvAttributes {
             timestamp: block.timestamp,
-            suggested_fee_recipient: Address::ZERO,
+            suggested_fee_recipient: self.evm_config.fee_recipient(),
             prev_randao: B256::ZERO,
             gas_limit: 30_000_000,
             parent_beacon_block_root: Some(B256::ZERO),
@@ -289,6 +325,7 @@ where
         state.merge_transitions(BundleRetention::Reverts);
         let bundle = state.take_bundle();
         exec_state.commit(&bundle).map_err(Into::into)?;
+        credit_burned_fees(&mut exec_state, block.gas_used, block.base_fee_per_gas)?;
 
         let computed_state_root = exec_state.state_root().map_err(Into::into)?;
         let computed_receipts_root =
@@ -419,7 +456,12 @@ where
 
             {
                 let mut cache = self.last_proposed.lock().unwrap();
-                *cache = Some((height, block.clone(), payload.result.clone(), payload.receipts));
+                *cache = Some((
+                    height,
+                    block.clone(),
+                    payload.result.clone(),
+                    payload.receipts,
+                ));
             }
 
             Ok((block, payload.result))
@@ -449,9 +491,11 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::DEFAULT_PROPOSER_FEE_RECIPIENT;
     use alloy_consensus::{SignableTransaction, TxLegacy};
     use alloy_eips::eip2718::Encodable2718;
     use alloy_primitives::{Address, Signature, TxKind};
+    use community_pool::COMMUNITY_POOL_ADDRESS;
     use reth_ethereum_primitives::TransactionSigned;
     use reth_primitives_traits::SignerRecoverable;
     use state_memory::InMemoryStateDb;
@@ -523,6 +567,41 @@ mod tests {
 
         assert_eq!(block.transactions.len(), 1);
         assert!(result.gas_used > 0);
+    }
+
+    #[tokio::test]
+    async fn propose_credits_community_pool_and_fee_recipient() {
+        let (tx, recovered) = sample_evm_tx();
+        let (app, db) = setup_app(vec![tx]).await;
+
+        {
+            let mut db = db.write().unwrap();
+            let info = revm::state::AccountInfo {
+                balance: U256::from(1_000_000_000_000_000_000u64),
+                nonce: 0,
+                ..Default::default()
+            };
+            db.insert_account(recovered, info);
+        }
+
+        let parent = app.genesis().await;
+        let (block, _result) = app.propose(&parent, 1).await.unwrap();
+        let burned_amount = U256::from(block.gas_used) * U256::from(block.base_fee_per_gas);
+        let expected_priority_fees =
+            U256::from(block.gas_used) * U256::from(2_000_000_000u64 - block.base_fee_per_gas);
+
+        let db = db.read().unwrap();
+        let community_pool_balance = db
+            .get_account(COMMUNITY_POOL_ADDRESS)
+            .unwrap_or_default()
+            .balance;
+        let fee_recipient_balance = db
+            .get_account(DEFAULT_PROPOSER_FEE_RECIPIENT)
+            .unwrap_or_default()
+            .balance;
+
+        assert_eq!(community_pool_balance, burned_amount);
+        assert_eq!(fee_recipient_balance, expected_priority_fees);
     }
 
     #[tokio::test]

@@ -10,6 +10,10 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 pub const SAHARA_CHAIN_ID: u64 = 313_371;
+pub const DEFAULT_PROPOSER_FEE_RECIPIENT: Address = Address::new([
+    0x70, 0x72, 0x6f, 0x70, 0x6f, 0x73, 0x65, 0x72, 0x2d, 0x66, 0x65, 0x65, 0x2d, 0x73, 0x65, 0x61,
+    0x6d, 0x2d, 0x30, 0x31,
+]);
 
 pub fn build_sahara_chain_spec() -> ChainSpec {
     build_sahara_chain_spec_with_alloc(BTreeMap::new())
@@ -35,17 +39,23 @@ pub fn build_sahara_chain_spec_with_alloc(alloc: BTreeMap<Address, GenesisAccoun
 #[derive(Debug, Clone)]
 pub struct WhirlpoolEvmConfig {
     inner: EthEvmConfig,
+    fee_recipient: Address,
 }
 
 impl WhirlpoolEvmConfig {
     pub fn new(chain_spec: Arc<ChainSpec>) -> Self {
         Self {
             inner: EthEvmConfig::new(chain_spec),
+            fee_recipient: DEFAULT_PROPOSER_FEE_RECIPIENT,
         }
     }
 
     pub fn chain_spec(&self) -> &Arc<ChainSpec> {
         self.inner.chain_spec()
+    }
+
+    pub fn fee_recipient(&self) -> Address {
+        self.fee_recipient
     }
 }
 
@@ -94,7 +104,11 @@ impl ConfigureEvm for WhirlpoolEvmConfig {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_sahara_chain_spec, WhirlpoolEvmConfig, SAHARA_CHAIN_ID};
+    use super::{
+        build_sahara_chain_spec, WhirlpoolEvmConfig, DEFAULT_PROPOSER_FEE_RECIPIENT,
+        SAHARA_CHAIN_ID,
+    };
+    use alloy_primitives::Address;
     use reth_chainspec::EthereumHardforks;
     use reth_evm::ConfigureEvm;
     use std::sync::Arc;
@@ -126,5 +140,13 @@ mod tests {
         assert_eq!(spec.chain.id(), SAHARA_CHAIN_ID);
         assert_eq!(spec.genesis.gas_limit, 30_000_000);
         assert!(spec.is_cancun_active_at_timestamp(0));
+    }
+
+    #[test]
+    fn test_default_fee_recipient_is_non_zero() {
+        let config = WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec()));
+
+        assert_eq!(config.fee_recipient(), DEFAULT_PROPOSER_FEE_RECIPIENT);
+        assert_ne!(config.fee_recipient(), Address::ZERO);
     }
 }
