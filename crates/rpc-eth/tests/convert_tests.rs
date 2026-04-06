@@ -29,6 +29,8 @@ fn sample_block(transactions: Vec<Vec<u8>>) -> EvmBlock {
         state_root: [0x22; 32],
         transactions_root: [0x33; 32],
         receipts_root: [0x44; 32],
+        proposer_public_key: [0x55; 32],
+        proposer_fee_recipient: Address::repeat_byte(0x55).into_array(),
         gas_used: 55_555,
         base_fee_per_gas: 1_000_000_000,
         timestamp: 1_700_000_123,
@@ -70,6 +72,10 @@ fn evmblock_to_header_maps_fields() {
         B256::from_slice(&block.transactions_root)
     );
     assert_eq!(header.receipts_root, B256::from_slice(&block.receipts_root));
+    assert_eq!(
+        header.beneficiary,
+        Address::from(block.proposer_fee_recipient)
+    );
     assert_eq!(header.gas_used, block.gas_used);
     assert_eq!(header.timestamp, block.timestamp);
 }

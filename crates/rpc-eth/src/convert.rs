@@ -1,5 +1,5 @@
 use alloy_eips::eip2718::{Decodable2718, Eip2718Error};
-use alloy_primitives::B256;
+use alloy_primitives::{Address, B256};
 use app::types::EvmBlock;
 use reth_ethereum_primitives::{Block, BlockBody, TransactionSigned};
 use reth_primitives_traits::Header;
@@ -14,11 +14,13 @@ pub fn evmblock_to_header(block: &EvmBlock) -> Header {
     Header {
         number: block.height,
         parent_hash: B256::from_slice(&block.parent_id),
+        beneficiary: Address::from(block.proposer_fee_recipient),
         state_root: B256::from_slice(&block.state_root),
         transactions_root: B256::from_slice(&block.transactions_root),
         receipts_root: B256::from_slice(&block.receipts_root),
         gas_used: block.gas_used,
         base_fee_per_gas: Some(block.base_fee_per_gas),
+        extra_data: block.proposer_public_key.to_vec().into(),
         timestamp: block.timestamp,
         ..Default::default()
     }

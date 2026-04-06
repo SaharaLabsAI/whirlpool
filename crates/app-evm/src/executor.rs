@@ -30,6 +30,8 @@ pub struct ProposedEvmPayload {
     pub inclusion_outcomes: Vec<bool>,
     pub result: ExecutionResult,
     pub base_fee_per_gas: u64,
+    pub proposer_public_key: [u8; 32],
+    pub proposer_fee_recipient: Address,
     pub receipts: Vec<Receipt>,
 }
 
@@ -41,12 +43,13 @@ pub fn build_header_from_evm_block(block: &EvmBlock) -> Header {
         state_root: B256::from(block.state_root),
         transactions_root: B256::from(block.transactions_root),
         receipts_root: B256::from(block.receipts_root),
+        beneficiary: Address::from(block.proposer_fee_recipient),
         gas_limit: 30_000_000,
         gas_used: block.gas_used,
         base_fee_per_gas: Some(block.base_fee_per_gas),
         timestamp: block.timestamp,
         difficulty: U256::ZERO,
-        extra_data: Bytes::default(),
+        extra_data: Bytes::copy_from_slice(&block.proposer_public_key),
         excess_blob_gas: Some(0),
         blob_gas_used: Some(0),
         ..Header::default()
@@ -95,6 +98,24 @@ where
 {
     let burned_amount = U256::from(gas_used) * U256::from(base_fee_per_gas);
     credit_account_balance(db, COMMUNITY_POOL_ADDRESS, burned_amount)
+}
+
+fn validate_or_recover_fee_recipient(
+    evm_config: &WhirlpoolEvmConfig,
+    proposer_public_key: [u8; 32],
+    carried_fee_recipient: [u8; 20],
+) -> Result<Address, EvmAppError> {
+    let carried_fee_recipient = Address::from(carried_fee_recipient);
+    match evm_config.fee_recipient_for_proposer(proposer_public_key) {
+        Some(expected) if expected != carried_fee_recipient => Err(EvmAppError::InvalidBlock(
+            format!(
+                "proposer fee recipient mismatch for proposer {:?}: expected {expected}, got {carried_fee_recipient}",
+                proposer_public_key
+            ),
+        )),
+        Some(expected) => Ok(expected),
+        None => Ok(carried_fee_recipient),
+    }
 }
 
 #[derive(Clone)]
@@ -263,6 +284,8 @@ where
                 receipt_count: execution_result.receipts.len(),
             },
             base_fee_per_gas,
+            proposer_public_key: self.evm_config.local_proposer_public_key(),
+            proposer_fee_recipient: self.evm_config.fee_recipient(),
             receipts,
         })
     }
@@ -285,9 +308,15 @@ where
         };
 
         let parent_header = build_sealed_header(parent);
+        let suggested_fee_recipient = validate_or_recover_fee_recipient(
+            &self.evm_config,
+            block.proposer_public_key,
+            block.proposer_fee_recipient,
+        )?;
+
         let env_attributes = NextBlockEnvAttributes {
             timestamp: block.timestamp,
-            suggested_fee_recipient: self.evm_config.fee_recipient(),
+            suggested_fee_recipient,
             prev_randao: B256::ZERO,
             gas_limit: 30_000_000,
             parent_beacon_block_root: Some(B256::ZERO),
@@ -407,6 +436,8 @@ where
                 state_root: state_root.0,
                 transactions_root: EMPTY_ROOT_HASH.0,
                 receipts_root: EMPTY_ROOT_HASH.0,
+                proposer_public_key: self.evm_config.local_proposer_public_key(),
+                proposer_fee_recipient: self.evm_config.fee_recipient().into_array(),
                 gas_used: 0,
                 base_fee_per_gas: 1_000_000_000,
                 timestamp: 0,
@@ -448,6 +479,8 @@ where
                 state_root: payload.result.state_root,
                 transactions_root: transactions_root.0,
                 receipts_root: payload.result.receipts_root,
+                proposer_public_key: payload.proposer_public_key,
+                proposer_fee_recipient: payload.proposer_fee_recipient.into_array(),
                 gas_used: payload.result.gas_used,
                 base_fee_per_gas: payload.base_fee_per_gas,
                 timestamp,
@@ -491,7 +524,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::DEFAULT_PROPOSER_FEE_RECIPIENT;
+    use crate::config::{
+        build_sahara_chain_spec_with_alloc_and_fee_recipients, DEFAULT_PROPOSER_FEE_RECIPIENT,
+    };
     use alloy_consensus::{SignableTransaction, TxLegacy};
     use alloy_eips::eip2718::Encodable2718;
     use alloy_primitives::{Address, Signature, TxKind};
@@ -499,6 +534,7 @@ mod tests {
     use reth_ethereum_primitives::TransactionSigned;
     use reth_primitives_traits::SignerRecoverable;
     use state_memory::InMemoryStateDb;
+    use std::collections::BTreeMap;
 
     struct MockTxSource {
         txs: Vec<Vec<u8>>,
@@ -523,6 +559,19 @@ mod tests {
         let db = Arc::new(RwLock::new(InMemoryStateDb::new()));
         let source = Arc::new(MockTxSource { txs });
 
+        let app = EvmApplication::new(config, db.clone(), source);
+        (app, db)
+    }
+
+    async fn setup_app_with_config(
+        txs: Vec<Vec<u8>>,
+        config: WhirlpoolEvmConfig,
+    ) -> (
+        EvmApplication<InMemoryStateDb>,
+        Arc<RwLock<InMemoryStateDb>>,
+    ) {
+        let db = Arc::new(RwLock::new(InMemoryStateDb::new()));
+        let source = Arc::new(MockTxSource { txs });
         let app = EvmApplication::new(config, db.clone(), source);
         (app, db)
     }
@@ -602,6 +651,10 @@ mod tests {
 
         assert_eq!(community_pool_balance, burned_amount);
         assert_eq!(fee_recipient_balance, expected_priority_fees);
+        assert_eq!(
+            block.proposer_fee_recipient,
+            DEFAULT_PROPOSER_FEE_RECIPIENT.into_array()
+        );
     }
 
     #[tokio::test]
@@ -624,12 +677,63 @@ mod tests {
         let (block, _) = app.propose(&parent, 1).await.unwrap();
 
         let chain_spec = Arc::new(crate::config::build_sahara_chain_spec());
-        let config = WhirlpoolEvmConfig::new(chain_spec);
+        let config =
+            WhirlpoolEvmConfig::new(chain_spec).with_local_proposer_public_key([0x77; 32]);
         let pre_db = Arc::new(RwLock::new(pre_state));
         let source = Arc::new(MockTxSource { txs: vec![] });
         let verifier_app = EvmApplication::new(config, pre_db, source);
 
         assert!(verifier_app.verify(&parent, &block).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn verify_rejects_fee_recipient_that_conflicts_with_genesis_mapping() {
+        let proposer_public_key = [0x11; 32];
+        let expected_fee_recipient = Address::repeat_byte(0x22);
+        let mut validator_fee_recipients = BTreeMap::new();
+        validator_fee_recipients.insert(proposer_public_key, expected_fee_recipient);
+
+        let chain_spec = Arc::new(build_sahara_chain_spec_with_alloc_and_fee_recipients(
+            BTreeMap::new(),
+            validator_fee_recipients,
+        ));
+        let proposer_config = WhirlpoolEvmConfig::new(chain_spec.clone())
+            .with_local_proposer_public_key(proposer_public_key);
+
+        let (tx, recovered) = sample_evm_tx();
+        let (app, db) = setup_app_with_config(vec![tx], proposer_config).await;
+
+        {
+            let mut db = db.write().unwrap();
+            let info = revm::state::AccountInfo {
+                balance: U256::from(1_000_000_000_000_000_000u64),
+                nonce: 0,
+                ..Default::default()
+            };
+            db.insert_account(recovered, info);
+        }
+
+        let pre_state = db.read().unwrap().clone();
+        let parent = app.genesis().await;
+        let (mut block, _) = app.propose(&parent, 1).await.unwrap();
+        block.proposer_fee_recipient = Address::repeat_byte(0x77).into_array();
+
+        let verifier_config =
+            WhirlpoolEvmConfig::new(chain_spec).with_local_proposer_public_key([0x55; 32]);
+        let verifier_app = EvmApplication::new(
+            verifier_config,
+            Arc::new(RwLock::new(pre_state)),
+            Arc::new(MockTxSource { txs: vec![] }),
+        );
+
+        let err = verifier_app
+            .verify(&parent, &block)
+            .await
+            .expect_err("genesis mapping should reject mismatched fee recipient");
+        assert!(
+            matches!(err, EvmAppError::InvalidBlock(_)),
+            "expected invalid block error, got {err:?}"
+        );
     }
 
     #[tokio::test]

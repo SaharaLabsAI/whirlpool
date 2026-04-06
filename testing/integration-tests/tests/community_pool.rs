@@ -10,7 +10,8 @@ use alloy_primitives::{Address, Bytes, FixedBytes, B256, U256};
 use alloy_signer::Signer as AlloySigner;
 use alloy_signer_local::PrivateKeySigner;
 use app_evm::{
-    build_sahara_chain_spec_with_alloc, DEFAULT_PROPOSER_FEE_RECIPIENT, SAHARA_CHAIN_ID,
+    build_sahara_chain_spec_with_alloc_and_fee_recipients, DEFAULT_PROPOSER_FEE_RECIPIENT,
+    SAHARA_CHAIN_ID,
 };
 use commonware_cryptography::{ed25519, Signer as CwSigner};
 use community_pool::COMMUNITY_POOL_ADDRESS;
@@ -18,8 +19,8 @@ use reqwest::Client;
 use reth_chainspec::ChainSpec;
 use tempfile::TempDir;
 use whirlpool_node::config::{
-    ConsensusStartupConfig, IdentityConfig, NetworkConfig, NodeConfig, RpcConfig as NodeRpcConfig,
-    StorageConfig, DEFAULT_MAX_MESSAGE_SIZE,
+    parse_bootstrap_peer, ConsensusStartupConfig, IdentityConfig, NetworkConfig, NodeConfig,
+    RpcConfig as NodeRpcConfig, StorageConfig, DEFAULT_MAX_MESSAGE_SIZE,
 };
 use whirlpool_node::node::{start_node_with_chain_spec, NodeHandle};
 
@@ -109,7 +110,33 @@ fn parse_rpc_b256(value: &serde_json::Value, field: &str) -> B256 {
     B256::from(parsed)
 }
 
-fn start_funded_node(seed: u64, funded_address: Address, balance: U256) -> (NodeHandle, TempDir) {
+fn parse_rpc_address(value: &serde_json::Value, field: &str) -> Address {
+    let hex = value
+        .as_str()
+        .unwrap_or_else(|| panic!("{field} should be a 0x-prefixed address string, got {value}"));
+    hex.parse()
+        .unwrap_or_else(|err| panic!("failed to parse {field} address {hex}: {err}"))
+}
+
+fn validator_public_key_bytes(public_key: &ed25519::PublicKey) -> [u8; 32] {
+    let mut bytes = [0u8; 32];
+    bytes.copy_from_slice(public_key.as_ref());
+    bytes
+}
+
+fn block_reward_recipient(block: &serde_json::Value) -> Address {
+    block.get("miner")
+        .or_else(|| block.get("beneficiary"))
+        .map(|value| parse_rpc_address(value, "block reward recipient"))
+        .unwrap_or_else(|| panic!("block missing miner/beneficiary field: {block}"))
+}
+
+fn start_funded_node(
+    seed: u64,
+    funded_address: Address,
+    balance: U256,
+    validator_fee_recipient: Address,
+) -> (NodeHandle, TempDir) {
     let tempdir = TempDir::new()
         .unwrap_or_else(|err| panic!("failed to create temp dir for funded node {seed}: {err}"));
     let validator_key = ed25519::PrivateKey::from_seed(seed);
@@ -124,7 +151,14 @@ fn start_funded_node(seed: u64, funded_address: Address, balance: U256) -> (Node
         },
     );
 
-    let chain_spec: ChainSpec = build_sahara_chain_spec_with_alloc(alloc);
+    let mut validator_fee_recipients = BTreeMap::new();
+    validator_fee_recipients.insert(
+        validator_public_key_bytes(&public_key),
+        validator_fee_recipient,
+    );
+
+    let chain_spec: ChainSpec =
+        build_sahara_chain_spec_with_alloc_and_fee_recipients(alloc, validator_fee_recipients);
     let p2p_port = allocate_port();
     let rpc_port = allocate_port();
     let p2p_addr: SocketAddr = format!("127.0.0.1:{p2p_port}")
@@ -162,6 +196,102 @@ fn start_funded_node(seed: u64, funded_address: Address, balance: U256) -> (Node
     assert_eq!(handle.public_key, public_key);
 
     (handle, tempdir)
+}
+
+struct MultiNodeFeeNetwork {
+    handles: Vec<NodeHandle>,
+    _tempdirs: Vec<TempDir>,
+    fee_recipients: Vec<Address>,
+}
+
+fn start_multinode_fee_network(
+    seeds_and_fee_recipients: &[(u64, Address)],
+    funded_address: Address,
+    balance: U256,
+) -> MultiNodeFeeNetwork {
+    let validator_keys: Vec<_> = seeds_and_fee_recipients
+        .iter()
+        .map(|(seed, _)| ed25519::PrivateKey::from_seed(*seed))
+        .collect();
+    let validator_pubkeys: Vec<_> = validator_keys.iter().map(|key| key.public_key()).collect();
+    let fee_recipients: Vec<_> = seeds_and_fee_recipients
+        .iter()
+        .map(|(_, fee_recipient)| *fee_recipient)
+        .collect();
+
+    let mut alloc = BTreeMap::new();
+    alloc.insert(
+        funded_address,
+        GenesisAccount {
+            balance,
+            ..GenesisAccount::default()
+        },
+    );
+
+    let validator_fee_recipients = validator_pubkeys
+        .iter()
+        .zip(fee_recipients.iter().copied())
+        .map(|(public_key, fee_recipient)| (validator_public_key_bytes(public_key), fee_recipient))
+        .collect();
+    let chain_spec = std::sync::Arc::new(build_sahara_chain_spec_with_alloc_and_fee_recipients(
+        alloc,
+        validator_fee_recipients,
+    ));
+
+    let p2p_ports: Vec<u16> = (0..seeds_and_fee_recipients.len())
+        .map(|_| allocate_port())
+        .collect();
+    let rpc_ports: Vec<u16> = (0..seeds_and_fee_recipients.len())
+        .map(|_| allocate_port())
+        .collect();
+    let tempdirs: Vec<_> = (0..seeds_and_fee_recipients.len())
+        .map(|_| TempDir::new().expect("failed to create multi-node temp dir"))
+        .collect();
+
+    let mut handles = Vec::with_capacity(seeds_and_fee_recipients.len());
+    for (i, (seed, _fee_recipient)) in seeds_and_fee_recipients.iter().enumerate() {
+        let bootstrap_peers = (0..seeds_and_fee_recipients.len())
+            .filter(|&j| j != i)
+            .map(|j| {
+                let pk_hex = hex::encode(validator_pubkeys[j].as_ref());
+                parse_bootstrap_peer(&format!("{pk_hex}@127.0.0.1:{}", p2p_ports[j]))
+                    .expect("bootstrap peer")
+            })
+            .collect();
+
+        let config = NodeConfig {
+            network: NetworkConfig {
+                namespace: b"community-pool-multinode".to_vec(),
+                listen_addr: format!("127.0.0.1:{}", p2p_ports[i]).parse().unwrap(),
+                dialable_addr: format!("127.0.0.1:{}", p2p_ports[i]).parse().unwrap(),
+                bootstrap_peers,
+                max_message_size: DEFAULT_MAX_MESSAGE_SIZE,
+            },
+            identity: IdentityConfig { seed: *seed },
+            rpc: NodeRpcConfig {
+                bind_addr: format!("127.0.0.1:{}", rpc_ports[i]).parse().unwrap(),
+                mem_bind_addr: SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0)),
+            },
+            storage: StorageConfig {
+                data_dir: tempdirs[i].path().to_path_buf(),
+            },
+            consensus: ConsensusStartupConfig {
+                namespace: b"community-pool-multinode-consensus".to_vec(),
+                block_interval: Duration::from_secs(1),
+            },
+            validators: Some(validator_pubkeys.clone()),
+        };
+
+        let handle = start_node_with_chain_spec(config, Some(chain_spec.clone()))
+            .unwrap_or_else(|err| panic!("failed to start multi-node validator {seed}: {err}"));
+        handles.push(handle);
+    }
+
+    MultiNodeFeeNetwork {
+        handles,
+        _tempdirs: tempdirs,
+        fee_recipients,
+    }
 }
 
 async fn wait_for_block(rpc_addr: SocketAddr, min_height: u64, timeout: Duration) -> u64 {
@@ -282,10 +412,7 @@ async fn query_balance(rpc_addr: SocketAddr, address: Address) -> U256 {
     parse_rpc_u256(&response["result"], "eth_getBalance result")
 }
 
-async fn submit_fee_only_transfer(
-    rpc_addr: SocketAddr,
-    signer: &PrivateKeySigner,
-) -> (B256, serde_json::Value, serde_json::Value) {
+async fn build_fee_only_transfer_raw_tx(signer: &PrivateKeySigner) -> Vec<u8> {
     let tx = TxEip1559 {
         chain_id: SAHARA_CHAIN_ID,
         nonce: 0,
@@ -298,7 +425,14 @@ async fn submit_fee_only_transfer(
         input: Bytes::default(),
     };
 
-    let raw_tx = sign_eip1559_tx(signer, tx).await;
+    sign_eip1559_tx(signer, tx).await
+}
+
+async fn submit_fee_only_transfer(
+    rpc_addr: SocketAddr,
+    signer: &PrivateKeySigner,
+) -> (B256, serde_json::Value, serde_json::Value) {
+    let raw_tx = build_fee_only_transfer_raw_tx(signer).await;
     let tx_hash = send_raw_tx(rpc_addr, &raw_tx).await;
     let receipt = wait_for_receipt(rpc_addr, tx_hash, Duration::from_secs(30)).await;
     assert_eq!(
@@ -340,12 +474,71 @@ async fn submit_fee_only_transfer(
     (tx_hash, receipt, block)
 }
 
+async fn submit_fee_only_transfer_to_network(
+    rpc_addrs: &[SocketAddr],
+    signer: &PrivateKeySigner,
+) -> (B256, serde_json::Value, serde_json::Value) {
+    let raw_tx = build_fee_only_transfer_raw_tx(signer).await;
+    let tx_hash = send_raw_tx(rpc_addrs[0], &raw_tx).await;
+
+    let client = test_client();
+    for rpc_addr in &rpc_addrs[1..] {
+        let response = post_json_to_addr(
+            client,
+            *rpc_addr,
+            rpc_req(
+                "eth_sendRawTransaction",
+                serde_json::json!([raw_tx_hex(&raw_tx)]),
+            ),
+        )
+        .await;
+
+        if response["error"].is_object() {
+            let message = response["error"]["message"].as_str().unwrap_or_default();
+            if !message.contains("already")
+                && !message.contains("known")
+                && !message.contains("nonce")
+            {
+                panic!(
+                    "eth_sendRawTransaction failed for {} on {rpc_addr}: {response}",
+                    raw_tx_hex(&raw_tx)
+                );
+            }
+        } else {
+            let echoed_hash = parse_rpc_b256(&response["result"], "eth_sendRawTransaction result");
+            assert_eq!(echoed_hash, tx_hash, "all nodes should return the same tx hash");
+        }
+    }
+
+    let receipt = wait_for_receipt(rpc_addrs[0], tx_hash, Duration::from_secs(60)).await;
+    let block_number = receipt["blockNumber"]
+        .as_str()
+        .unwrap_or_else(|| panic!("receipt missing blockNumber: {receipt}"));
+    let block_response = post_json_to_addr(
+        client,
+        rpc_addrs[0],
+        rpc_req(
+            "eth_getBlockByNumber",
+            serde_json::json!([block_number, false]),
+        ),
+    )
+    .await;
+    assert!(
+        block_response["error"].is_null() || block_response.get("error").is_none(),
+        "eth_getBlockByNumber should succeed for {block_number}: {block_response}"
+    );
+
+    (tx_hash, receipt, block_response["result"].clone())
+}
+
 #[tokio::test(flavor = "current_thread")]
 async fn test_community_pool_accrues_burned_amount_from_fee_only_transfer() {
     let signer = PrivateKeySigner::random();
     let sender = signer.address();
     let funded_balance = U256::from(100_000_000_000_000_000_000u128);
-    let (handle, _tempdir) = start_funded_node(300, sender, funded_balance);
+    let configured_fee_recipient = Address::repeat_byte(0x31);
+    let (handle, _tempdir) =
+        start_funded_node(300, sender, funded_balance, configured_fee_recipient);
     let rpc_addr = handle.rpc_addr;
 
     wait_for_block(rpc_addr, 1, Duration::from_secs(30)).await;
@@ -376,15 +569,20 @@ async fn test_proposer_fee_recipient_accrues_priority_fee_from_fee_only_transfer
     let signer = PrivateKeySigner::random();
     let sender = signer.address();
     let funded_balance = U256::from(100_000_000_000_000_000_000u128);
-    let (handle, _tempdir) = start_funded_node(301, sender, funded_balance);
+    let configured_fee_recipient = Address::repeat_byte(0x42);
+    let (handle, _tempdir) =
+        start_funded_node(301, sender, funded_balance, configured_fee_recipient);
     let rpc_addr = handle.rpc_addr;
 
     wait_for_block(rpc_addr, 1, Duration::from_secs(30)).await;
 
-    let initial_fee_recipient_balance =
+    let initial_fee_recipient_balance = query_balance(rpc_addr, configured_fee_recipient).await;
+    let initial_legacy_fee_recipient_balance =
         query_balance(rpc_addr, DEFAULT_PROPOSER_FEE_RECIPIENT).await;
     let (_tx_hash, receipt, block) = submit_fee_only_transfer(rpc_addr, &signer).await;
-    let final_fee_recipient_balance = query_balance(rpc_addr, DEFAULT_PROPOSER_FEE_RECIPIENT).await;
+    let final_fee_recipient_balance = query_balance(rpc_addr, configured_fee_recipient).await;
+    let final_legacy_fee_recipient_balance =
+        query_balance(rpc_addr, DEFAULT_PROPOSER_FEE_RECIPIENT).await;
 
     let block_gas_used = parse_rpc_u256(&block["gasUsed"], "block gasUsed");
     let receipt_gas_used = parse_rpc_u256(&receipt["gasUsed"], "receipt gasUsed");
@@ -395,8 +593,120 @@ async fn test_proposer_fee_recipient_accrues_priority_fee_from_fee_only_transfer
 
     let expected_priority_fees = block_gas_used * U256::from(MAX_PRIORITY_FEE_PER_GAS);
     assert_eq!(
+        block_reward_recipient(&block),
+        configured_fee_recipient,
+        "block should expose the configured proposer reward recipient"
+    );
+    assert_eq!(
         final_fee_recipient_balance - initial_fee_recipient_balance,
         expected_priority_fees,
-        "fee recipient should accrue the priority-fee portion"
+        "configured proposer recipient should accrue the priority-fee portion"
+    );
+    assert_eq!(
+        final_legacy_fee_recipient_balance - initial_legacy_fee_recipient_balance,
+        U256::ZERO,
+        "legacy hardcoded fee recipient should not receive the priority-fee portion"
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn test_multivalidator_priority_fee_follows_actual_proposer() {
+    let signer = PrivateKeySigner::random();
+    let sender = signer.address();
+    let funded_balance = U256::from(100_000_000_000_000_000_000u128);
+    let network = start_multinode_fee_network(
+        &[
+            (400, Address::repeat_byte(0x91)),
+            (401, Address::repeat_byte(0x92)),
+            (402, Address::repeat_byte(0x93)),
+        ],
+        sender,
+        funded_balance,
+    );
+
+    for handle in &network.handles {
+        wait_for_block(handle.rpc_addr, 1, Duration::from_secs(60)).await;
+    }
+
+    let mut initial_community_pool_balances = Vec::with_capacity(network.handles.len());
+    let mut initial_legacy_fee_recipient_balances = Vec::with_capacity(network.handles.len());
+    let mut initial_fee_recipient_balances_by_node = Vec::with_capacity(network.handles.len());
+    for handle in &network.handles {
+        initial_community_pool_balances
+            .push(query_balance(handle.rpc_addr, COMMUNITY_POOL_ADDRESS).await);
+        initial_legacy_fee_recipient_balances
+            .push(query_balance(handle.rpc_addr, DEFAULT_PROPOSER_FEE_RECIPIENT).await);
+
+        let mut balances = Vec::with_capacity(network.fee_recipients.len());
+        for fee_recipient in &network.fee_recipients {
+            balances.push(query_balance(handle.rpc_addr, *fee_recipient).await);
+        }
+        initial_fee_recipient_balances_by_node.push(balances);
+    }
+
+    let rpc_addrs: Vec<_> = network.handles.iter().map(|handle| handle.rpc_addr).collect();
+    let (_tx_hash, receipt, block) =
+        submit_fee_only_transfer_to_network(&rpc_addrs, &signer).await;
+
+    let block_gas_used = parse_rpc_u256(&block["gasUsed"], "block gasUsed");
+    let receipt_gas_used = parse_rpc_u256(&receipt["gasUsed"], "receipt gasUsed");
+    assert_eq!(
+        block_gas_used, receipt_gas_used,
+        "expected a single-tx block"
+    );
+
+    let expected_priority_fees = block_gas_used * U256::from(MAX_PRIORITY_FEE_PER_GAS);
+    let expected_burned_amount =
+        block_gas_used * parse_rpc_u256(&block["baseFeePerGas"], "block baseFeePerGas");
+    let rewarded_recipient = block_reward_recipient(&block);
+    assert!(
+        network.fee_recipients.contains(&rewarded_recipient),
+        "rewarded recipient {rewarded_recipient} should be one of the configured validator recipients"
+    );
+
+    let rewarded_index = network
+        .fee_recipients
+        .iter()
+        .position(|fee_recipient| *fee_recipient == rewarded_recipient)
+        .expect("rewarded recipient must be configured");
+    let proposer_rpc_addr = network.handles[rewarded_index].rpc_addr;
+
+    let final_community_pool_balance =
+        query_balance(proposer_rpc_addr, COMMUNITY_POOL_ADDRESS).await;
+    let final_legacy_fee_recipient_balance =
+        query_balance(proposer_rpc_addr, DEFAULT_PROPOSER_FEE_RECIPIENT).await;
+    let mut final_fee_recipient_balances = Vec::with_capacity(network.fee_recipients.len());
+    for fee_recipient in &network.fee_recipients {
+        final_fee_recipient_balances.push(query_balance(proposer_rpc_addr, *fee_recipient).await);
+    }
+    let balance_deltas: Vec<_> = final_fee_recipient_balances
+        .iter()
+        .zip(initial_fee_recipient_balances_by_node[rewarded_index].iter())
+        .map(|(final_balance, initial_balance)| *final_balance - *initial_balance)
+        .collect();
+
+    assert_eq!(
+        balance_deltas[rewarded_index],
+        expected_priority_fees,
+        "actual proposer's configured recipient should receive the priority fee"
+    );
+    for (index, balance_delta) in balance_deltas.iter().enumerate() {
+        if index != rewarded_index {
+            assert_eq!(
+                *balance_delta,
+                U256::ZERO,
+                "non-proposer validator recipient at index {index} should not receive this block's priority fee"
+            );
+        }
+    }
+    assert_eq!(
+        final_legacy_fee_recipient_balance - initial_legacy_fee_recipient_balances[rewarded_index],
+        U256::ZERO,
+        "legacy hardcoded fee recipient should not receive the rewarded block's priority fee"
+    );
+    assert_eq!(
+        final_community_pool_balance - initial_community_pool_balances[rewarded_index],
+        expected_burned_amount,
+        "community pool should still accrue the burned amount in multi-validator mode"
     );
 }

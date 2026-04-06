@@ -24,6 +24,8 @@ pub struct EvmBlock {
     pub state_root: [u8; 32],
     pub transactions_root: [u8; 32],
     pub receipts_root: [u8; 32],
+    pub proposer_public_key: [u8; 32],
+    pub proposer_fee_recipient: [u8; 20],
     pub gas_used: u64,
     pub base_fee_per_gas: u64,
     pub timestamp: u64,
@@ -37,6 +39,8 @@ impl EvmBlock {
         hasher.update(self.parent_id);
         hasher.update(self.state_root);
         hasher.update(self.transactions_root);
+        hasher.update(self.proposer_public_key);
+        hasher.update(self.proposer_fee_recipient);
 
         let result = hasher.finalize();
         let mut id = [0u8; 32];
@@ -51,6 +55,8 @@ impl EvmBlock {
         hasher.update(self.state_root);
         hasher.update(self.transactions_root);
         hasher.update(self.receipts_root);
+        hasher.update(self.proposer_public_key);
+        hasher.update(self.proposer_fee_recipient);
         hasher.update(self.gas_used.to_le_bytes());
         hasher.update(self.base_fee_per_gas.to_le_bytes());
         hasher.update(self.timestamp.to_le_bytes());
@@ -90,6 +96,8 @@ impl CodecWrite for EvmBlock {
         buf.put_slice(&self.state_root);
         buf.put_slice(&self.transactions_root);
         buf.put_slice(&self.receipts_root);
+        buf.put_slice(&self.proposer_public_key);
+        buf.put_slice(&self.proposer_fee_recipient);
         buf.put_u64(self.gas_used);
         buf.put_u64(self.base_fee_per_gas);
         buf.put_u64(self.timestamp);
@@ -107,6 +115,8 @@ impl EncodeSize for EvmBlock {
             + 32
             + 32
             + 32
+            + 32
+            + 20
             + 8
             + 8
             + 8
@@ -123,7 +133,8 @@ impl CodecRead for EvmBlock {
     type Cfg = ();
 
     fn read_cfg(reader: &mut impl Buf, _cfg: &Self::Cfg) -> Result<Self, CodecError> {
-        if reader.remaining() < 132 {
+        const MIN_ENCODED_BLOCK_LEN: usize = 8 + 32 + 32 + 32 + 32 + 32 + 20 + 8 + 8 + 8 + 4;
+        if reader.remaining() < MIN_ENCODED_BLOCK_LEN {
             return Err(CodecError::Invalid("EvmBlock", "not enough bytes"));
         }
 
@@ -140,6 +151,12 @@ impl CodecRead for EvmBlock {
 
         let mut receipts_root = [0u8; 32];
         reader.copy_to_slice(&mut receipts_root);
+
+        let mut proposer_public_key = [0u8; 32];
+        reader.copy_to_slice(&mut proposer_public_key);
+
+        let mut proposer_fee_recipient = [0u8; 20];
+        reader.copy_to_slice(&mut proposer_fee_recipient);
 
         let gas_used = reader.get_u64();
         let base_fee_per_gas = reader.get_u64();
@@ -173,6 +190,8 @@ impl CodecRead for EvmBlock {
             state_root,
             transactions_root,
             receipts_root,
+            proposer_public_key,
+            proposer_fee_recipient,
             gas_used,
             base_fee_per_gas,
             timestamp,
@@ -221,6 +240,8 @@ mod tests {
             state_root: [2u8; 32],
             transactions_root: [3u8; 32],
             receipts_root: [4u8; 32],
+            proposer_public_key: [5u8; 32],
+            proposer_fee_recipient: [5u8; 20],
             gas_used: 42,
             base_fee_per_gas: 1_000_000_000,
             timestamp: 1_700_000_000,
@@ -250,6 +271,11 @@ mod tests {
         assert_eq!(decoded.state_root, block.state_root);
         assert_eq!(decoded.transactions_root, block.transactions_root);
         assert_eq!(decoded.receipts_root, block.receipts_root);
+        assert_eq!(decoded.proposer_public_key, block.proposer_public_key);
+        assert_eq!(
+            decoded.proposer_fee_recipient,
+            block.proposer_fee_recipient
+        );
         assert_eq!(decoded.gas_used, block.gas_used);
         assert_eq!(decoded.base_fee_per_gas, block.base_fee_per_gas);
         assert_eq!(decoded.timestamp, block.timestamp);

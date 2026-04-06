@@ -31,35 +31,39 @@ The executor uses `.map_err(Into::into)` on all `StateProvider` calls to convert
 `EvmApplication::propose()` uses `calc_next_block_base_fee` from `reth-primitives-traits` to compute the `base_fee_per_gas` for each new block based on the parent block's gas usage and base fee. Genesis base fee defaults to 1 gwei (1_000_000_000).
 
 ## Fee Routing
-- `DEFAULT_PROPOSER_FEE_RECIPIENT`: explicit deterministic EVM fee-recipient seam used for the current single-proposer reward path. This avoids assuming any implicit ed25519->EVM address mapping.
+- `DEFAULT_PROPOSER_FEE_RECIPIENT`: legacy fallback used only when no validator fee-recipient mapping exists in genesis.
+- `VALIDATOR_FEE_RECIPIENTS_REGISTRY`: fixed genesis account whose storage maps validator ed25519 public keys to configured EVM fee-recipient addresses.
 - `COMMUNITY_POOL_ADDRESS` (from `community-pool` crate): fixed account credited with each block's burned amount.
-- `EvmApplication::propose_evm_transactions()` commits the execution bundle, then credits the community pool by `gas_used * base_fee_per_gas` before computing the block state root.
-- `EvmApplication::verify_evm_transactions()` mirrors the same burned-fee credit before recomputing the verification state root.
+- `EvmApplication::propose_evm_transactions()` resolves the local proposer's fee recipient from the genesis registry, commits the execution bundle, then credits the community pool by `gas_used * base_fee_per_gas` before computing the block state root.
+- `EvmApplication::verify_evm_transactions()` validates the block-carried proposer recipient against the genesis registry (when present) before replaying execution and burned-fee credit.
 
 ## Canonical Imports
 - `app_evm::traits::StateProvider`
 - `app_evm::build_sahara_chain_spec` / `app_evm::build_sahara_chain_spec_with_alloc`
+- `app_evm::build_sahara_chain_spec_with_alloc_and_fee_recipients`
 - `app_evm::DEFAULT_PROPOSER_FEE_RECIPIENT`
+- `app_evm::VALIDATOR_FEE_RECIPIENTS_REGISTRY`
 - `community_pool::COMMUNITY_POOL_ADDRESS`
 - `state::traits::StateDb` (interface trait)
 - `state_reth::RethStateDb` (persistent implementation)
 - `state_memory::InMemoryStateDb` (test code only)
 
 ## Key Types
-- `WhirlpoolEvmConfig`: wrapper for EVM configuration. Holds the chain spec plus the explicit `fee_recipient()` address used for priority-fee routing.
+- `WhirlpoolEvmConfig`: wrapper for EVM configuration. Reads the genesis validator->recipient registry, tracks the local proposer public key, and resolves proposer fee recipients for proposal/verification.
 - `EvmApplication`: application implementation that executes EVM-only blocks.
   - `pending_receipts: Arc<Mutex<Option<Vec<Receipt>>>>`: temporary storage for receipts between execution and persistence.
   - `last_proposed: Arc<Mutex<Option<(u64, EvmBlock, ExecutionResult, Vec<Receipt>)>>>`: cache for the most recent proposal at a given height; prevents duplicate mempool drain when simplex calls `propose()` multiple times for the same height.
   - `propose_evm_transactions(&self, parent, raw_txs, timestamp) -> Result<ProposedEvmPayload, EvmAppError>`: executes a candidate EVM tx list and returns included txs plus execution artifacts.
   - `verify_evm_transactions(&self, parent, block, raw_txs) -> Result<ExecutionResult, EvmAppError>`: replays only the EVM subset of a block.
   - `store_finalized_block(&self, block: &EvmBlock, storage: &dyn BlockStorage) -> Result<(), EvmAppError>`: persists block and receipts.
-- `ProposedEvmPayload`: result of EVM-only proposal execution, including included transactions, inclusion outcomes, receipts, and execution result.
+- `ProposedEvmPayload`: result of EVM-only proposal execution, including included transactions, inclusion outcomes, proposer public key, proposer fee recipient, receipts, and execution result.
 - `EvmAppError`: EVM application error type.
 
 ## Public Functions
-- `build_header_from_evm_block(block: &EvmBlock) -> Header`: converts internal block type to Ethereum header. Sets `excess_blob_gas: Some(0)` and `blob_gas_used: Some(0)` for post-Cancun compatibility.
+- `build_header_from_evm_block(block: &EvmBlock) -> Header`: converts internal block type to Ethereum header. Stores proposer public key in `extra_data`, proposer fee recipient in `beneficiary`, and sets `excess_blob_gas: Some(0)` / `blob_gas_used: Some(0)` for post-Cancun compatibility.
 - `build_sahara_chain_spec() -> Arc<ChainSpec>`: builds the standard Sahara chain spec (chain ID 313371, Cancun-activated).
 - `build_sahara_chain_spec_with_alloc(alloc: BTreeMap<Address, GenesisAccount>) -> Arc<ChainSpec>`: builds a Sahara chain spec with pre-funded genesis accounts. Used for integration tests requiring funded accounts.
+- `build_sahara_chain_spec_with_alloc_and_fee_recipients(...) -> Arc<ChainSpec>`: builds a Sahara chain spec with pre-funded accounts plus genesis storage mapping validator public keys to EVM fee-recipient addresses.
 
 ## Status
-Active. This crate remains the pure EVM execution layer used directly by `app-composite`, now with a narrow fee-accounting seam for community-pool burn credit plus deterministic proposer fee routing.
+Active. This crate remains the pure EVM execution layer used directly by `app-composite`, now with genesis-governed validator fee-recipient routing plus deterministic proposer verification.

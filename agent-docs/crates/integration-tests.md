@@ -31,7 +31,8 @@ Full-node fee-accounting coverage for the new community-pool slice.
 
 Tests:
 - `test_community_pool_accrues_burned_amount_from_fee_only_transfer`: verifies `COMMUNITY_POOL_ADDRESS` balance delta equals `block.gasUsed * block.baseFeePerGas` for the finalized tx block.
-- `test_proposer_fee_recipient_accrues_priority_fee_from_fee_only_transfer`: verifies `DEFAULT_PROPOSER_FEE_RECIPIENT` balance delta equals the tx block's priority-fee remainder (`gas_used * max_priority_fee_per_gas` for the chosen single-tx fixture).
+- `test_proposer_fee_recipient_accrues_priority_fee_from_fee_only_transfer`: starts a single node whose validator fee recipient is fixed in genesis, then verifies the configured recipient gets the tx block's priority-fee remainder while `DEFAULT_PROPOSER_FEE_RECIPIENT` gets zero.
+- `test_multivalidator_priority_fee_follows_actual_proposer`: starts a multi-validator network with distinct genesis-configured fee-recipient addresses, broadcasts one EIP-1559 tx to all nodes, and verifies the rewarded block's `miner`/beneficiary matches the actual proposer's configured recipient while non-proposers and the legacy hardcoded recipient get zero.
 
 ### `tests/rpc_evm_integration.rs`
 Uses a shared test harness:

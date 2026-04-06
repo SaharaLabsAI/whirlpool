@@ -131,6 +131,8 @@ where
                 state_root: evm_payload.result.state_root,
                 transactions_root: transactions_root.0,
                 receipts_root: evm_payload.result.receipts_root,
+                proposer_public_key: evm_payload.proposer_public_key,
+                proposer_fee_recipient: evm_payload.proposer_fee_recipient.into_array(),
                 gas_used: evm_payload.result.gas_used,
                 base_fee_per_gas: evm_payload.base_fee_per_gas,
                 timestamp,

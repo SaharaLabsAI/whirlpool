@@ -152,7 +152,10 @@ pub fn start_node_with_chain_spec(
             };
 
             let chain_spec = chain_spec.unwrap_or_else(|| Arc::new(build_sahara_chain_spec()));
-            let evm_config = WhirlpoolEvmConfig::new(chain_spec.clone());
+            let mut proposer_public_key = [0u8; 32];
+            proposer_public_key.copy_from_slice(public_key.as_ref());
+            let evm_config = WhirlpoolEvmConfig::new(chain_spec.clone())
+                .with_local_proposer_public_key(proposer_public_key);
             let mempool_path = config.storage.mempool_dir();
             info!(?mempool_path, "Opening persistent mempool database");
             let tx_pool: Arc<dyn TxSource> = Arc::new(

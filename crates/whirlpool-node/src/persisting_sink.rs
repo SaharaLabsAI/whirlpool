@@ -317,6 +317,8 @@ mod tests {
             state_root: [1u8; 32],
             transactions_root: [2u8; 32],
             receipts_root: [3u8; 32],
+            proposer_public_key: [0u8; 32],
+            proposer_fee_recipient: [0u8; 20],
             gas_used: 0,
             base_fee_per_gas: 1,
             timestamp: height,

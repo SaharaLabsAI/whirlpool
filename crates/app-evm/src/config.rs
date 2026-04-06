@@ -1,5 +1,5 @@
 use alloy_genesis::{Genesis, GenesisAccount};
-use alloy_primitives::{Address, U256};
+use alloy_primitives::{Address, B256, U256};
 use core::convert::Infallible;
 use reth_chainspec::{Chain, ChainSpec, ChainSpecBuilder};
 use reth_ethereum_primitives::EthPrimitives;
@@ -14,6 +14,10 @@ pub const DEFAULT_PROPOSER_FEE_RECIPIENT: Address = Address::new([
     0x70, 0x72, 0x6f, 0x70, 0x6f, 0x73, 0x65, 0x72, 0x2d, 0x66, 0x65, 0x65, 0x2d, 0x73, 0x65, 0x61,
     0x6d, 0x2d, 0x30, 0x31,
 ]);
+pub const VALIDATOR_FEE_RECIPIENTS_REGISTRY: Address = Address::new([
+    0x76, 0x61, 0x6c, 0x69, 0x64, 0x61, 0x74, 0x6f, 0x72, 0x2d, 0x66, 0x65, 0x65, 0x2d, 0x6d, 0x61,
+    0x70, 0x2d, 0x30, 0x31,
+]);
 
 pub fn build_sahara_chain_spec() -> ChainSpec {
     build_sahara_chain_spec_with_alloc(BTreeMap::new())
@@ -24,6 +28,30 @@ pub fn build_sahara_chain_spec() -> ChainSpec {
 /// This is useful for integration tests that need accounts with ETH balances
 /// at genesis to submit transactions.
 pub fn build_sahara_chain_spec_with_alloc(alloc: BTreeMap<Address, GenesisAccount>) -> ChainSpec {
+    build_sahara_chain_spec_with_alloc_and_fee_recipients(alloc, BTreeMap::new())
+}
+
+pub fn build_sahara_chain_spec_with_alloc_and_fee_recipients(
+    mut alloc: BTreeMap<Address, GenesisAccount>,
+    validator_fee_recipients: BTreeMap<[u8; 32], Address>,
+) -> ChainSpec {
+    if !validator_fee_recipients.is_empty() {
+        let account = alloc
+            .entry(VALIDATOR_FEE_RECIPIENTS_REGISTRY)
+            .or_insert_with(|| GenesisAccount {
+                balance: U256::ZERO,
+                ..GenesisAccount::default()
+            });
+
+        let storage = account.storage.get_or_insert_with(BTreeMap::new);
+        for (validator_public_key, fee_recipient) in validator_fee_recipients {
+            storage.insert(
+                B256::from(validator_public_key),
+                fee_recipient_storage_value(fee_recipient),
+            );
+        }
+    }
+
     ChainSpecBuilder::default()
         .chain(Chain::from_id(SAHARA_CHAIN_ID))
         .genesis(Genesis {
@@ -39,15 +67,23 @@ pub fn build_sahara_chain_spec_with_alloc(alloc: BTreeMap<Address, GenesisAccoun
 #[derive(Debug, Clone)]
 pub struct WhirlpoolEvmConfig {
     inner: EthEvmConfig,
-    fee_recipient: Address,
+    local_proposer_public_key: [u8; 32],
+    validator_fee_recipients: BTreeMap<[u8; 32], Address>,
 }
 
 impl WhirlpoolEvmConfig {
     pub fn new(chain_spec: Arc<ChainSpec>) -> Self {
+        let validator_fee_recipients = validator_fee_recipients_from_chain_spec(&chain_spec);
         Self {
             inner: EthEvmConfig::new(chain_spec),
-            fee_recipient: DEFAULT_PROPOSER_FEE_RECIPIENT,
+            local_proposer_public_key: [0u8; 32],
+            validator_fee_recipients,
         }
+    }
+
+    pub fn with_local_proposer_public_key(mut self, local_proposer_public_key: [u8; 32]) -> Self {
+        self.local_proposer_public_key = local_proposer_public_key;
+        self
     }
 
     pub fn chain_spec(&self) -> &Arc<ChainSpec> {
@@ -55,8 +91,48 @@ impl WhirlpoolEvmConfig {
     }
 
     pub fn fee_recipient(&self) -> Address {
-        self.fee_recipient
+        self.fee_recipient_for_proposer(self.local_proposer_public_key)
+            .unwrap_or(DEFAULT_PROPOSER_FEE_RECIPIENT)
     }
+
+    pub fn fee_recipient_for_proposer(&self, proposer_public_key: [u8; 32]) -> Option<Address> {
+        self.validator_fee_recipients
+            .get(&proposer_public_key)
+            .copied()
+    }
+
+    pub fn local_proposer_public_key(&self) -> [u8; 32] {
+        self.local_proposer_public_key
+    }
+}
+
+fn fee_recipient_storage_value(fee_recipient: Address) -> B256 {
+    let mut bytes = [0u8; 32];
+    bytes[12..].copy_from_slice(fee_recipient.as_slice());
+    B256::from(bytes)
+}
+
+fn fee_recipient_from_storage_value(value: B256) -> Address {
+    Address::from_slice(&value.as_slice()[12..])
+}
+
+fn validator_fee_recipients_from_chain_spec(
+    chain_spec: &ChainSpec,
+) -> BTreeMap<[u8; 32], Address> {
+    chain_spec
+        .genesis
+        .alloc
+        .get(&VALIDATOR_FEE_RECIPIENTS_REGISTRY)
+        .and_then(|account| account.storage.as_ref())
+        .map(|storage| {
+            storage
+                .iter()
+                .map(|(validator_public_key, fee_recipient)| {
+                    (validator_public_key.0, fee_recipient_from_storage_value(*fee_recipient))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 impl ConfigureEvm for WhirlpoolEvmConfig {
@@ -105,12 +181,14 @@ impl ConfigureEvm for WhirlpoolEvmConfig {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_sahara_chain_spec, WhirlpoolEvmConfig, DEFAULT_PROPOSER_FEE_RECIPIENT,
-        SAHARA_CHAIN_ID,
+        build_sahara_chain_spec, build_sahara_chain_spec_with_alloc_and_fee_recipients,
+        WhirlpoolEvmConfig, DEFAULT_PROPOSER_FEE_RECIPIENT, SAHARA_CHAIN_ID,
+        VALIDATOR_FEE_RECIPIENTS_REGISTRY,
     };
     use alloy_primitives::Address;
     use reth_chainspec::EthereumHardforks;
     use reth_evm::ConfigureEvm;
+    use std::collections::BTreeMap;
     use std::sync::Arc;
     #[test]
     fn test_evm_config_chain_spec() {
@@ -148,5 +226,23 @@ mod tests {
 
         assert_eq!(config.fee_recipient(), DEFAULT_PROPOSER_FEE_RECIPIENT);
         assert_ne!(config.fee_recipient(), Address::ZERO);
+    }
+
+    #[test]
+    fn test_fee_recipient_mapping_roundtrip_in_genesis_registry() {
+        let local_proposer_public_key = [0x11; 32];
+        let custom = Address::repeat_byte(0x44);
+        let mut validator_fee_recipients = BTreeMap::new();
+        validator_fee_recipients.insert(local_proposer_public_key, custom);
+
+        let spec = Arc::new(build_sahara_chain_spec_with_alloc_and_fee_recipients(
+            BTreeMap::new(),
+            validator_fee_recipients,
+        ));
+        let config = WhirlpoolEvmConfig::new(spec.clone())
+            .with_local_proposer_public_key(local_proposer_public_key);
+
+        assert_eq!(config.fee_recipient(), custom);
+        assert!(spec.genesis.alloc.contains_key(&VALIDATOR_FEE_RECIPIENTS_REGISTRY));
     }
 }
