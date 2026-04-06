@@ -1,6 +1,7 @@
 use alloy_genesis::{Genesis, GenesisAccount};
 use alloy_primitives::{Address, B256, U256};
 use core::convert::Infallible;
+use native_token::{validate_genesis_alloc, NativeTokenError};
 use reth_chainspec::{Chain, ChainSpec, ChainSpecBuilder};
 use reth_ethereum_primitives::EthPrimitives;
 use reth_evm::{ConfigureEvm, EvmEnvFor, ExecutionCtxFor, NextBlockEnvAttributes};
@@ -20,7 +21,12 @@ pub const VALIDATOR_FEE_RECIPIENTS_REGISTRY: Address = Address::new([
 ]);
 
 pub fn build_sahara_chain_spec() -> ChainSpec {
-    build_sahara_chain_spec_with_alloc(BTreeMap::new())
+    try_build_sahara_chain_spec()
+        .expect("default Sahara chain spec should satisfy native-token cap")
+}
+
+pub fn try_build_sahara_chain_spec() -> Result<ChainSpec, NativeTokenError> {
+    try_build_sahara_chain_spec_with_alloc(BTreeMap::new())
 }
 
 /// Build the Sahara chain spec with pre-funded genesis accounts.
@@ -28,13 +34,28 @@ pub fn build_sahara_chain_spec() -> ChainSpec {
 /// This is useful for integration tests that need accounts with ETH balances
 /// at genesis to submit transactions.
 pub fn build_sahara_chain_spec_with_alloc(alloc: BTreeMap<Address, GenesisAccount>) -> ChainSpec {
-    build_sahara_chain_spec_with_alloc_and_fee_recipients(alloc, BTreeMap::new())
+    try_build_sahara_chain_spec_with_alloc(alloc)
+        .expect("provided genesis alloc should satisfy native-token cap")
+}
+
+pub fn try_build_sahara_chain_spec_with_alloc(
+    alloc: BTreeMap<Address, GenesisAccount>,
+) -> Result<ChainSpec, NativeTokenError> {
+    try_build_sahara_chain_spec_with_alloc_and_fee_recipients(alloc, BTreeMap::new())
 }
 
 pub fn build_sahara_chain_spec_with_alloc_and_fee_recipients(
-    mut alloc: BTreeMap<Address, GenesisAccount>,
+    alloc: BTreeMap<Address, GenesisAccount>,
     validator_fee_recipients: BTreeMap<[u8; 32], Address>,
 ) -> ChainSpec {
+    try_build_sahara_chain_spec_with_alloc_and_fee_recipients(alloc, validator_fee_recipients)
+        .expect("provided genesis alloc should satisfy native-token cap")
+}
+
+pub fn try_build_sahara_chain_spec_with_alloc_and_fee_recipients(
+    mut alloc: BTreeMap<Address, GenesisAccount>,
+    validator_fee_recipients: BTreeMap<[u8; 32], Address>,
+) -> Result<ChainSpec, NativeTokenError> {
     if !validator_fee_recipients.is_empty() {
         let account = alloc
             .entry(VALIDATOR_FEE_RECIPIENTS_REGISTRY)
@@ -52,7 +73,9 @@ pub fn build_sahara_chain_spec_with_alloc_and_fee_recipients(
         }
     }
 
-    ChainSpecBuilder::default()
+    validate_genesis_alloc(&alloc)?;
+
+    Ok(ChainSpecBuilder::default()
         .chain(Chain::from_id(SAHARA_CHAIN_ID))
         .genesis(Genesis {
             gas_limit: 30_000_000,
@@ -61,7 +84,7 @@ pub fn build_sahara_chain_spec_with_alloc_and_fee_recipients(
             ..Default::default()
         })
         .cancun_activated()
-        .build()
+        .build())
 }
 
 #[derive(Debug, Clone)]
@@ -116,9 +139,7 @@ fn fee_recipient_from_storage_value(value: B256) -> Address {
     Address::from_slice(&value.as_slice()[12..])
 }
 
-fn validator_fee_recipients_from_chain_spec(
-    chain_spec: &ChainSpec,
-) -> BTreeMap<[u8; 32], Address> {
+fn validator_fee_recipients_from_chain_spec(chain_spec: &ChainSpec) -> BTreeMap<[u8; 32], Address> {
     chain_spec
         .genesis
         .alloc
@@ -128,7 +149,10 @@ fn validator_fee_recipients_from_chain_spec(
             storage
                 .iter()
                 .map(|(validator_public_key, fee_recipient)| {
-                    (validator_public_key.0, fee_recipient_from_storage_value(*fee_recipient))
+                    (
+                        validator_public_key.0,
+                        fee_recipient_from_storage_value(*fee_recipient),
+                    )
                 })
                 .collect()
         })
@@ -182,10 +206,12 @@ impl ConfigureEvm for WhirlpoolEvmConfig {
 mod tests {
     use super::{
         build_sahara_chain_spec, build_sahara_chain_spec_with_alloc_and_fee_recipients,
-        WhirlpoolEvmConfig, DEFAULT_PROPOSER_FEE_RECIPIENT, SAHARA_CHAIN_ID,
-        VALIDATOR_FEE_RECIPIENTS_REGISTRY,
+        try_build_sahara_chain_spec_with_alloc, WhirlpoolEvmConfig, DEFAULT_PROPOSER_FEE_RECIPIENT,
+        SAHARA_CHAIN_ID, VALIDATOR_FEE_RECIPIENTS_REGISTRY,
     };
-    use alloy_primitives::Address;
+    use alloy_genesis::GenesisAccount;
+    use alloy_primitives::{Address, U256};
+    use native_token::{sahara_hard_cap_base_units, NativeTokenError};
     use reth_chainspec::EthereumHardforks;
     use reth_evm::ConfigureEvm;
     use std::collections::BTreeMap;
@@ -243,6 +269,30 @@ mod tests {
             .with_local_proposer_public_key(local_proposer_public_key);
 
         assert_eq!(config.fee_recipient(), custom);
-        assert!(spec.genesis.alloc.contains_key(&VALIDATOR_FEE_RECIPIENTS_REGISTRY));
+        assert!(spec
+            .genesis
+            .alloc
+            .contains_key(&VALIDATOR_FEE_RECIPIENTS_REGISTRY));
+    }
+
+    #[test]
+    fn test_try_build_sahara_chain_spec_with_alloc_rejects_over_cap() {
+        let mut alloc = BTreeMap::new();
+        let total = sahara_hard_cap_base_units() + U256::from(1u64);
+        alloc.insert(
+            Address::repeat_byte(0x55),
+            GenesisAccount {
+                balance: total,
+                ..GenesisAccount::default()
+            },
+        );
+
+        assert_eq!(
+            try_build_sahara_chain_spec_with_alloc(alloc),
+            Err(NativeTokenError::HardCapExceeded {
+                total,
+                hard_cap: sahara_hard_cap_base_units(),
+            })
+        );
     }
 }

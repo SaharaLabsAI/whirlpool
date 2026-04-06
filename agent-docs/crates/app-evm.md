@@ -2,6 +2,7 @@
 
 ## Purpose
 Pure EVM configuration and execution integration for Whirlpool applications.
+Genesis `ChainSpec` construction now shares the native-token hard cap from the `native-token` crate.
 
 ## Interface/Implementation Split
 - Interface module: `crates/app-evm/src/traits.rs`
@@ -41,9 +42,11 @@ The executor uses `.map_err(Into::into)` on all `StateProvider` calls to convert
 - `app_evm::traits::StateProvider`
 - `app_evm::build_sahara_chain_spec` / `app_evm::build_sahara_chain_spec_with_alloc`
 - `app_evm::build_sahara_chain_spec_with_alloc_and_fee_recipients`
+- `app_evm::try_build_sahara_chain_spec*`
 - `app_evm::DEFAULT_PROPOSER_FEE_RECIPIENT`
 - `app_evm::VALIDATOR_FEE_RECIPIENTS_REGISTRY`
 - `community_pool::COMMUNITY_POOL_ADDRESS`
+- `native_token::validate_genesis_alloc`
 - `state::traits::StateDb` (interface trait)
 - `state_reth::RethStateDb` (persistent implementation)
 - `state_memory::InMemoryStateDb` (test code only)
@@ -64,6 +67,12 @@ The executor uses `.map_err(Into::into)` on all `StateProvider` calls to convert
 - `build_sahara_chain_spec() -> Arc<ChainSpec>`: builds the standard Sahara chain spec (chain ID 313371, Cancun-activated).
 - `build_sahara_chain_spec_with_alloc(alloc: BTreeMap<Address, GenesisAccount>) -> Arc<ChainSpec>`: builds a Sahara chain spec with pre-funded genesis accounts. Used for integration tests requiring funded accounts.
 - `build_sahara_chain_spec_with_alloc_and_fee_recipients(...) -> Arc<ChainSpec>`: builds a Sahara chain spec with pre-funded accounts plus genesis storage mapping validator public keys to EVM fee-recipient addresses.
+- `try_build_sahara_chain_spec* -> Result<ChainSpec, NativeTokenError>`: fallible constructors that reject over-cap genesis allocs before building the spec.
+
+## Native-Token Cap
+- `native-token` is the canonical source of the 10 billion Sahara hard cap.
+- `build_sahara_chain_spec*` validates `Genesis.alloc` balances against that cap after fee-recipient registry storage is injected.
+- The fee-recipient registry account contributes zero token balance; only account balances count toward total supply.
 
 ## Status
 Active. This crate remains the pure EVM execution layer used directly by `app-composite`, now with genesis-governed validator fee-recipient routing plus deterministic proposer verification.

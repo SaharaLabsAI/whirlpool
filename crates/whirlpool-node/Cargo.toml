@@ -9,6 +9,7 @@ app-composite = { path = "../app-composite" }
 app-evm = { path = "../app-evm" }
 app-mem = { path = "../app-mem" }
 mempool-mdbx = { path = "../mempool-mdbx" }
+native-token = { path = "../native-token" }
 rpc-eth = { path = "../rpc-eth" }
 rpc-mem = { path = "../rpc-mem" }
 reth-chainspec = { path = "../../vendor/reth/crates/chainspec" }

@@ -3,6 +3,9 @@ name = "consensus-simplex"
 version.workspace = true
 edition.workspace = true
 
+[lib]
+doctest = false
+
 [dependencies]
 consensus = { path = "../consensus" }
 p2p = { path = "../p2p", features = ["mock"] }

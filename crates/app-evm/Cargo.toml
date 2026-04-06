@@ -9,6 +9,7 @@ doctest = false
 [dependencies]
 app = { path = "../app" }
 community-pool = { path = "../community-pool" }
+native-token = { path = "../native-token" }
 state = { path = "../state" }
 state-memory = { path = "../state-memory" }
 state-reth = { path = "../state-reth" }

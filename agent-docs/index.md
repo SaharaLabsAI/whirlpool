@@ -37,6 +37,7 @@ Structured reference docs optimized for fast LLM lookup. Each contains type sign
 | [crates/whirlpool-node.md](crates/whirlpool-node.md) | EVM binary entrypoint and node configuration | `whirlpool-node` (bin) |
 | [crates/app-composite.md](crates/app-composite.md) | Composite consensus application that classifies mixed tx streams and delegates execution to domain apps | `app-composite` |
 | [crates/community-pool.md](crates/community-pool.md) | Fixed community-pool account constant used by the current fee-accounting slice | `community-pool` |
+| [crates/native-token.md](crates/native-token.md) | Canonical Sahara native-token hard cap and genesis allocation validation helpers | `native-token` |
 | [crates/tx-dispatch.md](crates/tx-dispatch.md) | Neutral transaction decoding and classification across EVM and mem tx families | `tx-dispatch` |
 | [crates/rpc-eth.md](crates/rpc-eth.md) | Ethereum JSON-RPC server: reth-backed adapters (WhirlpoolProvider, WhirlpoolTxPool, WhirlpoolNetwork), RpcConfig API, blob exclusion | `rpc-eth` |
 | [crates/state-reth.md](crates/state-reth.md) | Persistent state implementation: RethStateDb, MDBX, state root | `state-reth` |
@@ -92,6 +93,7 @@ Step-by-step instructions for common tasks and workflows.
 | `app-evm` | `crates/app-evm/src/` | `crates/app-evm.md` | — |
 | `app-composite` | `crates/app-composite/src/` | `crates/app-composite.md` | — |
 | `community-pool` | `crates/community-pool/src/` | `crates/community-pool.md` | — |
+| `native-token` | `crates/native-token/src/` | `crates/native-token.md` | — |
 | `mempool` | `crates/mempool/src/` | `crates/mempool.md` | — |
 | `tx-dispatch` | `crates/tx-dispatch/src/` | `crates/tx-dispatch.md` | — |
 | `rpc-mem` | `crates/rpc-mem/src/` | `crates/rpc-mem.md` | — |

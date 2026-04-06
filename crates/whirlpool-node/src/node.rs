@@ -8,6 +8,7 @@ use commonware_runtime::{tokio, Metrics, Runner};
 use consensus::traits::ConsensusEngine;
 use consensus_simplex::{CommonwareConfig, CommonwareEngine, FinalizationSink};
 use mempool_mdbx::PersistentTxPool;
+use native_token::validate_genesis_alloc;
 use p2p_commonware::CommonwareNetworkProviderBuilder;
 use reth_chainspec::ChainSpec;
 use rpc_eth as eth_rpc;
@@ -66,6 +67,13 @@ pub fn start_node_with_chain_spec(
     chain_spec: Option<Arc<ChainSpec>>,
 ) -> NodeResult<NodeHandle> {
     let public_key = ed25519::PrivateKey::from_seed(config.identity.seed).public_key();
+    let chain_spec = match chain_spec {
+        Some(chain_spec) => {
+            validate_genesis_alloc(&chain_spec.genesis.alloc)?;
+            chain_spec
+        }
+        None => Arc::new(build_sahara_chain_spec()),
+    };
     let (info_tx, info_rx) = mpsc::channel::<NodeResult<NodeInfo>>();
 
     let thread = thread::spawn(move || {
@@ -104,10 +112,8 @@ pub fn start_node_with_chain_spec(
                 state_reth::open_state_db(&db_path).expect("failed to open state database");
 
             // Apply genesis allocations (pre-funded accounts) to the state DB if provided.
-            let genesis_alloc = chain_spec
-                .as_ref()
-                .map(|cs| &cs.genesis.alloc)
-                .filter(|a| !a.is_empty());
+            let genesis_alloc =
+                (!chain_spec.genesis.alloc.is_empty()).then_some(&chain_spec.genesis.alloc);
             if let Some(alloc) = genesis_alloc {
                 let alloc_map: std::collections::HashMap<_, _> =
                     alloc.iter().map(|(k, v)| (*k, v.clone())).collect();
@@ -151,7 +157,6 @@ pub fn start_node_with_chain_spec(
                 validators,
             };
 
-            let chain_spec = chain_spec.unwrap_or_else(|| Arc::new(build_sahara_chain_spec()));
             let mut proposer_public_key = [0u8; 32];
             proposer_public_key.copy_from_slice(public_key.as_ref());
             let evm_config = WhirlpoolEvmConfig::new(chain_spec.clone())

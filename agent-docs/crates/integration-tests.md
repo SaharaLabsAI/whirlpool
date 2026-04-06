@@ -9,6 +9,7 @@ Location: `testing/integration-tests/`
 ## Dependency Boundaries
 - `app`: application traits and tx source (`InMemoryTxPool`).
 - `app-evm`: EVM application, `build_sahara_chain_spec()` / `build_sahara_chain_spec_with_alloc()` for chain spec construction.
+- `native-token`: hard-cap helper imported by the dedicated native-token supply tests.
 - `rpc-eth`: `RpcConfig`, `start_rpc_server` — Ethereum JSON-RPC server wiring.
 - `state-reth`: `RethStateDb`, `open_state_db()` — persistent MDBX state for RPC tests.
 - `whirlpool-node`: `start_node_with_chain_spec()` — in-process node for full-node tests.
@@ -22,6 +23,18 @@ Location: `testing/integration-tests/`
 - `tokio`: async runtime with test-util.
 
 ## Test Files
+
+### `tests/native_token_supply_cap.rs`
+Full-node supply-invariant coverage for the native-token hard cap.
+- Reuses funded-node startup, RPC polling, signing, and balance-query patterns from the existing EVM integration tests.
+- Uses both direct `ChainSpec` construction and helper-built specs to prove node-startup defense in depth.
+
+Tests:
+- `test_rejects_over_cap_genesis_allocation`: manual over-cap `ChainSpec` fails before normal startup.
+- `test_accepts_exact_cap_genesis_allocation`: exact-cap alloc starts successfully and preserves configured balances.
+- `test_direct_chain_spec_bypass_still_rejected`: mutating a helper-built spec over the cap still fails at node startup.
+- `test_post_genesis_transfer_conserves_supply`: ordinary EIP-1559 transfer keeps tracked total supply constant.
+- `test_community_pool_credit_is_supply_conserving`: community-pool burned-fee credits remain redistribution, not minting.
 
 ### `tests/community_pool.rs`
 Full-node fee-accounting coverage for the new community-pool slice.

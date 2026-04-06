@@ -1012,6 +1012,7 @@ dependencies = [
  "community-pool",
  "consensus",
  "futures",
+ "native-token",
  "reth-chainspec",
  "reth-ethereum-primitives",
  "reth-evm",
@@ -4364,6 +4365,7 @@ dependencies = [
  "community-pool",
  "hex",
  "jsonrpsee",
+ "native-token",
  "reqwest",
  "reth-chainspec",
  "reth-rpc-builder",
@@ -5129,6 +5131,15 @@ checksum = "6b430e7953c29dd6a09afc29ff0bb69c6e306329ee6794700aee27b76a1aea8d"
 dependencies = [
  "core2",
  "unsigned-varint",
+]
+
+[[package]]
+name = "native-token"
+version = "0.1.0"
+dependencies = [
+ "alloy-genesis",
+ "alloy-primitives",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -10444,6 +10455,7 @@ dependencies = [
  "consensus",
  "consensus-simplex",
  "mempool-mdbx",
+ "native-token",
  "p2p-commonware",
  "reth-chainspec",
  "reth-revm",
