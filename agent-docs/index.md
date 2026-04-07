@@ -98,6 +98,6 @@ Step-by-step instructions for common tasks and workflows.
 | `mempool` | `crates/mempool/src/` | `crates/mempool.md` | — |
 | `tx-dispatch` | `crates/mem/tx-dispatch/src/` | `crates/tx-dispatch.md` | — |
 | `rpc-mem` | `crates/mem/rpc/src/` | `crates/rpc-mem.md` | — |
-| `whirlpool-node` | `crates/whirlpool-node/src/` | `architecture/whirlpool-node.md` (lib) + `crates/whirlpool-node.md` (EVM bin) | `guides/whirlpool-node-components.md` |
+| `whirlpool-node` | `crates/node/src/` | `architecture/whirlpool-node.md` (lib) + `crates/whirlpool-node.md` (EVM bin) | `guides/whirlpool-node-components.md` |
 | `rpc-eth` | `crates/evm/rpc/src/` | `crates/rpc-eth.md` | — |
 | `integration-tests` | `testing/integration-tests/tests/` | `crates/integration-tests.md` | — |

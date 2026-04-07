@@ -4,7 +4,7 @@
 `whirlpool-node` runs Commonware consensus with the pure `app-evm` application on Sahara Chain.
 
 ## Location
-`crates/whirlpool-node/`
+`crates/node/`
 
 ## Dependency Boundaries
 - `consensus`: core interface traits from `consensus::traits`.

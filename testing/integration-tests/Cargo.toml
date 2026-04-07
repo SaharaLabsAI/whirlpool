@@ -16,7 +16,7 @@ rpc-mem = { path = "../../crates/mem/rpc" }
 state = { path = "../../crates/state" }
 state-memory = { path = "../../crates/mem/state" }
 state-reth = { path = "../../crates/evm/state" }
-whirlpool-node = { path = "../../crates/whirlpool-node" }
+whirlpool-node = { path = "../../crates/node" }
 commonware-cryptography = { path = "../../vendor/commonware/cryptography" }
 revm = { version = "34" }
 alloy-primitives = { version = "1.5.0" }

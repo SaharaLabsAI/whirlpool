@@ -10,7 +10,7 @@ members = [
     "crates/p2p-commonware",
     "crates/evm/rpc",
     "crates/mem/rpc",
-    "crates/whirlpool-node",
+    "crates/node",
     "crates/state",
     "crates/mem/state",
     "crates/evm/state",

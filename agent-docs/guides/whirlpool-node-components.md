@@ -51,9 +51,9 @@ The `EmptyBlockApp` enforces five rules during block verification to ensure chai
 The node library provides a high-level API in `whirlpool_node::node`:
 
 1.  **Parse Arguments**: Use `NodeArgs::parse()`.
-2.  **Load Configuration**: Call `load_config(args)` to merge CLI and TOML (crates/whirlpool-node/src/config.rs:319).
-3.  **Start Node**: Call `start_node(config)` to launch consensus and RPC (crates/whirlpool-node/src/node.rs:50).
-4.  **Manage Lifecycle**: Use the `NodeHandle` for monitoring and teardown on `Drop` (crates/whirlpool-node/src/node.rs:26).
+2.  **Load Configuration**: Call `load_config(args)` to merge CLI and TOML (crates/node/src/config.rs:319).
+3.  **Start Node**: Call `start_node(config)` to launch consensus and RPC (crates/node/src/node.rs:50).
+4.  **Manage Lifecycle**: Use the `NodeHandle` for monitoring and teardown on `Drop` (crates/node/src/node.rs:26).
 
 ## Architecture Evolution
 
@@ -61,4 +61,3 @@ Whirlpool components are now separated into distinct modules for better reuse:
 - **config**: Multi-source configuration layering (CLI > TOML > Defaults).
 - **node**: Programmatic node lifecycle management (start/stop/handle).
 - **main**: Minimalist binary wrapper.
-
