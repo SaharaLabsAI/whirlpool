@@ -8,6 +8,7 @@ Read this file first, then follow links to relevant sections based on your task.
 Whirlpool is a modular consensus framework for the Sahara Chain, built in Rust.
 It uses a 3-layer architecture: abstract consensus traits -> Simplex BFT adapter -> node binary.
 Canonical interface imports use `crate::traits::...` paths across crates after interface/implementation split refactoring.
+EVM implementation crates are grouped under `crates/evm/`.
 The vendor layer (commonware) is a git submodule under `vendor/` — **do not modify**.
 
 ## Reading Order
@@ -88,9 +89,9 @@ Step-by-step instructions for common tasks and workflows.
 | `p2p-commonware` | `crates/p2p-commonware/src/` | `crates/p2p-commonware.md` | — |
 | `state` | `crates/state/src/` | `crates/state.md` | — |
 | `state-memory` | `crates/state-memory/src/` | `crates/state-memory.md` | — |
-| `state-reth` | `crates/state-reth/src/` | `crates/state-reth.md` | — |
+| `state-reth` | `crates/evm/state/src/` | `crates/state-reth.md` | — |
 | `app` | `crates/app/src/` | `crates/app.md` | — |
-| `app-evm` | `crates/app-evm/src/` | `crates/app-evm.md` | — |
+| `app-evm` | `crates/evm/app/src/` | `crates/app-evm.md` | — |
 | `app-composite` | `crates/app-composite/src/` | `crates/app-composite.md` | — |
 | `community-pool` | `crates/community-pool/src/` | `crates/community-pool.md` | — |
 | `native-token` | `crates/native-token/src/` | `crates/native-token.md` | — |
@@ -98,5 +99,5 @@ Step-by-step instructions for common tasks and workflows.
 | `tx-dispatch` | `crates/tx-dispatch/src/` | `crates/tx-dispatch.md` | — |
 | `rpc-mem` | `crates/rpc-mem/src/` | `crates/rpc-mem.md` | — |
 | `whirlpool-node` | `crates/whirlpool-node/src/` | `architecture/whirlpool-node.md` (lib) + `crates/whirlpool-node.md` (EVM bin) | `guides/whirlpool-node-components.md` |
-| `rpc-eth` | `crates/rpc-eth/src/` | `crates/rpc-eth.md` | — |
+| `rpc-eth` | `crates/evm/rpc/src/` | `crates/rpc-eth.md` | — |
 | `integration-tests` | `testing/integration-tests/tests/` | `crates/integration-tests.md` | — |

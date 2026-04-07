@@ -1,0 +1,29 @@
+[package]
+name = "state-reth"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+state = { path = "../../state" }
+app = { path = "../../app" }
+revm = "34"
+reth-db = { path = "../../../vendor/reth/crates/storage/db", features = ["mdbx"] }
+reth-db-api = { path = "../../../vendor/reth/crates/storage/db-api" }
+reth-db-models = { path = "../../../vendor/reth/crates/storage/db-models" }
+reth-primitives-traits = { path = "../../../vendor/reth/crates/primitives-traits" }
+reth-ethereum-primitives = { path = "../../../vendor/reth/crates/ethereum/primitives" }
+reth-trie = { path = "../../../vendor/reth/crates/trie/trie" }
+reth-trie-db = { path = "../../../vendor/reth/crates/trie/db" }
+reth-trie-common = { path = "../../../vendor/reth/crates/trie/common" }
+reth-storage-errors = { path = "../../../vendor/reth/crates/storage/errors" }
+thiserror = "2"
+alloy-consensus = "1.4.3"
+alloy-eips = "1.5"
+alloy-genesis = "1.5"
+alloy-primitives = "1.5"
+tempfile = "3"
+tracing = "0.1"
+
+[dev-dependencies]
+tempfile = "3"
+serial_test = "3"

@@ -5,12 +5,12 @@ Pure EVM configuration and execution integration for Whirlpool applications.
 Genesis `ChainSpec` construction now shares the native-token hard cap from the `native-token` crate.
 
 ## Interface/Implementation Split
-- Interface module: `crates/app-evm/src/traits.rs`
+- Interface module: `crates/evm/app/src/traits.rs`
   - `StateProvider`
 - Implementation modules:
-  - `crates/app-evm/src/config.rs`
-  - `crates/app-evm/src/executor.rs`
-  - `crates/app-evm/src/error.rs`
+  - `crates/evm/app/src/config.rs`
+  - `crates/evm/app/src/executor.rs`
+  - `crates/evm/app/src/error.rs`
 
 ## Trait Boundary
 - `StateProvider` is now defined in `app_evm::traits`.

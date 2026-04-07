@@ -8,7 +8,7 @@ doctest = false
 
 [dependencies]
 app = { path = "../app" }
-app-evm = { path = "../app-evm" }
+app-evm = { path = "../evm/app" }
 app-mem = { path = "../app-mem" }
 state = { path = "../state" }
 tx-dispatch = { path = "../tx-dispatch" }

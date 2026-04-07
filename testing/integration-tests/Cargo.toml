@@ -7,15 +7,15 @@ edition.workspace = true
 # `cargo test -p integration-tests` runs everything under tests/.
 [dependencies]
 app = { path = "../../crates/app" }
-app-evm = { path = "../../crates/app-evm" }
+app-evm = { path = "../../crates/evm/app" }
 app-mem = { path = "../../crates/app-mem" }
 community-pool = { path = "../../crates/community-pool" }
 native-token = { path = "../../crates/native-token" }
-rpc-eth = { path = "../../crates/rpc-eth" }
+rpc-eth = { path = "../../crates/evm/rpc" }
 rpc-mem = { path = "../../crates/rpc-mem" }
 state = { path = "../../crates/state" }
 state-memory = { path = "../../crates/state-memory" }
-state-reth = { path = "../../crates/state-reth" }
+state-reth = { path = "../../crates/evm/state" }
 whirlpool-node = { path = "../../crates/whirlpool-node" }
 commonware-cryptography = { path = "../../vendor/commonware/cryptography" }
 revm = { version = "34" }
