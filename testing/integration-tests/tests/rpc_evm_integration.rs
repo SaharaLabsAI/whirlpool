@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 use alloy_consensus::{SignableTransaction, TxEip1559, TxLegacy};
 use alloy_eips::eip2718::Encodable2718;
 use alloy_genesis::GenesisAccount;
-use alloy_primitives::{Address, B256, Bytes, FixedBytes, Signature, TxKind, U256};
+use alloy_primitives::{Address, Bytes, FixedBytes, Signature, TxKind, B256, U256};
 use alloy_provider::{Provider, ProviderBuilder};
 use alloy_signer::Signer as AlloySigner;
 use alloy_signer_local::PrivateKeySigner;
@@ -22,8 +22,8 @@ use reth_chainspec::ChainSpec;
 use rpc_eth::{start_rpc_server, RpcConfig};
 use tempfile::TempDir;
 use whirlpool_node::config::{
-    ConsensusStartupConfig, DEFAULT_MAX_MESSAGE_SIZE, IdentityConfig, NetworkConfig, NodeConfig,
-    RpcConfig as NodeRpcConfig, StorageConfig,
+    ConsensusStartupConfig, IdentityConfig, NetworkConfig, NodeConfig, RpcConfig as NodeRpcConfig,
+    StorageConfig, DEFAULT_MAX_MESSAGE_SIZE,
 };
 use whirlpool_node::node::{start_node_with_chain_spec, NodeHandle};
 
@@ -65,9 +65,8 @@ async fn start_test_rpc() -> TestRpcServer {
 
 async fn start_test_rpc_with_tx_source() -> (TestRpcServer, Arc<RecordingTxSource>) {
     let tmp_dir = TempDir::new().expect("failed to create temp dir");
-    let state_db = Arc::new(
-        state_reth::open_state_db(tmp_dir.path()).expect("failed to open reth state db"),
-    );
+    let state_db =
+        Arc::new(state_reth::open_state_db(tmp_dir.path()).expect("failed to open reth state db"));
     let chain_spec = Arc::new(build_sahara_chain_spec());
     let tx_source = Arc::new(RecordingTxSource::new());
 
@@ -224,9 +223,7 @@ async fn tst8_get_block_by_number() {
 
     // On an empty DB, latest block may not exist — accept null result or an error
     assert!(
-        body["result"].is_null()
-            || body["result"].is_object()
-            || body["error"].is_object(),
+        body["result"].is_null() || body["result"].is_object() || body["error"].is_object(),
         "expected null, block object, or error for latest block on empty DB: {body}"
     );
 
@@ -257,8 +254,14 @@ async fn tst9_send_raw_transaction_acceptance_and_blob_rejection() {
     )
     .await;
 
-    assert!(legacy_body.get("error").is_none(), "legacy tx should be accepted: {legacy_body}");
-    assert_eq!(legacy_body["result"], serde_json::Value::String(legacy_hash));
+    assert!(
+        legacy_body.get("error").is_none(),
+        "legacy tx should be accepted: {legacy_body}"
+    );
+    assert_eq!(
+        legacy_body["result"],
+        serde_json::Value::String(legacy_hash)
+    );
     assert_eq!(tx_source.pushed_txs(), vec![raw_legacy.clone()]);
 
     let raw_blob = vec![0x03];
@@ -278,7 +281,10 @@ async fn tst9_send_raw_transaction_acceptance_and_blob_rejection() {
         .as_str()
         .unwrap_or_default()
         .to_ascii_lowercase();
-    assert!(blob_body["error"].is_object(), "blob tx should be rejected: {blob_body}");
+    assert!(
+        blob_body["error"].is_object(),
+        "blob tx should be rejected: {blob_body}"
+    );
     assert!(
         error_message.contains("blob")
             || error_message.contains("4844")
@@ -309,7 +315,9 @@ async fn tst10_blob_base_fee_behavior() {
 
     assert!(
         body["error"].is_object()
-            || body["result"].as_str().is_some_and(|value| value.starts_with("0x")),
+            || body["result"]
+                .as_str()
+                .is_some_and(|value| value.starts_with("0x")),
         "unexpected eth_blobBaseFee response: {body}"
     );
 }
@@ -349,7 +357,9 @@ async fn tst11_request_shape_permutations() {
     .await;
     assert!(
         gas_price["error"].is_object()
-            || gas_price["result"].as_str().is_some_and(|value| value.starts_with("0x")),
+            || gas_price["result"]
+                .as_str()
+                .is_some_and(|value| value.starts_with("0x")),
         "eth_gasPrice should return an RPC error or hex string: {gas_price}"
     );
 
@@ -366,7 +376,9 @@ async fn tst11_request_shape_permutations() {
     .await;
     assert!(
         accounts["result"].is_null()
-            || accounts["result"].as_array().is_some_and(|value| value.is_empty()),
+            || accounts["result"]
+                .as_array()
+                .is_some_and(|value| value.is_empty()),
         "eth_accounts should expose no unlocked accounts in test RPC: {accounts}"
     );
 }
@@ -424,19 +436,45 @@ async fn contract_eth_get_transaction_count() {
     let client = test_client();
 
     // Valid: address + latest block tag
-    let ok = post_json(client, &server, rpc_req("eth_getTransactionCount", serde_json::json!([ZERO_ADDR, "latest"]))).await;
+    let ok = post_json(
+        client,
+        &server,
+        rpc_req(
+            "eth_getTransactionCount",
+            serde_json::json!([ZERO_ADDR, "latest"]),
+        ),
+    )
+    .await;
     assert_rpc_ok(&ok, "eth_getTransactionCount");
 
     // Valid: address only (optional block)
-    let ok2 = post_json(client, &server, rpc_req("eth_getTransactionCount", serde_json::json!([ZERO_ADDR]))).await;
+    let ok2 = post_json(
+        client,
+        &server,
+        rpc_req("eth_getTransactionCount", serde_json::json!([ZERO_ADDR])),
+    )
+    .await;
     assert_rpc_ok(&ok2, "eth_getTransactionCount (no block)");
 
     // Invalid: no params
-    let err = post_json(client, &server, rpc_req("eth_getTransactionCount", serde_json::json!([]))).await;
+    let err = post_json(
+        client,
+        &server,
+        rpc_req("eth_getTransactionCount", serde_json::json!([])),
+    )
+    .await;
     assert_rpc_err(&err, "eth_getTransactionCount (no params)");
 
     // Invalid: bad address
-    let err2 = post_json(client, &server, rpc_req("eth_getTransactionCount", serde_json::json!(["not_an_address", "latest"]))).await;
+    let err2 = post_json(
+        client,
+        &server,
+        rpc_req(
+            "eth_getTransactionCount",
+            serde_json::json!(["not_an_address", "latest"]),
+        ),
+    )
+    .await;
     assert_rpc_err(&err2, "eth_getTransactionCount (bad address)");
 }
 
@@ -446,13 +484,31 @@ async fn contract_eth_get_code() {
     let server = start_test_rpc().await;
     let client = test_client();
 
-    let ok = post_json(client, &server, rpc_req("eth_getCode", serde_json::json!([ZERO_ADDR, "latest"]))).await;
+    let ok = post_json(
+        client,
+        &server,
+        rpc_req("eth_getCode", serde_json::json!([ZERO_ADDR, "latest"])),
+    )
+    .await;
     assert_rpc_ok(&ok, "eth_getCode");
 
-    let err = post_json(client, &server, rpc_req("eth_getCode", serde_json::json!([]))).await;
+    let err = post_json(
+        client,
+        &server,
+        rpc_req("eth_getCode", serde_json::json!([])),
+    )
+    .await;
     assert_rpc_err(&err, "eth_getCode (no params)");
 
-    let err2 = post_json(client, &server, rpc_req("eth_getCode", serde_json::json!(["not_an_address", "latest"]))).await;
+    let err2 = post_json(
+        client,
+        &server,
+        rpc_req(
+            "eth_getCode",
+            serde_json::json!(["not_an_address", "latest"]),
+        ),
+    )
+    .await;
     assert_rpc_err(&err2, "eth_getCode (bad address)");
 }
 
@@ -462,13 +518,34 @@ async fn contract_eth_get_storage_at() {
     let server = start_test_rpc().await;
     let client = test_client();
 
-    let ok = post_json(client, &server, rpc_req("eth_getStorageAt", serde_json::json!([ZERO_ADDR, ZERO_HASH, "latest"]))).await;
+    let ok = post_json(
+        client,
+        &server,
+        rpc_req(
+            "eth_getStorageAt",
+            serde_json::json!([ZERO_ADDR, ZERO_HASH, "latest"]),
+        ),
+    )
+    .await;
     assert_rpc_ok(&ok, "eth_getStorageAt");
 
-    let err = post_json(client, &server, rpc_req("eth_getStorageAt", serde_json::json!([]))).await;
+    let err = post_json(
+        client,
+        &server,
+        rpc_req("eth_getStorageAt", serde_json::json!([])),
+    )
+    .await;
     assert_rpc_err(&err, "eth_getStorageAt (no params)");
 
-    let err2 = post_json(client, &server, rpc_req("eth_getStorageAt", serde_json::json!(["not_an_address", ZERO_HASH, "latest"]))).await;
+    let err2 = post_json(
+        client,
+        &server,
+        rpc_req(
+            "eth_getStorageAt",
+            serde_json::json!(["not_an_address", ZERO_HASH, "latest"]),
+        ),
+    )
+    .await;
     assert_rpc_err(&err2, "eth_getStorageAt (bad address)");
 }
 
@@ -481,15 +558,33 @@ async fn contract_eth_get_block_by_hash() {
     let client = test_client();
 
     // Valid: returns null for non-existent hash on empty DB
-    let ok = post_json(client, &server, rpc_req("eth_getBlockByHash", serde_json::json!([ZERO_HASH, false]))).await;
+    let ok = post_json(
+        client,
+        &server,
+        rpc_req("eth_getBlockByHash", serde_json::json!([ZERO_HASH, false])),
+    )
+    .await;
     assert_rpc_ok(&ok, "eth_getBlockByHash");
 
     // Invalid: no params
-    let err = post_json(client, &server, rpc_req("eth_getBlockByHash", serde_json::json!([]))).await;
+    let err = post_json(
+        client,
+        &server,
+        rpc_req("eth_getBlockByHash", serde_json::json!([])),
+    )
+    .await;
     assert_rpc_err(&err, "eth_getBlockByHash (no params)");
 
     // Invalid: bad hash
-    let err2 = post_json(client, &server, rpc_req("eth_getBlockByHash", serde_json::json!(["0xbadhash", false]))).await;
+    let err2 = post_json(
+        client,
+        &server,
+        rpc_req(
+            "eth_getBlockByHash",
+            serde_json::json!(["0xbadhash", false]),
+        ),
+    )
+    .await;
     assert_rpc_err(&err2, "eth_getBlockByHash (bad hash)");
 }
 
@@ -499,13 +594,28 @@ async fn contract_eth_get_transaction_by_hash() {
     let server = start_test_rpc().await;
     let client = test_client();
 
-    let ok = post_json(client, &server, rpc_req("eth_getTransactionByHash", serde_json::json!([ZERO_HASH]))).await;
+    let ok = post_json(
+        client,
+        &server,
+        rpc_req("eth_getTransactionByHash", serde_json::json!([ZERO_HASH])),
+    )
+    .await;
     assert_rpc_ok(&ok, "eth_getTransactionByHash");
 
-    let err = post_json(client, &server, rpc_req("eth_getTransactionByHash", serde_json::json!([]))).await;
+    let err = post_json(
+        client,
+        &server,
+        rpc_req("eth_getTransactionByHash", serde_json::json!([])),
+    )
+    .await;
     assert_rpc_err(&err, "eth_getTransactionByHash (no params)");
 
-    let err2 = post_json(client, &server, rpc_req("eth_getTransactionByHash", serde_json::json!(["0xbadhash"]))).await;
+    let err2 = post_json(
+        client,
+        &server,
+        rpc_req("eth_getTransactionByHash", serde_json::json!(["0xbadhash"])),
+    )
+    .await;
     assert_rpc_err(&err2, "eth_getTransactionByHash (bad hash)");
 }
 
@@ -515,13 +625,31 @@ async fn contract_eth_get_transaction_receipt() {
     let server = start_test_rpc().await;
     let client = test_client();
 
-    let ok = post_json(client, &server, rpc_req("eth_getTransactionReceipt", serde_json::json!([ZERO_HASH]))).await;
+    let ok = post_json(
+        client,
+        &server,
+        rpc_req("eth_getTransactionReceipt", serde_json::json!([ZERO_HASH])),
+    )
+    .await;
     assert_rpc_ok(&ok, "eth_getTransactionReceipt");
 
-    let err = post_json(client, &server, rpc_req("eth_getTransactionReceipt", serde_json::json!([]))).await;
+    let err = post_json(
+        client,
+        &server,
+        rpc_req("eth_getTransactionReceipt", serde_json::json!([])),
+    )
+    .await;
     assert_rpc_err(&err, "eth_getTransactionReceipt (no params)");
 
-    let err2 = post_json(client, &server, rpc_req("eth_getTransactionReceipt", serde_json::json!(["0xbadhash"]))).await;
+    let err2 = post_json(
+        client,
+        &server,
+        rpc_req(
+            "eth_getTransactionReceipt",
+            serde_json::json!(["0xbadhash"]),
+        ),
+    )
+    .await;
     assert_rpc_err(&err2, "eth_getTransactionReceipt (bad hash)");
 }
 
@@ -531,13 +659,34 @@ async fn contract_eth_get_block_transaction_count_by_hash() {
     let server = start_test_rpc().await;
     let client = test_client();
 
-    let ok = post_json(client, &server, rpc_req("eth_getBlockTransactionCountByHash", serde_json::json!([ZERO_HASH]))).await;
+    let ok = post_json(
+        client,
+        &server,
+        rpc_req(
+            "eth_getBlockTransactionCountByHash",
+            serde_json::json!([ZERO_HASH]),
+        ),
+    )
+    .await;
     assert_rpc_ok(&ok, "eth_getBlockTransactionCountByHash");
 
-    let err = post_json(client, &server, rpc_req("eth_getBlockTransactionCountByHash", serde_json::json!([]))).await;
+    let err = post_json(
+        client,
+        &server,
+        rpc_req("eth_getBlockTransactionCountByHash", serde_json::json!([])),
+    )
+    .await;
     assert_rpc_err(&err, "eth_getBlockTransactionCountByHash (no params)");
 
-    let err2 = post_json(client, &server, rpc_req("eth_getBlockTransactionCountByHash", serde_json::json!(["0xbadhash"]))).await;
+    let err2 = post_json(
+        client,
+        &server,
+        rpc_req(
+            "eth_getBlockTransactionCountByHash",
+            serde_json::json!(["0xbadhash"]),
+        ),
+    )
+    .await;
     assert_rpc_err(&err2, "eth_getBlockTransactionCountByHash (bad hash)");
 }
 
@@ -547,10 +696,23 @@ async fn contract_eth_get_uncle_count_by_block_hash() {
     let server = start_test_rpc().await;
     let client = test_client();
 
-    let ok = post_json(client, &server, rpc_req("eth_getUncleCountByBlockHash", serde_json::json!([ZERO_HASH]))).await;
+    let ok = post_json(
+        client,
+        &server,
+        rpc_req(
+            "eth_getUncleCountByBlockHash",
+            serde_json::json!([ZERO_HASH]),
+        ),
+    )
+    .await;
     assert_rpc_ok(&ok, "eth_getUncleCountByBlockHash");
 
-    let err = post_json(client, &server, rpc_req("eth_getUncleCountByBlockHash", serde_json::json!([]))).await;
+    let err = post_json(
+        client,
+        &server,
+        rpc_req("eth_getUncleCountByBlockHash", serde_json::json!([])),
+    )
+    .await;
     assert_rpc_err(&err, "eth_getUncleCountByBlockHash (no params)");
 }
 
@@ -562,10 +724,26 @@ async fn contract_eth_get_block_transaction_count_by_number() {
     let server = start_test_rpc().await;
     let client = test_client();
 
-    let ok = post_json(client, &server, rpc_req("eth_getBlockTransactionCountByNumber", serde_json::json!(["0x0"]))).await;
+    let ok = post_json(
+        client,
+        &server,
+        rpc_req(
+            "eth_getBlockTransactionCountByNumber",
+            serde_json::json!(["0x0"]),
+        ),
+    )
+    .await;
     assert_rpc_ok(&ok, "eth_getBlockTransactionCountByNumber");
 
-    let err = post_json(client, &server, rpc_req("eth_getBlockTransactionCountByNumber", serde_json::json!([]))).await;
+    let err = post_json(
+        client,
+        &server,
+        rpc_req(
+            "eth_getBlockTransactionCountByNumber",
+            serde_json::json!([]),
+        ),
+    )
+    .await;
     assert_rpc_err(&err, "eth_getBlockTransactionCountByNumber (no params)");
 }
 
@@ -575,10 +753,20 @@ async fn contract_eth_get_uncle_count_by_block_number() {
     let server = start_test_rpc().await;
     let client = test_client();
 
-    let ok = post_json(client, &server, rpc_req("eth_getUncleCountByBlockNumber", serde_json::json!(["0x0"]))).await;
+    let ok = post_json(
+        client,
+        &server,
+        rpc_req("eth_getUncleCountByBlockNumber", serde_json::json!(["0x0"])),
+    )
+    .await;
     assert_rpc_ok(&ok, "eth_getUncleCountByBlockNumber");
 
-    let err = post_json(client, &server, rpc_req("eth_getUncleCountByBlockNumber", serde_json::json!([]))).await;
+    let err = post_json(
+        client,
+        &server,
+        rpc_req("eth_getUncleCountByBlockNumber", serde_json::json!([])),
+    )
+    .await;
     assert_rpc_err(&err, "eth_getUncleCountByBlockNumber (no params)");
 }
 
@@ -588,11 +776,21 @@ async fn contract_eth_get_block_receipts() {
     let server = start_test_rpc().await;
     let client = test_client();
 
-    let ok = post_json(client, &server, rpc_req("eth_getBlockReceipts", serde_json::json!(["0x0"]))).await;
+    let ok = post_json(
+        client,
+        &server,
+        rpc_req("eth_getBlockReceipts", serde_json::json!(["0x0"])),
+    )
+    .await;
     assert_rpc_ok(&ok, "eth_getBlockReceipts");
 
     // No params — should error
-    let err = post_json(client, &server, rpc_req("eth_getBlockReceipts", serde_json::json!([]))).await;
+    let err = post_json(
+        client,
+        &server,
+        rpc_req("eth_getBlockReceipts", serde_json::json!([])),
+    )
+    .await;
     assert_rpc_err(&err, "eth_getBlockReceipts (no params)");
 }
 
@@ -604,10 +802,23 @@ async fn contract_eth_get_uncle_by_block_hash_and_index() {
     let server = start_test_rpc().await;
     let client = test_client();
 
-    let ok = post_json(client, &server, rpc_req("eth_getUncleByBlockHashAndIndex", serde_json::json!([ZERO_HASH, "0x0"]))).await;
+    let ok = post_json(
+        client,
+        &server,
+        rpc_req(
+            "eth_getUncleByBlockHashAndIndex",
+            serde_json::json!([ZERO_HASH, "0x0"]),
+        ),
+    )
+    .await;
     assert_rpc_ok(&ok, "eth_getUncleByBlockHashAndIndex");
 
-    let err = post_json(client, &server, rpc_req("eth_getUncleByBlockHashAndIndex", serde_json::json!([]))).await;
+    let err = post_json(
+        client,
+        &server,
+        rpc_req("eth_getUncleByBlockHashAndIndex", serde_json::json!([])),
+    )
+    .await;
     assert_rpc_err(&err, "eth_getUncleByBlockHashAndIndex (no params)");
 }
 
@@ -617,10 +828,23 @@ async fn contract_eth_get_uncle_by_block_number_and_index() {
     let server = start_test_rpc().await;
     let client = test_client();
 
-    let ok = post_json(client, &server, rpc_req("eth_getUncleByBlockNumberAndIndex", serde_json::json!(["0x0", "0x0"]))).await;
+    let ok = post_json(
+        client,
+        &server,
+        rpc_req(
+            "eth_getUncleByBlockNumberAndIndex",
+            serde_json::json!(["0x0", "0x0"]),
+        ),
+    )
+    .await;
     assert_rpc_ok(&ok, "eth_getUncleByBlockNumberAndIndex");
 
-    let err = post_json(client, &server, rpc_req("eth_getUncleByBlockNumberAndIndex", serde_json::json!([]))).await;
+    let err = post_json(
+        client,
+        &server,
+        rpc_req("eth_getUncleByBlockNumberAndIndex", serde_json::json!([])),
+    )
+    .await;
     assert_rpc_err(&err, "eth_getUncleByBlockNumberAndIndex (no params)");
 }
 
@@ -630,10 +854,26 @@ async fn contract_eth_get_transaction_by_block_hash_and_index() {
     let server = start_test_rpc().await;
     let client = test_client();
 
-    let ok = post_json(client, &server, rpc_req("eth_getTransactionByBlockHashAndIndex", serde_json::json!([ZERO_HASH, "0x0"]))).await;
+    let ok = post_json(
+        client,
+        &server,
+        rpc_req(
+            "eth_getTransactionByBlockHashAndIndex",
+            serde_json::json!([ZERO_HASH, "0x0"]),
+        ),
+    )
+    .await;
     assert_rpc_ok(&ok, "eth_getTransactionByBlockHashAndIndex");
 
-    let err = post_json(client, &server, rpc_req("eth_getTransactionByBlockHashAndIndex", serde_json::json!([]))).await;
+    let err = post_json(
+        client,
+        &server,
+        rpc_req(
+            "eth_getTransactionByBlockHashAndIndex",
+            serde_json::json!([]),
+        ),
+    )
+    .await;
     assert_rpc_err(&err, "eth_getTransactionByBlockHashAndIndex (no params)");
 }
 
@@ -643,10 +883,26 @@ async fn contract_eth_get_transaction_by_block_number_and_index() {
     let server = start_test_rpc().await;
     let client = test_client();
 
-    let ok = post_json(client, &server, rpc_req("eth_getTransactionByBlockNumberAndIndex", serde_json::json!(["0x0", "0x0"]))).await;
+    let ok = post_json(
+        client,
+        &server,
+        rpc_req(
+            "eth_getTransactionByBlockNumberAndIndex",
+            serde_json::json!(["0x0", "0x0"]),
+        ),
+    )
+    .await;
     assert_rpc_ok(&ok, "eth_getTransactionByBlockNumberAndIndex");
 
-    let err = post_json(client, &server, rpc_req("eth_getTransactionByBlockNumberAndIndex", serde_json::json!([]))).await;
+    let err = post_json(
+        client,
+        &server,
+        rpc_req(
+            "eth_getTransactionByBlockNumberAndIndex",
+            serde_json::json!([]),
+        ),
+    )
+    .await;
     assert_rpc_err(&err, "eth_getTransactionByBlockNumberAndIndex (no params)");
 }
 
@@ -659,7 +915,15 @@ async fn contract_eth_fee_history() {
     let client = test_client();
 
     // On empty DB, feeHistory may error because no blocks exist
-    let resp = post_json(client, &server, rpc_req("eth_feeHistory", serde_json::json!(["0x1", "latest", [25, 75]]))).await;
+    let resp = post_json(
+        client,
+        &server,
+        rpc_req(
+            "eth_feeHistory",
+            serde_json::json!(["0x1", "latest", [25, 75]]),
+        ),
+    )
+    .await;
     // Accept either success or error — both are valid on empty DB
     assert!(
         resp.get("result").is_some() || resp["error"].is_object(),
@@ -667,11 +931,24 @@ async fn contract_eth_fee_history() {
     );
 
     // Invalid: no params
-    let err = post_json(client, &server, rpc_req("eth_feeHistory", serde_json::json!([]))).await;
+    let err = post_json(
+        client,
+        &server,
+        rpc_req("eth_feeHistory", serde_json::json!([])),
+    )
+    .await;
     assert_rpc_err(&err, "eth_feeHistory (no params)");
 
     // Invalid: bad block count type
-    let err2 = post_json(client, &server, rpc_req("eth_feeHistory", serde_json::json!(["not_a_number", "latest", []]))).await;
+    let err2 = post_json(
+        client,
+        &server,
+        rpc_req(
+            "eth_feeHistory",
+            serde_json::json!(["not_a_number", "latest", []]),
+        ),
+    )
+    .await;
     assert_rpc_err(&err2, "eth_feeHistory (bad block count)");
 }
 
@@ -682,11 +959,21 @@ async fn contract_eth_estimate_gas() {
     let client = test_client();
 
     // On empty DB, estimateGas errors (no block)
-    let err = post_json(client, &server, rpc_req("eth_estimateGas", serde_json::json!([{"to": ZERO_ADDR}]))).await;
+    let err = post_json(
+        client,
+        &server,
+        rpc_req("eth_estimateGas", serde_json::json!([{"to": ZERO_ADDR}])),
+    )
+    .await;
     assert_rpc_err(&err, "eth_estimateGas (empty DB)");
 
     // Invalid: no params
-    let err2 = post_json(client, &server, rpc_req("eth_estimateGas", serde_json::json!([]))).await;
+    let err2 = post_json(
+        client,
+        &server,
+        rpc_req("eth_estimateGas", serde_json::json!([])),
+    )
+    .await;
     assert_rpc_err(&err2, "eth_estimateGas (no params)");
 }
 
@@ -697,7 +984,12 @@ async fn contract_eth_call() {
     let client = test_client();
 
     // On empty DB, eth_call errors (no block)
-    let err = post_json(client, &server, rpc_req("eth_call", serde_json::json!([{"to": ZERO_ADDR}, "latest"]))).await;
+    let err = post_json(
+        client,
+        &server,
+        rpc_req("eth_call", serde_json::json!([{"to": ZERO_ADDR}, "latest"])),
+    )
+    .await;
     assert_rpc_err(&err, "eth_call (empty DB)");
 
     // Invalid: no params
@@ -712,11 +1004,24 @@ async fn contract_eth_create_access_list() {
     let client = test_client();
 
     // On empty DB, createAccessList errors (no block)
-    let err = post_json(client, &server, rpc_req("eth_createAccessList", serde_json::json!([{"to": ZERO_ADDR}, "latest"]))).await;
+    let err = post_json(
+        client,
+        &server,
+        rpc_req(
+            "eth_createAccessList",
+            serde_json::json!([{"to": ZERO_ADDR}, "latest"]),
+        ),
+    )
+    .await;
     assert_rpc_err(&err, "eth_createAccessList (empty DB)");
 
     // Invalid: no params
-    let err2 = post_json(client, &server, rpc_req("eth_createAccessList", serde_json::json!([]))).await;
+    let err2 = post_json(
+        client,
+        &server,
+        rpc_req("eth_createAccessList", serde_json::json!([])),
+    )
+    .await;
     assert_rpc_err(&err2, "eth_createAccessList (no params)");
 }
 
@@ -727,10 +1032,14 @@ async fn contract_eth_max_priority_fee_per_gas() {
     let client = test_client();
 
     // On empty DB, maxPriorityFeePerGas errors (no block for fee oracle)
-    let resp = post_json(client, &server, rpc_req("eth_maxPriorityFeePerGas", serde_json::json!([]))).await;
+    let resp = post_json(
+        client,
+        &server,
+        rpc_req("eth_maxPriorityFeePerGas", serde_json::json!([])),
+    )
+    .await;
     assert!(
-        resp["error"].is_object()
-            || resp["result"].as_str().is_some_and(|v| v.starts_with("0x")),
+        resp["error"].is_object() || resp["result"].as_str().is_some_and(|v| v.starts_with("0x")),
         "eth_maxPriorityFeePerGas: expected error or hex on empty DB: {resp}"
     );
 }
@@ -743,7 +1052,12 @@ async fn contract_net_version() {
     let server = start_test_rpc().await;
     let client = test_client();
 
-    let ok = post_json(client, &server, rpc_req("net_version", serde_json::json!([]))).await;
+    let ok = post_json(
+        client,
+        &server,
+        rpc_req("net_version", serde_json::json!([])),
+    )
+    .await;
     assert_rpc_ok(&ok, "net_version");
 }
 
@@ -753,7 +1067,12 @@ async fn contract_net_peer_count() {
     let server = start_test_rpc().await;
     let client = test_client();
 
-    let ok = post_json(client, &server, rpc_req("net_peerCount", serde_json::json!([]))).await;
+    let ok = post_json(
+        client,
+        &server,
+        rpc_req("net_peerCount", serde_json::json!([])),
+    )
+    .await;
     assert_rpc_ok(&ok, "net_peerCount");
 }
 
@@ -763,7 +1082,12 @@ async fn contract_net_listening() {
     let server = start_test_rpc().await;
     let client = test_client();
 
-    let ok = post_json(client, &server, rpc_req("net_listening", serde_json::json!([]))).await;
+    let ok = post_json(
+        client,
+        &server,
+        rpc_req("net_listening", serde_json::json!([])),
+    )
+    .await;
     assert_rpc_ok(&ok, "net_listening");
 }
 
@@ -773,7 +1097,12 @@ async fn contract_web3_client_version() {
     let server = start_test_rpc().await;
     let client = test_client();
 
-    let ok = post_json(client, &server, rpc_req("web3_clientVersion", serde_json::json!([]))).await;
+    let ok = post_json(
+        client,
+        &server,
+        rpc_req("web3_clientVersion", serde_json::json!([])),
+    )
+    .await;
     assert_rpc_ok(&ok, "web3_clientVersion");
 }
 
@@ -783,7 +1112,12 @@ async fn contract_web3_sha3() {
     let server = start_test_rpc().await;
     let client = test_client();
 
-    let ok = post_json(client, &server, rpc_req("web3_sha3", serde_json::json!(["0x68656c6c6f"]))).await;
+    let ok = post_json(
+        client,
+        &server,
+        rpc_req("web3_sha3", serde_json::json!(["0x68656c6c6f"])),
+    )
+    .await;
     assert_rpc_ok(&ok, "web3_sha3");
     // Verify it returns keccak256("hello")
     assert_eq!(
@@ -797,7 +1131,12 @@ async fn contract_web3_sha3() {
     assert_rpc_err(&err, "web3_sha3 (no params)");
 
     // Invalid: bad hex
-    let err2 = post_json(client, &server, rpc_req("web3_sha3", serde_json::json!(["not_hex"]))).await;
+    let err2 = post_json(
+        client,
+        &server,
+        rpc_req("web3_sha3", serde_json::json!(["not_hex"])),
+    )
+    .await;
     assert_rpc_err(&err2, "web3_sha3 (bad hex)");
 }
 
@@ -809,7 +1148,12 @@ async fn contract_eth_coinbase() {
     let server = start_test_rpc().await;
     let client = test_client();
 
-    let err = post_json(client, &server, rpc_req("eth_coinbase", serde_json::json!([]))).await;
+    let err = post_json(
+        client,
+        &server,
+        rpc_req("eth_coinbase", serde_json::json!([])),
+    )
+    .await;
     assert_rpc_err(&err, "eth_coinbase (unimplemented)");
 }
 
@@ -819,7 +1163,12 @@ async fn contract_eth_mining() {
     let server = start_test_rpc().await;
     let client = test_client();
 
-    let resp = post_json(client, &server, rpc_req("eth_mining", serde_json::json!([]))).await;
+    let resp = post_json(
+        client,
+        &server,
+        rpc_req("eth_mining", serde_json::json!([])),
+    )
+    .await;
     // eth_mining may return false or error depending on implementation
     assert!(
         resp["error"].is_object() || resp["result"] == serde_json::Value::Bool(false),
@@ -833,7 +1182,12 @@ async fn contract_eth_get_work() {
     let server = start_test_rpc().await;
     let client = test_client();
 
-    let err = post_json(client, &server, rpc_req("eth_getWork", serde_json::json!([]))).await;
+    let err = post_json(
+        client,
+        &server,
+        rpc_req("eth_getWork", serde_json::json!([])),
+    )
+    .await;
     assert_rpc_err(&err, "eth_getWork (unimplemented)");
 }
 
@@ -843,7 +1197,15 @@ async fn contract_eth_submit_work() {
     let server = start_test_rpc().await;
     let client = test_client();
 
-    let err = post_json(client, &server, rpc_req("eth_submitWork", serde_json::json!(["0x0", ZERO_HASH, ZERO_HASH]))).await;
+    let err = post_json(
+        client,
+        &server,
+        rpc_req(
+            "eth_submitWork",
+            serde_json::json!(["0x0", ZERO_HASH, ZERO_HASH]),
+        ),
+    )
+    .await;
     assert_rpc_err(&err, "eth_submitWork (unimplemented)");
 }
 
@@ -855,7 +1217,12 @@ async fn contract_eth_protocol_version() {
     let server = start_test_rpc().await;
     let client = test_client();
 
-    let resp = post_json(client, &server, rpc_req("eth_protocolVersion", serde_json::json!([]))).await;
+    let resp = post_json(
+        client,
+        &server,
+        rpc_req("eth_protocolVersion", serde_json::json!([])),
+    )
+    .await;
     // protocolVersion may be implemented or not — accept success or unimplemented error
     assert!(
         resp.get("result").is_some() || resp["error"].is_object(),
@@ -947,8 +1314,8 @@ fn deploy_contract_bytecode() -> Bytes {
     // Runtime code (10 bytes): 602a60005260206000f3
     //   PUSH1 42, PUSH1 0, MSTORE, PUSH1 32, PUSH1 0, RETURN
     Bytes::from(vec![
-        0x60, 0x0a, 0x80, 0x60, 0x0b, 0x60, 0x00, 0x39, 0x60, 0x00, 0xf3, 0x60, 0x2a, 0x60,
-        0x00, 0x52, 0x60, 0x20, 0x60, 0x00, 0xf3,
+        0x60, 0x0a, 0x80, 0x60, 0x0b, 0x60, 0x00, 0x39, 0x60, 0x00, 0xf3, 0x60, 0x2a, 0x60, 0x00,
+        0x52, 0x60, 0x20, 0x60, 0x00, 0xf3,
     ])
 }
 
@@ -1019,7 +1386,12 @@ async fn wait_for_block(rpc_addr: SocketAddr, min_height: u64, timeout: Duration
     let deadline = Instant::now() + timeout;
 
     loop {
-        let response = post_json_to_addr(client, rpc_addr, rpc_req("eth_blockNumber", serde_json::json!([]))).await;
+        let response = post_json_to_addr(
+            client,
+            rpc_addr,
+            rpc_req("eth_blockNumber", serde_json::json!([])),
+        )
+        .await;
         if response["error"].is_object() {
             panic!("eth_blockNumber returned an error while waiting for height {min_height}: {response}");
         }
@@ -1092,7 +1464,10 @@ async fn send_raw_tx(rpc_addr: SocketAddr, raw_tx_bytes: &[u8]) -> B256 {
     .await;
 
     if response["error"].is_object() {
-        panic!("eth_sendRawTransaction failed for {}: {response}", raw_tx_hex(raw_tx_bytes));
+        panic!(
+            "eth_sendRawTransaction failed for {}: {response}",
+            raw_tx_hex(raw_tx_bytes)
+        );
     }
 
     parse_rpc_b256(&response["result"], "eth_sendRawTransaction result")
@@ -1230,7 +1605,10 @@ async fn test_contract_deploy_full_node() {
     let code_response = post_json_to_addr(
         client,
         rpc_addr,
-        rpc_req("eth_getCode", serde_json::json!([contract_address, "latest"])),
+        rpc_req(
+            "eth_getCode",
+            serde_json::json!([contract_address, "latest"]),
+        ),
     )
     .await;
     assert!(
@@ -1257,7 +1635,8 @@ async fn test_contract_call_full_node() {
 
     wait_for_block(rpc_addr, 1, Duration::from_secs(30)).await;
 
-    let (_tx_hash, _receipt, contract_address) = deploy_minimal_contract(rpc_addr, &signer, 0).await;
+    let (_tx_hash, _receipt, contract_address) =
+        deploy_minimal_contract(rpc_addr, &signer, 0).await;
 
     let client = test_client();
     let call_response = post_json_to_addr(

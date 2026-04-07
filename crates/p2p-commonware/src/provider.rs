@@ -244,8 +244,7 @@ where
             self.network
                 .register(Channel::RESOLVER.0, quota.clone(), backlog);
         let (payload_sender, payload_receiver) =
-            self.network
-                .register(Channel::PAYLOAD.0, quota, backlog);
+            self.network.register(Channel::PAYLOAD.0, quota, backlog);
 
         let network_handle = self.network.start();
 
@@ -334,7 +333,10 @@ where
 
         // Build receiver list
         let receivers = vec![
-            (Channel::VOTE, CommonwareReceiver::new(Channel::VOTE, vote_receiver)),
+            (
+                Channel::VOTE,
+                CommonwareReceiver::new(Channel::VOTE, vote_receiver),
+            ),
             (
                 Channel::CERTIFICATE,
                 CommonwareReceiver::new(Channel::CERTIFICATE, cert_receiver),

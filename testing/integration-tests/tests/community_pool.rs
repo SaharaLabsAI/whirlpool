@@ -125,7 +125,8 @@ fn validator_public_key_bytes(public_key: &ed25519::PublicKey) -> [u8; 32] {
 }
 
 fn block_reward_recipient(block: &serde_json::Value) -> Address {
-    block.get("miner")
+    block
+        .get("miner")
         .or_else(|| block.get("beneficiary"))
         .map(|value| parse_rpc_address(value, "block reward recipient"))
         .unwrap_or_else(|| panic!("block missing miner/beneficiary field: {block}"))
@@ -364,6 +365,49 @@ async fn wait_for_receipt(
     }
 }
 
+async fn wait_for_receipt_on_any(
+    rpc_addrs: &[SocketAddr],
+    tx_hash: B256,
+    timeout: Duration,
+) -> (SocketAddr, serde_json::Value) {
+    let client = test_client();
+    let deadline = Instant::now() + timeout;
+    let tx_hash_hex = format!("0x{tx_hash:x}");
+
+    loop {
+        for rpc_addr in rpc_addrs {
+            let response = post_json_to_addr(
+                client,
+                *rpc_addr,
+                rpc_req(
+                    "eth_getTransactionReceipt",
+                    serde_json::json!([tx_hash_hex.clone()]),
+                ),
+            )
+            .await;
+
+            if response["error"].is_object() {
+                panic!(
+                    "eth_getTransactionReceipt returned an error for {tx_hash:#x} on {rpc_addr}: {response}"
+                );
+            }
+
+            if !response["result"].is_null() {
+                return (*rpc_addr, response["result"].clone());
+            }
+        }
+
+        if Instant::now() >= deadline {
+            panic!(
+                "timed out after {:?} waiting for receipt {tx_hash:#x} across rpc nodes {:?}",
+                timeout, rpc_addrs
+            );
+        }
+
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+}
+
 async fn send_raw_tx(rpc_addr: SocketAddr, raw_tx_bytes: &[u8]) -> B256 {
     let client = test_client();
     let response = post_json_to_addr(
@@ -506,17 +550,21 @@ async fn submit_fee_only_transfer_to_network(
             }
         } else {
             let echoed_hash = parse_rpc_b256(&response["result"], "eth_sendRawTransaction result");
-            assert_eq!(echoed_hash, tx_hash, "all nodes should return the same tx hash");
+            assert_eq!(
+                echoed_hash, tx_hash,
+                "all nodes should return the same tx hash"
+            );
         }
     }
 
-    let receipt = wait_for_receipt(rpc_addrs[0], tx_hash, Duration::from_secs(60)).await;
+    let (receipt_rpc_addr, receipt) =
+        wait_for_receipt_on_any(rpc_addrs, tx_hash, Duration::from_secs(60)).await;
     let block_number = receipt["blockNumber"]
         .as_str()
         .unwrap_or_else(|| panic!("receipt missing blockNumber: {receipt}"));
     let block_response = post_json_to_addr(
         client,
-        rpc_addrs[0],
+        receipt_rpc_addr,
         rpc_req(
             "eth_getBlockByNumber",
             serde_json::json!([block_number, false]),
@@ -644,9 +692,12 @@ async fn test_multivalidator_priority_fee_follows_actual_proposer() {
         initial_fee_recipient_balances_by_node.push(balances);
     }
 
-    let rpc_addrs: Vec<_> = network.handles.iter().map(|handle| handle.rpc_addr).collect();
-    let (_tx_hash, receipt, block) =
-        submit_fee_only_transfer_to_network(&rpc_addrs, &signer).await;
+    let rpc_addrs: Vec<_> = network
+        .handles
+        .iter()
+        .map(|handle| handle.rpc_addr)
+        .collect();
+    let (_tx_hash, receipt, block) = submit_fee_only_transfer_to_network(&rpc_addrs, &signer).await;
 
     let block_gas_used = parse_rpc_u256(&block["gasUsed"], "block gasUsed");
     let receipt_gas_used = parse_rpc_u256(&receipt["gasUsed"], "receipt gasUsed");
@@ -686,8 +737,7 @@ async fn test_multivalidator_priority_fee_follows_actual_proposer() {
         .collect();
 
     assert_eq!(
-        balance_deltas[rewarded_index],
-        expected_priority_fees,
+        balance_deltas[rewarded_index], expected_priority_fees,
         "actual proposer's configured recipient should receive the priority fee"
     );
     for (index, balance_delta) in balance_deltas.iter().enumerate() {

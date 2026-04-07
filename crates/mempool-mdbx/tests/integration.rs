@@ -39,16 +39,14 @@ fn restart_recovery_via_trait() {
 
     // Phase 1: push transactions through trait object, then drop.
     {
-        let pool: Arc<dyn TxSource> =
-            Arc::new(PersistentTxPool::open(&db_path).unwrap());
+        let pool: Arc<dyn TxSource> = Arc::new(PersistentTxPool::open(&db_path).unwrap());
         pool.push(vec![1, 2, 3]);
         pool.push(vec![4, 5]);
     }
 
     // Phase 2: reopen and verify transactions survive.
     {
-        let pool: Arc<dyn TxSource> =
-            Arc::new(PersistentTxPool::open(&db_path).unwrap());
+        let pool: Arc<dyn TxSource> = Arc::new(PersistentTxPool::open(&db_path).unwrap());
         let txs = pool.pending();
         assert_eq!(txs, vec![vec![1, 2, 3], vec![4, 5]]);
     }
@@ -84,8 +82,7 @@ fn fifo_ordering_preserved() {
     let tmp = TempDir::new().unwrap();
     let db_path = tmp.path().join("mdbx");
 
-    let pool: Arc<dyn TxSource> =
-        Arc::new(PersistentTxPool::open(&db_path).unwrap());
+    let pool: Arc<dyn TxSource> = Arc::new(PersistentTxPool::open(&db_path).unwrap());
 
     // Push in a specific order.
     for i in 0u8..10 {
@@ -128,8 +125,7 @@ fn concurrent_push_via_trait_object() {
     let tmp = TempDir::new().unwrap();
     let db_path = tmp.path().join("mdbx");
 
-    let pool: Arc<dyn TxSource> =
-        Arc::new(PersistentTxPool::open(&db_path).unwrap());
+    let pool: Arc<dyn TxSource> = Arc::new(PersistentTxPool::open(&db_path).unwrap());
 
     let handles: Vec<_> = (0u8..4)
         .map(|i| {

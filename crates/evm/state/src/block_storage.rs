@@ -170,11 +170,7 @@ impl BlockStorage for RethStateDb {
             state_root: header.state_root.into(),
             transactions_root: header.transactions_root.into(),
             receipts_root: header.receipts_root.into(),
-            proposer_public_key: header
-                .extra_data
-                .as_ref()
-                .try_into()
-                .unwrap_or([0u8; 32]),
+            proposer_public_key: header.extra_data.as_ref().try_into().unwrap_or([0u8; 32]),
             proposer_fee_recipient: header.beneficiary.into_array(),
             gas_used: header.gas_used,
             base_fee_per_gas: header.base_fee_per_gas.unwrap_or(0),

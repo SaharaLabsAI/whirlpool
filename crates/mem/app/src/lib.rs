@@ -295,7 +295,9 @@ mod tests {
         tx.markdown_bytes = vec![b'a'; MAX_PERSONALITY_MARKDOWN_BYTES + 1];
         tx.markdown_hash = compute_markdown_hash(&tx.markdown_bytes);
 
-        let err = tx.validate().expect_err("oversize markdown must be rejected");
+        let err = tx
+            .validate()
+            .expect_err("oversize markdown must be rejected");
         assert!(matches!(err, MemTxError::MarkdownTooLarge { .. }));
     }
 

@@ -272,10 +272,7 @@ mod tests {
         assert_eq!(decoded.transactions_root, block.transactions_root);
         assert_eq!(decoded.receipts_root, block.receipts_root);
         assert_eq!(decoded.proposer_public_key, block.proposer_public_key);
-        assert_eq!(
-            decoded.proposer_fee_recipient,
-            block.proposer_fee_recipient
-        );
+        assert_eq!(decoded.proposer_fee_recipient, block.proposer_fee_recipient);
         assert_eq!(decoded.gas_used, block.gas_used);
         assert_eq!(decoded.base_fee_per_gas, block.base_fee_per_gas);
         assert_eq!(decoded.timestamp, block.timestamp);

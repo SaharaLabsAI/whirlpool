@@ -36,14 +36,12 @@ impl PersonalityStorage for InMemoryPersonalityStorage {
             .by_personality_id
             .write()
             .map_err(|_| InMemoryPersonalityStorageError::Internal("latest map poisoned".into()))?;
-        let mut by_hash = self
-            .by_tx_hash
-            .write()
-            .map_err(|_| InMemoryPersonalityStorageError::Internal("tx hash map poisoned".into()))?;
-        let mut by_nonce = self
-            .by_signer_nonce
-            .write()
-            .map_err(|_| InMemoryPersonalityStorageError::Internal("signer nonce map poisoned".into()))?;
+        let mut by_hash = self.by_tx_hash.write().map_err(|_| {
+            InMemoryPersonalityStorageError::Internal("tx hash map poisoned".into())
+        })?;
+        let mut by_nonce = self.by_signer_nonce.write().map_err(|_| {
+            InMemoryPersonalityStorageError::Internal("signer nonce map poisoned".into())
+        })?;
 
         latest.insert(personality_id, entry.clone());
         by_hash.insert(tx_hash, entry.clone());
@@ -66,10 +64,9 @@ impl PersonalityStorage for InMemoryPersonalityStorage {
                 tx_hash.len()
             ))
         })?;
-        let by_hash = self
-            .by_tx_hash
-            .read()
-            .map_err(|_| InMemoryPersonalityStorageError::Internal("tx hash map poisoned".into()))?;
+        let by_hash = self.by_tx_hash.read().map_err(|_| {
+            InMemoryPersonalityStorageError::Internal("tx hash map poisoned".into())
+        })?;
         Ok(by_hash.get(&tx_hash).cloned())
     }
 
@@ -78,10 +75,9 @@ impl PersonalityStorage for InMemoryPersonalityStorage {
         signer: &[u8],
         nonce: u64,
     ) -> Result<Option<StoredPersonality>, Self::Error> {
-        let by_nonce = self
-            .by_signer_nonce
-            .read()
-            .map_err(|_| InMemoryPersonalityStorageError::Internal("signer nonce map poisoned".into()))?;
+        let by_nonce = self.by_signer_nonce.read().map_err(|_| {
+            InMemoryPersonalityStorageError::Internal("signer nonce map poisoned".into())
+        })?;
         Ok(by_nonce.get(&(signer.to_vec(), nonce)).cloned())
     }
 
@@ -120,9 +116,7 @@ mod tests {
 
         assert!(store.is_empty().expect("empty check must succeed"));
         assert_eq!(
-            store
-                .get_latest(b"persona-1")
-                .expect("lookup must succeed"),
+            store.get_latest(b"persona-1").expect("lookup must succeed"),
             None
         );
         assert_eq!(

@@ -45,7 +45,10 @@ where
                 .store_finalized_block(block, self.block_storage.as_ref())
             {
                 Ok(()) => {
-                    info!(height = block.height, "persisted finalized block to storage");
+                    info!(
+                        height = block.height,
+                        "persisted finalized block to storage"
+                    );
                 }
                 Err(e) => {
                     error!(
@@ -116,7 +119,11 @@ mod tests {
     }
 
     impl BlockStorage for MockBlockStorage {
-        fn store_block(&self, block: &EvmBlock, receipts: &[Receipt]) -> Result<(), BlockStorageError> {
+        fn store_block(
+            &self,
+            block: &EvmBlock,
+            receipts: &[Receipt],
+        ) -> Result<(), BlockStorageError> {
             if self.should_fail.load(Ordering::Relaxed) {
                 return Err(BlockStorageError::Database("mock failure".into()));
             }
@@ -135,7 +142,10 @@ mod tests {
             Ok(None)
         }
 
-        fn get_receipts_by_block(&self, _number: u64) -> Result<Option<Vec<Receipt>>, BlockStorageError> {
+        fn get_receipts_by_block(
+            &self,
+            _number: u64,
+        ) -> Result<Option<Vec<Receipt>>, BlockStorageError> {
             Ok(None)
         }
 
@@ -176,7 +186,8 @@ mod tests {
         let sink = PersistingFinalizationSink::new(inner, test_app(), block_storage.clone());
         let block = sample_block(vec![], 1);
 
-        sink.handle(ConsensusEvent::PreFinalized { block, height: 1 }).await;
+        sink.handle(ConsensusEvent::PreFinalized { block, height: 1 })
+            .await;
 
         assert_eq!(block_storage.stored_count(), 0);
         assert_eq!(height.load(Ordering::SeqCst), 0);

@@ -85,7 +85,8 @@ mod tests {
         let pk = create_test_pubkey(42);
         let payload = Bytes::from_static(b"vote-message");
         let (tx, mock) = MockCwReceiver::new();
-        tx.send((pk.clone(), payload.clone())).expect("send succeeds");
+        tx.send((pk.clone(), payload.clone()))
+            .expect("send succeeds");
         drop(tx);
 
         let mut receiver = CommonwareReceiver::new(Channel::VOTE, mock);

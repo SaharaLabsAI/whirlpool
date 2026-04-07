@@ -143,10 +143,7 @@ impl<S: StateDb + Send + Sync + 'static, B: BlockStorage + 'static> EthApiServer
             })?;
 
         match block {
-            Some(evm_block) => Ok(Some(evm_block_to_rpc_block(
-                &evm_block,
-                full_transactions,
-            ))),
+            Some(evm_block) => Ok(Some(evm_block_to_rpc_block(&evm_block, full_transactions))),
             None => Ok(None),
         }
     }
@@ -165,10 +162,7 @@ impl<S: StateDb + Send + Sync + 'static, B: BlockStorage + 'static> EthApiServer
             })?;
 
         match block {
-            Some(evm_block) => Ok(Some(evm_block_to_rpc_block(
-                &evm_block,
-                full_transactions,
-            ))),
+            Some(evm_block) => Ok(Some(evm_block_to_rpc_block(&evm_block, full_transactions))),
             None => Ok(None),
         }
     }
@@ -214,8 +208,8 @@ fn evm_block_to_rpc_block(evm_block: &app::EvmBlock, _full_transactions: bool) -
 #[cfg(test)]
 mod tests {
     use super::*;
-use app::traits::TxSource;
-use crate::context::EthRpcContext;
+    use crate::context::EthRpcContext;
+    use app::traits::TxSource;
     use app::tx_source::InMemoryTxPool;
     use app::{EvmBlock, Receipt};
     use state::block_storage::BlockStorageError;
@@ -262,10 +256,7 @@ use crate::context::EthRpcContext;
             Ok(())
         }
 
-        fn get_block_by_number(
-            &self,
-            number: u64,
-        ) -> Result<Option<EvmBlock>, BlockStorageError> {
+        fn get_block_by_number(&self, number: u64) -> Result<Option<EvmBlock>, BlockStorageError> {
             if self.should_fail.load(Ordering::Relaxed) {
                 return Err(BlockStorageError::Database("mock failure".into()));
             }
@@ -278,10 +269,7 @@ use crate::context::EthRpcContext;
                 .cloned())
         }
 
-        fn get_block_by_hash(
-            &self,
-            hash: B256,
-        ) -> Result<Option<EvmBlock>, BlockStorageError> {
+        fn get_block_by_hash(&self, hash: B256) -> Result<Option<EvmBlock>, BlockStorageError> {
             if self.should_fail.load(Ordering::Relaxed) {
                 return Err(BlockStorageError::Database("mock failure".into()));
             }
@@ -303,13 +291,7 @@ use crate::context::EthRpcContext;
         }
 
         fn get_latest_block_number(&self) -> Result<Option<u64>, BlockStorageError> {
-            Ok(self
-                .blocks
-                .lock()
-                .unwrap()
-                .iter()
-                .map(|b| b.height)
-                .max())
+            Ok(self.blocks.lock().unwrap().iter().map(|b| b.height).max())
         }
     }
 

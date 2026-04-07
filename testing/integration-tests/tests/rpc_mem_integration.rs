@@ -572,17 +572,16 @@ async fn test_mem_get_transaction_by_hash_returns_finalized_entry_after_submit()
     );
     assert_eq!(result["nonce"].as_u64(), Some(8));
     assert_eq!(result["markdown"].as_str(), Some(markdown.as_str()));
-    assert_eq!(
-        result["signature_scheme"].as_str(),
-        Some("raw_secp256k1")
-    );
+    assert_eq!(result["signature_scheme"].as_str(), Some("raw_secp256k1"));
     assert_eq!(result["signature"].as_str(), Some(signature.as_str()));
     assert_eq!(
         result["markdown_hash"].as_str(),
         Some(expected_markdown_hash.as_str())
     );
     assert!(
-        result["block_height"].as_u64().is_some_and(|height| height >= 1),
+        result["block_height"]
+            .as_u64()
+            .is_some_and(|height| height >= 1),
         "mem_getTransactionByHash should report a finalized block height: {response}"
     );
 }

@@ -331,10 +331,7 @@ async fn rpc_server_returns_finalized_tx_by_hash() {
 #[tokio::test]
 async fn rpc_server_returns_null_when_tx_hash_is_missing() {
     let sample = sample_stored_personality();
-    let service = Arc::new(FakeMemoryTxService::with_tx_hash_lookup(
-        Some(sample),
-        None,
-    ));
+    let service = Arc::new(FakeMemoryTxService::with_tx_hash_lookup(Some(sample), None));
     let service_handle = service.clone();
     let service: Arc<dyn MemoryTxService> = service;
     let (handle, addr) = start_rpc_server(service, "127.0.0.1:0".parse().unwrap())

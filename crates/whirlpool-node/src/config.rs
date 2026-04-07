@@ -142,10 +142,18 @@ impl fmt::Display for ConfigError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::ReadConfig { path, source } => {
-                write!(f, "failed to read config file '{}': {source}", path.display())
+                write!(
+                    f,
+                    "failed to read config file '{}': {source}",
+                    path.display()
+                )
             }
             Self::ParseToml { path, source } => {
-                write!(f, "failed to parse TOML config '{}': {source}", path.display())
+                write!(
+                    f,
+                    "failed to parse TOML config '{}': {source}",
+                    path.display()
+                )
             }
             Self::InvalidSocketAddr {
                 field,
@@ -195,7 +203,9 @@ impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
             namespace: APPLICATION_NAMESPACE.to_vec(),
-            listen_addr: BIND_ADDR.parse().expect("default listen address must be valid"),
+            listen_addr: BIND_ADDR
+                .parse()
+                .expect("default listen address must be valid"),
             dialable_addr: BIND_ADDR
                 .parse()
                 .expect("default dialable address must be valid"),
@@ -290,7 +300,8 @@ fn parse_socket_addr(field: &'static str, value: String) -> Result<SocketAddr, C
 }
 
 fn parse_validator_hex(value: &str) -> Result<ed25519::PublicKey, String> {
-    let bytes = from_hex(value).ok_or_else(|| format!("invalid validator public key hex: {value}"))?;
+    let bytes =
+        from_hex(value).ok_or_else(|| format!("invalid validator public key hex: {value}"))?;
     let mut reader = bytes.as_slice();
     let public_key = ed25519::PublicKey::read_cfg(&mut reader, &())
         .map_err(|err| format!("invalid validator public key: {err}"))?;
@@ -308,7 +319,8 @@ fn parse_validator_list(values: Vec<String>) -> Result<Vec<ed25519::PublicKey>, 
     values
         .into_iter()
         .map(|value| {
-            parse_validator_hex(&value).map_err(|reason| ConfigError::InvalidValidator { value, reason })
+            parse_validator_hex(&value)
+                .map_err(|reason| ConfigError::InvalidValidator { value, reason })
         })
         .collect()
 }
@@ -331,14 +343,16 @@ pub fn load_config(args: NodeArgs) -> Result<NodeConfig, ConfigError> {
         None => None,
     };
 
-    let network_namespace = args
-        .network_namespace
-        .clone()
-        .or_else(|| file_config.as_ref().and_then(|cfg| cfg.network_namespace.clone()));
-    let consensus_namespace = args
-        .consensus_namespace
-        .clone()
-        .or_else(|| file_config.as_ref().and_then(|cfg| cfg.consensus_namespace.clone()));
+    let network_namespace = args.network_namespace.clone().or_else(|| {
+        file_config
+            .as_ref()
+            .and_then(|cfg| cfg.network_namespace.clone())
+    });
+    let consensus_namespace = args.consensus_namespace.clone().or_else(|| {
+        file_config
+            .as_ref()
+            .and_then(|cfg| cfg.consensus_namespace.clone())
+    });
     let listen_addr = match args.listen_addr {
         Some(addr) => addr,
         None => match file_config.as_ref().and_then(|cfg| cfg.listen_addr.clone()) {
@@ -348,7 +362,10 @@ pub fn load_config(args: NodeArgs) -> Result<NodeConfig, ConfigError> {
     };
     let dialable_addr = match args.dialable_addr {
         Some(addr) => addr,
-        None => match file_config.as_ref().and_then(|cfg| cfg.dialable_addr.clone()) {
+        None => match file_config
+            .as_ref()
+            .and_then(|cfg| cfg.dialable_addr.clone())
+        {
             Some(value) => parse_socket_addr("dialable_addr", value)?,
             None => defaults.network.dialable_addr,
         },
@@ -362,7 +379,10 @@ pub fn load_config(args: NodeArgs) -> Result<NodeConfig, ConfigError> {
     };
     let mem_rpc_addr = match args.mem_rpc_addr {
         Some(addr) => addr,
-        None => match file_config.as_ref().and_then(|cfg| cfg.mem_rpc_addr.clone()) {
+        None => match file_config
+            .as_ref()
+            .and_then(|cfg| cfg.mem_rpc_addr.clone())
+        {
             Some(value) => parse_socket_addr("mem_rpc_addr", value)?,
             None => defaults.rpc.mem_bind_addr,
         },
@@ -481,7 +501,9 @@ impl From<NodeArgs> for NodeConfig {
                 listen_addr: args.listen_addr.unwrap_or(defaults.network.listen_addr),
                 dialable_addr: args.dialable_addr.unwrap_or(defaults.network.dialable_addr),
                 bootstrap_peers,
-                max_message_size: args.max_message_size.unwrap_or(defaults.network.max_message_size),
+                max_message_size: args
+                    .max_message_size
+                    .unwrap_or(defaults.network.max_message_size),
             },
             identity: IdentityConfig {
                 seed: args.validator_seed.unwrap_or(defaults.identity.seed),
@@ -621,7 +643,10 @@ mod tests {
         let config = NodeConfig::from(args);
 
         assert_eq!(config.network.listen_addr, "0.0.0.0:9000".parse().unwrap());
-        assert_eq!(config.network.dialable_addr, "1.2.3.4:9000".parse().unwrap());
+        assert_eq!(
+            config.network.dialable_addr,
+            "1.2.3.4:9000".parse().unwrap()
+        );
         assert_eq!(config.network.bootstrap_peers.len(), 2);
         assert_eq!(config.network.bootstrap_peers[0].0, pk1);
         assert_eq!(config.network.bootstrap_peers[1].0, pk2);
@@ -699,8 +724,14 @@ mod tests {
         })
         .expect("toml config should load");
 
-        assert_eq!(config.network.listen_addr, "127.0.0.1:4011".parse().unwrap());
-        assert_eq!(config.network.dialable_addr, "10.0.0.1:4011".parse().unwrap());
+        assert_eq!(
+            config.network.listen_addr,
+            "127.0.0.1:4011".parse().unwrap()
+        );
+        assert_eq!(
+            config.network.dialable_addr,
+            "10.0.0.1:4011".parse().unwrap()
+        );
         assert_eq!(config.network.bootstrap_peers.len(), 1);
         assert_eq!(config.identity.seed, 99);
         assert_eq!(config.rpc.bind_addr, "127.0.0.1:9555".parse().unwrap());
@@ -768,7 +799,8 @@ mod tests {
         };
 
         let expected = NodeConfig::from(args.clone());
-        let actual = load_config(args).expect("load_config without file should match From<NodeArgs>");
+        let actual =
+            load_config(args).expect("load_config without file should match From<NodeArgs>");
 
         assert_eq!(actual, expected);
     }
@@ -803,8 +835,14 @@ mod tests {
 
         let validators = config.validators.expect("validators should exist");
         assert_eq!(validators.len(), 4);
-        assert_eq!(validators[0], ed25519::PrivateKey::from_seed(1).public_key());
-        assert_eq!(validators[3], ed25519::PrivateKey::from_seed(4).public_key());
+        assert_eq!(
+            validators[0],
+            ed25519::PrivateKey::from_seed(1).public_key()
+        );
+        assert_eq!(
+            validators[3],
+            ed25519::PrivateKey::from_seed(4).public_key()
+        );
     }
 
     #[test]
@@ -882,7 +920,10 @@ mod tests {
         .expect("partial merge should work");
 
         assert_eq!(config.network.listen_addr, "0.0.0.0:5000".parse().unwrap());
-        assert_eq!(config.network.dialable_addr, "10.0.0.2:5000".parse().unwrap());
+        assert_eq!(
+            config.network.dialable_addr,
+            "10.0.0.2:5000".parse().unwrap()
+        );
         assert_eq!(config.storage.data_dir, PathBuf::from("toml-data"));
         assert_eq!(config.network.namespace, b"cli-net");
         assert_eq!(config.consensus.namespace, b"toml-cons");

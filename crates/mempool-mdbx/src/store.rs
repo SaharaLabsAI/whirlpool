@@ -32,7 +32,11 @@ impl MdbxMempoolStore {
 
         let next_key = Self::load_next_key(&env, &db)?;
 
-        Ok(Self { env, db, next_key: AtomicU64::new(next_key) })
+        Ok(Self {
+            env,
+            db,
+            next_key: AtomicU64::new(next_key),
+        })
     }
 
     pub fn push(&self, tx: Vec<u8>) -> Result<(), MempoolError> {
@@ -185,7 +189,10 @@ mod tests {
         store.push(vec![3]).unwrap();
         store.push(vec![4]).unwrap();
         store.push(vec![5]).unwrap();
-        assert_eq!(store.drain_pending().unwrap(), vec![vec![3], vec![4], vec![5]]);
+        assert_eq!(
+            store.drain_pending().unwrap(),
+            vec![vec![3], vec![4], vec![5]]
+        );
     }
 
     #[test]

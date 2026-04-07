@@ -98,9 +98,9 @@ where
             }
 
             let timestamp = parent.timestamp + 12;
-            let evm_payload = self
-                .evm_app
-                .propose_evm_transactions(parent, &evm_candidates, timestamp)?;
+            let evm_payload =
+                self.evm_app
+                    .propose_evm_transactions(parent, &evm_candidates, timestamp)?;
 
             let mut executed_transactions = Vec::new();
             let mut inclusion_iter = evm_payload.inclusion_outcomes.iter();

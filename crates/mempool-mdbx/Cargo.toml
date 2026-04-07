@@ -2,6 +2,9 @@
 name = "mempool-mdbx"
 edition = "2021"
 
+[lib]
+doctest = false
+
 [dependencies]
 app = { path = "../app" }
 mempool = { path = "../mempool" }

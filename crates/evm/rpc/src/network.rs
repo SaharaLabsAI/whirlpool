@@ -88,7 +88,9 @@ impl PeersInfo for WhirlpoolNetwork {
         // Deterministic dummy key — never used for real cryptographic purposes.
         let key =
             SecretKey::from_slice(&[0xcd; 32]).expect("static 32-byte slice is a valid secret key");
-        enr::Enr::builder().build(&key).expect("building an empty ENR should not fail")
+        enr::Enr::builder()
+            .build(&key)
+            .expect("building an empty ENR should not fail")
     }
 }
 
@@ -150,10 +152,7 @@ impl Peers for WhirlpoolNetwork {
 
     fn reputation_change(&self, _peer_id: PeerId, _kind: ReputationChangeKind) {}
 
-    async fn reputation_by_id(
-        &self,
-        _peer_id: PeerId,
-    ) -> Result<Option<Reputation>, NetworkError> {
+    async fn reputation_by_id(&self, _peer_id: PeerId) -> Result<Option<Reputation>, NetworkError> {
         Ok(None)
     }
 }

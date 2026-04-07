@@ -137,8 +137,7 @@ where
     type Digest = Digest;
 
     async fn broadcast(&mut self, digest: Self::Digest) {
-        let (Some(ref block_store), Some(ref payload_tx)) =
-            (&self.block_store, &self.payload_tx)
+        let (Some(ref block_store), Some(ref payload_tx)) = (&self.block_store, &self.payload_tx)
         else {
             // No relay wiring — silent no-op (single-node mode).
             return;
@@ -453,9 +452,7 @@ mod tests {
 
         let height = Arc::new(AtomicU64::new(0));
         let app = Arc::new(MockApp);
-        tokio::spawn(
-            MailboxActor::new(mailbox_rx, height, app, Arc::clone(&block_store)).run(),
-        );
+        tokio::spawn(MailboxActor::new(mailbox_rx, height, app, Arc::clone(&block_store)).run());
 
         // Populate block store with a known block.
         let block = TestBlock::genesis();
@@ -485,9 +482,7 @@ mod tests {
 
         let height = Arc::new(AtomicU64::new(0));
         let app = Arc::new(MockApp);
-        tokio::spawn(
-            MailboxActor::new(mailbox_rx, height, app, Arc::clone(&block_store)).run(),
-        );
+        tokio::spawn(MailboxActor::new(mailbox_rx, height, app, Arc::clone(&block_store)).run());
 
         // Broadcast a digest that has NO corresponding block.
         let unknown_digest = Digest::from([42u8; 32]);

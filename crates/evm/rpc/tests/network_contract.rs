@@ -3,9 +3,7 @@
 use reth_ethereum_primitives::EthPrimitives;
 use reth_network_api::{NetworkInfo, Peers};
 use reth_rpc_builder::RpcModuleBuilder;
-use rpc_eth::{
-    network::WhirlpoolNetwork, pool::WhirlpoolTxPool, provider::WhirlpoolProvider,
-};
+use rpc_eth::{network::WhirlpoolNetwork, pool::WhirlpoolTxPool, provider::WhirlpoolProvider};
 
 /// Type-level assertion that WhirlpoolNetwork satisfies the network bounds
 /// required by RpcModuleBuilder: NetworkInfo + Peers + Clone + 'static
@@ -21,7 +19,14 @@ fn _assert_network_bounds() {
 #[test]
 fn network_satisfies_rpc_builder_bounds() {
     let _ = std::any::TypeId::of::<
-        RpcModuleBuilder<EthPrimitives, WhirlpoolProvider, WhirlpoolTxPool, WhirlpoolNetwork, (), ()>,
+        RpcModuleBuilder<
+            EthPrimitives,
+            WhirlpoolProvider,
+            WhirlpoolTxPool,
+            WhirlpoolNetwork,
+            (),
+            (),
+        >,
     >();
     _assert_network_bounds();
 }
@@ -49,6 +54,9 @@ async fn network_status_returns_ok() {
 #[tokio::test]
 async fn get_all_peers_returns_empty() {
     let net = WhirlpoolNetwork::new(1);
-    let peers = net.get_all_peers().await.expect("get_all_peers should not error");
+    let peers = net
+        .get_all_peers()
+        .await
+        .expect("get_all_peers should not error");
     assert!(peers.is_empty(), "no peers in single-node system");
 }

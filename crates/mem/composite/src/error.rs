@@ -19,4 +19,3 @@ impl From<CompositeAppError> for ApplicationError {
         }
     }
 }
-

@@ -3,9 +3,9 @@ use std::{collections::HashSet, sync::Arc};
 use alloy_consensus::TxType;
 use alloy_eips::{
     eip1559::ETHEREUM_BLOCK_GAS_LIMIT_30M,
+    eip2718::Encodable2718,
     eip4844::{BlobAndProofV1, BlobAndProofV2},
     eip7594::BlobTransactionSidecarVariant,
-    eip2718::Encodable2718,
 };
 use alloy_primitives::{Address, TxHash, B256};
 use app::traits::TxSource;
@@ -49,13 +49,16 @@ impl WhirlpoolTxPool {
             return Err(PoolError::other(
                 tx_hash,
                 "blob transactions (EIP-4844) are not supported",
-            ))
+            ));
         }
 
         let encoded = transaction.transaction().encoded_2718().to_vec();
         self.tx_source.push(encoded);
 
-        Ok(AddedTransactionOutcome { hash: tx_hash, state: AddedTransactionState::Pending })
+        Ok(AddedTransactionOutcome {
+            hash: tx_hash,
+            state: AddedTransactionState::Pending,
+        })
     }
 }
 
@@ -352,7 +355,7 @@ impl TransactionPool for WhirlpoolTxPool {
         tx_hashes: Vec<TxHash>,
     ) -> Result<Vec<Arc<BlobTransactionSidecarVariant>>, BlobStoreError> {
         if tx_hashes.is_empty() {
-            return Ok(vec![])
+            return Ok(vec![]);
         }
         Err(BlobStoreError::MissingSidecar(tx_hashes[0]))
     }

@@ -223,8 +223,7 @@ where
         // Wraps the raw vendor receiver in a CommonwareReceiver adapter and
         // feeds it to payload_receive_loop which decodes, validates, and
         // stores inbound block payloads in the shared block store.
-        let payload_cw_receiver =
-            CommonwareReceiver::new(Channel::PAYLOAD, payload_receiver);
+        let payload_cw_receiver = CommonwareReceiver::new(Channel::PAYLOAD, payload_receiver);
         let block_store_for_receiver = Arc::clone(&block_store);
         tokio::spawn(async move {
             payload_receive_loop(payload_cw_receiver, block_store_for_receiver).await;
@@ -232,11 +231,7 @@ where
         });
 
         // Step 9: Create AppAdapter (Reporter) using the caller-provided sink
-        let reporter = AppAdapter::new(
-            Arc::clone(&self.app),
-            Arc::clone(&self.sink),
-            block_store,
-        );
+        let reporter = AppAdapter::new(Arc::clone(&self.app), Arc::clone(&self.sink), block_store);
 
         // Step 10: Create ed25519 Scheme from signer and validators
         let participants = Set::from_iter_dedup(self.config.validators.clone());
@@ -307,12 +302,12 @@ mod tests {
     use crate::sink::FinalizationSink;
     use crate::tests::{MockApp, TestBlock};
     use commonware_cryptography::ed25519::PrivateKey;
-    use std::sync::atomic::AtomicU64;
     use commonware_cryptography::Signer as _;
     use commonware_runtime::{tokio as commonware_tokio, Clock, Metrics, Runner};
     use p2p_commonware::CommonwareNetworkProviderBuilder;
     use std::net::SocketAddr;
     use std::num::NonZeroUsize;
+    use std::sync::atomic::AtomicU64;
     use std::sync::Arc;
     use std::time::Duration;
 
@@ -345,7 +340,9 @@ mod tests {
         executor.start(|context| async move {
             let app = Arc::new(MockApp);
             let config = test_config();
-            let sink = Arc::new(FinalizationSink::<TestBlock>::new(Arc::clone(&config.height)));
+            let sink = Arc::new(FinalizationSink::<TestBlock>::new(Arc::clone(
+                &config.height,
+            )));
 
             let (network, _oracle_handle) = CommonwareNetworkProviderBuilder::new(
                 config.signer.clone(),
@@ -354,7 +351,8 @@ mod tests {
             .listen_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
             .dialable_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
             .initial_validators(config.epoch, config.validators.clone())
-            .build(context.with_label("network")).await;
+            .build(context.with_label("network"))
+            .await;
             let _engine = CommonwareEngine::new(app, sink, config, network, context);
         });
     }
@@ -365,7 +363,9 @@ mod tests {
         runner.start(|context| async move {
             let app = Arc::new(MockApp);
             let config = test_config();
-            let sink = Arc::new(FinalizationSink::<TestBlock>::new(Arc::clone(&config.height)));
+            let sink = Arc::new(FinalizationSink::<TestBlock>::new(Arc::clone(
+                &config.height,
+            )));
 
             let (network, mut oracle_handle) = CommonwareNetworkProviderBuilder::new(
                 config.signer.clone(),
@@ -374,7 +374,8 @@ mod tests {
             .listen_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
             .dialable_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
             .initial_validators(config.epoch, config.validators.clone())
-            .build(context.with_label("network")).await;
+            .build(context.with_label("network"))
+            .await;
             oracle_handle
                 .update_validators(config.epoch, config.validators.clone())
                 .await;
@@ -398,7 +399,9 @@ mod tests {
         runner.start(|context| async move {
             let app = Arc::new(MockApp);
             let config = test_config();
-            let sink = Arc::new(FinalizationSink::<TestBlock>::new(Arc::clone(&config.height)));
+            let sink = Arc::new(FinalizationSink::<TestBlock>::new(Arc::clone(
+                &config.height,
+            )));
 
             let (network, mut oracle) = CommonwareNetworkProviderBuilder::new(
                 config.signer.clone(),
@@ -406,7 +409,8 @@ mod tests {
             )
             .listen_addr(SocketAddr::from(([127, 0, 0, 1], 31401)))
             .dialable_addr(SocketAddr::from(([127, 0, 0, 1], 31401)))
-            .build(context.with_label("network")).await;
+            .build(context.with_label("network"))
+            .await;
 
             oracle
                 .update_validators(config.epoch, config.validators.clone())

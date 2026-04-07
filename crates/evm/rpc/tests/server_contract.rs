@@ -14,11 +14,17 @@ struct RecordingTxSource {
 
 impl TxSource for RecordingTxSource {
     fn push(&self, tx: Vec<u8>) {
-        self.pending.lock().expect("poisoned tx source mutex").push(tx);
+        self.pending
+            .lock()
+            .expect("poisoned tx source mutex")
+            .push(tx);
     }
 
     fn pending(&self) -> Vec<Vec<u8>> {
-        self.pending.lock().expect("poisoned tx source mutex").clone()
+        self.pending
+            .lock()
+            .expect("poisoned tx source mutex")
+            .clone()
     }
 }
 
@@ -38,7 +44,11 @@ async fn server_starts_and_returns_local_address() {
     .await
     .expect("server should start");
 
-    assert_ne!(local_addr.port(), 0, "port 0 should be replaced by a bound port");
+    assert_ne!(
+        local_addr.port(),
+        0,
+        "port 0 should be replaced by a bound port"
+    );
     assert_eq!(server.http_local_addr(), Some(local_addr));
 
     server.stop().expect("server should stop cleanly");
@@ -61,7 +71,9 @@ async fn server_responds_to_eth_chain_id() {
     .await
     .expect("server should start");
 
-    let client = server.http_client().expect("http client should be available");
+    let client = server
+        .http_client()
+        .expect("http client should be available");
     let chain_id: Option<String> = client
         .request("eth_chainId", rpc_params![])
         .await

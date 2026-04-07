@@ -369,7 +369,8 @@ async fn spawn_engine(
         CommonwareNetworkProviderBuilder::new(config.signer.clone(), config.namespace.as_bytes())
             .listen_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
             .dialable_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
-            .build(context.with_label("network")).await;
+            .build(context.with_label("network"))
+            .await;
     oracle_handle
         .update_validators(config.epoch, config.validators.clone())
         .await;
@@ -383,7 +384,9 @@ fn test_engine_starts_with_real_simplex() {
     runner.start(|context| async move {
         let app = Arc::new(MockApp);
         let config = test_config("engine-start");
-        let sink = Arc::new(FinalizationSink::<TestBlock>::new(Arc::clone(&config.height)));
+        let sink = Arc::new(FinalizationSink::<TestBlock>::new(Arc::clone(
+            &config.height,
+        )));
         let running_engine = spawn_engine(app, sink, config, context).await;
         let status = running_engine.status();
         assert!(status.is_running);
@@ -399,7 +402,9 @@ fn test_engine_shutdown_aborts_handle() {
     runner.start(|context| async move {
         let app = Arc::new(MockApp);
         let config = test_config("engine-shutdown");
-        let sink = Arc::new(FinalizationSink::<TestBlock>::new(Arc::clone(&config.height)));
+        let sink = Arc::new(FinalizationSink::<TestBlock>::new(Arc::clone(
+            &config.height,
+        )));
         let running_engine = spawn_engine(app, sink, config, context).await;
 
         assert!(running_engine.status().is_running);
@@ -414,7 +419,9 @@ fn test_engine_status_tracks_height() {
     runner.start(|context| async move {
         let app = Arc::new(MockApp);
         let config = test_config("engine-height");
-        let sink = Arc::new(FinalizationSink::<TestBlock>::new(Arc::clone(&config.height)));
+        let sink = Arc::new(FinalizationSink::<TestBlock>::new(Arc::clone(
+            &config.height,
+        )));
 
         let running_engine = spawn_engine(app, sink, config, context.clone()).await;
 
@@ -492,7 +499,9 @@ fn test_single_validator_produces_block() {
     runner.start(|context| async move {
         let app = Arc::new(MockApp);
         let config = test_config("e2e-single-validator-block");
-        let sink = Arc::new(FinalizationSink::<TestBlock>::new(Arc::clone(&config.height)));
+        let sink = Arc::new(FinalizationSink::<TestBlock>::new(Arc::clone(
+            &config.height,
+        )));
 
         let running_engine = spawn_engine(app, sink, config, context.clone()).await;
 

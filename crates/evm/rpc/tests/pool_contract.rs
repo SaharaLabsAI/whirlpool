@@ -10,9 +10,8 @@ use reth_ethereum_primitives::{EthPrimitives, Transaction, TransactionSigned};
 use reth_primitives_traits::SignedTransaction;
 use reth_rpc_builder::RpcModuleBuilder;
 use reth_transaction_pool::{
-    error::PoolError,
-    pool::AddedTransactionState,
-    EthPooledTransaction, PoolTransaction, TransactionPool,
+    error::PoolError, pool::AddedTransactionState, EthPooledTransaction, PoolTransaction,
+    TransactionPool,
 };
 use rpc_eth::{pool::WhirlpoolTxPool, provider::WhirlpoolProvider};
 
@@ -23,13 +22,19 @@ struct RecordingTxSource {
 
 impl RecordingTxSource {
     fn pushed(&self) -> Vec<Vec<u8>> {
-        self.pushed.lock().expect("poisoned tx source mutex").clone()
+        self.pushed
+            .lock()
+            .expect("poisoned tx source mutex")
+            .clone()
     }
 }
 
 impl TxSource for RecordingTxSource {
     fn push(&self, tx: Vec<u8>) {
-        self.pushed.lock().expect("poisoned tx source mutex").push(tx);
+        self.pushed
+            .lock()
+            .expect("poisoned tx source mutex")
+            .push(tx);
     }
 
     fn pending(&self) -> Vec<Vec<u8>> {
@@ -73,7 +78,10 @@ async fn blob_transactions_are_rejected() {
             .contains("blob transactions (EIP-4844) are not supported"),
         "unexpected error: {err}"
     );
-    assert!(tx_source.pushed().is_empty(), "blob tx must not be forwarded");
+    assert!(
+        tx_source.pushed().is_empty(),
+        "blob tx must not be forwarded"
+    );
 }
 
 #[tokio::test]
@@ -95,7 +103,9 @@ async fn non_blob_transactions_are_forwarded() {
 }
 
 fn pooled_tx(signed: TransactionSigned) -> EthPooledTransaction {
-    let recovered = signed.try_into_recovered().expect("signed tx should recover");
+    let recovered = signed
+        .try_into_recovered()
+        .expect("signed tx should recover");
     let encoded_length = recovered.encode_2718_len();
     EthPooledTransaction::new(recovered, encoded_length)
 }
