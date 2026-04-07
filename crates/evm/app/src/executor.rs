@@ -549,8 +549,10 @@ mod tests {
     use alloy_eips::eip2718::Encodable2718;
     use alloy_primitives::{Address, Signature, TxKind};
     use community_pool::COMMUNITY_POOL_ADDRESS;
+    use evm_precompiles::{mint_calldata, TEST_TOKEN_PRECOMPILE_ADDRESS};
     use reth_ethereum_primitives::TransactionSigned;
     use reth_primitives_traits::SignerRecoverable;
+    use revm::state::Bytecode;
     use state_memory::InMemoryStateDb;
     use std::collections::BTreeMap;
 
@@ -604,6 +606,41 @@ mod tests {
             to: TxKind::Call(receiver),
             value: U256::from(1000),
             input: Bytes::default(),
+        };
+        let signature = Signature::test_signature();
+        let signed: TransactionSigned = tx.into_signed(signature).into();
+        let recovered = signed.recover_signer().unwrap();
+
+        let mut encoded = Vec::new();
+        signed.encode_2718(&mut encoded);
+        (encoded, recovered)
+    }
+
+    fn precompile_proxy_runtime_bytecode() -> Bytes {
+        let mut runtime =
+            alloy_primitives::hex::decode("36600060003760006000366000600073")
+                .expect("forwarder prefix");
+        runtime.extend_from_slice(TEST_TOKEN_PRECOMPILE_ADDRESS.as_slice());
+        runtime.extend_from_slice(
+            &alloy_primitives::hex::decode("5af13d600060003e156034573d6000f35b3d6000fd")
+                .expect("forwarder suffix"),
+        );
+        Bytes::from(runtime)
+    }
+
+    fn sample_proxy_precompile_mint_tx(
+        proxy_address: Address,
+        recipient: Address,
+        amount: U256,
+    ) -> (Vec<u8>, Address) {
+        let tx = TxLegacy {
+            chain_id: Some(crate::config::SAHARA_CHAIN_ID),
+            nonce: 0,
+            gas_price: 2_000_000_000,
+            gas_limit: 200_000,
+            to: TxKind::Call(proxy_address),
+            value: U256::ZERO,
+            input: mint_calldata(recipient, amount),
         };
         let signature = Signature::test_signature();
         let signed: TransactionSigned = tx.into_signed(signature).into();
@@ -710,6 +747,49 @@ mod tests {
         let pre_state = db.read().unwrap().clone();
         let parent = app.genesis().await;
         let (block, _) = app.propose(&parent, 1).await.unwrap();
+
+        let chain_spec = Arc::new(crate::config::build_sahara_chain_spec());
+        let config = WhirlpoolEvmConfig::new(chain_spec).with_local_proposer_public_key([0x77; 32]);
+        let pre_db = Arc::new(RwLock::new(pre_state));
+        let source = Arc::new(MockTxSource { txs: vec![] });
+        let verifier_app = EvmApplication::new(config, pre_db, source);
+
+        assert!(verifier_app.verify(&parent, &block).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn verify_accepts_block_with_precompile_proxy_transaction() {
+        let proxy_address = Address::with_last_byte(0xaa);
+        let recipient = Address::with_last_byte(0xbb);
+        let (tx, recovered) =
+            sample_proxy_precompile_mint_tx(proxy_address, recipient, U256::from(5_u64));
+        let (app, db) = setup_app(vec![tx]).await;
+
+        {
+            let mut db = db.write().unwrap();
+            db.insert_account(
+                recovered,
+                revm::state::AccountInfo {
+                    balance: U256::from(1_000_000_000_000_000_000u64),
+                    nonce: 0,
+                    ..Default::default()
+                },
+            );
+            let mut proxy_info = revm::state::AccountInfo::default();
+            proxy_info.set_code(Bytecode::new_raw(precompile_proxy_runtime_bytecode()));
+            db.insert_account(proxy_address, proxy_info);
+        }
+
+        let pre_state = db.read().unwrap().clone();
+        let parent = app.genesis().await;
+        let (block, _) = app.propose(&parent, 1).await.unwrap();
+        let current_balance = db
+            .read()
+            .unwrap()
+            .get_account(recipient)
+            .unwrap_or_default()
+            .balance;
+        assert_eq!(current_balance, U256::from(5_u64));
 
         let chain_spec = Arc::new(crate::config::build_sahara_chain_spec());
         let config = WhirlpoolEvmConfig::new(chain_spec).with_local_proposer_public_key([0x77; 32]);

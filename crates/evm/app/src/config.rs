@@ -1,10 +1,14 @@
 use alloy_genesis::{Genesis, GenesisAccount};
 use alloy_primitives::{Address, B256, U256};
 use core::convert::Infallible;
+use evm_precompiles::{whirlpool_precompiles, WhirlpoolEvmFactory};
 use native_token::{validate_genesis_alloc, NativeTokenError};
 use reth_chainspec::{Chain, ChainSpec, ChainSpecBuilder};
 use reth_ethereum_primitives::EthPrimitives;
-use reth_evm::{ConfigureEvm, EvmEnvFor, ExecutionCtxFor, NextBlockEnvAttributes};
+use reth_evm::{
+    eth::EthEvmBuilder, ConfigureEvm, EvmEnvFor, EvmFor, ExecutionCtxFor,
+    NextBlockEnvAttributes,
+};
 use reth_evm_ethereum::EthEvmConfig;
 use reth_primitives_traits::{BlockTy, HeaderTy, SealedBlock, SealedHeader};
 use std::collections::BTreeMap;
@@ -19,6 +23,8 @@ pub const VALIDATOR_FEE_RECIPIENTS_REGISTRY: Address = Address::new([
     0x76, 0x61, 0x6c, 0x69, 0x64, 0x61, 0x74, 0x6f, 0x72, 0x2d, 0x66, 0x65, 0x65, 0x2d, 0x6d, 0x61,
     0x70, 0x2d, 0x30, 0x31,
 ]);
+
+type WhirlpoolInnerEvmConfig = EthEvmConfig<ChainSpec, WhirlpoolEvmFactory>;
 
 pub fn build_sahara_chain_spec() -> ChainSpec {
     try_build_sahara_chain_spec()
@@ -89,7 +95,7 @@ pub fn try_build_sahara_chain_spec_with_alloc_and_fee_recipients(
 
 #[derive(Debug, Clone)]
 pub struct WhirlpoolEvmConfig {
-    inner: EthEvmConfig,
+    inner: WhirlpoolInnerEvmConfig,
     local_proposer_public_key: [u8; 32],
     validator_fee_recipients: BTreeMap<[u8; 32], Address>,
 }
@@ -98,7 +104,7 @@ impl WhirlpoolEvmConfig {
     pub fn new(chain_spec: Arc<ChainSpec>) -> Self {
         let validator_fee_recipients = validator_fee_recipients_from_chain_spec(&chain_spec);
         Self {
-            inner: EthEvmConfig::new(chain_spec),
+            inner: EthEvmConfig::new_with_evm_factory(chain_spec, WhirlpoolEvmFactory),
             local_proposer_public_key: [0u8; 32],
             validator_fee_recipients,
         }
@@ -163,8 +169,8 @@ impl ConfigureEvm for WhirlpoolEvmConfig {
     type Primitives = EthPrimitives;
     type Error = Infallible;
     type NextBlockEnvCtx = NextBlockEnvAttributes;
-    type BlockExecutorFactory = <EthEvmConfig as ConfigureEvm>::BlockExecutorFactory;
-    type BlockAssembler = <EthEvmConfig as ConfigureEvm>::BlockAssembler;
+    type BlockExecutorFactory = <WhirlpoolInnerEvmConfig as ConfigureEvm>::BlockExecutorFactory;
+    type BlockAssembler = <WhirlpoolInnerEvmConfig as ConfigureEvm>::BlockAssembler;
 
     fn block_executor_factory(&self) -> &Self::BlockExecutorFactory {
         self.inner.block_executor_factory()
@@ -184,6 +190,13 @@ impl ConfigureEvm for WhirlpoolEvmConfig {
         attributes: &Self::NextBlockEnvCtx,
     ) -> Result<EvmEnvFor<Self>, Self::Error> {
         self.inner.next_evm_env(parent, attributes)
+    }
+
+    fn evm_with_env<DB: reth_evm::Database>(&self, db: DB, evm_env: EvmEnvFor<Self>) -> EvmFor<Self, DB> {
+        let spec = evm_env.cfg_env.spec;
+        EthEvmBuilder::new(db, evm_env)
+            .precompiles(whirlpool_precompiles(spec))
+            .build()
     }
 
     fn context_for_block<'a>(
@@ -211,9 +224,12 @@ mod tests {
     };
     use alloy_genesis::GenesisAccount;
     use alloy_primitives::{Address, U256};
+    use evm_precompiles::TEST_TOKEN_PRECOMPILE_ADDRESS;
     use native_token::{sahara_hard_cap_base_units, NativeTokenError};
     use reth_chainspec::EthereumHardforks;
-    use reth_evm::ConfigureEvm;
+    use reth_evm::{ConfigureEvm, Evm, EvmFactory, NextBlockEnvAttributes};
+    use reth_primitives_traits::Header;
+    use revm::{database::EmptyDB, primitives::B256};
     use std::collections::BTreeMap;
     use std::sync::Arc;
     #[test]
@@ -235,6 +251,28 @@ mod tests {
             config.block_executor_factory();
         let _assembler: &<WhirlpoolEvmConfig as ConfigureEvm>::BlockAssembler =
             config.block_assembler();
+    }
+
+    #[test]
+    fn test_evm_config_installs_whirlpool_precompiles() {
+        let config = WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec()));
+        let env = config
+            .next_evm_env(
+                &Header::default(),
+                &NextBlockEnvAttributes {
+                    timestamp: 1,
+                    suggested_fee_recipient: Address::ZERO,
+                    prev_randao: B256::ZERO,
+                    gas_limit: 30_000_000,
+                    parent_beacon_block_root: Some(B256::ZERO),
+                    withdrawals: None,
+                    extra_data: Default::default(),
+                },
+            )
+            .expect("next EVM env");
+        let evm = config.evm_factory().create_evm(EmptyDB::default(), env);
+
+        assert!(evm.precompiles().get(&TEST_TOKEN_PRECOMPILE_ADDRESS).is_some());
     }
 
     #[test]

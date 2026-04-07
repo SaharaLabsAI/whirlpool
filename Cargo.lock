@@ -1011,6 +1011,7 @@ dependencies = [
  "app",
  "community-pool",
  "consensus",
+ "evm-precompiles",
  "futures",
  "native-token",
  "reth-chainspec",
@@ -3345,6 +3346,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "evm-precompiles"
+version = "0.1.0"
+dependencies = [
+ "alloy-primitives",
+ "reth-evm",
+ "revm",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "eyre"
 version = "0.6.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4362,6 +4373,7 @@ dependencies = [
  "app-mem",
  "commonware-cryptography",
  "community-pool",
+ "evm-precompiles",
  "hex",
  "jsonrpsee",
  "native-token",
@@ -8389,6 +8401,7 @@ dependencies = [
  "alloy-primitives",
  "alloy-rpc-types",
  "app",
+ "app-evm",
  "async-trait",
  "commonware-cryptography",
  "enr",

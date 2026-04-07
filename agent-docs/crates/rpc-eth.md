@@ -14,7 +14,7 @@ Location: `crates/evm/rpc/`
 - `reth-transaction-pool`: `TransactionPool` trait and pool types.
 - `reth-network-api`: `NetworkInfo`, `Peers`, `PeersInfo` traits.
 - `reth-chainspec`: `ChainSpec`, `EthereumHardforks`.
-- `reth-node-ethereum`: `EthEvmConfig` for EVM configuration.
+- `app-evm`: `WhirlpoolEvmConfig` for shared Whirlpool EVM/precompile configuration.
 - `reth-consensus`: `NoopConsensus` — no consensus validation in RPC path.
 - `reth-tokio-util`: `TokioTaskExecutor` for async task execution.
 - `jsonrpsee`: JSON-RPC server framework (0.26.0).
@@ -45,7 +45,7 @@ RpcModuleBuilder::default()
   .with_pool(WhirlpoolTxPool)
   .with_network(WhirlpoolNetwork)
   .with_executor(TokioTaskExecutor)
-  .with_evm_config(EthEvmConfig)
+  .with_evm_config(WhirlpoolEvmConfig)
   .with_consensus(NoopConsensus)
   → bootstrap_eth_api() → build() → RpcServerConfig::http().start()
 ```
@@ -115,6 +115,7 @@ All standard `eth_*` methods from `RpcModuleSelection::standard_modules()` are s
 - MDBX access pattern: `self.state_db.inner().tx().map_err(map_db_err)?` for read-only transactions.
 - State tables used: `CanonicalHeaders`, `HeaderNumbers`, `Headers`, `BlockBodyIndices`, `Transactions`, `TransactionHashNumbers`, `TransactionBlocks`, `Receipts`, `HeaderTerminalDifficulties`, `PlainAccountState`, `PlainStorageState`, `Bytecodes`.
 - On empty DB: `eth_blockNumber` returns 0, `eth_getBalance` returns 0, `eth_gasPrice` returns error ("block not found: latest").
+- RPC `eth_call` / estimation now share the same Whirlpool precompile registry as consensus execution by using `app_evm::WhirlpoolEvmConfig` in `server.rs`.
 
 ## Status
 Complete. Replaces the original hand-rolled JSON-RPC with reth's production RPC stack (Tasks 01-13).

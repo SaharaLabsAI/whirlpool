@@ -3,6 +3,7 @@
 ## Purpose
 Pure EVM configuration and execution integration for Whirlpool applications.
 Genesis `ChainSpec` construction now shares the native-token hard cap from the `native-token` crate.
+Custom Whirlpool precompiles are now injected through the `evm-precompiles` crate.
 
 ## Interface/Implementation Split
 - Interface module: `crates/evm/app/src/traits.rs`
@@ -52,7 +53,7 @@ The executor uses `.map_err(Into::into)` on all `StateProvider` calls to convert
 - `state_memory::InMemoryStateDb` (test code only)
 
 ## Key Types
-- `WhirlpoolEvmConfig`: wrapper for EVM configuration. Reads the genesis validator->recipient registry, tracks the local proposer public key, and resolves proposer fee recipients for proposal/verification.
+- `WhirlpoolEvmConfig`: wrapper for EVM configuration. Reads the genesis validator->recipient registry, tracks the local proposer public key, resolves proposer fee recipients for proposal/verification, and overrides `evm_with_env(...)` to install Whirlpool custom precompiles.
 - `EvmApplication`: application implementation that executes EVM-only blocks.
   - `pending_receipts: Arc<Mutex<Option<Vec<Receipt>>>>`: temporary storage for receipts between execution and persistence.
   - `last_proposed: Arc<Mutex<Option<(u64, EvmBlock, ExecutionResult, Vec<Receipt>)>>>`: cache for the most recent proposal at a given height; prevents duplicate mempool drain when simplex calls `propose()` multiple times for the same height.
@@ -69,10 +70,16 @@ The executor uses `.map_err(Into::into)` on all `StateProvider` calls to convert
 - `build_sahara_chain_spec_with_alloc_and_fee_recipients(...) -> Arc<ChainSpec>`: builds a Sahara chain spec with pre-funded accounts plus genesis storage mapping validator public keys to EVM fee-recipient addresses.
 - `try_build_sahara_chain_spec* -> Result<ChainSpec, NativeTokenError>`: fallible constructors that reject over-cap genesis allocs before building the spec.
 
+## Precompile Wiring
+- `crates/evm/app/src/config.rs` now composes `EthEvmConfig<ChainSpec, WhirlpoolEvmFactory>` internally.
+- `WhirlpoolEvmConfig::evm_with_env(...)` injects `evm_precompiles::whirlpool_precompiles(spec)` through `EthEvmBuilder`.
+- Proposal and verification still use the unchanged builder path in `crates/evm/app/src/executor.rs`; the precompile registry is attached at config/factory level rather than executor special-casing.
+- `crates/evm/app/src/executor.rs` now includes a regression test that verifies block replay succeeds for a transaction that reaches a precompile through a small forwarding contract.
+
 ## Native-Token Cap
 - `native-token` is the canonical source of the 10 billion Sahara hard cap.
 - `build_sahara_chain_spec*` validates `Genesis.alloc` balances against that cap after fee-recipient registry storage is injected.
 - The fee-recipient registry account contributes zero token balance; only account balances count toward total supply.
 
 ## Status
-Active. This crate remains the pure EVM execution layer, now also owning the canonical EVM decode path while `app-composite`/`tx-dispatch` handle mixed mem routing.
+Active. This crate remains the pure EVM execution layer, now also owning the canonical EVM decode path and the config seam that injects Whirlpool custom precompiles while `app-composite`/`tx-dispatch` handle mixed mem routing.

@@ -6,6 +6,7 @@ edition.workspace = true
 [dependencies]
 # --- Whirlpool crates ---
 app = { path = "../../app" }
+app-evm = { path = "../app" }
 state = { path = "../../state" }
 state-reth = { path = "../state" }
 

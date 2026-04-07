@@ -129,6 +129,17 @@ Tests:
 - `test_contract_deploy_full_node` (seed=101): Deploy minimal contract → verify receipt status=1, `contractAddress` present → verify deployed code via `eth_getCode` → verify `eth_call` returns 42.
 - `test_contract_call_full_node` (seed=102): Deploy contract → call `eth_call` against deployed address → verify return value is `uint256(42)` (ABI-encoded).
 
+### `tests/precompile_test_token.rs`
+Full-node coverage for the Whirlpool custom-precompile framework.
+- Uses a validation/example `test-token` precompile from `evm-precompiles`.
+- Deploys a tiny forwarding contract that internally calls the precompile, then drives it via normal EIP-1559 transactions and `eth_call`.
+
+Tests:
+- `test_test_token_state_changing_tx_full_node`: proxy-backed tx path mints journaled EVM balance to a recipient and verifies the resulting state over RPC.
+- `test_test_token_eth_call_read_path`: proves the same precompile can be queried through `eth_call`.
+- `test_test_token_revert_surface_full_node`: proves business-rule failures surface as EVM reverts.
+- `test_precompile_framework_is_available_in_verification_path`: currently ignored because multi-node teardown is unstable; the replay/verification-path guarantee is covered in `app-evm` unit tests.
+
 ### `tests/multinode_consensus.rs`
 End-to-end consensus test for a 4-node network using `whirlpool_node::node::start_node`.
 - **TC-INT-05**: Verifies multi-node consensus. Starts 4 in-process nodes, waits for block height >= 1 via `eth_blockNumber` RPC calls (testing/integration-tests/tests/multinode_consensus.rs:19).

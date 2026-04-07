@@ -1,9 +1,9 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+use app_evm::WhirlpoolEvmConfig;
 use reth_chainspec::ChainSpec;
 use reth_consensus::noop::NoopConsensus;
-use reth_evm_ethereum::EthEvmConfig;
 use reth_rpc_builder::{
     RpcModuleBuilder, RpcServerConfig, RpcServerHandle, TransportRpcModuleConfig,
 };
@@ -33,7 +33,7 @@ pub async fn start_rpc_server(
         .with_pool(pool)
         .with_network(network)
         .with_executor(Box::new(TokioTaskExecutor::default()))
-        .with_evm_config(EthEvmConfig::new(chain_spec))
+        .with_evm_config(WhirlpoolEvmConfig::new(chain_spec))
         .with_consensus(NoopConsensus::default());
 
     let eth_api = builder.bootstrap_eth_api();

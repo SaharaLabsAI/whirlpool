@@ -16,6 +16,7 @@ members = [
     "crates/evm/state",
     "crates/app",
     "crates/evm/app",
+    "crates/evm/precompiles",
     "crates/mem/composite",
     "crates/mem/app",
     "crates/mem/tx-dispatch",
