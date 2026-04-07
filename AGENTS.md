@@ -16,7 +16,7 @@ Follow this sequence and stop once you have enough context for the task:
 ## Fast rules
 
 - **Before reading source code in any crate**, check if an `agent-docs/` directory exists for that crate/project and read its `index.md` first. agent-docs provide pre-digested architecture, API surfaces, and key patterns — use them to avoid expensive source-code crawling. Use the `ctx-read-doc` skill for structured agent-docs consumption.
-- Do not change `vendor/**` unless explicitly requested.
+- Never modify files under `vendor/**`. Treat the entire `vendor/` tree as read-only.
 - For vendor investigations, start from each vendor project's `agent-docs/index.md` before reading source code (see `docs/rules/20-vendor-agent-docs-workflow.md` for the full workflow).
 - Keep changes small, focused, and aligned with local formatting/lint/test expectations.
 - Never commit secrets.
