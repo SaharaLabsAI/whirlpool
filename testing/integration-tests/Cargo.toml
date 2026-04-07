@@ -8,13 +8,13 @@ edition.workspace = true
 [dependencies]
 app = { path = "../../crates/app" }
 app-evm = { path = "../../crates/evm/app" }
-app-mem = { path = "../../crates/app-mem" }
+app-mem = { path = "../../crates/mem/app" }
 community-pool = { path = "../../crates/community-pool" }
 native-token = { path = "../../crates/native-token" }
 rpc-eth = { path = "../../crates/evm/rpc" }
-rpc-mem = { path = "../../crates/rpc-mem" }
+rpc-mem = { path = "../../crates/mem/rpc" }
 state = { path = "../../crates/state" }
-state-memory = { path = "../../crates/state-memory" }
+state-memory = { path = "../../crates/mem/state" }
 state-reth = { path = "../../crates/evm/state" }
 whirlpool-node = { path = "../../crates/whirlpool-node" }
 commonware-cryptography = { path = "../../vendor/commonware/cryptography" }

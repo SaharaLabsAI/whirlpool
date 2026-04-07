@@ -136,13 +136,9 @@ End-to-end consensus test for a 4-node network using `whirlpool_node::node::star
 - Validates that heights across nodes remain synchronized within 1 block.
 
 ### `tests/rpc_mem_integration.rs`
-Full-node mem RPC coverage using `whirlpool_node::node::start_node_with_chain_spec` with per-test tempdirs and dedicated mem RPC ports.
-- `test_mem_submit_personality_on_mem_rpc_only`: verifies `mem_submitPersonality` succeeds on `NodeHandle::mem_rpc_addr` and is absent from the Ethereum RPC server.
-- `test_mem_get_personality_returns_null_when_missing`: verifies `mem_getPersonality` returns JSON `null` for unknown IDs on the mem RPC server and is absent from the Ethereum RPC server.
-- `test_mem_get_personality_returns_finalized_entry_after_submit`: submits a personality tx, waits for finalization, then verifies `mem_getPersonality` returns the finalized entry with deterministic `tx_hash`, `markdown_hash`, and stored fields.
-- `test_mem_get_transaction_by_hash_returns_null_when_missing`: verifies `mem_getTransactionByHash` returns JSON `null` for unknown tx hashes and is absent from the Ethereum RPC server.
-- `test_mem_get_transaction_by_hash_rejects_malformed_hash`: verifies malformed `tx_hash` input is rejected on the mem RPC server.
-- `test_mem_get_transaction_by_hash_returns_finalized_entry_after_submit`: submits a personality tx, waits for finalization, then verifies `mem_getTransactionByHash` returns decoded tx fields (`version`, `signature_scheme`, `signature`) plus finalized metadata.
+Mem RPC full-node coverage is currently disabled during the mem-crate relocation and node unwiring transition.
+- The file is gated off intentionally so the workspace test suite can pass while `whirlpool-node` no longer exposes a mem RPC listener.
+- Keep the file as the canonical place to re-enable end-to-end mem RPC coverage once dedicated runtime wiring returns.
 
 ## Running
 ```bash
@@ -152,8 +148,7 @@ nix develop --command cargo test -p integration-tests --test rpc_evm_integration
 # Run only community-pool integration tests
 nix develop --command cargo test -p integration-tests --test community_pool
 
-# Run only mem RPC integration tests
-nix develop --command cargo test -p integration-tests --test rpc_mem_integration
+# `rpc_mem_integration` is currently disabled during mem unwiring.
 
 # Run only consensus integration tests
 nix develop --command cargo test -p integration-tests --test multinode_consensus

@@ -10442,9 +10442,7 @@ version = "0.1.0"
 dependencies = [
  "alloy-primitives",
  "app",
- "app-composite",
  "app-evm",
- "app-mem",
  "bytes",
  "clap",
  "commonware-codec",
@@ -10461,7 +10459,6 @@ dependencies = [
  "reth-revm",
  "revm",
  "rpc-eth",
- "rpc-mem",
  "serde",
  "sha2 0.10.9",
  "state",

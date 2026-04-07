@@ -60,7 +60,7 @@ tokio = { version = "1", features = ["full"] }
 parking_lot = "0.12"
 
 [dev-dependencies]
-state-memory = { path = "../../state-memory" }
+state-memory = { path = "../../mem/state" }
 state-reth = { path = "../state" }
 commonware-cryptography = { path = "../../../vendor/commonware/cryptography" }
 revm = { version = "34" }

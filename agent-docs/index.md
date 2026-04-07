@@ -88,16 +88,16 @@ Step-by-step instructions for common tasks and workflows.
 | `consensus-simplex` | `crates/consensus-simplex/src/` | `architecture/simplex-adapter.md` | `guides/wiring-simplex-adapter.md` |
 | `p2p-commonware` | `crates/p2p-commonware/src/` | `crates/p2p-commonware.md` | — |
 | `state` | `crates/state/src/` | `crates/state.md` | — |
-| `state-memory` | `crates/state-memory/src/` | `crates/state-memory.md` | — |
+| `state-memory` | `crates/mem/state/src/` | `crates/state-memory.md` | — |
 | `state-reth` | `crates/evm/state/src/` | `crates/state-reth.md` | — |
 | `app` | `crates/app/src/` | `crates/app.md` | — |
 | `app-evm` | `crates/evm/app/src/` | `crates/app-evm.md` | — |
-| `app-composite` | `crates/app-composite/src/` | `crates/app-composite.md` | — |
+| `app-composite` | `crates/mem/composite/src/` | `crates/app-composite.md` | — |
 | `community-pool` | `crates/community-pool/src/` | `crates/community-pool.md` | — |
 | `native-token` | `crates/native-token/src/` | `crates/native-token.md` | — |
 | `mempool` | `crates/mempool/src/` | `crates/mempool.md` | — |
 | `tx-dispatch` | `crates/tx-dispatch/src/` | `crates/tx-dispatch.md` | — |
-| `rpc-mem` | `crates/rpc-mem/src/` | `crates/rpc-mem.md` | — |
+| `rpc-mem` | `crates/mem/rpc/src/` | `crates/rpc-mem.md` | — |
 | `whirlpool-node` | `crates/whirlpool-node/src/` | `architecture/whirlpool-node.md` (lib) + `crates/whirlpool-node.md` (EVM bin) | `guides/whirlpool-node-components.md` |
 | `rpc-eth` | `crates/evm/rpc/src/` | `crates/rpc-eth.md` | — |
 | `integration-tests` | `testing/integration-tests/tests/` | `crates/integration-tests.md` | — |

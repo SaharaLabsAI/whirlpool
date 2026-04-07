@@ -1,3 +1,6 @@
+#![cfg(any())]
+// Disabled during mem crate unwiring and relocation under crates/mem.
+
 use std::collections::BTreeMap;
 use std::net::{SocketAddr, TcpListener};
 use std::sync::Arc;

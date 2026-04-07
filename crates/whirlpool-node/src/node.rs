@@ -1,7 +1,6 @@
 use app::traits::TxSource;
 use app::ApplicationAdapter;
-use app_composite::CompositeApplication;
-use app_evm::{build_sahara_chain_spec, WhirlpoolEvmConfig};
+use app_evm::{build_sahara_chain_spec, EvmApplication, WhirlpoolEvmConfig};
 use commonware_cryptography::ed25519;
 use commonware_cryptography::Signer;
 use commonware_runtime::{tokio, Metrics, Runner};
@@ -12,8 +11,6 @@ use native_token::validate_genesis_alloc;
 use p2p_commonware::CommonwareNetworkProviderBuilder;
 use reth_chainspec::ChainSpec;
 use rpc_eth as eth_rpc;
-use rpc_mem::{self as mem_rpc, TxSourceMemoryTxService};
-use state_memory::InMemoryPersonalityStorage;
 use std::error::Error;
 use std::net::SocketAddr;
 use std::num::NonZeroUsize;
@@ -29,7 +26,6 @@ use state::BlockStorage;
 
 pub struct NodeHandle {
     pub rpc_addr: SocketAddr,
-    pub mem_rpc_addr: SocketAddr,
     pub p2p_addr: SocketAddr,
     pub public_key: ed25519::PublicKey,
     thread: Option<JoinHandle<()>>,
@@ -46,7 +42,6 @@ impl Drop for NodeHandle {
 
 struct NodeInfo {
     rpc_addr: SocketAddr,
-    mem_rpc_addr: SocketAddr,
     p2p_addr: SocketAddr,
     public_key: ed25519::PublicKey,
 }
@@ -128,7 +123,6 @@ pub fn start_node_with_chain_spec(
 
             let state_db = Arc::new(RwLock::new(reth_db.clone()));
             let block_storage = Arc::new(reth_db);
-            let personality_storage = Arc::new(InMemoryPersonalityStorage::new());
 
             let recovered_height = block_storage
                 .get_latest_block_number()
@@ -166,13 +160,12 @@ pub fn start_node_with_chain_spec(
             let tx_pool: Arc<dyn TxSource> = Arc::new(
                 PersistentTxPool::open(&mempool_path).expect("failed to open mempool database"),
             );
-            let evm_app = CompositeApplication::new(evm_config, state_db.clone(), tx_pool.clone());
+            let evm_app = EvmApplication::new(evm_config, state_db.clone(), tx_pool.clone());
 
             let sink = Arc::new(PersistingFinalizationSink::new(
                 inner_sink,
                 evm_app.clone(),
                 block_storage.clone(),
-                personality_storage.clone(),
             ));
 
             let app = Arc::new(ApplicationAdapter::new(evm_app));
@@ -190,20 +183,10 @@ pub fn start_node_with_chain_spec(
             let (_eth_rpc_handle, rpc_addr) = eth_rpc::start_rpc_server(eth_rpc_config)
                 .await
                 .expect("failed to start Ethereum RPC server");
-
-            let mem_rpc_service = Arc::new(TxSourceMemoryTxService::with_personality_storage(
-                tx_pool.clone(),
-                personality_storage,
-            ));
-            let (_mem_rpc_handle, mem_rpc_addr) =
-                mem_rpc::start_rpc_server(mem_rpc_service, config.rpc.mem_bind_addr)
-                    .await
-                    .expect("failed to start memory RPC server");
-            info!(%rpc_addr, %mem_rpc_addr, %dialable_addr, "JSON-RPC servers started");
+            info!(%rpc_addr, %dialable_addr, "JSON-RPC server started");
 
             let _ = info_tx.send(Ok(NodeInfo {
                 rpc_addr,
-                mem_rpc_addr,
                 p2p_addr: dialable_addr,
                 public_key: public_key.clone(),
             }));
@@ -219,7 +202,6 @@ pub fn start_node_with_chain_spec(
 
     Ok(NodeHandle {
         rpc_addr: node_info.rpc_addr,
-        mem_rpc_addr: node_info.mem_rpc_addr,
         p2p_addr: node_info.p2p_addr,
         public_key: node_info.public_key,
         thread: Some(thread),

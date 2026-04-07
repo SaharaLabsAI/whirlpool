@@ -4,7 +4,8 @@ Use this reference when you need the exact request contract or to debug why a su
 
 ## Endpoints
 
-- Submit and read personality data on the node's dedicated mem RPC listener.
+- Submit and read personality data on a dedicated mem RPC listener when one exists.
+- `whirlpool-node` no longer starts a mem RPC listener by default.
 - Use the Ethereum RPC listener only for chain progress checks such as `eth_blockNumber`.
 - Expect `mem_submitPersonality` and `mem_getPersonality` to be unavailable on the Ethereum RPC server.
 
@@ -72,7 +73,7 @@ The integration test `testing/integration-tests/tests/rpc_mem_integration.rs` po
   - Treat as client input error.
 - Long period of `null` from `mem_getPersonality`:
   - Check whether blocks are finalizing.
-  - Check whether the node was started with a mem RPC address.
+  - Check whether a mem RPC service is actually running.
   - Check whether the submit went to the mem RPC listener instead of the Ethereum listener.
 
 ## Source of truth

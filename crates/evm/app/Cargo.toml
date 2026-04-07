@@ -11,7 +11,7 @@ app = { path = "../../app" }
 community-pool = { path = "../../community-pool" }
 native-token = { path = "../../native-token" }
 state = { path = "../../state" }
-state-memory = { path = "../../state-memory" }
+state-memory = { path = "../../mem/state" }
 state-reth = { path = "../state" }
 consensus = { path = "../../consensus" }
 tx-dispatch = { path = "../../tx-dispatch" }
