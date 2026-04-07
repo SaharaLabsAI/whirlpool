@@ -11,4 +11,7 @@ pub use config::{
     DEFAULT_PROPOSER_FEE_RECIPIENT, SAHARA_CHAIN_ID, VALIDATOR_FEE_RECIPIENTS_REGISTRY,
 };
 pub use error::EvmAppError;
-pub use executor::{build_header_from_evm_block, EvmApplication, ProposedEvmPayload};
+pub use executor::{
+    build_header_from_evm_block, decode_evm_transaction, decode_evm_transactions, EvmApplication,
+    ProposedEvmPayload, RecoveredTx,
+};

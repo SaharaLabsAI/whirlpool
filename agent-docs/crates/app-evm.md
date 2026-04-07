@@ -25,7 +25,7 @@ Genesis `ChainSpec` construction now shares the native-token hard cap from the `
 - `From<state_reth::RethStateError>`: persistent state error conversion.
 
 ## Execution Implementation
-`EvmApplication` is now EVM-only. Mixed mem/personality transaction routing moved out to `app-composite` + `tx-dispatch`.
+`EvmApplication` is EVM-only and now owns the canonical EVM transaction decode/recovery helpers used by its executor.
 The executor uses `.map_err(Into::into)` on all `StateProvider` calls to convert into `EvmAppError`.
 
 ## EIP-1559 Base Fee
@@ -75,4 +75,4 @@ The executor uses `.map_err(Into::into)` on all `StateProvider` calls to convert
 - The fee-recipient registry account contributes zero token balance; only account balances count toward total supply.
 
 ## Status
-Active. This crate remains the pure EVM execution layer used directly by `app-composite`, now with genesis-governed validator fee-recipient routing plus deterministic proposer verification.
+Active. This crate remains the pure EVM execution layer, now also owning the canonical EVM decode path while `app-composite`/`tx-dispatch` handle mixed mem routing.

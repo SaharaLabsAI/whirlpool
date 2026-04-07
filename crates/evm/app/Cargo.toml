@@ -14,7 +14,6 @@ state = { path = "../../state" }
 state-memory = { path = "../../mem/state" }
 state-reth = { path = "../state" }
 consensus = { path = "../../consensus" }
-tx-dispatch = { path = "../../tx-dispatch" }
 reth-evm = { path = "../../../vendor/reth/crates/evm/evm" }
 reth-evm-ethereum = { path = "../../../vendor/reth/crates/ethereum/evm" }
 reth-ethereum-primitives = { path = "../../../vendor/reth/crates/ethereum/primitives" }

@@ -1027,7 +1027,6 @@ dependencies = [
  "state-reth",
  "thiserror 2.0.18",
  "tokio",
- "tx-dispatch",
 ]
 
 [[package]]
@@ -10008,10 +10007,12 @@ dependencies = [
 name = "tx-dispatch"
 version = "0.1.0"
 dependencies = [
+ "alloy-consensus",
  "alloy-eips",
+ "alloy-primitives",
+ "app-evm",
  "app-mem",
  "reth-ethereum-primitives",
- "reth-primitives-traits",
  "thiserror 2.0.18",
 ]
 

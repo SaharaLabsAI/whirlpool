@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex, RwLock};
 
 use alloy_consensus::TxReceipt;
 use alloy_eips::eip1559::{calc_next_block_base_fee, BaseFeeParams};
-use alloy_eips::eip2718::Encodable2718;
+use alloy_eips::eip2718::{Decodable2718, Encodable2718};
 use alloy_primitives::{bytes::BufMut, Address, Bytes, B256, U256};
 use alloy_trie::{root::ordered_trie_root_with_encoder, EMPTY_ROOT_HASH};
 use app::{
@@ -10,19 +10,22 @@ use app::{
     EvmBlock, ExecutionResult, Receipt,
 };
 use community_pool::COMMUNITY_POOL_ADDRESS;
+use reth_ethereum_primitives::TransactionSigned;
 use reth_evm::{
     execute::{BlockBuilder, BlockExecutor},
     ConfigureEvm, NextBlockEnvAttributes,
 };
 use reth_primitives_traits::{Header, SealedHeader};
+use reth_primitives_traits::{Recovered, SignedTransaction};
 use reth_revm::State;
 use revm::database::states::bundle_state::BundleRetention;
 use state::BlockStorage;
-use tx_dispatch::{decode_evm_transactions, RecoveredTx};
 
 use crate::config::WhirlpoolEvmConfig;
 use crate::error::EvmAppError;
 pub use crate::traits::StateProvider;
+
+pub type RecoveredTx = Recovered<TransactionSigned>;
 
 #[derive(Clone, Debug)]
 pub struct ProposedEvmPayload {
@@ -62,8 +65,23 @@ fn build_sealed_header(block: &EvmBlock) -> SealedHeader {
     SealedHeader::new(header, hash)
 }
 
-pub fn decode_transactions(raw_txs: &[Vec<u8>]) -> Result<Vec<RecoveredTx>, EvmAppError> {
-    decode_evm_transactions(raw_txs).map_err(|err| EvmAppError::InvalidBlock(err.to_string()))
+pub fn decode_evm_transaction(raw_tx: &[u8]) -> Result<RecoveredTx, EvmAppError> {
+    let mut input = raw_tx;
+    let tx = TransactionSigned::decode_2718(&mut input)
+        .map_err(|err| EvmAppError::InvalidBlock(err.to_string()))?;
+
+    let signer = tx
+        .try_recover()
+        .map_err(|err| EvmAppError::InvalidBlock(err.to_string()))?;
+
+    Ok(tx.with_signer(signer))
+}
+
+pub fn decode_evm_transactions(raw_txs: &[Vec<u8>]) -> Result<Vec<RecoveredTx>, EvmAppError> {
+    raw_txs
+        .iter()
+        .map(|raw_tx| decode_evm_transaction(raw_tx))
+        .collect()
 }
 
 fn credit_account_balance<DB>(
@@ -177,7 +195,7 @@ where
         DB: StateProvider + Clone + revm::Database,
         <DB as StateProvider>::Error: Into<EvmAppError>,
     {
-        let decoded_txs = decode_transactions(raw_txs)?;
+        let decoded_txs = decode_evm_transactions(raw_txs)?;
         let parent_header = build_sealed_header(parent);
 
         let mut state_snapshot = {
@@ -300,7 +318,7 @@ where
         DB: StateProvider + Clone + revm::Database,
         <DB as StateProvider>::Error: Into<EvmAppError>,
     {
-        let decoded_txs = decode_transactions(raw_txs)?;
+        let decoded_txs = decode_evm_transactions(raw_txs)?;
 
         let mut exec_state = {
             let db = self.state_db.read().unwrap();
@@ -596,6 +614,23 @@ mod tests {
         (encoded, recovered)
     }
 
+    #[test]
+    fn decode_evm_transaction_recovers_signer() {
+        let (raw_tx, recovered) = sample_evm_tx();
+
+        let decoded = decode_evm_transaction(&raw_tx).expect("tx should decode");
+
+        assert_eq!(decoded.signer(), recovered);
+    }
+
+    #[test]
+    fn decode_evm_transactions_reject_invalid_bytes() {
+        let err = decode_evm_transactions(&[vec![0xff, 0x00, 0x01]])
+            .expect_err("invalid bytes should fail decoding");
+
+        assert!(matches!(err, EvmAppError::InvalidBlock(_)));
+    }
+
     #[tokio::test]
     async fn propose_executes_transfer_transaction() {
         let (tx, recovered) = sample_evm_tx();
@@ -677,8 +712,7 @@ mod tests {
         let (block, _) = app.propose(&parent, 1).await.unwrap();
 
         let chain_spec = Arc::new(crate::config::build_sahara_chain_spec());
-        let config =
-            WhirlpoolEvmConfig::new(chain_spec).with_local_proposer_public_key([0x77; 32]);
+        let config = WhirlpoolEvmConfig::new(chain_spec).with_local_proposer_public_key([0x77; 32]);
         let pre_db = Arc::new(RwLock::new(pre_state));
         let source = Arc::new(MockTxSource { txs: vec![] });
         let verifier_app = EvmApplication::new(config, pre_db, source);

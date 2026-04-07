@@ -18,7 +18,7 @@ members = [
     "crates/evm/app",
     "crates/mem/composite",
     "crates/mem/app",
-    "crates/tx-dispatch",
+    "crates/mem/tx-dispatch",
     "crates/mempool",
     "crates/mempool-mdbx",
     "testing/integration-tests",

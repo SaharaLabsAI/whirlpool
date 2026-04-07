@@ -1,11 +1,11 @@
 # tx-dispatch
 
 ## Purpose
-Neutral transaction classification and decode helpers shared by mixed-ingress code.
+Mem-scoped transaction classification for mixed-ingress code.
 
 ## Dependency Boundaries
+- `app-evm`: canonical EVM transaction decode and signer recovery helpers.
 - `app-mem`: mem/personality transaction validation.
-- `reth-ethereum-primitives` + `reth-primitives-traits`: EVM signed transaction decoding and signer recovery.
 
 ## Public API
 - `RecoveredTx`: recovered EVM transaction type alias.
@@ -19,10 +19,9 @@ Neutral transaction classification and decode helpers shared by mixed-ingress co
 - `classify_transactions(raw_txs)`
 
 ## Classification Rule
-1. Try EVM `2718` decode and signer recovery.
+1. Try the `app-evm` EVM decode/recovery path.
 2. If that fails, try mem/personality decode.
 3. If both fail, reject the transaction as invalid for the mixed domain.
 
 ## Status
-Active. This crate removes direct `app-evm -> app-mem` coupling and centralizes mixed transaction-kind detection.
-
+Active. This crate now lives under `crates/mem/` and remains the mixed classifier for `app-composite`; `app-evm` no longer depends on it.

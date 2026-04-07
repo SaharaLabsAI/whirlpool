@@ -9,7 +9,7 @@ Consensus-facing composite application that owns mixed transaction ingestion, cl
 ## Dependency Boundaries
 - `app`: `Application`, `TxSource`, `EvmBlock`, `ExecutionResult`, `Receipt`.
 - `app-evm`: pure EVM execution and receipt capture.
-- `tx-dispatch`: neutral mixed-tx classification into EVM or mem lanes.
+- `tx-dispatch`: mem-scoped mixed-tx classification into EVM or mem lanes.
 - `state`: `BlockStorage` for finalized block persistence.
 
 ## Key Type
@@ -20,4 +20,4 @@ Consensus-facing composite application that owns mixed transaction ingestion, cl
   - `store_finalized_block(&self, block, storage)`: persists finalized block receipts captured during propose/verify.
 
 ## Status
-Active. Moved under `crates/mem/`; `whirlpool-node` no longer depends on it directly.
+Active. Moved under `crates/mem/`; `whirlpool-node` no longer depends on it directly, and it consumes `tx-dispatch` from the same mem subtree.
