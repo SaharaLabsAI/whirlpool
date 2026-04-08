@@ -4,6 +4,7 @@ resolver = "2"
 members = [
     "crates/native-token",
     "crates/community-pool",
+    "crates/validators",
     "crates/consensus",
     "crates/consensus-simplex",
     "crates/p2p",

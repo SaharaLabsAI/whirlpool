@@ -1,18 +1,21 @@
 use alloy_genesis::{Genesis, GenesisAccount};
 use alloy_primitives::{Address, B256, U256};
 use core::convert::Infallible;
-use evm_precompiles::{whirlpool_precompiles, WhirlpoolEvmFactory};
+use evm_precompiles::{whirlpool_precompiles_with_validators, WhirlpoolEvmFactory};
 use native_token::{validate_genesis_alloc, NativeTokenError};
 use reth_chainspec::{Chain, ChainSpec, ChainSpecBuilder};
 use reth_ethereum_primitives::EthPrimitives;
 use reth_evm::{
-    eth::EthEvmBuilder, ConfigureEvm, EvmEnvFor, EvmFor, ExecutionCtxFor,
-    NextBlockEnvAttributes,
+    eth::EthEvmBuilder, ConfigureEvm, EvmEnvFor, EvmFor, ExecutionCtxFor, NextBlockEnvAttributes,
 };
 use reth_evm_ethereum::EthEvmConfig;
 use reth_primitives_traits::{BlockTy, HeaderTy, SealedBlock, SealedHeader};
 use std::collections::BTreeMap;
 use std::sync::Arc;
+use validators::{
+    decode_validator_registry_storage_opt, encode_validator_registry_storage, ValidatorEntry,
+    ValidatorRegistryError, SIMPLEX_VALIDATORS_REGISTRY,
+};
 
 pub const SAHARA_CHAIN_ID: u64 = 313_371;
 pub const DEFAULT_PROPOSER_FEE_RECIPIENT: Address = Address::new([
@@ -47,20 +50,53 @@ pub fn build_sahara_chain_spec_with_alloc(alloc: BTreeMap<Address, GenesisAccoun
 pub fn try_build_sahara_chain_spec_with_alloc(
     alloc: BTreeMap<Address, GenesisAccount>,
 ) -> Result<ChainSpec, NativeTokenError> {
-    try_build_sahara_chain_spec_with_alloc_and_fee_recipients(alloc, BTreeMap::new())
+    try_build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators(
+        alloc,
+        BTreeMap::new(),
+        Vec::new(),
+    )
 }
 
 pub fn build_sahara_chain_spec_with_alloc_and_fee_recipients(
     alloc: BTreeMap<Address, GenesisAccount>,
     validator_fee_recipients: BTreeMap<[u8; 32], Address>,
 ) -> ChainSpec {
-    try_build_sahara_chain_spec_with_alloc_and_fee_recipients(alloc, validator_fee_recipients)
-        .expect("provided genesis alloc should satisfy native-token cap")
+    try_build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators(
+        alloc,
+        validator_fee_recipients,
+        Vec::new(),
+    )
+    .expect("provided genesis alloc should satisfy native-token cap")
+}
+
+pub fn build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators(
+    alloc: BTreeMap<Address, GenesisAccount>,
+    validator_fee_recipients: BTreeMap<[u8; 32], Address>,
+    simplex_validators: Vec<ValidatorEntry>,
+) -> ChainSpec {
+    try_build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators(
+        alloc,
+        validator_fee_recipients,
+        simplex_validators,
+    )
+    .expect("provided genesis alloc should satisfy native-token cap")
 }
 
 pub fn try_build_sahara_chain_spec_with_alloc_and_fee_recipients(
+    alloc: BTreeMap<Address, GenesisAccount>,
+    validator_fee_recipients: BTreeMap<[u8; 32], Address>,
+) -> Result<ChainSpec, NativeTokenError> {
+    try_build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators(
+        alloc,
+        validator_fee_recipients,
+        Vec::new(),
+    )
+}
+
+pub fn try_build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators(
     mut alloc: BTreeMap<Address, GenesisAccount>,
     validator_fee_recipients: BTreeMap<[u8; 32], Address>,
+    simplex_validators: Vec<ValidatorEntry>,
 ) -> Result<ChainSpec, NativeTokenError> {
     if !validator_fee_recipients.is_empty() {
         let account = alloc
@@ -77,6 +113,16 @@ pub fn try_build_sahara_chain_spec_with_alloc_and_fee_recipients(
                 fee_recipient_storage_value(fee_recipient),
             );
         }
+    }
+
+    if !simplex_validators.is_empty() {
+        let account = alloc
+            .entry(SIMPLEX_VALIDATORS_REGISTRY)
+            .or_insert_with(|| GenesisAccount {
+                balance: U256::ZERO,
+                ..GenesisAccount::default()
+            });
+        account.storage = Some(encode_validator_registry_storage(&simplex_validators));
     }
 
     validate_genesis_alloc(&alloc)?;
@@ -98,15 +144,22 @@ pub struct WhirlpoolEvmConfig {
     inner: WhirlpoolInnerEvmConfig,
     local_proposer_public_key: [u8; 32],
     validator_fee_recipients: BTreeMap<[u8; 32], Address>,
+    simplex_validators: Vec<ValidatorEntry>,
 }
 
 impl WhirlpoolEvmConfig {
     pub fn new(chain_spec: Arc<ChainSpec>) -> Self {
         let validator_fee_recipients = validator_fee_recipients_from_chain_spec(&chain_spec);
+        let simplex_validators = try_simplex_validators_from_chain_spec(&chain_spec)
+            .expect("simplex validators registry encoding should decode");
         Self {
-            inner: EthEvmConfig::new_with_evm_factory(chain_spec, WhirlpoolEvmFactory),
+            inner: EthEvmConfig::new_with_evm_factory(
+                chain_spec,
+                WhirlpoolEvmFactory::with_validators(simplex_validators.clone()),
+            ),
             local_proposer_public_key: [0u8; 32],
             validator_fee_recipients,
+            simplex_validators,
         }
     }
 
@@ -132,6 +185,10 @@ impl WhirlpoolEvmConfig {
 
     pub fn local_proposer_public_key(&self) -> [u8; 32] {
         self.local_proposer_public_key
+    }
+
+    pub fn simplex_validators(&self) -> &[ValidatorEntry] {
+        &self.simplex_validators
     }
 }
 
@@ -165,6 +222,18 @@ fn validator_fee_recipients_from_chain_spec(chain_spec: &ChainSpec) -> BTreeMap<
         .unwrap_or_default()
 }
 
+pub fn try_simplex_validators_from_chain_spec(
+    chain_spec: &ChainSpec,
+) -> Result<Vec<ValidatorEntry>, ValidatorRegistryError> {
+    decode_validator_registry_storage_opt(
+        chain_spec
+            .genesis
+            .alloc
+            .get(&SIMPLEX_VALIDATORS_REGISTRY)
+            .and_then(|account| account.storage.as_ref()),
+    )
+}
+
 impl ConfigureEvm for WhirlpoolEvmConfig {
     type Primitives = EthPrimitives;
     type Error = Infallible;
@@ -192,10 +261,17 @@ impl ConfigureEvm for WhirlpoolEvmConfig {
         self.inner.next_evm_env(parent, attributes)
     }
 
-    fn evm_with_env<DB: reth_evm::Database>(&self, db: DB, evm_env: EvmEnvFor<Self>) -> EvmFor<Self, DB> {
+    fn evm_with_env<DB: reth_evm::Database>(
+        &self,
+        db: DB,
+        evm_env: EvmEnvFor<Self>,
+    ) -> EvmFor<Self, DB> {
         let spec = evm_env.cfg_env.spec;
         EthEvmBuilder::new(db, evm_env)
-            .precompiles(whirlpool_precompiles(spec))
+            .precompiles(whirlpool_precompiles_with_validators(
+                spec,
+                self.simplex_validators.clone(),
+            ))
             .build()
     }
 
@@ -219,12 +295,14 @@ impl ConfigureEvm for WhirlpoolEvmConfig {
 mod tests {
     use super::{
         build_sahara_chain_spec, build_sahara_chain_spec_with_alloc_and_fee_recipients,
-        try_build_sahara_chain_spec_with_alloc, WhirlpoolEvmConfig, DEFAULT_PROPOSER_FEE_RECIPIENT,
-        SAHARA_CHAIN_ID, VALIDATOR_FEE_RECIPIENTS_REGISTRY,
+        build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators,
+        try_build_sahara_chain_spec_with_alloc, try_simplex_validators_from_chain_spec,
+        WhirlpoolEvmConfig, DEFAULT_PROPOSER_FEE_RECIPIENT, SAHARA_CHAIN_ID,
+        VALIDATOR_FEE_RECIPIENTS_REGISTRY,
     };
     use alloy_genesis::GenesisAccount;
-    use alloy_primitives::{Address, U256};
-    use evm_precompiles::TEST_TOKEN_PRECOMPILE_ADDRESS;
+    use alloy_primitives::{address, Address, U256};
+    use evm_precompiles::{TEST_TOKEN_PRECOMPILE_ADDRESS, VALIDATORS_PRECOMPILE_ADDRESS};
     use native_token::{sahara_hard_cap_base_units, NativeTokenError};
     use reth_chainspec::EthereumHardforks;
     use reth_evm::{ConfigureEvm, Evm, EvmFactory, NextBlockEnvAttributes};
@@ -232,6 +310,7 @@ mod tests {
     use revm::{database::EmptyDB, primitives::B256};
     use std::collections::BTreeMap;
     use std::sync::Arc;
+    use validators::{ValidatorEntry, SIMPLEX_VALIDATORS_REGISTRY};
     #[test]
     fn test_evm_config_chain_spec() {
         let spec = Arc::new(build_sahara_chain_spec());
@@ -272,7 +351,14 @@ mod tests {
             .expect("next EVM env");
         let evm = config.evm_factory().create_evm(EmptyDB::default(), env);
 
-        assert!(evm.precompiles().get(&TEST_TOKEN_PRECOMPILE_ADDRESS).is_some());
+        assert!(evm
+            .precompiles()
+            .get(&TEST_TOKEN_PRECOMPILE_ADDRESS)
+            .is_some());
+        assert!(evm
+            .precompiles()
+            .get(&VALIDATORS_PRECOMPILE_ADDRESS)
+            .is_some());
     }
 
     #[test]
@@ -311,6 +397,83 @@ mod tests {
             .genesis
             .alloc
             .contains_key(&VALIDATOR_FEE_RECIPIENTS_REGISTRY));
+    }
+
+    #[test]
+    fn chain_spec_builder_writes_validator_registry() {
+        let validators = vec![
+            ValidatorEntry {
+                consensus_pubkey: [0x11; 32],
+                ethereum_address: address!("0x0000000000000000000000000000000000000011"),
+            },
+            ValidatorEntry {
+                consensus_pubkey: [0x22; 32],
+                ethereum_address: address!("0x0000000000000000000000000000000000000022"),
+            },
+        ];
+        let spec = build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators(
+            BTreeMap::new(),
+            BTreeMap::new(),
+            validators,
+        );
+
+        assert!(spec
+            .genesis
+            .alloc
+            .contains_key(&SIMPLEX_VALIDATORS_REGISTRY));
+    }
+
+    #[test]
+    fn chain_spec_reader_matches_written_validator_registry() {
+        let validators = vec![
+            ValidatorEntry {
+                consensus_pubkey: [0x33; 32],
+                ethereum_address: address!("0x0000000000000000000000000000000000000033"),
+            },
+            ValidatorEntry {
+                consensus_pubkey: [0x11; 32],
+                ethereum_address: address!("0x0000000000000000000000000000000000000011"),
+            },
+        ];
+        let spec = build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators(
+            BTreeMap::new(),
+            BTreeMap::new(),
+            validators.clone(),
+        );
+
+        let decoded = try_simplex_validators_from_chain_spec(&spec).expect("decode validators");
+        assert_eq!(decoded, validators);
+    }
+
+    #[test]
+    fn validator_registry_encoding_is_independent_of_fee_recipient_registry() {
+        let validator_key = [0xaa; 32];
+        let fee_recipient = address!("0x00000000000000000000000000000000000000aa");
+        let simplex_validators = vec![ValidatorEntry {
+            consensus_pubkey: validator_key,
+            ethereum_address: address!("0x00000000000000000000000000000000000000bb"),
+        }];
+        let mut fee_recipients = BTreeMap::new();
+        fee_recipients.insert(validator_key, fee_recipient);
+
+        let spec = build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators(
+            BTreeMap::new(),
+            fee_recipients,
+            simplex_validators,
+        );
+
+        assert!(spec
+            .genesis
+            .alloc
+            .contains_key(&VALIDATOR_FEE_RECIPIENTS_REGISTRY));
+        assert!(spec
+            .genesis
+            .alloc
+            .contains_key(&SIMPLEX_VALIDATORS_REGISTRY));
+        assert_ne!(
+            VALIDATOR_FEE_RECIPIENTS_REGISTRY,
+            SIMPLEX_VALIDATORS_REGISTRY
+        );
     }
 
     #[test]

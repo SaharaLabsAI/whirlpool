@@ -1,3 +1,4 @@
+use ::validators::ValidatorEntry as RegistryValidatorEntry;
 use alloy_primitives::{Address, Bytes};
 use alloy_sol_types::{sol, SolError};
 use reth_evm::{
@@ -14,8 +15,12 @@ use revm::{
 use std::collections::HashSet;
 
 pub mod test_token;
+pub mod validators;
 
 pub use test_token::{balance_of_calldata, mint_calldata, TEST_TOKEN_PRECOMPILE_ADDRESS};
+pub use validators::{
+    decode_validators_output, validators_calldata, VALIDATORS_PRECOMPILE_ADDRESS,
+};
 
 sol! {
     /// Shared framework-level error used when a Whirlpool-owned stateful precompile
@@ -117,15 +122,44 @@ where
 }
 
 pub fn build_whirlpool_precompiles(spec: SpecId) -> Result<PrecompilesMap, RegistryError> {
-    build_precompiles(spec, [test_token::TestTokenPrecompile::register()])
+    build_whirlpool_precompiles_with_validators(spec, Vec::new())
+}
+
+pub fn build_whirlpool_precompiles_with_validators(
+    spec: SpecId,
+    simplex_validators: Vec<RegistryValidatorEntry>,
+) -> Result<PrecompilesMap, RegistryError> {
+    build_precompiles(
+        spec,
+        [
+            test_token::TestTokenPrecompile::register(),
+            validators::register(simplex_validators),
+        ],
+    )
 }
 
 pub fn whirlpool_precompiles(spec: SpecId) -> PrecompilesMap {
-    build_whirlpool_precompiles(spec).expect("Whirlpool custom precompile registry must be valid")
+    whirlpool_precompiles_with_validators(spec, Vec::new())
 }
 
-#[derive(Debug, Default, Clone, Copy)]
-pub struct WhirlpoolEvmFactory;
+pub fn whirlpool_precompiles_with_validators(
+    spec: SpecId,
+    simplex_validators: Vec<RegistryValidatorEntry>,
+) -> PrecompilesMap {
+    build_whirlpool_precompiles_with_validators(spec, simplex_validators)
+        .expect("Whirlpool custom precompile registry must be valid")
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct WhirlpoolEvmFactory {
+    simplex_validators: Vec<RegistryValidatorEntry>,
+}
+
+impl WhirlpoolEvmFactory {
+    pub fn with_validators(simplex_validators: Vec<RegistryValidatorEntry>) -> Self {
+        Self { simplex_validators }
+    }
+}
 
 impl EvmFactory for WhirlpoolEvmFactory {
     type Evm<DB: reth_evm::Database, I: Inspector<Self::Context<DB>>> =
@@ -146,7 +180,10 @@ impl EvmFactory for WhirlpoolEvmFactory {
     ) -> Self::Evm<DB, NoOpInspector> {
         let spec = evm_env.cfg_env.spec;
         EthEvmBuilder::new(db, evm_env)
-            .precompiles(whirlpool_precompiles(spec))
+            .precompiles(whirlpool_precompiles_with_validators(
+                spec,
+                self.simplex_validators.clone(),
+            ))
             .build()
     }
 
@@ -159,7 +196,10 @@ impl EvmFactory for WhirlpoolEvmFactory {
         let spec = evm_env.cfg_env.spec;
         EthEvmBuilder::new(db, evm_env)
             .activate_inspector(inspector)
-            .precompiles(whirlpool_precompiles(spec))
+            .precompiles(whirlpool_precompiles_with_validators(
+                spec,
+                self.simplex_validators.clone(),
+            ))
             .build()
     }
 }
@@ -259,6 +299,7 @@ mod tests {
     fn registry_builds_expected_addresses() {
         let registry = build_whirlpool_precompiles(SpecId::CANCUN).expect("registry");
         assert!(registry.get(&TEST_TOKEN_PRECOMPILE_ADDRESS).is_some());
+        assert!(registry.get(&VALIDATORS_PRECOMPILE_ADDRESS).is_some());
 
         let duplicate = build_precompiles(
             SpecId::CANCUN,

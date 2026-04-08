@@ -1,14 +1,19 @@
+use alloy_primitives::Address;
+use app_evm::build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators;
 use commonware_cryptography::ed25519;
 use commonware_cryptography::Signer;
 use serde_json::json;
+use std::collections::BTreeMap;
 use std::error::Error;
 use std::net::{SocketAddr, TcpListener};
+use std::sync::Arc;
 use std::time::Duration;
+use validators::ValidatorEntry;
 use whirlpool_node::config::{
     parse_bootstrap_peer, ConsensusStartupConfig, IdentityConfig, NetworkConfig, NodeConfig,
     RpcConfig, StorageConfig,
 };
-use whirlpool_node::node::{start_node, NodeHandle};
+use whirlpool_node::node::{start_node_with_chain_spec, NodeHandle};
 
 fn allocate_port() -> u16 {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -24,6 +29,21 @@ async fn test_four_node_consensus() {
         .map(ed25519::PrivateKey::from_seed)
         .collect();
     let validator_pubkeys: Vec<_> = validator_signers.iter().map(|s| s.public_key()).collect();
+    let simplex_validators = validator_pubkeys
+        .iter()
+        .enumerate()
+        .map(|(i, pubkey)| ValidatorEntry {
+            consensus_pubkey: pubkey.as_ref().try_into().expect("ed25519 key length"),
+            ethereum_address: Address::repeat_byte((i + 1) as u8),
+        })
+        .collect::<Vec<_>>();
+    let chain_spec = Arc::new(
+        build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators(
+            BTreeMap::new(),
+            BTreeMap::new(),
+            simplex_validators,
+        ),
+    );
 
     let p2p_ports: Vec<u16> = (0..num_nodes).map(|_| allocate_port()).collect();
     let rpc_ports: Vec<u16> = (0..num_nodes).map(|_| allocate_port()).collect();
@@ -64,10 +84,11 @@ async fn test_four_node_consensus() {
                 namespace: b"whirlpool-multinode-consensus".to_vec(),
                 block_interval: Duration::from_secs(1),
             },
-            validators: Some(validator_pubkeys.clone()),
+            bootstrap_validators: Some(validator_pubkeys.clone()),
         };
 
-        let handle = start_node(config).expect("failed to start node");
+        let handle = start_node_with_chain_spec(config, Some(chain_spec.clone()))
+            .expect("failed to start node");
         println!(
             "Started node {i}: rpc={}, p2p={}",
             handle.rpc_addr, handle.p2p_addr

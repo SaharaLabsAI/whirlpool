@@ -1,0 +1,8 @@
+[package]
+name = "validators"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+alloy-primitives = "1.5.0"
+thiserror = "2"

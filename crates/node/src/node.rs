@@ -1,6 +1,11 @@
+use alloy_primitives::Address;
 use app::traits::TxSource;
 use app::ApplicationAdapter;
-use app_evm::{build_sahara_chain_spec, EvmApplication, WhirlpoolEvmConfig};
+use app_evm::{
+    build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators,
+    try_simplex_validators_from_chain_spec, EvmApplication, WhirlpoolEvmConfig,
+};
+use commonware_codec::Read;
 use commonware_cryptography::ed25519;
 use commonware_cryptography::Signer;
 use commonware_runtime::{tokio, Metrics, Runner};
@@ -19,6 +24,7 @@ use std::sync::{mpsc, Arc, RwLock};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 use tracing::info;
+use validators::{ordered_consensus_pubkeys, ValidatorEntry};
 
 use crate::config::NodeConfig;
 use crate::persisting_sink::PersistingFinalizationSink;
@@ -48,6 +54,67 @@ struct NodeInfo {
 
 type NodeResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
 
+fn decode_consensus_pubkey(bytes: [u8; 32]) -> NodeResult<ed25519::PublicKey> {
+    let mut reader = bytes.as_slice();
+    let public_key = ed25519::PublicKey::read_cfg(&mut reader, &())
+        .map_err(|err| std::io::Error::other(format!("invalid simplex validator key: {err}")))?;
+    if !reader.is_empty() {
+        return Err(Box::new(std::io::Error::other(
+            "invalid simplex validator key length",
+        )));
+    }
+    Ok(public_key)
+}
+
+fn simplex_validators_from_chain_spec(
+    chain_spec: &ChainSpec,
+) -> NodeResult<Vec<ed25519::PublicKey>> {
+    let entries = try_simplex_validators_from_chain_spec(chain_spec).map_err(|err| {
+        Box::new(std::io::Error::other(format!(
+            "failed to decode simplex validators registry: {err}"
+        ))) as Box<dyn Error + Send + Sync>
+    })?;
+
+    ordered_consensus_pubkeys(&entries)
+        .into_iter()
+        .map(decode_consensus_pubkey)
+        .collect()
+}
+
+fn resolve_validator_sets(
+    config: &NodeConfig,
+    local_signer: ed25519::PublicKey,
+    genesis_simplex_validators: &[ed25519::PublicKey],
+) -> NodeResult<(Vec<ed25519::PublicKey>, Vec<ed25519::PublicKey>)> {
+    let bootstrap_validators = config
+        .bootstrap_validators
+        .clone()
+        .unwrap_or_else(|| vec![local_signer.clone()]);
+    if genesis_simplex_validators.is_empty() {
+        return Err(Box::new(std::io::Error::other(
+            "genesis-backed simplex validator registry is empty",
+        )));
+    }
+
+    Ok((bootstrap_validators, genesis_simplex_validators.to_vec()))
+}
+
+fn ensure_signer_is_simplex_member(
+    local_signer: &ed25519::PublicKey,
+    simplex_validators: &[ed25519::PublicKey],
+) -> NodeResult<()> {
+    if simplex_validators
+        .iter()
+        .any(|validator| validator == local_signer)
+    {
+        return Ok(());
+    }
+
+    Err(Box::new(std::io::Error::other(
+        "local signer is not present in the genesis-backed simplex validator set",
+    )))
+}
+
 /// Start a node with the default Sahara chain specification.
 pub fn start_node(config: NodeConfig) -> NodeResult<NodeHandle> {
     start_node_with_chain_spec(config, None)
@@ -67,8 +134,26 @@ pub fn start_node_with_chain_spec(
             validate_genesis_alloc(&chain_spec.genesis.alloc)?;
             chain_spec
         }
-        None => Arc::new(build_sahara_chain_spec()),
+        None => {
+            let signer = ed25519::PrivateKey::from_seed(config.identity.seed);
+            let validator_entry = ValidatorEntry {
+                consensus_pubkey: signer
+                    .public_key()
+                    .as_ref()
+                    .try_into()
+                    .expect("ed25519 key length"),
+                ethereum_address: Address::ZERO,
+            };
+            Arc::new(
+                build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators(
+                    std::collections::BTreeMap::new(),
+                    std::collections::BTreeMap::new(),
+                    vec![validator_entry],
+                ),
+            )
+        }
     };
+    let genesis_simplex_validators = simplex_validators_from_chain_spec(&chain_spec)?;
     let (info_tx, info_rx) = mpsc::channel::<NodeResult<NodeInfo>>();
 
     let thread = thread::spawn(move || {
@@ -80,10 +165,24 @@ pub fn start_node_with_chain_spec(
             info!(?config, "Commonware runtime started");
 
             let signer = ed25519::PrivateKey::from_seed(config.identity.seed);
-            let validators = config
-                .validators
-                .clone()
-                .unwrap_or_else(|| vec![signer.public_key()]);
+            let signer_public_key = signer.public_key();
+            let (bootstrap_validators, simplex_validators) = match resolve_validator_sets(
+                &config,
+                signer_public_key.clone(),
+                &genesis_simplex_validators,
+            ) {
+                Ok(sets) => sets,
+                Err(err) => {
+                    let _ = info_tx.send(Err(err));
+                    return;
+                }
+            };
+            if let Err(err) =
+                ensure_signer_is_simplex_member(&signer_public_key, &simplex_validators)
+            {
+                let _ = info_tx.send(Err(err));
+                return;
+            }
 
             let listen_addr = config.network.listen_addr;
             let dialable_addr = config.network.dialable_addr;
@@ -96,7 +195,7 @@ pub fn start_node_with_chain_spec(
             .listen_addr(listen_addr)
             .dialable_addr(dialable_addr)
             .max_message_size(config.network.max_message_size)
-            .initial_validators(0, validators.clone())
+            .initial_validators(0, bootstrap_validators.clone())
             .bootstrappers(bootstrappers)
             .build(context.with_label("network"))
             .await;
@@ -148,7 +247,7 @@ pub fn start_node_with_chain_spec(
                 fetch_timeout: Duration::from_secs(5),
                 fetch_concurrent: 4,
                 signer,
-                validators,
+                validators: simplex_validators,
             };
 
             let mut proposer_public_key = [0u8; 32];
@@ -206,4 +305,91 @@ pub fn start_node_with_chain_spec(
         public_key: node_info.public_key,
         thread: Some(thread),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ensure_signer_is_simplex_member, resolve_validator_sets};
+    use crate::config::NodeConfig;
+    use commonware_cryptography::ed25519;
+    use commonware_cryptography::Signer;
+
+    #[test]
+    fn node_uses_genesis_registry_for_simplex_validators() {
+        let local_signer = ed25519::PrivateKey::from_seed(1).public_key();
+        let toml_bootstrap = vec![
+            ed25519::PrivateKey::from_seed(9).public_key(),
+            ed25519::PrivateKey::from_seed(10).public_key(),
+        ];
+        let genesis_simplex = vec![
+            local_signer.clone(),
+            ed25519::PrivateKey::from_seed(2).public_key(),
+        ];
+        let config = NodeConfig {
+            bootstrap_validators: Some(toml_bootstrap),
+            ..NodeConfig::default()
+        };
+
+        let (_bootstrap, simplex) = resolve_validator_sets(&config, local_signer, &genesis_simplex)
+            .expect("validator sets should resolve");
+
+        assert_eq!(simplex, genesis_simplex);
+    }
+
+    #[test]
+    fn node_keeps_toml_validators_for_p2p_bootstrap_only() {
+        let local_signer = ed25519::PrivateKey::from_seed(3).public_key();
+        let bootstrap_subset = vec![local_signer.clone()];
+        let genesis_simplex = vec![
+            local_signer.clone(),
+            ed25519::PrivateKey::from_seed(4).public_key(),
+            ed25519::PrivateKey::from_seed(5).public_key(),
+        ];
+        let config = NodeConfig {
+            bootstrap_validators: Some(bootstrap_subset.clone()),
+            ..NodeConfig::default()
+        };
+
+        let (bootstrap, simplex) = resolve_validator_sets(&config, local_signer, &genesis_simplex)
+            .expect("validator sets should resolve");
+
+        assert_eq!(bootstrap, bootstrap_subset);
+        assert_eq!(simplex, genesis_simplex);
+    }
+
+    #[test]
+    fn node_rejects_empty_genesis_registry_for_simplex() {
+        let local_signer = ed25519::PrivateKey::from_seed(6).public_key();
+        let bootstrap_set = vec![
+            local_signer.clone(),
+            ed25519::PrivateKey::from_seed(7).public_key(),
+        ];
+        let config = NodeConfig {
+            bootstrap_validators: Some(bootstrap_set.clone()),
+            ..NodeConfig::default()
+        };
+
+        let err = resolve_validator_sets(&config, local_signer, &[])
+            .expect_err("empty genesis registry should fail");
+        assert!(
+            err.to_string().contains("registry is empty"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn node_startup_fails_when_signer_missing_from_genesis_registry() {
+        let local_signer = ed25519::PrivateKey::from_seed(8).public_key();
+        let simplex_validators = vec![
+            ed25519::PrivateKey::from_seed(11).public_key(),
+            ed25519::PrivateKey::from_seed(12).public_key(),
+        ];
+
+        let err = ensure_signer_is_simplex_member(&local_signer, &simplex_validators)
+            .expect_err("signer must be in simplex validator set");
+        assert!(
+            err.to_string().contains("local signer is not present"),
+            "unexpected error: {err}"
+        );
+    }
 }

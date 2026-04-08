@@ -3,6 +3,7 @@
 ## Purpose
 Pure EVM configuration and execution integration for Whirlpool applications.
 Genesis `ChainSpec` construction now shares the native-token hard cap from the `native-token` crate.
+Genesis validator-registry encoding/decoding is shared from the `validators` crate.
 Custom Whirlpool precompiles are now injected through the `evm-precompiles` crate.
 
 ## Interface/Implementation Split
@@ -35,6 +36,7 @@ The executor uses `.map_err(Into::into)` on all `StateProvider` calls to convert
 ## Fee Routing
 - `DEFAULT_PROPOSER_FEE_RECIPIENT`: legacy fallback used only when no validator fee-recipient mapping exists in genesis.
 - `VALIDATOR_FEE_RECIPIENTS_REGISTRY`: fixed genesis account whose storage maps validator ed25519 public keys to configured EVM fee-recipient addresses.
+- `SIMPLEX_VALIDATORS_REGISTRY` (from `validators` crate): fixed genesis account whose storage encodes the ordered simplex validator list `{consensus_pubkey, ethereum_address}`.
 - `COMMUNITY_POOL_ADDRESS` (from `community-pool` crate): fixed account credited with each block's burned amount.
 - `EvmApplication::propose_evm_transactions()` resolves the local proposer's fee recipient from the genesis registry, commits the execution bundle, then credits the community pool by `gas_used * base_fee_per_gas` before computing the block state root.
 - `EvmApplication::verify_evm_transactions()` validates the block-carried proposer recipient against the genesis registry (when present) before replaying execution and burned-fee credit.
@@ -43,9 +45,12 @@ The executor uses `.map_err(Into::into)` on all `StateProvider` calls to convert
 - `app_evm::traits::StateProvider`
 - `app_evm::build_sahara_chain_spec` / `app_evm::build_sahara_chain_spec_with_alloc`
 - `app_evm::build_sahara_chain_spec_with_alloc_and_fee_recipients`
+- `app_evm::build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators`
 - `app_evm::try_build_sahara_chain_spec*`
+- `app_evm::try_simplex_validators_from_chain_spec`
 - `app_evm::DEFAULT_PROPOSER_FEE_RECIPIENT`
 - `app_evm::VALIDATOR_FEE_RECIPIENTS_REGISTRY`
+- `validators::SIMPLEX_VALIDATORS_REGISTRY`
 - `community_pool::COMMUNITY_POOL_ADDRESS`
 - `native_token::validate_genesis_alloc`
 - `state::traits::StateDb` (interface trait)
@@ -53,7 +58,7 @@ The executor uses `.map_err(Into::into)` on all `StateProvider` calls to convert
 - `state_memory::InMemoryStateDb` (test code only)
 
 ## Key Types
-- `WhirlpoolEvmConfig`: wrapper for EVM configuration. Reads the genesis validator->recipient registry, tracks the local proposer public key, resolves proposer fee recipients for proposal/verification, and overrides `evm_with_env(...)` to install Whirlpool custom precompiles.
+- `WhirlpoolEvmConfig`: wrapper for EVM configuration. Reads genesis fee-recipient and simplex-validator registries, tracks the local proposer public key, resolves proposer fee recipients for proposal/verification, and injects precompiles with the decoded ordered validator list.
 - `EvmApplication`: application implementation that executes EVM-only blocks.
   - `pending_receipts: Arc<Mutex<Option<Vec<Receipt>>>>`: temporary storage for receipts between execution and persistence.
   - `last_proposed: Arc<Mutex<Option<(u64, EvmBlock, ExecutionResult, Vec<Receipt>)>>>`: cache for the most recent proposal at a given height; prevents duplicate mempool drain when simplex calls `propose()` multiple times for the same height.
@@ -68,11 +73,13 @@ The executor uses `.map_err(Into::into)` on all `StateProvider` calls to convert
 - `build_sahara_chain_spec() -> Arc<ChainSpec>`: builds the standard Sahara chain spec (chain ID 313371, Cancun-activated).
 - `build_sahara_chain_spec_with_alloc(alloc: BTreeMap<Address, GenesisAccount>) -> Arc<ChainSpec>`: builds a Sahara chain spec with pre-funded genesis accounts. Used for integration tests requiring funded accounts.
 - `build_sahara_chain_spec_with_alloc_and_fee_recipients(...) -> Arc<ChainSpec>`: builds a Sahara chain spec with pre-funded accounts plus genesis storage mapping validator public keys to EVM fee-recipient addresses.
+- `build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators(...) -> Arc<ChainSpec>`: builds a Sahara chain spec with fee-recipient registry data plus ordered simplex-validator registry entries.
+- `try_simplex_validators_from_chain_spec(...) -> Result<Vec<ValidatorEntry>, ValidatorRegistryError>`: decodes ordered simplex-validator entries from genesis alloc storage.
 - `try_build_sahara_chain_spec* -> Result<ChainSpec, NativeTokenError>`: fallible constructors that reject over-cap genesis allocs before building the spec.
 
 ## Precompile Wiring
 - `crates/evm/app/src/config.rs` now composes `EthEvmConfig<ChainSpec, WhirlpoolEvmFactory>` internally.
-- `WhirlpoolEvmConfig::evm_with_env(...)` injects `evm_precompiles::whirlpool_precompiles(spec)` through `EthEvmBuilder`.
+- `WhirlpoolEvmConfig::evm_with_env(...)` injects `evm_precompiles::whirlpool_precompiles_with_validators(spec, decoded_simplex_validators)` through `EthEvmBuilder`.
 - Proposal and verification still use the unchanged builder path in `crates/evm/app/src/executor.rs`; the precompile registry is attached at config/factory level rather than executor special-casing.
 - `crates/evm/app/src/executor.rs` now includes a regression test that verifies block replay succeeds for a transaction that reaches a precompile through a small forwarding contract.
 

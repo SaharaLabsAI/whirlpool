@@ -40,6 +40,7 @@ Structured reference docs optimized for fast LLM lookup. Each contains type sign
 | [crates/evm-precompiles.md](crates/evm-precompiles.md) | Workspace-owned registry/factory/example crate for Whirlpool custom EVM precompiles | `evm-precompiles` |
 | [crates/community-pool.md](crates/community-pool.md) | Fixed community-pool account constant used by the current fee-accounting slice | `community-pool` |
 | [crates/native-token.md](crates/native-token.md) | Canonical Sahara native-token hard cap and genesis allocation validation helpers | `native-token` |
+| [crates/validators.md](crates/validators.md) | Ordered simplex validator-registry model and genesis-storage codec shared across node/app/precompile surfaces | `validators` |
 | [crates/tx-dispatch.md](crates/tx-dispatch.md) | Mem-scoped mixed transaction classification across EVM and mem tx families | `tx-dispatch` |
 | [crates/rpc-eth.md](crates/rpc-eth.md) | Ethereum JSON-RPC server: reth-backed adapters (WhirlpoolProvider, WhirlpoolTxPool, WhirlpoolNetwork), RpcConfig API, blob exclusion | `rpc-eth` |
 | [crates/state-reth.md](crates/state-reth.md) | Persistent state implementation: RethStateDb, MDBX, state root | `state-reth` |
@@ -104,6 +105,7 @@ Step-by-step instructions for common tasks and workflows.
 | `app-composite` | `crates/mem/composite/src/` | `crates/app-composite.md` | — |
 | `community-pool` | `crates/community-pool/src/` | `crates/community-pool.md` | — |
 | `native-token` | `crates/native-token/src/` | `crates/native-token.md` | — |
+| `validators` | `crates/validators/src/` | `crates/validators.md` | — |
 | `mempool` | `crates/mempool/src/` | `crates/mempool.md` | — |
 | `tx-dispatch` | `crates/mem/tx-dispatch/src/` | `crates/tx-dispatch.md` | — |
 | `rpc-mem` | `crates/mem/rpc/src/` | `crates/rpc-mem.md` | — |

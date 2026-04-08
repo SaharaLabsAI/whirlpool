@@ -617,9 +617,8 @@ mod tests {
     }
 
     fn precompile_proxy_runtime_bytecode() -> Bytes {
-        let mut runtime =
-            alloy_primitives::hex::decode("36600060003760006000366000600073")
-                .expect("forwarder prefix");
+        let mut runtime = alloy_primitives::hex::decode("36600060003760006000366000600073")
+            .expect("forwarder prefix");
         runtime.extend_from_slice(TEST_TOKEN_PRECOMPILE_ADDRESS.as_slice());
         runtime.extend_from_slice(
             &alloy_primitives::hex::decode("5af13d600060003e156034573d6000f35b3d6000fd")

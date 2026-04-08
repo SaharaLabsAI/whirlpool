@@ -10,14 +10,15 @@ use alloy_primitives::{Address, Bytes, FixedBytes, B256, U256};
 use alloy_signer::Signer as AlloySigner;
 use alloy_signer_local::PrivateKeySigner;
 use app_evm::{
-    build_sahara_chain_spec_with_alloc_and_fee_recipients, DEFAULT_PROPOSER_FEE_RECIPIENT,
-    SAHARA_CHAIN_ID,
+    build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators,
+    DEFAULT_PROPOSER_FEE_RECIPIENT, SAHARA_CHAIN_ID,
 };
 use commonware_cryptography::{ed25519, Signer as CwSigner};
 use community_pool::COMMUNITY_POOL_ADDRESS;
 use reqwest::Client;
 use reth_chainspec::ChainSpec;
 use tempfile::TempDir;
+use validators::ValidatorEntry;
 use whirlpool_node::config::{
     parse_bootstrap_peer, ConsensusStartupConfig, IdentityConfig, NetworkConfig, NodeConfig,
     RpcConfig as NodeRpcConfig, StorageConfig, DEFAULT_MAX_MESSAGE_SIZE,
@@ -124,6 +125,17 @@ fn validator_public_key_bytes(public_key: &ed25519::PublicKey) -> [u8; 32] {
     bytes
 }
 
+fn validator_entries(pubkeys: &[ed25519::PublicKey]) -> Vec<ValidatorEntry> {
+    pubkeys
+        .iter()
+        .enumerate()
+        .map(|(i, public_key)| ValidatorEntry {
+            consensus_pubkey: validator_public_key_bytes(public_key),
+            ethereum_address: Address::repeat_byte((i + 1) as u8),
+        })
+        .collect()
+}
+
 fn block_reward_recipient(block: &serde_json::Value) -> Address {
     block
         .get("miner")
@@ -159,7 +171,11 @@ fn start_funded_node(
     );
 
     let chain_spec: ChainSpec =
-        build_sahara_chain_spec_with_alloc_and_fee_recipients(alloc, validator_fee_recipients);
+        build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators(
+            alloc,
+            validator_fee_recipients,
+            validator_entries(std::slice::from_ref(&public_key)),
+        );
     let p2p_port = allocate_port();
     let rpc_port = allocate_port();
     let p2p_addr: SocketAddr = format!("127.0.0.1:{p2p_port}")
@@ -189,7 +205,7 @@ fn start_funded_node(
             namespace: format!("community-pool-{seed}").into_bytes(),
             block_interval: Duration::from_secs(1),
         },
-        validators: Some(vec![public_key.clone()]),
+        bootstrap_validators: Some(vec![public_key.clone()]),
     };
 
     let handle = start_node_with_chain_spec(config, Some(std::sync::Arc::new(chain_spec)))
@@ -234,10 +250,13 @@ fn start_multinode_fee_network(
         .zip(fee_recipients.iter().copied())
         .map(|(public_key, fee_recipient)| (validator_public_key_bytes(public_key), fee_recipient))
         .collect();
-    let chain_spec = std::sync::Arc::new(build_sahara_chain_spec_with_alloc_and_fee_recipients(
-        alloc,
-        validator_fee_recipients,
-    ));
+    let chain_spec = std::sync::Arc::new(
+        build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators(
+            alloc,
+            validator_fee_recipients,
+            validator_entries(&validator_pubkeys),
+        ),
+    );
 
     let p2p_ports: Vec<u16> = (0..seeds_and_fee_recipients.len())
         .map(|_| allocate_port())
@@ -280,7 +299,7 @@ fn start_multinode_fee_network(
                 namespace: b"community-pool-multinode-consensus".to_vec(),
                 block_interval: Duration::from_secs(1),
             },
-            validators: Some(validator_pubkeys.clone()),
+            bootstrap_validators: Some(validator_pubkeys.clone()),
         };
 
         let handle = start_node_with_chain_spec(config, Some(chain_spec.clone()))

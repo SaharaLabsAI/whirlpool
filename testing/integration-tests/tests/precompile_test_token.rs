@@ -9,14 +9,15 @@ use alloy_genesis::GenesisAccount;
 use alloy_primitives::{Address, Bytes, B256, U256};
 use alloy_signer::Signer as AlloySigner;
 use alloy_signer_local::PrivateKeySigner;
-use app_evm::{build_sahara_chain_spec_with_alloc, SAHARA_CHAIN_ID};
-use commonware_cryptography::{ed25519, Signer as CwSigner};
-use evm_precompiles::{
-    balance_of_calldata, mint_calldata, TEST_TOKEN_PRECOMPILE_ADDRESS,
+use app_evm::{
+    build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators, SAHARA_CHAIN_ID,
 };
+use commonware_cryptography::{ed25519, Signer as CwSigner};
+use evm_precompiles::{balance_of_calldata, mint_calldata, TEST_TOKEN_PRECOMPILE_ADDRESS};
 use reqwest::Client;
 use reth_chainspec::ChainSpec;
 use tempfile::TempDir;
+use validators::ValidatorEntry;
 use whirlpool_node::config::{
     parse_bootstrap_peer, ConsensusStartupConfig, IdentityConfig, NetworkConfig, NodeConfig,
     RpcConfig as NodeRpcConfig, StorageConfig, DEFAULT_MAX_MESSAGE_SIZE,
@@ -108,7 +109,22 @@ fn parse_rpc_address(value: &serde_json::Value, field: &str) -> Address {
         .unwrap_or_else(|err| panic!("failed to parse {field} address {text}: {err}"))
 }
 
-fn build_funded_chain_spec(funded_address: Address, balance: U256) -> ChainSpec {
+fn validator_entries(pubkeys: &[ed25519::PublicKey]) -> Vec<ValidatorEntry> {
+    pubkeys
+        .iter()
+        .enumerate()
+        .map(|(i, pubkey)| ValidatorEntry {
+            consensus_pubkey: pubkey.as_ref().try_into().expect("ed25519 key length"),
+            ethereum_address: Address::repeat_byte((i + 1) as u8),
+        })
+        .collect()
+}
+
+fn build_funded_chain_spec(
+    funded_address: Address,
+    balance: U256,
+    simplex_pubkeys: &[ed25519::PublicKey],
+) -> ChainSpec {
     let mut alloc = BTreeMap::new();
     alloc.insert(
         funded_address,
@@ -117,14 +133,18 @@ fn build_funded_chain_spec(funded_address: Address, balance: U256) -> ChainSpec 
             ..GenesisAccount::default()
         },
     );
-    build_sahara_chain_spec_with_alloc(alloc)
+    build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators(
+        alloc,
+        BTreeMap::new(),
+        validator_entries(simplex_pubkeys),
+    )
 }
 
 fn start_funded_node(seed: u64, funded_address: Address, balance: U256) -> (NodeHandle, TempDir) {
     let tempdir = TempDir::new()
         .unwrap_or_else(|err| panic!("failed to create temp dir for funded node {seed}: {err}"));
     let public_key = ed25519::PrivateKey::from_seed(seed).public_key();
-    let chain_spec = build_funded_chain_spec(funded_address, balance);
+    let chain_spec = build_funded_chain_spec(funded_address, balance, &[public_key.clone()]);
     let p2p_port = allocate_port();
     let rpc_port = allocate_port();
     let p2p_addr: SocketAddr = format!("127.0.0.1:{p2p_port}")
@@ -154,7 +174,7 @@ fn start_funded_node(seed: u64, funded_address: Address, balance: U256) -> (Node
             namespace: format!("precompile-test-consensus-{seed}").into_bytes(),
             block_interval: Duration::from_secs(1),
         },
-        validators: Some(vec![public_key.clone()]),
+        bootstrap_validators: Some(vec![public_key.clone()]),
     };
 
     let handle = start_node_with_chain_spec(config, Some(std::sync::Arc::new(chain_spec)))
@@ -179,7 +199,11 @@ fn start_multinode_test_network(
         .map(|seed| ed25519::PrivateKey::from_seed(*seed))
         .collect();
     let validator_pubkeys: Vec<_> = validator_keys.iter().map(|key| key.public_key()).collect();
-    let chain_spec = std::sync::Arc::new(build_funded_chain_spec(funded_address, balance));
+    let chain_spec = std::sync::Arc::new(build_funded_chain_spec(
+        funded_address,
+        balance,
+        &validator_pubkeys,
+    ));
     let p2p_ports: Vec<u16> = (0..seeds.len()).map(|_| allocate_port()).collect();
     let rpc_ports: Vec<u16> = (0..seeds.len()).map(|_| allocate_port()).collect();
     let tempdirs: Vec<_> = (0..seeds.len())
@@ -217,7 +241,7 @@ fn start_multinode_test_network(
                 namespace: b"precompile-test-multinode-consensus".to_vec(),
                 block_interval: Duration::from_secs(1),
             },
-            validators: Some(validator_pubkeys.clone()),
+            bootstrap_validators: Some(validator_pubkeys.clone()),
         };
 
         handles.push(
@@ -379,9 +403,8 @@ async fn sign_eip1559_tx(signer: &PrivateKeySigner, tx: TxEip1559) -> Vec<u8> {
 }
 
 fn precompile_proxy_deployment_bytecode() -> Bytes {
-    let mut runtime =
-        hex::decode("36600060003760006000366000600073")
-            .expect("forwarder runtime prefix should decode");
+    let mut runtime = hex::decode("36600060003760006000366000600073")
+        .expect("forwarder runtime prefix should decode");
     runtime.extend_from_slice(TEST_TOKEN_PRECOMPILE_ADDRESS.as_slice());
     runtime.extend_from_slice(
         &hex::decode("5af13d600060003e156034573d6000f35b3d6000fd")
@@ -423,7 +446,10 @@ async fn deploy_precompile_proxy(
     (tx_hash, receipt, contract_address)
 }
 
-async fn submit_raw_tx_to_network(rpc_addrs: &[SocketAddr], raw_tx: &[u8]) -> (B256, serde_json::Value) {
+async fn submit_raw_tx_to_network(
+    rpc_addrs: &[SocketAddr],
+    raw_tx: &[u8],
+) -> (B256, serde_json::Value) {
     let tx_hash = send_raw_tx(rpc_addrs[0], raw_tx).await;
     let client = test_client();
     for rpc_addr in &rpc_addrs[1..] {
@@ -450,11 +476,15 @@ async fn submit_raw_tx_to_network(rpc_addrs: &[SocketAddr], raw_tx: &[u8]) -> (B
             }
         } else {
             let echoed_hash = parse_rpc_b256(&response["result"], "eth_sendRawTransaction result");
-            assert_eq!(echoed_hash, tx_hash, "all nodes should return the same tx hash");
+            assert_eq!(
+                echoed_hash, tx_hash,
+                "all nodes should return the same tx hash"
+            );
         }
     }
 
-    let (_receipt_addr, receipt) = wait_for_receipt_on_any(rpc_addrs, tx_hash, Duration::from_secs(60)).await;
+    let (_receipt_addr, receipt) =
+        wait_for_receipt_on_any(rpc_addrs, tx_hash, Duration::from_secs(60)).await;
     (tx_hash, receipt)
 }
 
@@ -492,13 +522,7 @@ async fn account_balance(rpc_addr: SocketAddr, owner: Address) -> U256 {
     let response = post_json_to_addr(
         client,
         rpc_addr,
-        rpc_req(
-            "eth_getBalance",
-            serde_json::json!([
-                owner,
-                "latest"
-            ]),
-        ),
+        rpc_req("eth_getBalance", serde_json::json!([owner, "latest"])),
     )
     .await;
 
@@ -587,7 +611,10 @@ async fn test_test_token_state_changing_tx_full_node() {
         }
         tokio::time::sleep(Duration::from_millis(200)).await;
     }
-    assert_eq!(account_balance(rpc_addr, recipient).await, U256::from(7_u64));
+    assert_eq!(
+        account_balance(rpc_addr, recipient).await,
+        U256::from(7_u64)
+    );
     assert!(
         parse_rpc_u64(&receipt["gasUsed"], "receipt.gasUsed") >= 21_000,
         "gas used should include execution costs: {receipt}"
@@ -685,7 +712,11 @@ async fn test_precompile_framework_is_available_in_verification_path() {
     let recipient = Address::repeat_byte(0x77);
     let funded_balance = U256::from(100_000_000_000_000_000_000u128);
     let network = start_multinode_test_network(&[500, 501], signer.address(), funded_balance);
-    let rpc_addrs: Vec<_> = network.handles.iter().map(|handle| handle.rpc_addr).collect();
+    let rpc_addrs: Vec<_> = network
+        .handles
+        .iter()
+        .map(|handle| handle.rpc_addr)
+        .collect();
 
     for rpc_addr in &rpc_addrs {
         wait_for_block(*rpc_addr, 1, Duration::from_secs(60)).await;

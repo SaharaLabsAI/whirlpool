@@ -12,6 +12,7 @@
 - `app`: application adapter + `TxSource` trait.
 - `app-evm`: pure EVM execution implementation plus Sahara chain-spec builders.
 - `native-token`: shared hard-cap validation for genesis allocs.
+- `validators`: canonical ordered simplex-validator registry model/codec.
 - `mempool`: `PersistentTxPool` for transaction storage.
 - `state`: `StateDb` trait and `BlockStorage` trait.
 - `state-reth`: `RethStateDb` implementation for persistent state and block storage.
@@ -30,7 +31,11 @@
 - `EvmApplication` is wired directly into `ApplicationAdapter` and `PersistingFinalizationSink`.
 - `PersistingFinalizationSink` persists finalized blocks only; personality/mem persistence was removed from the node path.
 - `rpc_eth::start_rpc_server()` is the only RPC server startup in `node.rs`.
-- `NodeConfig.validators` is optional. When unset, startup falls back to the local signer's public key. The resolved list is currently reused for both `CommonwareNetworkProviderBuilder::initial_validators(0, ...)` and `CommonwareConfig.validators`, so the same startup set feeds P2P discovery/oracle seeding and simplex membership (`crates/node/src/node.rs:83` and `crates/node/src/node.rs:151`).
+- `NodeConfig.bootstrap_validators` is optional and used only as a P2P discovery bootstrap hint.
+- Simplex membership is sourced from the genesis-backed validator registry via `app_evm::try_simplex_validators_from_chain_spec(...)`.
+- `start_node(config)` auto-builds the default chain spec with a singleton genesis simplex validator entry for the local signer.
+- `start_node_with_chain_spec(config, Some(chain_spec))` requires the provided chain spec to contain a non-empty simplex registry.
+- Startup now fails early when the local signer is not present in the resolved simplex validator set.
 
 ## RPC
 The node runs one RPC server:

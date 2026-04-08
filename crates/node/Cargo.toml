@@ -8,6 +8,7 @@ app = { path = "../app" }
 app-evm = { path = "../evm/app" }
 mempool-mdbx = { path = "../mempool-mdbx" }
 native-token = { path = "../native-token" }
+validators = { path = "../validators" }
 rpc-eth = { path = "../evm/rpc" }
 reth-chainspec = { path = "../../vendor/reth/crates/chainspec" }
 reth-revm = { path = "../../vendor/reth/crates/revm" }

@@ -9,10 +9,14 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
 ## Key exports
 - `WhirlpoolEvmFactory`: custom EVM factory that injects Whirlpool precompiles into `EthEvmBuilder`.
 - `whirlpool_precompiles(spec) -> PrecompilesMap`: builds builtin+Whirlpool precompile map for a given spec.
+- `whirlpool_precompiles_with_validators(spec, validators) -> PrecompilesMap`: builds builtin+Whirlpool precompile map with a captured ordered simplex-validator list.
 - `NonDirectCall`: shared ABI-visible framework error for non-direct Whirlpool precompile execution.
 - `TEST_TOKEN_PRECOMPILE_ADDRESS`
+- `VALIDATORS_PRECOMPILE_ADDRESS`
 - `mint_calldata(address, amount)`
 - `balance_of_calldata(address)`
+- `validators_calldata()`
+- `decode_validators_output(bytes)`
 
 ## Framework shape
 - `src/lib.rs`: registry, duplicate-address protection, safe-default stateful registration guard, factory wiring, crate-level tests.
@@ -20,10 +24,12 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
 - `src/test_token/dispatch.rs`: alloy `sol!` ABI definitions plus calldata decode/encode helpers.
 - `src/test_token/gas.rs`: example per-precompile gas policy.
 - `src/test_token/impl.rs`: example stateful business logic.
+- `src/validators/mod.rs`: ordered simplex-validator precompile ABI, output encoder/decoder, and tests.
 
 ## Design notes
 - Custom precompiles are installed through `PrecompilesMap` dynamic entries, not vendor edits.
 - The example `test-token` precompile is validation scaffolding, not a default product feature.
+- The validators precompile is read-only and returns the ordered list provided by the canonical Rust validator reader (`validators` crate).
 - The current example mutates journaled EVM **account balances** and exposes them through a precompile ABI.
 - Whirlpool-owned stateful precompiles registered via `RegisteredPrecompile::new_stateful` are direct-call-only: the final hop must keep `target_address == bytecode_address`, which allows ordinary `CALL`/`STATICCALL` and rejects delegate-style execution.
 - Non-direct-call rejection is a framework-level revert emitted before the target handler runs, so it reports zero precompile-local `gas_used`; enclosing EVM call/setup overhead is still charged outside the precompile.

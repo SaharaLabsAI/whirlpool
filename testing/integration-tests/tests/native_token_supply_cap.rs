@@ -19,6 +19,7 @@ use native_token::sahara_hard_cap_base_units;
 use reqwest::Client;
 use reth_chainspec::{Chain, ChainSpec, ChainSpecBuilder};
 use tempfile::TempDir;
+use validators::{encode_validator_registry_storage, ValidatorEntry, SIMPLEX_VALIDATORS_REGISTRY};
 use whirlpool_node::config::{
     ConsensusStartupConfig, IdentityConfig, NetworkConfig, NodeConfig, RpcConfig as NodeRpcConfig,
     StorageConfig, DEFAULT_MAX_MESSAGE_SIZE,
@@ -132,12 +133,29 @@ fn manual_chain_spec_with_alloc(alloc: BTreeMap<Address, GenesisAccount>) -> Cha
 
 fn start_node_for_chain_spec(
     seed: u64,
-    chain_spec: ChainSpec,
+    mut chain_spec: ChainSpec,
 ) -> Result<(NodeHandle, TempDir), String> {
     let tempdir = TempDir::new()
         .unwrap_or_else(|err| panic!("failed to create temp dir for funded node {seed}: {err}"));
     let validator_key = ed25519::PrivateKey::from_seed(seed);
     let public_key = validator_key.public_key();
+    if !chain_spec
+        .genesis
+        .alloc
+        .contains_key(&SIMPLEX_VALIDATORS_REGISTRY)
+    {
+        chain_spec.genesis.alloc.insert(
+            SIMPLEX_VALIDATORS_REGISTRY,
+            GenesisAccount {
+                balance: U256::ZERO,
+                storage: Some(encode_validator_registry_storage(&[ValidatorEntry {
+                    consensus_pubkey: validator_public_key_bytes(&public_key),
+                    ethereum_address: Address::ZERO,
+                }])),
+                ..GenesisAccount::default()
+            },
+        );
+    }
     let p2p_port = allocate_port();
     let rpc_port = allocate_port();
     let p2p_addr: SocketAddr = format!("127.0.0.1:{p2p_port}")
@@ -167,7 +185,7 @@ fn start_node_for_chain_spec(
             namespace: format!("native-token-supply-{seed}").into_bytes(),
             block_interval: Duration::from_secs(1),
         },
-        validators: Some(vec![public_key]),
+        bootstrap_validators: Some(vec![public_key]),
     };
 
     start_node_with_chain_spec(config, Some(Arc::new(chain_spec)))

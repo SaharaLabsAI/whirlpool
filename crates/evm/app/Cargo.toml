@@ -11,6 +11,7 @@ app = { path = "../../app" }
 community-pool = { path = "../../community-pool" }
 evm-precompiles = { path = "../precompiles" }
 native-token = { path = "../../native-token" }
+validators = { path = "../../validators" }
 state = { path = "../../state" }
 state-memory = { path = "../../mem/state" }
 state-reth = { path = "../state" }

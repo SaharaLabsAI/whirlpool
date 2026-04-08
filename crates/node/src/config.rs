@@ -55,14 +55,18 @@ pub struct NodeArgs {
     pub block_interval_ms: Option<u64>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct NodeConfig {
     pub network: NetworkConfig,
     pub identity: IdentityConfig,
     pub rpc: RpcConfig,
     pub storage: StorageConfig,
     pub consensus: ConsensusStartupConfig,
-    pub validators: Option<Vec<ed25519::PublicKey>>,
+    /// Optional startup peer set hint used only for discovery bootstrap.
+    ///
+    /// This does not define simplex consensus authority; simplex validators are
+    /// sourced from the genesis-backed registry.
+    pub bootstrap_validators: Option<Vec<ed25519::PublicKey>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -109,7 +113,8 @@ pub struct TomlConfig {
     pub network_namespace: Option<String>,
     pub consensus_namespace: Option<String>,
     pub block_interval_ms: Option<u64>,
-    pub validators: Option<Vec<String>>,
+    #[serde(alias = "validators")]
+    pub bootstrap_validators: Option<Vec<String>>,
 }
 
 #[derive(Debug)]
@@ -135,7 +140,7 @@ pub enum ConfigError {
         value: String,
         reason: String,
     },
-    EmptyValidators,
+    EmptyBootstrapValidators,
 }
 
 impl fmt::Display for ConfigError {
@@ -166,8 +171,11 @@ impl fmt::Display for ConfigError {
             Self::InvalidValidator { value, reason } => {
                 write!(f, "failed to parse validator '{value}': {reason}")
             }
-            Self::EmptyValidators => {
-                write!(f, "validators must not be empty when explicitly configured")
+            Self::EmptyBootstrapValidators => {
+                write!(
+                    f,
+                    "bootstrap validators must not be empty when explicitly configured"
+                )
             }
         }
     }
@@ -181,20 +189,7 @@ impl std::error::Error for ConfigError {
             Self::InvalidSocketAddr { source, .. } => Some(source),
             Self::InvalidBootstrapPeer { .. }
             | Self::InvalidValidator { .. }
-            | Self::EmptyValidators => None,
-        }
-    }
-}
-
-impl Default for NodeConfig {
-    fn default() -> Self {
-        Self {
-            network: NetworkConfig::default(),
-            identity: IdentityConfig::default(),
-            rpc: RpcConfig::default(),
-            storage: StorageConfig::default(),
-            consensus: ConsensusStartupConfig::default(),
-            validators: None,
+            | Self::EmptyBootstrapValidators => None,
         }
     }
 }
@@ -313,7 +308,7 @@ fn parse_validator_hex(value: &str) -> Result<ed25519::PublicKey, String> {
 
 fn parse_validator_list(values: Vec<String>) -> Result<Vec<ed25519::PublicKey>, ConfigError> {
     if values.is_empty() {
-        return Err(ConfigError::EmptyValidators);
+        return Err(ConfigError::EmptyBootstrapValidators);
     }
 
     values
@@ -429,10 +424,10 @@ pub fn load_config(args: NodeArgs) -> Result<NodeConfig, ConfigError> {
         })
         .collect::<Result<Vec<_>, _>>()?;
 
-    let validators = if !args.validator.is_empty() {
+    let bootstrap_validators = if !args.validator.is_empty() {
         Some(parse_validator_list(args.validator)?)
     } else {
-        match file_config.and_then(|cfg| cfg.validators) {
+        match file_config.and_then(|cfg| cfg.bootstrap_validators) {
             Some(values) => Some(parse_validator_list(values)?),
             None => None,
         }
@@ -462,7 +457,7 @@ pub fn load_config(args: NodeArgs) -> Result<NodeConfig, ConfigError> {
                 .unwrap_or(defaults.consensus.namespace),
             block_interval,
         },
-        validators,
+        bootstrap_validators,
     })
 }
 
@@ -478,7 +473,7 @@ impl From<NodeArgs> for NodeConfig {
                 Err(err) => panic!("failed to parse peer '{peer}': {err}"),
             })
             .collect();
-        let validators = if args.validator.is_empty() {
+        let bootstrap_validators = if args.validator.is_empty() {
             None
         } else {
             Some(
@@ -525,7 +520,7 @@ impl From<NodeArgs> for NodeConfig {
                     .map(Duration::from_millis)
                     .unwrap_or(defaults.consensus.block_interval),
             },
-            validators,
+            bootstrap_validators,
         }
     }
 }
@@ -571,7 +566,7 @@ mod tests {
         assert_eq!(config.storage.data_dir, PathBuf::from("data"));
         assert_eq!(config.consensus.namespace, b"sahara-chain-v0");
         assert_eq!(config.consensus.block_interval, Duration::from_secs(5));
-        assert_eq!(config.validators, None);
+        assert_eq!(config.bootstrap_validators, None);
     }
 
     #[test]
@@ -658,7 +653,7 @@ mod tests {
         assert_eq!(config.storage.data_dir, PathBuf::from("/tmp/whirlpool"));
         assert_eq!(config.consensus.namespace, b"custom-cons");
         assert_eq!(config.consensus.block_interval, Duration::from_millis(2000));
-        assert_eq!(config.validators.unwrap().len(), validators.len());
+        assert_eq!(config.bootstrap_validators.unwrap().len(), validators.len());
     }
 
     #[test]
@@ -703,7 +698,7 @@ mod tests {
         let bootstrap_key = ed25519::PrivateKey::from_seed(45).public_key();
         let bootstrap_peer = format!("{}@127.0.0.1:4010", hex(bootstrap_key.as_ref()));
         let path = write_config_file(&format!(
-            "listen_addr = \"127.0.0.1:4011\"\ndialable_addr = \"10.0.0.1:4011\"\nbootstrap_peers = [\"{bootstrap_peer}\"]\nvalidator_seed = 99\nrpc_addr = \"127.0.0.1:9555\"\nmem_rpc_addr = \"127.0.0.1:9655\"\ndata_dir = \"custom-data\"\nmax_message_size = 2097152\nnetwork_namespace = \"toml-net\"\nconsensus_namespace = \"toml-consensus\"\nblock_interval_ms = 1234\nvalidators = [\"{validator}\"]\n"
+            "listen_addr = \"127.0.0.1:4011\"\ndialable_addr = \"10.0.0.1:4011\"\nbootstrap_peers = [\"{bootstrap_peer}\"]\nvalidator_seed = 99\nrpc_addr = \"127.0.0.1:9555\"\nmem_rpc_addr = \"127.0.0.1:9655\"\ndata_dir = \"custom-data\"\nmax_message_size = 2097152\nnetwork_namespace = \"toml-net\"\nconsensus_namespace = \"toml-consensus\"\nblock_interval_ms = 1234\nbootstrap_validators = [\"{validator}\"]\n"
         ));
 
         let config = load_config(NodeArgs {
@@ -741,13 +736,13 @@ mod tests {
         assert_eq!(config.network.namespace, b"toml-net");
         assert_eq!(config.consensus.namespace, b"toml-consensus");
         assert_eq!(config.consensus.block_interval, Duration::from_millis(1234));
-        assert_eq!(config.validators.unwrap().len(), 1);
+        assert_eq!(config.bootstrap_validators.unwrap().len(), 1);
     }
 
     #[test]
     fn tst_02_cli_overrides_toml() {
         let path = write_config_file(
-            "listen_addr = \"127.0.0.1:4011\"\nrpc_addr = \"127.0.0.1:9555\"\nmem_rpc_addr = \"127.0.0.1:9655\"\nvalidator_seed = 7\nmax_message_size = 1000\nnetwork_namespace = \"toml-net\"\nvalidators = [\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"]\n",
+            "listen_addr = \"127.0.0.1:4011\"\nrpc_addr = \"127.0.0.1:9555\"\nmem_rpc_addr = \"127.0.0.1:9655\"\nvalidator_seed = 7\nmax_message_size = 1000\nnetwork_namespace = \"toml-net\"\nbootstrap_validators = [\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"]\n",
         );
         let cli_validators = validator_hexes(&[2, 3]);
 
@@ -775,7 +770,10 @@ mod tests {
         assert_eq!(config.identity.seed, 42);
         assert_eq!(config.network.max_message_size, 2048);
         assert_eq!(config.network.namespace, b"cli-net");
-        assert_eq!(config.validators.unwrap().len(), cli_validators.len());
+        assert_eq!(
+            config.bootstrap_validators.unwrap().len(),
+            cli_validators.len()
+        );
     }
 
     #[test]
@@ -813,7 +811,7 @@ mod tests {
             .map(|value| format!("\"{value}\""))
             .collect::<Vec<_>>()
             .join(", ");
-        let path = write_config_file(&format!("validators = [{validator_list}]\n"));
+        let path = write_config_file(&format!("bootstrap_validators = [{validator_list}]\n"));
 
         let config = load_config(NodeArgs {
             config: Some(path),
@@ -833,7 +831,9 @@ mod tests {
         })
         .expect("multi-validator toml should parse");
 
-        let validators = config.validators.expect("validators should exist");
+        let validators = config
+            .bootstrap_validators
+            .expect("validators should exist");
         assert_eq!(validators.len(), 4);
         assert_eq!(
             validators[0],
@@ -932,8 +932,8 @@ mod tests {
     }
 
     #[test]
-    fn tst_11_empty_validators_rejection() {
-        let path = write_config_file("validators = []\n");
+    fn tst_11_empty_bootstrap_validators_rejection() {
+        let path = write_config_file("bootstrap_validators = []\n");
         let err = load_config(NodeArgs {
             config: Some(path),
             listen_addr: None,
@@ -952,6 +952,38 @@ mod tests {
         })
         .expect_err("empty validators should fail");
 
-        assert!(matches!(err, ConfigError::EmptyValidators));
+        assert!(matches!(err, ConfigError::EmptyBootstrapValidators));
+    }
+
+    #[test]
+    fn tst_12_legacy_validators_alias_maps_to_bootstrap_validators() {
+        let validator = validator_hexes(&[13]).pop().unwrap();
+        let path = write_config_file(&format!("validators = [\"{validator}\"]\n"));
+
+        let config = load_config(NodeArgs {
+            config: Some(path),
+            listen_addr: None,
+            dialable_addr: None,
+            bootstrap_peer: vec![],
+            dial_peer: vec![],
+            validator_seed: None,
+            validator: vec![],
+            rpc_addr: None,
+            mem_rpc_addr: None,
+            data_dir: None,
+            max_message_size: None,
+            network_namespace: None,
+            consensus_namespace: None,
+            block_interval_ms: None,
+        })
+        .expect("legacy validators alias should parse");
+
+        assert_eq!(
+            config
+                .bootstrap_validators
+                .expect("parsed validators")
+                .len(),
+            1
+        );
     }
 }

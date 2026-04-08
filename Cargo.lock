@@ -1028,6 +1028,7 @@ dependencies = [
  "state-reth",
  "thiserror 2.0.18",
  "tokio",
+ "validators",
 ]
 
 [[package]]
@@ -3354,6 +3355,7 @@ dependencies = [
  "reth-evm",
  "revm",
  "thiserror 2.0.18",
+ "validators",
 ]
 
 [[package]]
@@ -4392,6 +4394,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber 0.3.22",
+ "validators",
  "whirlpool-node",
 ]
 
@@ -10167,6 +10170,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "validators"
+version = "0.1.0"
+dependencies = [
+ "alloy-primitives",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "valuable"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10483,6 +10494,7 @@ dependencies = [
  "toml 0.8.23",
  "tracing",
  "tracing-subscriber 0.3.22",
+ "validators",
 ]
 
 [[package]]

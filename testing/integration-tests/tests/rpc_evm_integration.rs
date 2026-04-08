@@ -15,12 +15,16 @@ use alloy_provider::{Provider, ProviderBuilder};
 use alloy_signer::Signer as AlloySigner;
 use alloy_signer_local::PrivateKeySigner;
 use app::traits::TxSource;
-use app_evm::{build_sahara_chain_spec, build_sahara_chain_spec_with_alloc, SAHARA_CHAIN_ID};
+use app_evm::{
+    build_sahara_chain_spec, build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators,
+    SAHARA_CHAIN_ID,
+};
 use commonware_cryptography::{ed25519, Signer as CwSigner};
 use reqwest::Client;
 use reth_chainspec::ChainSpec;
 use rpc_eth::{start_rpc_server, RpcConfig};
 use tempfile::TempDir;
+use validators::ValidatorEntry;
 use whirlpool_node::config::{
     ConsensusStartupConfig, IdentityConfig, NetworkConfig, NodeConfig, RpcConfig as NodeRpcConfig,
     StorageConfig, DEFAULT_MAX_MESSAGE_SIZE,
@@ -1338,7 +1342,15 @@ fn start_funded_node(seed: u64, funded_address: Address, balance: U256) -> (Node
         },
     );
 
-    let chain_spec: ChainSpec = build_sahara_chain_spec_with_alloc(alloc);
+    let chain_spec: ChainSpec =
+        build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators(
+            alloc,
+            BTreeMap::new(),
+            vec![ValidatorEntry {
+                consensus_pubkey: public_key.as_ref().try_into().expect("ed25519 key length"),
+                ethereum_address: Address::ZERO,
+            }],
+        );
     let p2p_port = allocate_port();
     let rpc_port = allocate_port();
     let p2p_addr: SocketAddr = format!("127.0.0.1:{p2p_port}")
@@ -1368,7 +1380,7 @@ fn start_funded_node(seed: u64, funded_address: Address, balance: U256) -> (Node
             namespace: format!("tx-test-{seed}").into_bytes(),
             block_interval: Duration::from_secs(1),
         },
-        validators: Some(vec![public_key.clone()]),
+        bootstrap_validators: Some(vec![public_key.clone()]),
     };
 
     let handle = start_node_with_chain_spec(config, Some(Arc::new(chain_spec)))
