@@ -30,6 +30,7 @@
 - `EvmApplication` is wired directly into `ApplicationAdapter` and `PersistingFinalizationSink`.
 - `PersistingFinalizationSink` persists finalized blocks only; personality/mem persistence was removed from the node path.
 - `rpc_eth::start_rpc_server()` is the only RPC server startup in `node.rs`.
+- `NodeConfig.validators` is optional. When unset, startup falls back to the local signer's public key. The resolved list is currently reused for both `CommonwareNetworkProviderBuilder::initial_validators(0, ...)` and `CommonwareConfig.validators`, so the same startup set feeds P2P discovery/oracle seeding and simplex membership (`crates/node/src/node.rs:83` and `crates/node/src/node.rs:151`).
 
 ## RPC
 The node runs one RPC server:

@@ -10,21 +10,28 @@ The node uses the `p2p-commonware` crate to bridge to the Commonware P2P stack. 
 
 1.  **Initialize Builder**: Provide the signer (private key) and a unique namespace.
 2.  **Configure Network**: Set the listen address, dialable address, and any bootstrapper nodes.
-3.  **Build**: Pass the runtime context (e.g. `tokio::Runner` context) to `build()`. This returns the `CommonwareNetworkProvider` and an `OracleHandle`.
-4.  **Seed Validators**: Use the `OracleHandle` to set the initial validator set for the network.
+3.  **Seed Initial Validators**: Pass the startup validator list into `.initial_validators(0, validators.clone())` before calling `build(...)`.
+4.  **Build**: Pass the runtime context (e.g. `tokio::Runner` context) to `build()`. This returns the `CommonwareNetworkProvider` and an `OracleHandle`.
 
 Example:
 ```rust
 let args = NodeArgs::parse();
 let config = NodeConfig::from(args);
-let (provider, mut oracle_handle) = CommonwareNetworkProviderBuilder::new(signer, config.network.namespace.clone())
+let validators = config
+    .validators
+    .clone()
+    .unwrap_or_else(|| vec![signer.public_key()]);
+
+let (provider, oracle_handle) = CommonwareNetworkProviderBuilder::new(signer, config.network.namespace.clone())
     .listen_addr(config.network.listen_addr)
     .dialable_addr(config.network.dialable_addr)
     .max_message_size(config.network.max_message_size)
+    .initial_validators(0, validators.clone())
     .bootstrappers(config.network.bootstrap_peers.clone())
     .build(context);
-oracle_handle.update_validators(0, validators).await;
 ```
+
+Today the same `validators` list also feeds `CommonwareConfig.validators`, so it seeds both the P2P discovery/oracle path and the simplex engine membership at startup (`crates/node/src/node.rs:83` and `crates/node/src/node.rs:151`).
 
 ## Dual-Trait Conformance in EmptyBlock
 
