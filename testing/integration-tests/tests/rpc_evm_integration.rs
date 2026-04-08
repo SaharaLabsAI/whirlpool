@@ -15,7 +15,7 @@ use alloy_provider::{Provider, ProviderBuilder};
 use alloy_signer::Signer as AlloySigner;
 use alloy_signer_local::PrivateKeySigner;
 use app::traits::TxSource;
-use app_evm::{
+use chainspec::{
     build_sahara_chain_spec, build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators,
     SAHARA_CHAIN_ID,
 };

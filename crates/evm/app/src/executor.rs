@@ -542,12 +542,14 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{
-        build_sahara_chain_spec_with_alloc_and_fee_recipients, DEFAULT_PROPOSER_FEE_RECIPIENT,
-    };
+    use crate::config::DEFAULT_PROPOSER_FEE_RECIPIENT;
     use alloy_consensus::{SignableTransaction, TxLegacy};
     use alloy_eips::eip2718::Encodable2718;
     use alloy_primitives::{Address, Signature, TxKind};
+    use chainspec::{
+        build_sahara_chain_spec, build_sahara_chain_spec_with_alloc_and_fee_recipients,
+        SAHARA_CHAIN_ID,
+    };
     use community_pool::COMMUNITY_POOL_ADDRESS;
     use evm_precompiles::{mint_calldata, TEST_TOKEN_PRECOMPILE_ADDRESS};
     use reth_ethereum_primitives::TransactionSigned;
@@ -574,7 +576,7 @@ mod tests {
         EvmApplication<InMemoryStateDb>,
         Arc<RwLock<InMemoryStateDb>>,
     ) {
-        let chain_spec = Arc::new(crate::config::build_sahara_chain_spec());
+        let chain_spec = Arc::new(build_sahara_chain_spec());
         let config = WhirlpoolEvmConfig::new(chain_spec);
         let db = Arc::new(RwLock::new(InMemoryStateDb::new()));
         let source = Arc::new(MockTxSource { txs });
@@ -599,7 +601,7 @@ mod tests {
     fn sample_evm_tx() -> (Vec<u8>, Address) {
         let receiver = Address::with_last_byte(2);
         let tx = TxLegacy {
-            chain_id: Some(crate::config::SAHARA_CHAIN_ID),
+            chain_id: Some(SAHARA_CHAIN_ID),
             nonce: 0,
             gas_price: 2_000_000_000,
             gas_limit: 21_000,
@@ -633,7 +635,7 @@ mod tests {
         amount: U256,
     ) -> (Vec<u8>, Address) {
         let tx = TxLegacy {
-            chain_id: Some(crate::config::SAHARA_CHAIN_ID),
+            chain_id: Some(SAHARA_CHAIN_ID),
             nonce: 0,
             gas_price: 2_000_000_000,
             gas_limit: 200_000,
@@ -747,7 +749,7 @@ mod tests {
         let parent = app.genesis().await;
         let (block, _) = app.propose(&parent, 1).await.unwrap();
 
-        let chain_spec = Arc::new(crate::config::build_sahara_chain_spec());
+        let chain_spec = Arc::new(build_sahara_chain_spec());
         let config = WhirlpoolEvmConfig::new(chain_spec).with_local_proposer_public_key([0x77; 32]);
         let pre_db = Arc::new(RwLock::new(pre_state));
         let source = Arc::new(MockTxSource { txs: vec![] });
@@ -790,7 +792,7 @@ mod tests {
             .balance;
         assert_eq!(current_balance, U256::from(5_u64));
 
-        let chain_spec = Arc::new(crate::config::build_sahara_chain_spec());
+        let chain_spec = Arc::new(build_sahara_chain_spec());
         let config = WhirlpoolEvmConfig::new(chain_spec).with_local_proposer_public_key([0x77; 32]);
         let pre_db = Arc::new(RwLock::new(pre_state));
         let source = Arc::new(MockTxSource { txs: vec![] });

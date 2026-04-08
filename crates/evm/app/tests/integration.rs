@@ -9,6 +9,7 @@ use app::{
 };
 use app_evm::executor::EvmApplication;
 use app_evm::WhirlpoolEvmConfig;
+use chainspec::{build_sahara_chain_spec, SAHARA_CHAIN_ID};
 use reth_ethereum_primitives::TransactionSigned;
 use reth_primitives_traits::SignerRecoverable;
 use state_memory::InMemoryStateDb;
@@ -31,7 +32,7 @@ impl TxSource for MockTxSource {
 #[tokio::test]
 async fn test_full_propose_verify_cycle() {
     // 1. Setup Environment
-    let chain_spec = Arc::new(app_evm::build_sahara_chain_spec());
+    let chain_spec = Arc::new(build_sahara_chain_spec());
     let config = WhirlpoolEvmConfig::new(chain_spec.clone());
 
     // Initial state DB
@@ -42,7 +43,7 @@ async fn test_full_propose_verify_cycle() {
     let bob_addr = Address::with_last_byte(2);
 
     let tx = TxLegacy {
-        chain_id: Some(app_evm::config::SAHARA_CHAIN_ID),
+        chain_id: Some(SAHARA_CHAIN_ID),
         nonce: 0,
         gas_price: 2_000_000_000,
         gas_limit: 21_000,
@@ -125,7 +126,7 @@ async fn test_full_propose_verify_cycle() {
 #[tokio::test]
 async fn test_propose_with_in_memory_pool() {
     // 1. Setup Environment
-    let chain_spec = Arc::new(app_evm::build_sahara_chain_spec());
+    let chain_spec = Arc::new(build_sahara_chain_spec());
     let config = WhirlpoolEvmConfig::new(chain_spec.clone());
     let state_db = Arc::new(RwLock::new(InMemoryStateDb::new()));
 
@@ -134,7 +135,7 @@ async fn test_propose_with_in_memory_pool() {
     let bob_addr = Address::with_last_byte(2);
 
     let tx = TxLegacy {
-        chain_id: Some(app_evm::config::SAHARA_CHAIN_ID),
+        chain_id: Some(SAHARA_CHAIN_ID),
         nonce: 0,
         gas_price: 2_000_000_000,
         gas_limit: 21_000,

@@ -200,6 +200,7 @@ mod tests {
     use alloy_primitives::{Address, Bytes, Signature, TxKind, U256};
     use alloy_trie::EMPTY_ROOT_HASH;
     use app_mem::{PersonalityMarkdownTx, SignatureScheme};
+    use chainspec::{build_sahara_chain_spec, SAHARA_CHAIN_ID};
     use reth_ethereum_primitives::TransactionSigned;
     use reth_primitives_traits::SignerRecoverable;
     use state_memory::InMemoryStateDb;
@@ -222,7 +223,7 @@ mod tests {
         CompositeApplication<InMemoryStateDb>,
         Arc<RwLock<InMemoryStateDb>>,
     ) {
-        let chain_spec = Arc::new(app_evm::build_sahara_chain_spec());
+        let chain_spec = Arc::new(build_sahara_chain_spec());
         let config = WhirlpoolEvmConfig::new(chain_spec);
         let db = Arc::new(RwLock::new(InMemoryStateDb::new()));
         let source = Arc::new(MockTxSource { txs });
@@ -247,7 +248,7 @@ mod tests {
     fn sample_evm_tx() -> (Vec<u8>, Address) {
         let receiver = Address::with_last_byte(2);
         let tx = TxLegacy {
-            chain_id: Some(app_evm::config::SAHARA_CHAIN_ID),
+            chain_id: Some(SAHARA_CHAIN_ID),
             nonce: 0,
             gas_price: 2_000_000_000,
             gas_limit: 21_000,

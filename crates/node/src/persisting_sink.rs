@@ -73,7 +73,8 @@ mod tests {
     use super::PersistingFinalizationSink;
     use app::traits::TxSource;
     use app::{EvmBlock, Receipt};
-    use app_evm::{build_sahara_chain_spec, EvmApplication, WhirlpoolEvmConfig};
+    use app_evm::{EvmApplication, WhirlpoolEvmConfig};
+    use chainspec::build_sahara_chain_spec;
     use consensus::event::{ConsensusEvent, EventSink};
     use consensus_simplex::FinalizationSink;
     use revm::primitives::B256;

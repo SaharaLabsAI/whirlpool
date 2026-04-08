@@ -8,8 +8,8 @@ use std::time::{Duration, Instant};
 
 use alloy_genesis::GenesisAccount;
 use alloy_primitives::{Address, U256};
-use app_evm::build_sahara_chain_spec_with_alloc;
 use app_mem::{PersonalityMarkdownTx, SignatureScheme, SUPPORTED_PERSONALITY_TX_VERSION};
+use chainspec::build_sahara_chain_spec_with_alloc;
 use commonware_cryptography::{ed25519, Signer as CwSigner};
 use reqwest::Client;
 use reth_chainspec::ChainSpec;

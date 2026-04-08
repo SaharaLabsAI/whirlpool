@@ -9,7 +9,7 @@ use alloy_genesis::GenesisAccount;
 use alloy_primitives::{Address, Bytes, B256, U256};
 use alloy_signer::Signer as AlloySigner;
 use alloy_signer_local::PrivateKeySigner;
-use app_evm::{
+use chainspec::{
     build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators, SAHARA_CHAIN_ID,
 };
 use commonware_cryptography::{ed25519, Signer as CwSigner};

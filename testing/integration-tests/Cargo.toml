@@ -8,6 +8,7 @@ edition.workspace = true
 [dependencies]
 app = { path = "../../crates/app" }
 app-evm = { path = "../../crates/evm/app" }
+chainspec = { path = "../../crates/chainspec" }
 evm-precompiles = { path = "../../crates/evm/precompiles" }
 app-mem = { path = "../../crates/mem/app" }
 community-pool = { path = "../../crates/community-pool" }

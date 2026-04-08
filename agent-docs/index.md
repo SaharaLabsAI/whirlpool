@@ -36,6 +36,7 @@ Structured reference docs optimized for fast LLM lookup. Each contains type sign
 | [architecture/simplex-adapter.md](architecture/simplex-adapter.md) | Adapter bridge: CommonwareBlock, AppAdapter, CommonwareEngine, CommonwareConfig, Mailbox, FinalizationSink | `consensus-simplex` |
 | [architecture/whirlpool-node.md](architecture/whirlpool-node.md) | Node library exports: `config` (CLI/TOML) and `node` lifecycle | `whirlpool-node` (lib) |
 | [crates/whirlpool-node.md](crates/whirlpool-node.md) | EVM binary entrypoint and node configuration | `whirlpool-node` (bin) |
+| [crates/chainspec.md](crates/chainspec.md) | Sahara chain-spec ownership crate (builders, chain-id, validator-registry reader seam) | `chainspec` |
 | [crates/app-composite.md](crates/app-composite.md) | Composite consensus application that classifies mixed tx streams and delegates execution to domain apps | `app-composite` |
 | [crates/evm-precompiles.md](crates/evm-precompiles.md) | Workspace-owned registry/factory/example crate for Whirlpool custom EVM precompiles | `evm-precompiles` |
 | [crates/community-pool.md](crates/community-pool.md) | Fixed community-pool account constant used by the current fee-accounting slice | `community-pool` |
@@ -100,6 +101,7 @@ Step-by-step instructions for common tasks and workflows.
 | `state-memory` | `crates/mem/state/src/` | `crates/state-memory.md` | — |
 | `state-reth` | `crates/evm/state/src/` | `crates/state-reth.md` | — |
 | `app` | `crates/app/src/` | `crates/app.md` | — |
+| `chainspec` | `crates/chainspec/src/` | `crates/chainspec.md` | — |
 | `app-evm` | `crates/evm/app/src/` | `crates/app-evm.md` | — |
 | `evm-precompiles` | `crates/evm/precompiles/src/` | `crates/evm-precompiles.md` | — |
 | `app-composite` | `crates/mem/composite/src/` | `crates/app-composite.md` | — |

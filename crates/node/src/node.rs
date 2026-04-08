@@ -1,9 +1,10 @@
 use alloy_primitives::Address;
 use app::traits::TxSource;
 use app::ApplicationAdapter;
-use app_evm::{
+use app_evm::{EvmApplication, WhirlpoolEvmConfig};
+use chainspec::{
     build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators,
-    try_simplex_validators_from_chain_spec, EvmApplication, WhirlpoolEvmConfig,
+    try_simplex_validators_from_chain_spec,
 };
 use commonware_codec::Read;
 use commonware_cryptography::ed25519;

@@ -1,5 +1,5 @@
 use alloy_primitives::Address;
-use app_evm::build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators;
+use chainspec::build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators;
 use commonware_cryptography::ed25519;
 use commonware_cryptography::Signer;
 use serde_json::json;

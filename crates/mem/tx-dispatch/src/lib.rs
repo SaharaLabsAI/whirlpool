@@ -51,8 +51,8 @@ mod tests {
     use alloy_consensus::{SignableTransaction, TxLegacy};
     use alloy_eips::eip2718::Encodable2718;
     use alloy_primitives::{Address, Bytes, Signature, TxKind, U256};
-    use app_evm::config::SAHARA_CHAIN_ID;
     use app_mem::{PersonalityMarkdownTx, SignatureScheme};
+    use chainspec::SAHARA_CHAIN_ID;
     use reth_ethereum_primitives::TransactionSigned;
 
     fn sample_evm_tx() -> Vec<u8> {

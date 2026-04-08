@@ -6,6 +6,7 @@ edition.workspace = true
 [dependencies]
 app = { path = "../app" }
 app-evm = { path = "../evm/app" }
+chainspec = { path = "../chainspec" }
 mempool-mdbx = { path = "../mempool-mdbx" }
 native-token = { path = "../native-token" }
 validators = { path = "../validators" }

@@ -33,5 +33,6 @@ thiserror = "2"
 alloy-trie = "0.9"
 
 [dev-dependencies]
+chainspec = { path = "../../chainspec" }
 futures = "0.3"
 tokio = { version = "1", features = ["rt", "macros"] }

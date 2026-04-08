@@ -989,6 +989,7 @@ dependencies = [
  "app",
  "app-evm",
  "app-mem",
+ "chainspec",
  "reth-ethereum-primitives",
  "reth-primitives-traits",
  "revm",
@@ -1009,6 +1010,7 @@ dependencies = [
  "alloy-primitives",
  "alloy-trie",
  "app",
+ "chainspec",
  "community-pool",
  "consensus",
  "evm-precompiles",
@@ -1944,6 +1946,18 @@ dependencies = [
  "cipher",
  "poly1305",
  "zeroize",
+]
+
+[[package]]
+name = "chainspec"
+version = "0.1.0"
+dependencies = [
+ "alloy-genesis",
+ "alloy-primitives",
+ "app-evm",
+ "native-token",
+ "reth-chainspec",
+ "validators",
 ]
 
 [[package]]
@@ -4374,6 +4388,7 @@ dependencies = [
  "app",
  "app-evm",
  "app-mem",
+ "chainspec",
  "commonware-cryptography",
  "community-pool",
  "evm-precompiles",
@@ -10029,6 +10044,7 @@ dependencies = [
  "alloy-primitives",
  "app-evm",
  "app-mem",
+ "chainspec",
  "reth-ethereum-primitives",
  "thiserror 2.0.18",
 ]
@@ -10470,6 +10486,7 @@ dependencies = [
  "app",
  "app-evm",
  "bytes",
+ "chainspec",
  "clap",
  "commonware-codec",
  "commonware-cryptography",
