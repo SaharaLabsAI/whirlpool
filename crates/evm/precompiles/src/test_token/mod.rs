@@ -30,6 +30,9 @@ pub enum TestTokenError {
     ArithmeticOverflow,
 }
 
+/// Validation/example Whirlpool precompile that uses the framework-owned
+/// direct-call-only registration path. Indirect calls are rejected by the
+/// shared crate-level guard before this module's business logic runs.
 pub struct TestTokenPrecompile;
 
 impl WhirlpoolStatefulPrecompile for TestTokenPrecompile {

@@ -47,7 +47,10 @@ fn mint(
         .balance_incr(recipient, amount)
         .map_err(|err| PrecompileError::other(err.to_string()))?;
 
-    Ok(PrecompileOutput::new(gas::MINT_GAS, encode_u256_word(next_balance)))
+    Ok(PrecompileOutput::new(
+        gas::MINT_GAS,
+        encode_u256_word(next_balance),
+    ))
 }
 
 fn balance_of(

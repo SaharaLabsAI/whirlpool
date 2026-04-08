@@ -1,4 +1,5 @@
-use alloy_primitives::Address;
+use alloy_primitives::{Address, Bytes};
+use alloy_sol_types::{sol, SolError};
 use reth_evm::{
     eth::{EthEvm, EthEvmBuilder, EthEvmContext},
     precompiles::{DynPrecompile, PrecompileInput, PrecompilesMap},
@@ -7,16 +8,21 @@ use reth_evm::{
 use revm::{
     context::{BlockEnv, TxEnv},
     inspector::{Inspector, NoOpInspector},
-    precompile::{PrecompileId, PrecompileResult, PrecompileSpecId, Precompiles},
+    precompile::{PrecompileId, PrecompileOutput, PrecompileResult, PrecompileSpecId, Precompiles},
     primitives::hardfork::SpecId,
 };
 use std::collections::HashSet;
 
 pub mod test_token;
 
-pub use test_token::{
-    balance_of_calldata, mint_calldata, TEST_TOKEN_PRECOMPILE_ADDRESS,
-};
+pub use test_token::{balance_of_calldata, mint_calldata, TEST_TOKEN_PRECOMPILE_ADDRESS};
+
+sol! {
+    /// Shared framework-level error used when a Whirlpool-owned stateful precompile
+    /// is invoked through a non-direct path such as DELEGATECALL or CALLCODE.
+    #[derive(Debug, PartialEq, Eq)]
+    error NonDirectCall();
+}
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum RegistryError {
@@ -33,13 +39,23 @@ pub struct RegisteredPrecompile {
 }
 
 impl RegisteredPrecompile {
+    /// Registers a Whirlpool-owned stateful precompile using the safe default path.
+    ///
+    /// Precompiles registered here are direct-call-only: the final hop into the
+    /// precompile must have `target_address == bytecode_address`, which allows
+    /// ordinary `CALL` and `STATICCALL` while rejecting delegate-style execution.
     pub fn new_stateful<F>(name: &'static str, address: Address, handler: F) -> Self
     where
         F: Fn(PrecompileInput<'_>) -> PrecompileResult + Send + Sync + 'static,
     {
         Self {
             address,
-            precompile: DynPrecompile::new_stateful(PrecompileId::custom(name), handler),
+            precompile: DynPrecompile::new_stateful(PrecompileId::custom(name), move |input| {
+                if !input.is_direct_call() {
+                    return non_direct_call_revert_result();
+                }
+                handler(input)
+            }),
         }
     }
 
@@ -56,7 +72,21 @@ pub trait WhirlpoolStatefulPrecompile {
     fn register() -> RegisteredPrecompile;
 }
 
-fn build_precompiles<I>(spec: SpecId, custom_precompiles: I) -> Result<PrecompilesMap, RegistryError>
+fn non_direct_call_revert_bytes() -> Bytes {
+    Bytes::from(NonDirectCall {}.abi_encode())
+}
+
+fn non_direct_call_revert_result() -> PrecompileResult {
+    Ok(PrecompileOutput::new_reverted(
+        0,
+        non_direct_call_revert_bytes(),
+    ))
+}
+
+fn build_precompiles<I>(
+    spec: SpecId,
+    custom_precompiles: I,
+) -> Result<PrecompilesMap, RegistryError>
 where
     I: IntoIterator<Item = RegisteredPrecompile>,
 {
@@ -129,17 +159,11 @@ impl EvmFactory for WhirlpoolEvmFactory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_token::{balance_of_calldata, mint_calldata, gas, TestTokenPrecompile};
+    use crate::test_token::{balance_of_calldata, gas, mint_calldata, TestTokenPrecompile};
     use alloy_primitives::{address, Bytes, U256};
-    use reth_evm::{
-        precompiles::Precompile,
-        traits::EvmInternals,
-    };
+    use reth_evm::{precompiles::Precompile, traits::EvmInternals};
     use revm::Context;
-    use revm::{
-        database::EmptyDB,
-        precompile::PrecompileOutput as RevmPrecompileOutput,
-    };
+    use revm::{database::EmptyDB, precompile::PrecompileOutput as RevmPrecompileOutput};
 
     fn call_registered_precompile(
         precompile: DynPrecompile,
@@ -148,14 +172,36 @@ mod tests {
         gas: u64,
         is_static: bool,
     ) -> RevmPrecompileOutput {
+        call_registered_precompile_with_context(
+            precompile,
+            context,
+            Address::ZERO,
+            data,
+            gas,
+            is_static,
+            TEST_TOKEN_PRECOMPILE_ADDRESS,
+            TEST_TOKEN_PRECOMPILE_ADDRESS,
+        )
+    }
+
+    fn call_registered_precompile_with_context(
+        precompile: DynPrecompile,
+        context: &mut Context<BlockEnv, TxEnv, revm::context::CfgEnv, EmptyDB>,
+        caller: Address,
+        data: Bytes,
+        gas: u64,
+        is_static: bool,
+        target_address: Address,
+        bytecode_address: Address,
+    ) -> RevmPrecompileOutput {
         precompile
             .call(PrecompileInput {
                 data: data.as_ref(),
                 gas,
-                caller: Address::ZERO,
+                caller,
                 value: U256::ZERO,
-                target_address: TEST_TOKEN_PRECOMPILE_ADDRESS,
-                bytecode_address: TEST_TOKEN_PRECOMPILE_ADDRESS,
+                target_address,
+                bytecode_address,
                 is_static,
                 internals: EvmInternals::from_context(context),
             })
@@ -166,6 +212,39 @@ mod tests {
         let mut word = [0u8; 32];
         word.copy_from_slice(bytes.as_ref());
         U256::from_be_bytes(word)
+    }
+
+    #[test]
+    fn proxy_style_caller_is_still_treated_as_direct_at_precompile_boundary() {
+        let mut ctx = EthEvmContext::new(EmptyDB::default(), Default::default());
+        let precompile = TestTokenPrecompile::register().precompile();
+        let proxy_caller = address!("0x0000000000000000000000000000000000000abc");
+        let account = address!("0x00000000000000000000000000000000000000ad");
+
+        let mint_result = call_registered_precompile_with_context(
+            precompile.clone(),
+            &mut ctx,
+            proxy_caller,
+            mint_calldata(account, U256::from(3_u64)),
+            gas::MINT_GAS,
+            false,
+            TEST_TOKEN_PRECOMPILE_ADDRESS,
+            TEST_TOKEN_PRECOMPILE_ADDRESS,
+        );
+
+        assert!(
+            !mint_result.reverted,
+            "proxy-style caller should still be direct"
+        );
+
+        let balance_result = call_registered_precompile(
+            precompile,
+            &mut ctx,
+            balance_of_calldata(account),
+            gas::BALANCE_OF_GAS,
+            true,
+        );
+        assert_eq!(decode_word(&balance_result.bytes), U256::from(3_u64));
     }
 
     #[test]
@@ -236,9 +315,64 @@ mod tests {
             &mut ctx,
             balance_of_calldata(account),
             gas::BALANCE_OF_GAS,
-            false,
+            true,
         );
         assert_eq!(read_result.gas_used, gas::BALANCE_OF_GAS);
+    }
+
+    #[test]
+    fn test_token_rejects_non_direct_state_changing_calls() {
+        let mut ctx = EthEvmContext::new(EmptyDB::default(), Default::default());
+        let precompile = TestTokenPrecompile::register().precompile();
+        let account = address!("0x00000000000000000000000000000000000000dd");
+        let proxy_target = address!("0x0000000000000000000000000000000000000def");
+
+        let revert_result = call_registered_precompile_with_context(
+            precompile.clone(),
+            &mut ctx,
+            proxy_target,
+            mint_calldata(account, U256::from(1_u64)),
+            gas::MINT_GAS,
+            false,
+            proxy_target,
+            TEST_TOKEN_PRECOMPILE_ADDRESS,
+        );
+
+        assert!(revert_result.reverted);
+        assert_eq!(revert_result.bytes, non_direct_call_revert_bytes());
+        assert_eq!(revert_result.gas_used, 0);
+
+        let balance_result = call_registered_precompile(
+            precompile,
+            &mut ctx,
+            balance_of_calldata(account),
+            gas::BALANCE_OF_GAS,
+            true,
+        );
+        assert_eq!(decode_word(&balance_result.bytes), U256::ZERO);
+    }
+
+    #[test]
+    fn test_token_rejects_non_direct_read_calls() {
+        let mut ctx = EthEvmContext::new(EmptyDB::default(), Default::default());
+        let precompile = TestTokenPrecompile::register().precompile();
+        let proxy_target = address!("0x0000000000000000000000000000000000000fed");
+        let account = address!("0x00000000000000000000000000000000000000ee");
+
+        let revert_result = call_registered_precompile_with_context(
+            precompile,
+            &mut ctx,
+            proxy_target,
+            balance_of_calldata(account),
+            gas::BALANCE_OF_GAS,
+            true,
+            proxy_target,
+            TEST_TOKEN_PRECOMPILE_ADDRESS,
+        );
+
+        assert!(revert_result.reverted);
+        assert_eq!(revert_result.bytes, non_direct_call_revert_bytes());
+        assert_eq!(revert_result.gas_used, 0);
     }
 
     #[test]
@@ -256,7 +390,10 @@ mod tests {
         );
         assert!(revert_result.reverted, "zero-amount mint should revert");
         assert!(
-            revert_result.bytes.as_ref().starts_with(&[0x08, 0xc3, 0x79, 0xa0]),
+            revert_result
+                .bytes
+                .as_ref()
+                .starts_with(&[0x08, 0xc3, 0x79, 0xa0]),
             "revert payload should use Error(string) encoding"
         );
 

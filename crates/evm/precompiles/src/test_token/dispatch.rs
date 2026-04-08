@@ -1,9 +1,12 @@
 use alloy_primitives::{Address, Bytes, U256};
+use alloy_sol_types::{sol, SolCall};
 
 use crate::test_token::TestTokenError;
 
-pub const MINT_SELECTOR: [u8; 4] = [0x40, 0xc1, 0x0f, 0x19];
-pub const BALANCE_OF_SELECTOR: [u8; 4] = [0x70, 0xa0, 0x82, 0x31];
+sol! {
+    function mint(address recipient, uint256 amount) external returns (uint256);
+    function balanceOf(address account) external view returns (uint256);
+}
 
 pub enum TestTokenCall {
     Mint { recipient: Address, amount: U256 },
@@ -15,59 +18,30 @@ pub fn decode_call(data: &[u8]) -> Result<TestTokenCall, TestTokenError> {
         return Err(TestTokenError::CalldataTooShort);
     }
 
-    let selector: [u8; 4] = data[..4].try_into().expect("selector slice");
-    match selector {
-        MINT_SELECTOR => {
-            if data.len() != 4 + 32 + 32 {
-                return Err(TestTokenError::InvalidMintCalldata);
-            }
-            Ok(TestTokenCall::Mint {
-                recipient: decode_address(&data[4..36]).ok_or(TestTokenError::InvalidMintCalldata)?,
-                amount: decode_u256(&data[36..68]).ok_or(TestTokenError::InvalidMintCalldata)?,
-            })
-        }
-        BALANCE_OF_SELECTOR => {
-            if data.len() != 4 + 32 {
-                return Err(TestTokenError::InvalidBalanceOfCalldata);
-            }
-            Ok(TestTokenCall::BalanceOf {
-                account: decode_address(&data[4..36])
-                    .ok_or(TestTokenError::InvalidBalanceOfCalldata)?,
-            })
-        }
-        _ => Err(TestTokenError::UnsupportedSelector),
+    if data.starts_with(&mintCall::SELECTOR) {
+        let call =
+            mintCall::abi_decode_validate(data).map_err(|_| TestTokenError::InvalidMintCalldata)?;
+        return Ok(TestTokenCall::Mint {
+            recipient: call.recipient,
+            amount: call.amount,
+        });
     }
+
+    if data.starts_with(&balanceOfCall::SELECTOR) {
+        let call = balanceOfCall::abi_decode_validate(data)
+            .map_err(|_| TestTokenError::InvalidBalanceOfCalldata)?;
+        return Ok(TestTokenCall::BalanceOf {
+            account: call.account,
+        });
+    }
+
+    Err(TestTokenError::UnsupportedSelector)
 }
 
 pub fn mint_calldata(recipient: Address, amount: U256) -> Bytes {
-    let mut data = Vec::with_capacity(4 + 32 + 32);
-    data.extend_from_slice(&MINT_SELECTOR);
-    data.extend_from_slice(&encode_address_word(recipient));
-    data.extend_from_slice(&amount.to_be_bytes::<32>());
-    Bytes::from(data)
+    Bytes::from(mintCall { recipient, amount }.abi_encode())
 }
 
 pub fn balance_of_calldata(account: Address) -> Bytes {
-    let mut data = Vec::with_capacity(4 + 32);
-    data.extend_from_slice(&BALANCE_OF_SELECTOR);
-    data.extend_from_slice(&encode_address_word(account));
-    Bytes::from(data)
-}
-
-fn encode_address_word(address: Address) -> [u8; 32] {
-    let mut word = [0u8; 32];
-    word[12..].copy_from_slice(address.as_slice());
-    word
-}
-
-fn decode_address(word: &[u8]) -> Option<Address> {
-    (word.len() == 32).then(|| Address::from_slice(&word[12..]))
-}
-
-fn decode_u256(word: &[u8]) -> Option<U256> {
-    (word.len() == 32).then(|| {
-        let mut bytes = [0u8; 32];
-        bytes.copy_from_slice(word);
-        U256::from_be_bytes(bytes)
-    })
+    Bytes::from(balanceOfCall { account }.abi_encode())
 }

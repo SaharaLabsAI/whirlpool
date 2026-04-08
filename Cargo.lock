@@ -3350,6 +3350,7 @@ name = "evm-precompiles"
 version = "0.1.0"
 dependencies = [
  "alloy-primitives",
+ "alloy-sol-types",
  "reth-evm",
  "revm",
  "thiserror 2.0.18",
