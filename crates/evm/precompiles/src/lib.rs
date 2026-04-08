@@ -52,6 +52,10 @@ impl RegisteredPrecompile {
             address,
             precompile: DynPrecompile::new_stateful(PrecompileId::custom(name), move |input| {
                 if !input.is_direct_call() {
+                    // This guard rejects delegate-style entry before the target precompile's
+                    // business logic begins. Returning a reverted output with `gas_used = 0`
+                    // keeps the precompile-local charge at zero because the handler never ran;
+                    // surrounding EVM call overhead is still accounted for by the caller frame.
                     return non_direct_call_revert_result();
                 }
                 handler(input)
@@ -77,6 +81,10 @@ fn non_direct_call_revert_bytes() -> Bytes {
 }
 
 fn non_direct_call_revert_result() -> PrecompileResult {
+    // `REVERT` does not imply zero gas in general, but this framework-level rejection happens
+    // before the precompile executes any opcode-equivalent work or applies its own gas policy.
+    // We therefore report zero precompile gas here and let the enclosing EVM machinery account
+    // for any call/setup cost outside the precompile itself.
     Ok(PrecompileOutput::new_reverted(
         0,
         non_direct_call_revert_bytes(),

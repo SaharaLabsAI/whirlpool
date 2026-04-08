@@ -26,6 +26,7 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
 - The example `test-token` precompile is validation scaffolding, not a default product feature.
 - The current example mutates journaled EVM **account balances** and exposes them through a precompile ABI.
 - Whirlpool-owned stateful precompiles registered via `RegisteredPrecompile::new_stateful` are direct-call-only: the final hop must keep `target_address == bytecode_address`, which allows ordinary `CALL`/`STATICCALL` and rejects delegate-style execution.
+- Non-direct-call rejection is a framework-level revert emitted before the target handler runs, so it reports zero precompile-local `gas_used`; enclosing EVM call/setup overhead is still charged outside the precompile.
 - Top-level EOAs calling a precompile address directly are not the only validated path here; the full-node tests use a tiny forwarding contract that performs an internal ordinary `CALL` into the precompile, which remains valid because the precompile boundary is still direct.
 
 ## Verification
