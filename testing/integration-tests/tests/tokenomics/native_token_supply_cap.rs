@@ -1,8 +1,10 @@
 use std::collections::BTreeMap;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, TcpListener};
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use crate::common::encoding::raw_tx_hex;
+use crate::common::http::{post_json_to_addr, rpc_req, test_client};
 use alloy_consensus::{SignableTransaction, TxEip1559};
 use alloy_eips::eip2718::Encodable2718;
 use alloy_genesis::{Genesis, GenesisAccount};
@@ -17,7 +19,6 @@ use chainspec::{
 use commonware_cryptography::{ed25519, Signer as CwSigner};
 use community_pool::COMMUNITY_POOL_ADDRESS;
 use native_token::sahara_hard_cap_base_units;
-use reqwest::Client;
 use reth_chainspec::{Chain, ChainSpec, ChainSpecBuilder};
 use tempfile::TempDir;
 use validators::{encode_validator_registry_storage, ValidatorEntry, SIMPLEX_VALIDATORS_REGISTRY};
@@ -31,52 +32,12 @@ const MAX_PRIORITY_FEE_PER_GAS: u128 = 1_000_000_000;
 const MAX_FEE_PER_GAS: u128 = 20_000_000_000;
 const TRANSFER_GAS_LIMIT: u64 = 21_000;
 
-fn test_client() -> &'static Client {
-    static CLIENT: OnceLock<Client> = OnceLock::new();
-    CLIENT.get_or_init(Client::new)
-}
-
-fn rpc_req(method: &str, params: serde_json::Value) -> serde_json::Value {
-    serde_json::json!({
-        "jsonrpc": "2.0",
-        "method": method,
-        "params": params,
-        "id": 1,
-    })
-}
-
-fn raw_tx_hex(bytes: &[u8]) -> String {
-    format!("0x{}", hex::encode(bytes))
-}
-
 fn allocate_port() -> u16 {
     TcpListener::bind("127.0.0.1:0")
         .expect("failed to bind ephemeral port")
         .local_addr()
         .expect("failed to get local addr")
         .port()
-}
-
-fn rpc_http_url(rpc_addr: SocketAddr) -> String {
-    format!("http://{rpc_addr}")
-}
-
-async fn post_json_to_addr(
-    client: &Client,
-    rpc_addr: SocketAddr,
-    body: serde_json::Value,
-) -> serde_json::Value {
-    let response = client
-        .post(rpc_http_url(rpc_addr))
-        .json(&body)
-        .send()
-        .await
-        .unwrap_or_else(|err| panic!("failed to send RPC request to {rpc_addr}: {err}"));
-
-    response
-        .json()
-        .await
-        .unwrap_or_else(|err| panic!("failed to decode RPC response from {rpc_addr}: {err}"))
 }
 
 fn parse_rpc_u64(value: &serde_json::Value, field: &str) -> u64 {
