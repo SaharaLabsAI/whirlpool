@@ -45,6 +45,12 @@ Structured reference docs optimized for fast LLM lookup. Each contains type sign
 | [crates/state-reth.md](crates/state-reth.md) | Persistent state implementation: RethStateDb, MDBX, state root | `state-reth` |
 | [crates/mempool.md](crates/mempool.md) | Persistent transaction pool: MempoolStore, MDBX, FIFO ordering | `mempool` |
 
+## Design
+
+| File | Description |
+|------|-------------|
+| [design/index.md](design/index.md) | Design-level rationale docs with progressive-disclosure topics such as Whirlpool custom precompiles |
+
 ## Guides
 
 Step-by-step instructions for common tasks and workflows.
@@ -77,6 +83,7 @@ Step-by-step instructions for common tasks and workflows.
 | Update EVM node tx sourcing | `crates/app.md` + `crates/whirlpool-node.md` + `crates/mempool.md` |
 | Understand mixed EVM/mem tx routing | `crates/app-composite.md` + `crates/tx-dispatch.md` + `crates/app-evm.md` |
 | Add/modify RPC methods | `crates/rpc-eth.md` + `crates/rpc-mem.md` |
+| Understand why Whirlpool precompiles are runtime-installed | `design/precompiles/index.md` -> `design/precompiles/availability.md` -> `design/precompiles/wiring.md` |
 | Check code style | `reference/coding-conventions.md` |
 | Write a commit message | `reference/git-conventions.md` |
 | Add/run e2e integration tests | `crates/integration-tests.md` |
