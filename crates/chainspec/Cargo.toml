@@ -7,7 +7,7 @@ edition.workspace = true
 doctest = false
 
 [dependencies]
-app-evm = { path = "../app/evm/app" }
+app-evm = { path = "../app/execute/evm/app" }
 validators = { path = "../validators" }
 reth-chainspec = { path = "../../vendor/reth/crates/chainspec" }
 alloy-genesis = "1.0.31"

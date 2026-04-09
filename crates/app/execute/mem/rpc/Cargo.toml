@@ -4,13 +4,13 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-app = { path = "../../traits" }
+app = { path = "../../../traits" }
 app-mem = { path = "../app" }
 async-trait = "0.1"
 hex = "0.4"
 jsonrpsee = { version = "0.26.0", features = ["client", "server", "macros"] }
 serde = { version = "1", features = ["derive"] }
-state = { path = "../../state" }
+state = { path = "../../../state" }
 thiserror = "2"
 
 [dev-dependencies]

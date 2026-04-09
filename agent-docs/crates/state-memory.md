@@ -4,14 +4,14 @@
 In-memory state database implementation for EVM execution.
 
 ## Location
-`crates/app/mem/state/`
+`crates/app/execute/mem/state/`
 
 ## Crate Split
 `state-memory` is the implementation half of the state layer. Interface traits live in `state`.
 
 ## Modules
-- `crates/app/mem/state/src/db.rs` — `InMemoryStateDb`, `DbAccount`, revm `Database`/`DatabaseRef` impls
-- `crates/app/mem/state/src/personality.rs` — `InMemoryPersonalityStorage` and in-memory finalized personality indexes
+- `crates/app/execute/mem/state/src/db.rs` — `InMemoryStateDb`, `DbAccount`, revm `Database`/`DatabaseRef` impls
+- `crates/app/execute/mem/state/src/personality.rs` — `InMemoryPersonalityStorage` and in-memory finalized personality indexes
 
 ## Key Types
 - `InMemoryStateDb`: HashMap-backed state DB implementing `StateDb`, `Database`, and `DatabaseRef`.
@@ -30,4 +30,4 @@ In-memory state database implementation for EVM execution.
 - `state_memory::InMemoryPersonalityStorage`
 
 ## Status
-Active. Moved under `crates/app/mem/` while keeping package/import names unchanged.
+Active. Moved under `crates/app/execute/mem/` while keeping package/import names unchanged.

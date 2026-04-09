@@ -4,13 +4,13 @@
 Persistent state storage implementation backed by reth-db (MDBX/libmdbx).
 
 ## Modules
-- `crates/app/evm/state/src/db.rs` — `RethStateDb` implementation, revm `Database`/`DatabaseRef` impls
-- `crates/app/evm/state/src/block_storage.rs` — `BlockStorage` persistence for finalized blocks + receipts
-- `crates/app/evm/state/src/init.rs` — `open_state_db` helper
-- `crates/app/evm/state/src/error.rs` — `RethStateError` enum
-- `crates/app/evm/state/src/tables.rs` — reth-db table re-exports
-- `crates/app/evm/state/src/trie.rs` — Keccak256 state root computation
-- `crates/app/evm/state/src/codec.rs` — account/info serialization
+- `crates/app/execute/evm/state/src/db.rs` — `RethStateDb` implementation, revm `Database`/`DatabaseRef` impls
+- `crates/app/execute/evm/state/src/block_storage.rs` — `BlockStorage` persistence for finalized blocks + receipts
+- `crates/app/execute/evm/state/src/init.rs` — `open_state_db` helper
+- `crates/app/execute/evm/state/src/error.rs` — `RethStateError` enum
+- `crates/app/execute/evm/state/src/tables.rs` — reth-db table re-exports
+- `crates/app/execute/evm/state/src/trie.rs` — Keccak256 state root computation
+- `crates/app/execute/evm/state/src/codec.rs` — account/info serialization
 
 ## Key Types
 - `RethStateDb`: persistent DB wrapping `Arc<DatabaseEnv>`. Thread-safe, implements `StateDb`, `Database`, and `DatabaseRef`.
@@ -65,7 +65,7 @@ Persistent state storage implementation backed by reth-db (MDBX/libmdbx).
 
 ## Test Coverage
 - 30 total tests (23 unit + 7 integration).
-- Block storage unit tests: TC-SR-01..10 in `crates/app/evm/state/src/block_storage.rs`.
+- Block storage unit tests: TC-SR-01..10 in `crates/app/execute/evm/state/src/block_storage.rs`.
 - Coverage: persistence, recovery (TC-SR-09/10), concurrency, genesis allocation, deterministic state root, revm trait compatibility, block/receipt persistence round-trips.
 
 ## Status

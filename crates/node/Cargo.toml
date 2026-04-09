@@ -5,15 +5,15 @@ edition.workspace = true
 
 [dependencies]
 app = { path = "../app/traits" }
-app-evm = { path = "../app/evm/app" }
+app-evm = { path = "../app/execute/evm/app" }
 chainspec = { path = "../chainspec" }
 mempool-mdbx = { path = "../mempool/mdbx" }
 validators = { path = "../validators" }
-rpc-eth = { path = "../app/evm/rpc" }
+rpc-eth = { path = "../app/execute/evm/rpc" }
 reth-chainspec = { path = "../../vendor/reth/crates/chainspec" }
 reth-revm = { path = "../../vendor/reth/crates/revm" }
 state = { path = "../app/state" }
-state-reth = { path = "../app/evm/state" }
+state-reth = { path = "../app/execute/evm/state" }
 revm = { version = "34" }
 alloy-primitives = { version = "1.5.0" }
 consensus = { path = "../consensus/traits" }
@@ -34,7 +34,7 @@ serde = { version = "1", features = ["derive"] }
 toml = "0.8"
 
 [dev-dependencies]
-state-memory = { path = "../app/mem/state" }
+state-memory = { path = "../app/execute/mem/state" }
 
 [[bin]]
 name = "whirlpool-node"

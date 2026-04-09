@@ -7,22 +7,22 @@ edition.workspace = true
 doctest = false
 
 [dependencies]
-app = { path = "../../traits" }
+app = { path = "../../../traits" }
 app-evm = { path = "../../evm/app" }
 app-mem = { path = "../app" }
-state = { path = "../../state" }
+state = { path = "../../../state" }
 tx-dispatch = { path = "../tx-dispatch" }
-reth-primitives-traits = { path = "../../../../vendor/reth/crates/primitives-traits" }
+reth-primitives-traits = { path = "../../../../../vendor/reth/crates/primitives-traits" }
 alloy-primitives = "1.5.0"
 alloy-trie = "0.9"
 revm = "34"
 thiserror = "2"
 
 [dev-dependencies]
-chainspec = { path = "../../../chainspec" }
+chainspec = { path = "../../../../chainspec" }
 state-memory = { path = "../state" }
 tokio = { version = "1", features = ["rt", "macros"] }
 alloy-consensus = "1.4.3"
 alloy-eips = "1.4.3"
-reth-ethereum-primitives = { path = "../../../../vendor/reth/crates/ethereum/primitives" }
+reth-ethereum-primitives = { path = "../../../../../vendor/reth/crates/ethereum/primitives" }
 revm = "34"

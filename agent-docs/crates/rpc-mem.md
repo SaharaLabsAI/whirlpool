@@ -4,7 +4,7 @@
 `rpc-mem` exposes the memory/personality JSON-RPC surface for Whirlpool. It keeps submit behavior in-process through `TxSource` and serves finalized personality reads through a storage-backed service adapter.
 
 ## Location
-`crates/app/mem/rpc/`
+`crates/app/execute/mem/rpc/`
 
 ## Dependency Boundaries
 - `app`: `TxSource` trait for submit ingress.
@@ -24,4 +24,4 @@
 - `tests/submit_regression.rs`: RPC submit regression coverage.
 
 ## Status
-Active. Moved under `crates/app/mem/`. `whirlpool-node` no longer wires this server directly.
+Active. Moved under `crates/app/execute/mem/`. `whirlpool-node` no longer wires this server directly.

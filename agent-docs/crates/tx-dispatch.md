@@ -24,4 +24,4 @@ Mem-scoped transaction classification for mixed-ingress code.
 3. If both fail, reject the transaction as invalid for the mixed domain.
 
 ## Status
-Active. This crate now lives under `crates/app/mem/` and remains the mixed classifier for `app-composite`; `app-evm` no longer depends on it.
+Active. This crate now lives under `crates/app/execute/mem/` and remains the mixed classifier for `app-composite`; `app-evm` no longer depends on it.

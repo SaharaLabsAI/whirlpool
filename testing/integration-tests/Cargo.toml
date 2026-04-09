@@ -7,16 +7,16 @@ edition.workspace = true
 # `cargo test -p integration-tests` runs everything under tests/.
 [dependencies]
 app = { path = "../../crates/app/traits" }
-app-evm = { path = "../../crates/app/evm/app" }
+app-evm = { path = "../../crates/app/execute/evm/app" }
 chainspec = { path = "../../crates/chainspec" }
-evm-precompiles = { path = "../../crates/app/evm/precompiles" }
-app-mem = { path = "../../crates/app/mem/app" }
+evm-precompiles = { path = "../../crates/app/execute/evm/precompiles" }
+app-mem = { path = "../../crates/app/execute/mem/app" }
 validators = { path = "../../crates/validators" }
-rpc-eth = { path = "../../crates/app/evm/rpc" }
-rpc-mem = { path = "../../crates/app/mem/rpc" }
+rpc-eth = { path = "../../crates/app/execute/evm/rpc" }
+rpc-mem = { path = "../../crates/app/execute/mem/rpc" }
 state = { path = "../../crates/app/state" }
-state-memory = { path = "../../crates/app/mem/state" }
-state-reth = { path = "../../crates/app/evm/state" }
+state-memory = { path = "../../crates/app/execute/mem/state" }
+state-reth = { path = "../../crates/app/execute/evm/state" }
 whirlpool-node = { path = "../../crates/node" }
 commonware-cryptography = { path = "../../vendor/commonware/cryptography" }
 revm = { version = "34" }

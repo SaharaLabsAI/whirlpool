@@ -4,7 +4,7 @@
 Pure EVM runtime/config/execution crate for Whirlpool.
 
 ## Location
-`crates/app/evm/app/`
+`crates/app/execute/evm/app/`
 
 ## Ownership Boundary
 `app-evm` now owns EVM behavior, not Sahara chain-spec construction.

@@ -8,7 +8,7 @@ Read this file first, then follow links to relevant sections based on your task.
 Whirlpool is a modular consensus framework for the Sahara Chain, built in Rust.
 It uses a 3-layer architecture: abstract consensus traits -> Simplex BFT adapter -> node binary.
 Canonical interface imports use `crate::traits::...` paths across crates after interface/implementation split refactoring.
-EVM implementation crates are grouped under `crates/app/evm/`.
+EVM implementation crates are grouped under `crates/app/execute/evm/`.
 The vendor layer (commonware) is a git submodule under `vendor/` — **do not modify**.
 
 ## Reading Order
@@ -96,17 +96,17 @@ Step-by-step instructions for common tasks and workflows.
 | `consensus-simplex` | `crates/consensus/simplex/src/` | `architecture/simplex-adapter.md` | `guides/wiring-simplex-adapter.md` |
 | `network-commonware` | `crates/network/commonware/src/` | `crates/network-commonware.md` | — |
 | `state` | `crates/app/state/src/` | `crates/state.md` | — |
-| `state-memory` | `crates/app/mem/state/src/` | `crates/state-memory.md` | — |
-| `state-reth` | `crates/app/evm/state/src/` | `crates/state-reth.md` | — |
+| `state-memory` | `crates/app/execute/mem/state/src/` | `crates/state-memory.md` | — |
+| `state-reth` | `crates/app/execute/evm/state/src/` | `crates/state-reth.md` | — |
 | `app` | `crates/app/traits/src/` | `crates/app.md` | — |
 | `chainspec` | `crates/chainspec/src/` | `crates/chainspec.md` | — |
-| `app-evm` | `crates/app/evm/app/src/` | `crates/app-evm.md` | — |
-| `evm-precompiles` | `crates/app/evm/precompiles/src/` | `crates/evm-precompiles.md` | — |
-| `app-composite` | `crates/app/mem/composite/src/` | `crates/app-composite.md` | — |
+| `app-evm` | `crates/app/execute/evm/app/src/` | `crates/app-evm.md` | — |
+| `evm-precompiles` | `crates/app/execute/evm/precompiles/src/` | `crates/evm-precompiles.md` | — |
+| `app-composite` | `crates/app/execute/mem/composite/src/` | `crates/app-composite.md` | — |
 | `validators` | `crates/validators/src/` | `crates/validators.md` | — |
 | `mempool` | `crates/mempool/traits/src/` | `crates/mempool.md` | — |
-| `tx-dispatch` | `crates/app/mem/tx-dispatch/src/` | `crates/tx-dispatch.md` | — |
-| `rpc-mem` | `crates/app/mem/rpc/src/` | `crates/rpc-mem.md` | — |
+| `tx-dispatch` | `crates/app/execute/mem/tx-dispatch/src/` | `crates/tx-dispatch.md` | — |
+| `rpc-mem` | `crates/app/execute/mem/rpc/src/` | `crates/rpc-mem.md` | — |
 | `whirlpool-node` | `crates/node/src/` | `architecture/whirlpool-node.md` (lib) + `crates/whirlpool-node.md` (EVM bin) | `guides/whirlpool-node-components.md` |
-| `rpc-eth` | `crates/app/evm/rpc/src/` | `crates/rpc-eth.md` | — |
+| `rpc-eth` | `crates/app/execute/evm/rpc/src/` | `crates/rpc-eth.md` | — |
 | `integration-tests` | `testing/integration-tests/tests/` | `crates/integration-tests.md` | — |
