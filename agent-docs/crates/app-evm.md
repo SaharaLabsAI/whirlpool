@@ -29,7 +29,9 @@ Those live in `chainspec`.
 ## Key Runtime Notes
 - `WhirlpoolEvmConfig` still derives proposer fee recipients from genesis storage at `VALIDATOR_FEE_RECIPIENTS_REGISTRY`.
 - Precompile injection remains in `WhirlpoolEvmConfig::evm_with_env(...)` via `evm_precompiles::whirlpool_precompiles_with_validators(...)`.
-- Fee routing behavior (`community-pool` burned-fee credit + proposer priority fees) remains unchanged.
+- Fee routing behavior remains unchanged:
+  - burned base fees are credited to `evm_precompiles::COMMUNITY_POOL_ADDRESS`
+  - proposer priority fees accrue to proposer fee recipient.
 
 ## Canonical Imports
 - `app_evm::traits::StateProvider`

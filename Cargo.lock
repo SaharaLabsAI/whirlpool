@@ -1011,7 +1011,6 @@ dependencies = [
  "alloy-trie",
  "app",
  "chainspec",
- "community-pool",
  "consensus",
  "evm-precompiles",
  "futures",
@@ -2399,13 +2398,6 @@ dependencies = [
  "rand 0.8.5",
  "thiserror 2.0.18",
  "zeroize",
-]
-
-[[package]]
-name = "community-pool"
-version = "0.1.0"
-dependencies = [
- "alloy-primitives",
 ]
 
 [[package]]
@@ -4390,7 +4382,6 @@ dependencies = [
  "app-mem",
  "chainspec",
  "commonware-cryptography",
- "community-pool",
  "evm-precompiles",
  "hex",
  "jsonrpsee",

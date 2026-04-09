@@ -15,7 +15,7 @@ use chainspec::{
     build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators, SAHARA_CHAIN_ID,
 };
 use commonware_cryptography::{ed25519, Signer as CwSigner};
-use community_pool::COMMUNITY_POOL_ADDRESS;
+use evm_precompiles::{community_pool_balance_calldata, COMMUNITY_POOL_ADDRESS};
 use reth_chainspec::ChainSpec;
 use tempfile::TempDir;
 use validators::ValidatorEntry;
@@ -435,6 +435,33 @@ async fn query_balance(rpc_addr: SocketAddr, address: Address) -> U256 {
     parse_rpc_u256(&response["result"], "eth_getBalance result")
 }
 
+async fn query_community_pool_balance_via_precompile(rpc_addr: SocketAddr) -> U256 {
+    let client = test_client();
+    let response = post_json_to_addr(
+        client,
+        rpc_addr,
+        rpc_req(
+            "eth_call",
+            serde_json::json!([
+                {
+                    "to": COMMUNITY_POOL_ADDRESS,
+                    "data": raw_tx_hex(community_pool_balance_calldata().as_ref()),
+                },
+                "latest"
+            ]),
+        ),
+    )
+    .await;
+    assert!(
+        response["error"].is_null() || response.get("error").is_none(),
+        "community-pool precompile eth_call should succeed: {response}"
+    );
+    parse_rpc_u256(
+        &response["result"],
+        "community-pool precompile eth_call result",
+    )
+}
+
 async fn build_fee_only_transfer_raw_tx(signer: &PrivateKeySigner) -> Vec<u8> {
     let tx = TxEip1559 {
         chain_id: SAHARA_CHAIN_ID,
@@ -570,9 +597,17 @@ async fn test_community_pool_accrues_burned_amount_from_fee_only_transfer() {
 
     wait_for_block(rpc_addr, 1, Duration::from_secs(30)).await;
 
+    let initial_zero_balance = query_balance(rpc_addr, Address::ZERO).await;
     let initial_community_pool_balance = query_balance(rpc_addr, COMMUNITY_POOL_ADDRESS).await;
+    let initial_precompile_balance = query_community_pool_balance_via_precompile(rpc_addr).await;
+    assert_eq!(
+        initial_precompile_balance, initial_community_pool_balance,
+        "precompile getter should match community pool account balance before tx"
+    );
     let (_tx_hash, receipt, block) = submit_fee_only_transfer(rpc_addr, &signer).await;
+    let final_zero_balance = query_balance(rpc_addr, Address::ZERO).await;
     let final_community_pool_balance = query_balance(rpc_addr, COMMUNITY_POOL_ADDRESS).await;
+    let final_precompile_balance = query_community_pool_balance_via_precompile(rpc_addr).await;
 
     let block_gas_used = parse_rpc_u256(&block["gasUsed"], "block gasUsed");
     let receipt_gas_used = parse_rpc_u256(&receipt["gasUsed"], "receipt gasUsed");
@@ -588,6 +623,14 @@ async fn test_community_pool_accrues_burned_amount_from_fee_only_transfer() {
         final_community_pool_balance - initial_community_pool_balance,
         burned_amount,
         "community pool should accrue the block burned amount"
+    );
+    assert_eq!(
+        final_zero_balance, initial_zero_balance,
+        "controlled fee-only transfer should not change Address::ZERO balance"
+    );
+    assert_eq!(
+        final_precompile_balance, final_community_pool_balance,
+        "precompile getter should match community pool account balance after tx"
     );
 }
 
@@ -656,9 +699,11 @@ async fn test_multivalidator_priority_fee_follows_actual_proposer() {
     }
 
     let mut initial_community_pool_balances = Vec::with_capacity(network.handles.len());
+    let mut initial_zero_balances = Vec::with_capacity(network.handles.len());
     let mut initial_legacy_fee_recipient_balances = Vec::with_capacity(network.handles.len());
     let mut initial_fee_recipient_balances_by_node = Vec::with_capacity(network.handles.len());
     for handle in &network.handles {
+        initial_zero_balances.push(query_balance(handle.rpc_addr, Address::ZERO).await);
         initial_community_pool_balances
             .push(query_balance(handle.rpc_addr, COMMUNITY_POOL_ADDRESS).await);
         initial_legacy_fee_recipient_balances
@@ -703,6 +748,9 @@ async fn test_multivalidator_priority_fee_follows_actual_proposer() {
 
     let final_community_pool_balance =
         query_balance(proposer_rpc_addr, COMMUNITY_POOL_ADDRESS).await;
+    let final_zero_balance = query_balance(proposer_rpc_addr, Address::ZERO).await;
+    let final_precompile_balance =
+        query_community_pool_balance_via_precompile(proposer_rpc_addr).await;
     let final_legacy_fee_recipient_balance =
         query_balance(proposer_rpc_addr, DEFAULT_PROPOSER_FEE_RECIPIENT).await;
     let mut final_fee_recipient_balances = Vec::with_capacity(network.fee_recipients.len());
@@ -737,5 +785,13 @@ async fn test_multivalidator_priority_fee_follows_actual_proposer() {
         final_community_pool_balance - initial_community_pool_balances[rewarded_index],
         expected_burned_amount,
         "community pool should still accrue the burned amount in multi-validator mode"
+    );
+    assert_eq!(
+        final_zero_balance, initial_zero_balances[rewarded_index],
+        "controlled fee-only transfer should not change Address::ZERO balance in multi-validator mode"
+    );
+    assert_eq!(
+        final_precompile_balance, final_community_pool_balance,
+        "precompile getter should match community pool account balance in multi-validator mode"
     );
 }

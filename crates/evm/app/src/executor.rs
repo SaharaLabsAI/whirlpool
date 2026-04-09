@@ -9,7 +9,7 @@ use app::{
     traits::{Application, TxSource},
     EvmBlock, ExecutionResult, Receipt,
 };
-use community_pool::COMMUNITY_POOL_ADDRESS;
+use evm_precompiles::COMMUNITY_POOL_ADDRESS;
 use reth_ethereum_primitives::TransactionSigned;
 use reth_evm::{
     execute::{BlockBuilder, BlockExecutor},
@@ -550,8 +550,7 @@ mod tests {
         build_sahara_chain_spec, build_sahara_chain_spec_with_alloc_and_fee_recipients,
         SAHARA_CHAIN_ID,
     };
-    use community_pool::COMMUNITY_POOL_ADDRESS;
-    use evm_precompiles::{mint_calldata, TEST_TOKEN_PRECOMPILE_ADDRESS};
+    use evm_precompiles::{mint_calldata, COMMUNITY_POOL_ADDRESS, TEST_TOKEN_PRECOMPILE_ADDRESS};
     use reth_ethereum_primitives::TransactionSigned;
     use reth_primitives_traits::SignerRecoverable;
     use revm::state::Bytecode;

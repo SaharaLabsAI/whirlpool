@@ -8,7 +8,6 @@ doctest = false
 
 [dependencies]
 app = { path = "../../app" }
-community-pool = { path = "../../community-pool" }
 evm-precompiles = { path = "../precompiles" }
 native-token = { path = "../../native-token" }
 validators = { path = "../../validators" }

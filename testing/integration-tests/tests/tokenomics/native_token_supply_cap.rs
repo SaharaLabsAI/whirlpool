@@ -17,7 +17,7 @@ use chainspec::{
     SAHARA_CHAIN_ID,
 };
 use commonware_cryptography::{ed25519, Signer as CwSigner};
-use community_pool::COMMUNITY_POOL_ADDRESS;
+use evm_precompiles::{community_pool_balance_calldata, COMMUNITY_POOL_ADDRESS};
 use native_token::sahara_hard_cap_base_units;
 use reth_chainspec::{Chain, ChainSpec, ChainSpecBuilder};
 use tempfile::TempDir;
@@ -245,6 +245,33 @@ async fn send_raw_tx(rpc_addr: SocketAddr, raw_tx_bytes: &[u8]) -> B256 {
     }
 
     parse_rpc_b256(&response["result"], "eth_sendRawTransaction result")
+}
+
+async fn query_community_pool_balance_via_precompile(rpc_addr: SocketAddr) -> U256 {
+    let client = test_client();
+    let response = post_json_to_addr(
+        client,
+        rpc_addr,
+        rpc_req(
+            "eth_call",
+            serde_json::json!([
+                {
+                    "to": COMMUNITY_POOL_ADDRESS,
+                    "data": raw_tx_hex(community_pool_balance_calldata().as_ref()),
+                },
+                "latest"
+            ]),
+        ),
+    )
+    .await;
+    assert!(
+        response["error"].is_null() || response.get("error").is_none(),
+        "community-pool precompile eth_call should succeed: {response}"
+    );
+    parse_rpc_u256(
+        &response["result"],
+        "community-pool precompile eth_call result",
+    )
 }
 
 async fn sign_eip1559_tx(signer: &PrivateKeySigner, tx: TxEip1559) -> Vec<u8> {
@@ -482,12 +509,18 @@ async fn test_community_pool_credit_is_supply_conserving() {
 
     wait_for_block(rpc_addr, 1, Duration::from_secs(30)).await;
 
+    let before_zero_balance = query_balance(rpc_addr, Address::ZERO).await;
     let before = [
         query_balance(rpc_addr, sender).await,
         query_balance(rpc_addr, recipient).await,
         query_balance(rpc_addr, fee_recipient).await,
         query_balance(rpc_addr, COMMUNITY_POOL_ADDRESS).await,
     ];
+    let before_precompile_balance = query_community_pool_balance_via_precompile(rpc_addr).await;
+    assert_eq!(
+        before_precompile_balance, before[3],
+        "precompile getter should match community pool account before tx"
+    );
 
     let tx = TxEip1559 {
         chain_id: SAHARA_CHAIN_ID,
@@ -516,6 +549,8 @@ async fn test_community_pool_credit_is_supply_conserving() {
         query_balance(rpc_addr, fee_recipient).await,
         query_balance(rpc_addr, COMMUNITY_POOL_ADDRESS).await,
     ];
+    let after_zero_balance = query_balance(rpc_addr, Address::ZERO).await;
+    let after_precompile_balance = query_community_pool_balance_via_precompile(rpc_addr).await;
 
     assert_eq!(
         after[3] - before[3],
@@ -526,5 +561,13 @@ async fn test_community_pool_credit_is_supply_conserving() {
         sum_balances(&before),
         sum_balances(&after),
         "community-pool credit should be supply-conserving"
+    );
+    assert_eq!(
+        after_zero_balance, before_zero_balance,
+        "controlled fee-only transfer should not change Address::ZERO balance"
+    );
+    assert_eq!(
+        after_precompile_balance, after[3],
+        "precompile getter should match community pool account after tx"
     );
 }

@@ -8,11 +8,11 @@ Location: `testing/integration-tests/`
 - `chainspec`: canonical Sahara chain-spec builders/chain-id used by full-node tests.
 - `app-evm`: runtime-owned constants and EVM runtime behavior under test.
 - `whirlpool-node`: in-process node startup via `start_node_with_chain_spec(...)`.
-- `rpc-eth`, `state-reth`, `native-token`, `validators`, `community-pool`: subsystem coverage.
+- `rpc-eth`, `state-reth`, `native-token`, `validators`, `evm-precompiles`: subsystem coverage.
 
 ## Notable Coverage
 - `tests/tokenomics/native_token_supply_cap.rs`: over-cap rejection + supply conservation.
-- `tests/tokenomics/community_pool.rs`: burned-fee routing and proposer priority-fee recipient behavior.
+- `tests/tokenomics/community_pool.rs`: burned-fee routing, proposer priority-fee recipient behavior, `Address::ZERO` no-delta guard in controlled fee-only flow, and precompile-vs-RPC balance parity.
 - `tests/rpc/evm.rs`: JSON-RPC contract + full-node transfer/deploy/call flows.
 - `tests/precompiles/test_token.rs`: custom precompile end-to-end behavior.
 - `tests/consensus/multinode.rs`: multi-node consensus progression.

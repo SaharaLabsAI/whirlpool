@@ -11,7 +11,6 @@ app-evm = { path = "../../crates/evm/app" }
 chainspec = { path = "../../crates/chainspec" }
 evm-precompiles = { path = "../../crates/evm/precompiles" }
 app-mem = { path = "../../crates/mem/app" }
-community-pool = { path = "../../crates/community-pool" }
 native-token = { path = "../../crates/native-token" }
 validators = { path = "../../crates/validators" }
 rpc-eth = { path = "../../crates/evm/rpc" }

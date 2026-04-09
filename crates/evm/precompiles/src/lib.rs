@@ -14,9 +14,13 @@ use revm::{
 };
 use std::collections::HashSet;
 
+pub mod community_pool;
 pub mod test_token;
 pub mod validators;
 
+pub use community_pool::{
+    community_pool_balance_calldata, decode_community_pool_balance_output, COMMUNITY_POOL_ADDRESS,
+};
 pub use test_token::{balance_of_calldata, mint_calldata, TEST_TOKEN_PRECOMPILE_ADDRESS};
 pub use validators::{
     decode_validators_output, validators_calldata, VALIDATORS_PRECOMPILE_ADDRESS,
@@ -132,6 +136,7 @@ pub fn build_whirlpool_precompiles_with_validators(
     build_precompiles(
         spec,
         [
+            community_pool::register(),
             test_token::TestTokenPrecompile::register(),
             validators::register(simplex_validators),
         ],
@@ -298,6 +303,7 @@ mod tests {
     #[test]
     fn registry_builds_expected_addresses() {
         let registry = build_whirlpool_precompiles(SpecId::CANCUN).expect("registry");
+        assert!(registry.get(&COMMUNITY_POOL_ADDRESS).is_some());
         assert!(registry.get(&TEST_TOKEN_PRECOMPILE_ADDRESS).is_some());
         assert!(registry.get(&VALIDATORS_PRECOMPILE_ADDRESS).is_some());
 
