@@ -4,7 +4,7 @@
 Workspace-owned registry and implementation crate for Whirlpool custom EVM precompiles.
 
 ## Location
-`crates/evm/precompiles/`
+`crates/app/evm/precompiles/`
 
 ## Key exports
 - `WhirlpoolEvmFactory`: custom EVM factory that injects Whirlpool precompiles into `EthEvmBuilder`.

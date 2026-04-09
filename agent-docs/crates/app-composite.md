@@ -4,7 +4,7 @@
 Consensus-facing composite application that owns mixed transaction ingestion, classifies raw mempool bytes, and delegates domain-specific execution to `app-evm`.
 
 ## Location
-`crates/mem/composite/`
+`crates/app/mem/composite/`
 
 ## Dependency Boundaries
 - `app`: `Application`, `TxSource`, `EvmBlock`, `ExecutionResult`, `Receipt`.
@@ -20,4 +20,4 @@ Consensus-facing composite application that owns mixed transaction ingestion, cl
   - `store_finalized_block(&self, block, storage)`: persists finalized block receipts captured during propose/verify.
 
 ## Status
-Active. Moved under `crates/mem/`; `whirlpool-node` no longer depends on it directly, and it consumes `tx-dispatch` from the same mem subtree.
+Active. Moved under `crates/app/mem/`; `whirlpool-node` no longer depends on it directly, and it consumes `tx-dispatch` from the same mem subtree.

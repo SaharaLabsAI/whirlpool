@@ -4,13 +4,13 @@
 Bridge the vendor-agnostic `p2p` interfaces to the Commonware networking stack.
 
 ## Interface/Implementation Split
-- Interface module: `crates/p2p-commonware/src/traits.rs`
+- Interface module: `crates/p2p/commonware/src/traits.rs`
   - `CommonwareTransport`
 - Implementation modules:
-  - `crates/p2p-commonware/src/provider.rs`
-  - `crates/p2p-commonware/src/sender.rs`
-  - `crates/p2p-commonware/src/receiver.rs`
-  - `crates/p2p-commonware/src/lib.rs` (`MultiplexSender`, `MultiplexReceiver`)
+  - `crates/p2p/commonware/src/provider.rs`
+  - `crates/p2p/commonware/src/sender.rs`
+  - `crates/p2p/commonware/src/receiver.rs`
+  - `crates/p2p/commonware/src/lib.rs` (`MultiplexSender`, `MultiplexReceiver`)
 
 ## Trait Boundary
 `CommonwareTransport` provides an interface boundary for providers that expose dedicated simplex channels:
@@ -28,7 +28,7 @@ Bridge the vendor-agnostic `p2p` interfaces to the Commonware networking stack.
 - `resolver`: `Channel::RESOLVER` (2) — block resolver messages
 - `payload`: `Channel::PAYLOAD` (3) — block payload relay messages
 
-Channel constants defined in `crates/p2p/src/types.rs` as `Channel(N)` associated constants.
+Channel constants defined in `crates/p2p/traits/src/types.rs` as `Channel(N)` associated constants.
 
 ## Canonical Imports
 - `p2p_commonware::traits::CommonwareTransport`

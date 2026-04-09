@@ -7,9 +7,9 @@ State database trait and error types — pure interface crate with no concrete i
 `state` is the interface half of the state layer. Concrete implementations live in `state-memory`.
 
 ## Modules
-- `crates/state/src/block_storage.rs` — `BlockStorage` trait + `BlockStorageError`
-- `crates/state/src/traits.rs` — `StateDb` trait
-- `crates/state/src/error.rs` — `StateError` enum, `DBErrorMarker` impl
+- `crates/app/state/src/block_storage.rs` — `BlockStorage` trait + `BlockStorageError`
+- `crates/app/state/src/traits.rs` — `StateDb` trait
+- `crates/app/state/src/error.rs` — `StateError` enum, `DBErrorMarker` impl
 
 ## Trait Boundary
 `StateDb` defines the crate-level database contract:

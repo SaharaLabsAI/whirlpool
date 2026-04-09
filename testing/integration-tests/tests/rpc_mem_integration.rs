@@ -1,5 +1,5 @@
 #![cfg(any())]
-// Disabled during mem crate unwiring and relocation under crates/mem.
+// Disabled during mem crate unwiring and relocation under crates/app/mem.
 
 use std::collections::BTreeMap;
 use std::net::{SocketAddr, TcpListener};

@@ -4,22 +4,22 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-app = { path = "../app" }
-app-evm = { path = "../evm/app" }
+app = { path = "../app/traits" }
+app-evm = { path = "../app/evm/app" }
 chainspec = { path = "../chainspec" }
-mempool-mdbx = { path = "../mempool-mdbx" }
+mempool-mdbx = { path = "../mempool/mdbx" }
 native-token = { path = "../native-token" }
 validators = { path = "../validators" }
-rpc-eth = { path = "../evm/rpc" }
+rpc-eth = { path = "../app/evm/rpc" }
 reth-chainspec = { path = "../../vendor/reth/crates/chainspec" }
 reth-revm = { path = "../../vendor/reth/crates/revm" }
-state = { path = "../state" }
-state-reth = { path = "../evm/state" }
+state = { path = "../app/state" }
+state-reth = { path = "../app/evm/state" }
 revm = { version = "34" }
 alloy-primitives = { version = "1.5.0" }
-consensus = { path = "../consensus" }
-consensus-simplex = { path = "../consensus-simplex" }
-p2p-commonware = { path = "../p2p-commonware" }
+consensus = { path = "../consensus/traits" }
+consensus-simplex = { path = "../consensus/simplex" }
+p2p-commonware = { path = "../p2p/commonware" }
 commonware-cryptography = { path = "../../vendor/commonware/cryptography" }
 commonware-codec = { path = "../../vendor/commonware/codec" }
 commonware-p2p = { path = "../../vendor/commonware/p2p" }
@@ -35,7 +35,7 @@ serde = { version = "1", features = ["derive"] }
 toml = "0.8"
 
 [dev-dependencies]
-state-memory = { path = "../mem/state" }
+state-memory = { path = "../app/mem/state" }
 
 [[bin]]
 name = "whirlpool-node"

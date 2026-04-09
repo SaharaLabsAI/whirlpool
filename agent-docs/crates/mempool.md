@@ -10,21 +10,21 @@ The `mempool` crate provides a persistent storage layer for transactions, ensuri
 
 ### MempoolStore
 Raw MDBX wrapper for transaction storage.
-- Path: `crates/mempool/src/store.rs`
+- Path: `crates/mempool/traits/src/store.rs`
 - Backend: `reth-libmdbx`
 - Key Format: `u64` big-endian (FIFO ordering)
 - Primary API: `put(key, value)`, `get(key)`, `delete(key)`, `iter()`
 
 ### PersistentTxPool
 High-level transaction pool implementation.
-- Path: `crates/mempool/src/persistent.rs`
+- Path: `crates/mempool/traits/src/persistent.rs`
 - Traits: Implements `TxSource`
 - Storage: Uses `MempoolStore`
 - Data Directory: Defaulted to `data/mempool` in `whirlpool-node`
 
 ### MempoolError
 Error types for mempool operations.
-- Path: `crates/mempool/src/error.rs`
+- Path: `crates/mempool/traits/src/error.rs`
 
 ## Integration
 
@@ -33,5 +33,5 @@ Error types for mempool operations.
 
 ## Testing
 
-- Unit tests: `crates/mempool/src/store.rs`, `crates/mempool/src/persistent.rs`
-- Integration tests: `crates/mempool/tests/integration.rs`
+- Unit tests: `crates/mempool/traits/src/store.rs`, `crates/mempool/traits/src/persistent.rs`
+- Integration tests: `crates/mempool/traits/tests/integration.rs`

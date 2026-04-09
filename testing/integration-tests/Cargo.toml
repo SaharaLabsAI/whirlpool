@@ -6,18 +6,18 @@ edition.workspace = true
 # This crate exists only for its integration tests; there is no library.
 # `cargo test -p integration-tests` runs everything under tests/.
 [dependencies]
-app = { path = "../../crates/app" }
-app-evm = { path = "../../crates/evm/app" }
+app = { path = "../../crates/app/traits" }
+app-evm = { path = "../../crates/app/evm/app" }
 chainspec = { path = "../../crates/chainspec" }
-evm-precompiles = { path = "../../crates/evm/precompiles" }
-app-mem = { path = "../../crates/mem/app" }
+evm-precompiles = { path = "../../crates/app/evm/precompiles" }
+app-mem = { path = "../../crates/app/mem/app" }
 native-token = { path = "../../crates/native-token" }
 validators = { path = "../../crates/validators" }
-rpc-eth = { path = "../../crates/evm/rpc" }
-rpc-mem = { path = "../../crates/mem/rpc" }
-state = { path = "../../crates/state" }
-state-memory = { path = "../../crates/mem/state" }
-state-reth = { path = "../../crates/evm/state" }
+rpc-eth = { path = "../../crates/app/evm/rpc" }
+rpc-mem = { path = "../../crates/app/mem/rpc" }
+state = { path = "../../crates/app/state" }
+state-memory = { path = "../../crates/app/mem/state" }
+state-reth = { path = "../../crates/app/evm/state" }
 whirlpool-node = { path = "../../crates/node" }
 commonware-cryptography = { path = "../../vendor/commonware/cryptography" }
 revm = { version = "34" }

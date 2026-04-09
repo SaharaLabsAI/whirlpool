@@ -3,7 +3,7 @@
 The consensus crate provides the stable trait boundary used by adapter and node crates.
 
 ## Canonical Trait Module
-- `crates/consensus/src/traits.rs` is the canonical import surface.
+- `crates/consensus/traits/src/traits.rs` is the canonical import surface.
 - Canonical paths:
   - `consensus::traits::Block`
   - `consensus::traits::ConsensusApp`
@@ -36,8 +36,8 @@ The consensus crate provides the stable trait boundary used by adapter and node 
 - Downstream crates should prefer `consensus::traits::*` imports.
 
 ## File Locations
-- `crates/consensus/src/traits.rs`
-- `crates/consensus/src/block.rs`
-- `crates/consensus/src/app.rs`
-- `crates/consensus/src/event.rs`
-- `crates/consensus/src/engine.rs`
+- `crates/consensus/traits/src/traits.rs`
+- `crates/consensus/traits/src/block.rs`
+- `crates/consensus/traits/src/app.rs`
+- `crates/consensus/traits/src/event.rs`
+- `crates/consensus/traits/src/engine.rs`

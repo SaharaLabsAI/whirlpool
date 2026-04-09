@@ -3,15 +3,15 @@
 The adapter crate translates Commonware Simplex APIs into Whirlpool consensus traits, and provides a payload relay for broadcasting proposed blocks to peers.
 
 ## Interface/Implementation Split
-- Interface module: `crates/consensus-simplex/src/traits.rs`
+- Interface module: `crates/consensus/simplex/src/traits.rs`
   - `CommonwareBlock`
 - Implementation modules:
-  - `crates/consensus-simplex/src/adapter.rs`
-  - `crates/consensus-simplex/src/engine.rs`
-  - `crates/consensus-simplex/src/mailbox.rs`
-  - `crates/consensus-simplex/src/receiver.rs`
-  - `crates/consensus-simplex/src/sink.rs`
-  - `crates/consensus-simplex/src/config.rs`
+  - `crates/consensus/simplex/src/adapter.rs`
+  - `crates/consensus/simplex/src/engine.rs`
+  - `crates/consensus/simplex/src/mailbox.rs`
+  - `crates/consensus/simplex/src/receiver.rs`
+  - `crates/consensus/simplex/src/sink.rs`
+  - `crates/consensus/simplex/src/config.rs`
 
 ## Canonical Imports
 - Core traits: `consensus::traits::{Block, ConsensusApp, EventSink, ConsensusEngine}`
