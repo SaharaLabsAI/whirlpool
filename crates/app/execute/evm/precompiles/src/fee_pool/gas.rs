@@ -1,0 +1,3 @@
+pub const FEE_POOL_BALANCE_GAS: u64 = 750;
+pub const CLAIMABLE_BALANCE_GAS: u64 = 900;
+pub const WITHDRAW_GAS: u64 = 6_500;

@@ -1,9 +1,10 @@
 use std::collections::BTreeMap;
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, TcpListener};
+use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::time::{Duration, Instant};
 
 use crate::common::encoding::raw_tx_hex;
 use crate::common::http::{post_json_to_addr, rpc_req, test_client};
+use crate::common::ports::allocate_port;
 use alloy_consensus::{SignableTransaction, TxEip1559};
 use alloy_eips::eip2718::Encodable2718;
 use alloy_genesis::GenesisAccount;
@@ -15,7 +16,10 @@ use chainspec::{
     build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators, SAHARA_CHAIN_ID,
 };
 use commonware_cryptography::{ed25519, Signer as CwSigner};
-use evm_precompiles::{community_pool_balance_calldata, COMMUNITY_POOL_ADDRESS};
+use evm_precompiles::{
+    claimable_balance_calldata, community_pool_balance_calldata, fee_pool_balance_calldata,
+    withdraw_calldata, COMMUNITY_POOL_ADDRESS, FEE_POOL_PRECOMPILE_ADDRESS,
+};
 use reth_chainspec::ChainSpec;
 use tempfile::TempDir;
 use validators::ValidatorEntry;
@@ -28,14 +32,6 @@ use whirlpool_node::node::{start_node_with_chain_spec, NodeHandle};
 const MAX_PRIORITY_FEE_PER_GAS: u128 = 1_000_000_000;
 const MAX_FEE_PER_GAS: u128 = 20_000_000_000;
 const TRANSFER_GAS_LIMIT: u64 = 21_000;
-
-fn allocate_port() -> u16 {
-    TcpListener::bind("127.0.0.1:0")
-        .expect("failed to bind ephemeral port")
-        .local_addr()
-        .expect("failed to get local addr")
-        .port()
-}
 
 fn parse_rpc_u64(value: &serde_json::Value, field: &str) -> u64 {
     let hex = value
@@ -462,6 +458,54 @@ async fn query_community_pool_balance_via_precompile(rpc_addr: SocketAddr) -> U2
     )
 }
 
+async fn query_fee_pool_balance_via_precompile(rpc_addr: SocketAddr) -> U256 {
+    let client = test_client();
+    let response = post_json_to_addr(
+        client,
+        rpc_addr,
+        rpc_req(
+            "eth_call",
+            serde_json::json!([
+                {
+                    "to": FEE_POOL_PRECOMPILE_ADDRESS,
+                    "data": raw_tx_hex(fee_pool_balance_calldata().as_ref()),
+                },
+                "latest"
+            ]),
+        ),
+    )
+    .await;
+    assert!(
+        response["error"].is_null() || response.get("error").is_none(),
+        "fee-pool precompile eth_call should succeed: {response}"
+    );
+    parse_rpc_u256(&response["result"], "fee-pool precompile eth_call result")
+}
+
+async fn query_fee_pool_claimable_via_precompile(rpc_addr: SocketAddr, recipient: Address) -> U256 {
+    let client = test_client();
+    let response = post_json_to_addr(
+        client,
+        rpc_addr,
+        rpc_req(
+            "eth_call",
+            serde_json::json!([
+                {
+                    "to": FEE_POOL_PRECOMPILE_ADDRESS,
+                    "data": raw_tx_hex(claimable_balance_calldata(recipient).as_ref()),
+                },
+                "latest"
+            ]),
+        ),
+    )
+    .await;
+    assert!(
+        response["error"].is_null() || response.get("error").is_none(),
+        "fee-pool claimable precompile eth_call should succeed: {response}"
+    );
+    parse_rpc_u256(&response["result"], "fee-pool claimable eth_call result")
+}
+
 async fn build_fee_only_transfer_raw_tx(signer: &PrivateKeySigner) -> Vec<u8> {
     let tx = TxEip1559 {
         chain_id: SAHARA_CHAIN_ID,
@@ -473,6 +517,22 @@ async fn build_fee_only_transfer_raw_tx(signer: &PrivateKeySigner) -> Vec<u8> {
         value: U256::ZERO,
         access_list: Default::default(),
         input: Bytes::default(),
+    };
+
+    sign_eip1559_tx(signer, tx).await
+}
+
+async fn build_fee_pool_withdraw_raw_tx(signer: &PrivateKeySigner, nonce: u64) -> Vec<u8> {
+    let tx = TxEip1559 {
+        chain_id: SAHARA_CHAIN_ID,
+        nonce,
+        max_priority_fee_per_gas: 0,
+        max_fee_per_gas: MAX_FEE_PER_GAS,
+        gas_limit: 100_000,
+        to: alloy_primitives::TxKind::Call(FEE_POOL_PRECOMPILE_ADDRESS),
+        value: U256::ZERO,
+        access_list: Default::default(),
+        input: withdraw_calldata(),
     };
 
     sign_eip1559_tx(signer, tx).await
@@ -635,7 +695,7 @@ async fn test_community_pool_accrues_burned_amount_from_fee_only_transfer() {
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn test_proposer_fee_recipient_accrues_priority_fee_from_fee_only_transfer() {
+async fn test_proposer_fee_recipient_metadata_survives_while_priority_fees_accrue_to_fee_pool() {
     let signer = PrivateKeySigner::random();
     let sender = signer.address();
     let funded_balance = U256::from(100_000_000_000_000_000_000u128);
@@ -649,10 +709,18 @@ async fn test_proposer_fee_recipient_accrues_priority_fee_from_fee_only_transfer
     let initial_fee_recipient_balance = query_balance(rpc_addr, configured_fee_recipient).await;
     let initial_legacy_fee_recipient_balance =
         query_balance(rpc_addr, DEFAULT_PROPOSER_FEE_RECIPIENT).await;
+    let initial_fee_pool_balance = query_balance(rpc_addr, FEE_POOL_PRECOMPILE_ADDRESS).await;
+    let initial_fee_pool_precompile_balance = query_fee_pool_balance_via_precompile(rpc_addr).await;
+    let initial_claimable =
+        query_fee_pool_claimable_via_precompile(rpc_addr, configured_fee_recipient).await;
     let (_tx_hash, receipt, block) = submit_fee_only_transfer(rpc_addr, &signer).await;
     let final_fee_recipient_balance = query_balance(rpc_addr, configured_fee_recipient).await;
     let final_legacy_fee_recipient_balance =
         query_balance(rpc_addr, DEFAULT_PROPOSER_FEE_RECIPIENT).await;
+    let final_fee_pool_balance = query_balance(rpc_addr, FEE_POOL_PRECOMPILE_ADDRESS).await;
+    let final_fee_pool_precompile_balance = query_fee_pool_balance_via_precompile(rpc_addr).await;
+    let final_claimable =
+        query_fee_pool_claimable_via_precompile(rpc_addr, configured_fee_recipient).await;
 
     let block_gas_used = parse_rpc_u256(&block["gasUsed"], "block gasUsed");
     let receipt_gas_used = parse_rpc_u256(&receipt["gasUsed"], "receipt gasUsed");
@@ -669,13 +737,93 @@ async fn test_proposer_fee_recipient_accrues_priority_fee_from_fee_only_transfer
     );
     assert_eq!(
         final_fee_recipient_balance - initial_fee_recipient_balance,
-        expected_priority_fees,
-        "configured proposer recipient should accrue the priority-fee portion"
+        U256::ZERO,
+        "configured proposer recipient account should not be directly credited"
     );
     assert_eq!(
         final_legacy_fee_recipient_balance - initial_legacy_fee_recipient_balance,
         U256::ZERO,
         "legacy hardcoded fee recipient should not receive the priority-fee portion"
+    );
+    assert_eq!(
+        final_fee_pool_balance - initial_fee_pool_balance,
+        expected_priority_fees,
+        "fee-pool sink account should accrue the priority-fee portion exactly once"
+    );
+    assert_eq!(
+        final_claimable - initial_claimable,
+        expected_priority_fees,
+        "configured proposer recipient should accrue claimable fee-pool balance"
+    );
+    assert_eq!(
+        initial_fee_pool_precompile_balance, initial_fee_pool_balance,
+        "fee-pool precompile getter should match fee-pool account balance before tx"
+    );
+    assert_eq!(
+        final_fee_pool_precompile_balance, final_fee_pool_balance,
+        "fee-pool precompile getter should match fee-pool account balance after tx"
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn test_fee_pool_withdraw_transfers_claimable_balance_and_clears_slot() {
+    let signer = PrivateKeySigner::random();
+    let signer_addr = signer.address();
+    let funded_balance = U256::from(100_000_000_000_000_000_000u128);
+    let (handle, _tempdir) = start_funded_node(302, signer_addr, funded_balance, signer_addr);
+    let rpc_addr = handle.rpc_addr;
+
+    wait_for_block(rpc_addr, 1, Duration::from_secs(30)).await;
+
+    let initial_fee_pool_balance = query_balance(rpc_addr, FEE_POOL_PRECOMPILE_ADDRESS).await;
+    let initial_claimable = query_fee_pool_claimable_via_precompile(rpc_addr, signer_addr).await;
+    let (_tx_hash, receipt, block) = submit_fee_only_transfer(rpc_addr, &signer).await;
+    let block_gas_used = parse_rpc_u256(&block["gasUsed"], "block gasUsed");
+    let receipt_gas_used = parse_rpc_u256(&receipt["gasUsed"], "receipt gasUsed");
+    assert_eq!(
+        block_gas_used, receipt_gas_used,
+        "expected a single-tx block"
+    );
+
+    let expected_priority_fees = block_gas_used * U256::from(MAX_PRIORITY_FEE_PER_GAS);
+    let accrued_claimable = query_fee_pool_claimable_via_precompile(rpc_addr, signer_addr).await;
+    let fee_pool_before_withdraw = query_balance(rpc_addr, FEE_POOL_PRECOMPILE_ADDRESS).await;
+    assert_eq!(
+        accrued_claimable - initial_claimable,
+        expected_priority_fees,
+        "fee-only transfer should accrue claimable balance for proposer recipient"
+    );
+    assert_eq!(
+        fee_pool_before_withdraw - initial_fee_pool_balance,
+        expected_priority_fees,
+        "fee-only transfer should credit fee-pool sink by priority-fee amount"
+    );
+
+    let withdraw_raw_tx = build_fee_pool_withdraw_raw_tx(&signer, 1).await;
+    let withdraw_hash = send_raw_tx(rpc_addr, &withdraw_raw_tx).await;
+    let withdraw_receipt = wait_for_receipt(rpc_addr, withdraw_hash, Duration::from_secs(30)).await;
+    assert_eq!(
+        withdraw_receipt["status"].as_str(),
+        Some("0x1"),
+        "withdraw transaction should succeed: {withdraw_receipt}"
+    );
+
+    let claimable_after = query_fee_pool_claimable_via_precompile(rpc_addr, signer_addr).await;
+    let fee_pool_after_withdraw = query_balance(rpc_addr, FEE_POOL_PRECOMPILE_ADDRESS).await;
+    let fee_pool_precompile_after = query_fee_pool_balance_via_precompile(rpc_addr).await;
+    assert_eq!(
+        claimable_after,
+        U256::ZERO,
+        "withdraw should clear claimable slot when tx tip is zero"
+    );
+    assert_eq!(
+        fee_pool_before_withdraw - fee_pool_after_withdraw,
+        accrued_claimable,
+        "withdraw should transfer exactly accrued claimable amount out of fee-pool sink"
+    );
+    assert_eq!(
+        fee_pool_precompile_after, fee_pool_after_withdraw,
+        "fee-pool precompile getter should match account balance after withdraw"
     );
 }
 
@@ -699,13 +847,17 @@ async fn test_multivalidator_priority_fee_follows_actual_proposer() {
     }
 
     let mut initial_community_pool_balances = Vec::with_capacity(network.handles.len());
+    let mut initial_fee_pool_balances = Vec::with_capacity(network.handles.len());
     let mut initial_zero_balances = Vec::with_capacity(network.handles.len());
     let mut initial_legacy_fee_recipient_balances = Vec::with_capacity(network.handles.len());
     let mut initial_fee_recipient_balances_by_node = Vec::with_capacity(network.handles.len());
+    let mut initial_claimable_balances_by_node = Vec::with_capacity(network.handles.len());
     for handle in &network.handles {
         initial_zero_balances.push(query_balance(handle.rpc_addr, Address::ZERO).await);
         initial_community_pool_balances
             .push(query_balance(handle.rpc_addr, COMMUNITY_POOL_ADDRESS).await);
+        initial_fee_pool_balances
+            .push(query_balance(handle.rpc_addr, FEE_POOL_PRECOMPILE_ADDRESS).await);
         initial_legacy_fee_recipient_balances
             .push(query_balance(handle.rpc_addr, DEFAULT_PROPOSER_FEE_RECIPIENT).await);
 
@@ -714,6 +866,14 @@ async fn test_multivalidator_priority_fee_follows_actual_proposer() {
             balances.push(query_balance(handle.rpc_addr, *fee_recipient).await);
         }
         initial_fee_recipient_balances_by_node.push(balances);
+
+        let mut claimables = Vec::with_capacity(network.fee_recipients.len());
+        for fee_recipient in &network.fee_recipients {
+            claimables.push(
+                query_fee_pool_claimable_via_precompile(handle.rpc_addr, *fee_recipient).await,
+            );
+        }
+        initial_claimable_balances_by_node.push(claimables);
     }
 
     let rpc_addrs: Vec<_> = network
@@ -748,6 +908,10 @@ async fn test_multivalidator_priority_fee_follows_actual_proposer() {
 
     let final_community_pool_balance =
         query_balance(proposer_rpc_addr, COMMUNITY_POOL_ADDRESS).await;
+    let final_fee_pool_balance =
+        query_balance(proposer_rpc_addr, FEE_POOL_PRECOMPILE_ADDRESS).await;
+    let final_fee_pool_precompile_balance =
+        query_fee_pool_balance_via_precompile(proposer_rpc_addr).await;
     let final_zero_balance = query_balance(proposer_rpc_addr, Address::ZERO).await;
     let final_precompile_balance =
         query_community_pool_balance_via_precompile(proposer_rpc_addr).await;
@@ -762,17 +926,39 @@ async fn test_multivalidator_priority_fee_follows_actual_proposer() {
         .zip(initial_fee_recipient_balances_by_node[rewarded_index].iter())
         .map(|(final_balance, initial_balance)| *final_balance - *initial_balance)
         .collect();
+    let mut final_claimable_by_recipient = Vec::with_capacity(network.fee_recipients.len());
+    for recipient in &network.fee_recipients {
+        final_claimable_by_recipient
+            .push(query_fee_pool_claimable_via_precompile(proposer_rpc_addr, *recipient).await);
+    }
+    let claimable_deltas: Vec<_> = final_claimable_by_recipient
+        .iter()
+        .zip(initial_claimable_balances_by_node[rewarded_index].iter())
+        .map(|(final_claim, initial_claim)| *final_claim - *initial_claim)
+        .collect();
 
     assert_eq!(
-        balance_deltas[rewarded_index], expected_priority_fees,
-        "actual proposer's configured recipient should receive the priority fee"
+        balance_deltas[rewarded_index],
+        U256::ZERO,
+        "actual proposer's account should not receive direct priority-fee credit"
     );
     for (index, balance_delta) in balance_deltas.iter().enumerate() {
+        assert_eq!(
+            *balance_delta,
+            U256::ZERO,
+            "validator recipient account at index {index} should not receive direct priority-fee credit"
+        );
+    }
+    assert_eq!(
+        claimable_deltas[rewarded_index], expected_priority_fees,
+        "actual proposer's configured recipient should accrue claimable priority fees"
+    );
+    for (index, claimable_delta) in claimable_deltas.iter().enumerate() {
         if index != rewarded_index {
             assert_eq!(
-                *balance_delta,
+                *claimable_delta,
                 U256::ZERO,
-                "non-proposer validator recipient at index {index} should not receive this block's priority fee"
+                "non-proposer validator recipient at index {index} should not accrue this block's claimable priority fees"
             );
         }
     }
@@ -785,6 +971,15 @@ async fn test_multivalidator_priority_fee_follows_actual_proposer() {
         final_community_pool_balance - initial_community_pool_balances[rewarded_index],
         expected_burned_amount,
         "community pool should still accrue the burned amount in multi-validator mode"
+    );
+    assert_eq!(
+        final_fee_pool_balance - initial_fee_pool_balances[rewarded_index],
+        expected_priority_fees,
+        "fee-pool sink should accrue the rewarded block's priority-fee amount"
+    );
+    assert_eq!(
+        final_fee_pool_precompile_balance, final_fee_pool_balance,
+        "fee-pool precompile getter should match fee-pool account balance in multi-validator mode"
     );
     assert_eq!(
         final_zero_balance, initial_zero_balances[rewarded_index],

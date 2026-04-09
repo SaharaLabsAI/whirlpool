@@ -17,7 +17,7 @@ State database trait and error types — pure interface crate with no concrete i
 - constructors: `new`, `with_genesis`
 - state transitions: `commit` (returns `Result`)
 - queries: `state_root`, account/code/storage/block-hash accessors (return `Result`)
-- mutation helpers: `insert_account`, `insert_block_hash` (return `Result`)
+- mutation helpers: `insert_account`, `insert_storage`, `insert_block_hash` (return `Result`)
 
 `BlockStorage` defines the contract for persistent block and receipt storage:
 - `store_block(&self, block: &EvmBlock, receipts: &[Receipt]) -> Result<(), BlockStorageError>`: Atomic persistence.

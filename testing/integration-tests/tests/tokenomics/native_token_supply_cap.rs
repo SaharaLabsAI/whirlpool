@@ -1,10 +1,11 @@
 use std::collections::BTreeMap;
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, TcpListener};
+use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::common::encoding::raw_tx_hex;
 use crate::common::http::{post_json_to_addr, rpc_req, test_client};
+use crate::common::ports::allocate_port;
 use alloy_consensus::{SignableTransaction, TxEip1559};
 use alloy_eips::eip2718::Encodable2718;
 use alloy_genesis::{Genesis, GenesisAccount};
@@ -17,7 +18,10 @@ use chainspec::{
     sahara_hard_cap_base_units, SAHARA_CHAIN_ID,
 };
 use commonware_cryptography::{ed25519, Signer as CwSigner};
-use evm_precompiles::{community_pool_balance_calldata, COMMUNITY_POOL_ADDRESS};
+use evm_precompiles::{
+    community_pool_balance_calldata, fee_pool_balance_calldata, COMMUNITY_POOL_ADDRESS,
+    FEE_POOL_PRECOMPILE_ADDRESS,
+};
 use reth_chainspec::{Chain, ChainSpec, ChainSpecBuilder};
 use tempfile::TempDir;
 use validators::{encode_validator_registry_storage, ValidatorEntry, SIMPLEX_VALIDATORS_REGISTRY};
@@ -30,14 +34,6 @@ use whirlpool_node::node::{start_node_with_chain_spec, NodeHandle};
 const MAX_PRIORITY_FEE_PER_GAS: u128 = 1_000_000_000;
 const MAX_FEE_PER_GAS: u128 = 20_000_000_000;
 const TRANSFER_GAS_LIMIT: u64 = 21_000;
-
-fn allocate_port() -> u16 {
-    TcpListener::bind("127.0.0.1:0")
-        .expect("failed to bind ephemeral port")
-        .local_addr()
-        .expect("failed to get local addr")
-        .port()
-}
 
 fn parse_rpc_u64(value: &serde_json::Value, field: &str) -> u64 {
     let hex = value
@@ -273,6 +269,30 @@ async fn query_community_pool_balance_via_precompile(rpc_addr: SocketAddr) -> U2
     )
 }
 
+async fn query_fee_pool_balance_via_precompile(rpc_addr: SocketAddr) -> U256 {
+    let client = test_client();
+    let response = post_json_to_addr(
+        client,
+        rpc_addr,
+        rpc_req(
+            "eth_call",
+            serde_json::json!([
+                {
+                    "to": FEE_POOL_PRECOMPILE_ADDRESS,
+                    "data": raw_tx_hex(fee_pool_balance_calldata().as_ref()),
+                },
+                "latest"
+            ]),
+        ),
+    )
+    .await;
+    assert!(
+        response["error"].is_null() || response.get("error").is_none(),
+        "fee-pool precompile eth_call should succeed: {response}"
+    );
+    parse_rpc_u256(&response["result"], "fee-pool precompile eth_call result")
+}
+
 async fn sign_eip1559_tx(signer: &PrivateKeySigner, tx: TxEip1559) -> Vec<u8> {
     let signature = signer
         .sign_hash(&tx.signature_hash())
@@ -443,12 +463,14 @@ async fn test_post_genesis_transfer_conserves_supply() {
         sender,
         recipient,
         DEFAULT_PROPOSER_FEE_RECIPIENT,
+        FEE_POOL_PRECOMPILE_ADDRESS,
         COMMUNITY_POOL_ADDRESS,
     ];
     let before = [
         query_balance(rpc_addr, sender).await,
         query_balance(rpc_addr, recipient).await,
         query_balance(rpc_addr, DEFAULT_PROPOSER_FEE_RECIPIENT).await,
+        query_balance(rpc_addr, FEE_POOL_PRECOMPILE_ADDRESS).await,
         query_balance(rpc_addr, COMMUNITY_POOL_ADDRESS).await,
     ];
 
@@ -469,7 +491,7 @@ async fn test_post_genesis_transfer_conserves_supply() {
     let receipt = wait_for_receipt(rpc_addr, tx_hash, Duration::from_secs(30)).await;
     assert_eq!(receipt["status"].as_str(), Some("0x1"));
 
-    let mut after = [U256::ZERO; 4];
+    let mut after = [U256::ZERO; 5];
     for (slot, address) in after.iter_mut().zip(tracked_addresses) {
         *slot = query_balance(rpc_addr, address).await;
     }
@@ -513,12 +535,18 @@ async fn test_community_pool_credit_is_supply_conserving() {
         query_balance(rpc_addr, sender).await,
         query_balance(rpc_addr, recipient).await,
         query_balance(rpc_addr, fee_recipient).await,
+        query_balance(rpc_addr, FEE_POOL_PRECOMPILE_ADDRESS).await,
         query_balance(rpc_addr, COMMUNITY_POOL_ADDRESS).await,
     ];
     let before_precompile_balance = query_community_pool_balance_via_precompile(rpc_addr).await;
+    let before_fee_pool_precompile_balance = query_fee_pool_balance_via_precompile(rpc_addr).await;
     assert_eq!(
-        before_precompile_balance, before[3],
+        before_precompile_balance, before[4],
         "precompile getter should match community pool account before tx"
+    );
+    assert_eq!(
+        before_fee_pool_precompile_balance, before[3],
+        "precompile getter should match fee-pool account before tx"
     );
 
     let tx = TxEip1559 {
@@ -541,20 +569,33 @@ async fn test_community_pool_credit_is_supply_conserving() {
     let gas_used = parse_rpc_u256(&block["gasUsed"], "block gasUsed");
     let base_fee = parse_rpc_u256(&block["baseFeePerGas"], "block baseFeePerGas");
     let burned_amount = gas_used * base_fee;
+    let expected_priority_fees = gas_used * U256::from(MAX_PRIORITY_FEE_PER_GAS);
 
     let after = [
         query_balance(rpc_addr, sender).await,
         query_balance(rpc_addr, recipient).await,
         query_balance(rpc_addr, fee_recipient).await,
+        query_balance(rpc_addr, FEE_POOL_PRECOMPILE_ADDRESS).await,
         query_balance(rpc_addr, COMMUNITY_POOL_ADDRESS).await,
     ];
     let after_zero_balance = query_balance(rpc_addr, Address::ZERO).await;
     let after_precompile_balance = query_community_pool_balance_via_precompile(rpc_addr).await;
+    let after_fee_pool_precompile_balance = query_fee_pool_balance_via_precompile(rpc_addr).await;
 
     assert_eq!(
-        after[3] - before[3],
+        after[4] - before[4],
         burned_amount,
         "community pool should receive the burned-fee amount"
+    );
+    assert_eq!(
+        after[3] - before[3],
+        expected_priority_fees,
+        "fee pool should receive the priority-fee amount"
+    );
+    assert_eq!(
+        after[2] - before[2],
+        U256::ZERO,
+        "configured fee recipient account should not receive direct priority-fee credit"
     );
     assert_eq!(
         sum_balances(&before),
@@ -566,7 +607,11 @@ async fn test_community_pool_credit_is_supply_conserving() {
         "controlled fee-only transfer should not change Address::ZERO balance"
     );
     assert_eq!(
-        after_precompile_balance, after[3],
+        after_precompile_balance, after[4],
         "precompile getter should match community pool account after tx"
+    );
+    assert_eq!(
+        after_fee_pool_precompile_balance, after[3],
+        "precompile getter should match fee-pool account after tx"
     );
 }

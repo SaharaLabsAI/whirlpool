@@ -170,6 +170,21 @@ impl StateDb for InMemoryStateDb {
         Ok(())
     }
 
+    fn insert_storage(
+        &mut self,
+        address: Address,
+        index: U256,
+        value: U256,
+    ) -> Result<(), Self::Error> {
+        let account = self.accounts.entry(address).or_default();
+        if value.is_zero() {
+            account.storage.remove(&index);
+        } else {
+            account.storage.insert(index, value);
+        }
+        Ok(())
+    }
+
     fn insert_block_hash(&mut self, number: u64, hash: B256) -> Result<(), Self::Error> {
         self.block_hashes.insert(number, hash);
         Ok(())
@@ -195,6 +210,11 @@ impl InMemoryStateDb {
 
     pub fn insert_account(&mut self, address: Address, info: AccountInfo) {
         <Self as StateDb>::insert_account(self, address, info).unwrap_or_else(|e| match e {})
+    }
+
+    pub fn insert_storage(&mut self, address: Address, index: U256, value: U256) {
+        <Self as StateDb>::insert_storage(self, address, index, value)
+            .unwrap_or_else(|e| match e {})
     }
 
     pub fn insert_block_hash(&mut self, number: u64, hash: B256) {

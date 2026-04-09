@@ -29,9 +29,14 @@ Those live in `chainspec`.
 ## Key Runtime Notes
 - `WhirlpoolEvmConfig` still derives proposer fee recipients from genesis storage at `VALIDATOR_FEE_RECIPIENTS_REGISTRY`.
 - Precompile injection remains in `WhirlpoolEvmConfig::evm_with_env(...)` via `evm_precompiles::whirlpool_precompiles_with_validators(...)`.
-- Fee routing behavior remains unchanged:
+- Fee routing behavior:
   - burned base fees are credited to `evm_precompiles::COMMUNITY_POOL_ADDRESS`
-  - proposer priority fees accrue to proposer fee recipient.
+  - priority fees are credited to `evm_precompiles::FEE_POOL_PRECOMPILE_ADDRESS`
+  - per-recipient claimable balances are stored in fee-pool precompile storage (`claimable_balance_slot`)
+  - proposers withdraw later via fee-pool precompile `withdraw()`
+- `suggested_fee_recipient` in execution env is now forced to fee-pool address; block header `proposer_fee_recipient` remains proposer metadata.
+- `state::StateDb` writes are now used for claim-ledger slot updates via `insert_storage`.
+- Block gas accounting now uses the final cumulative receipt gas (last receipt), avoiding sum-of-cumulative overcounting.
 
 ## Canonical Imports
 - `app_evm::traits::StateProvider`

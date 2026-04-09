@@ -386,6 +386,58 @@ impl StateDb for RethStateDb {
         Ok(())
     }
 
+    fn insert_storage(
+        &mut self,
+        address: Address,
+        index: U256,
+        value: U256,
+    ) -> Result<(), Self::Error> {
+        let tx = self.db.tx_mut().map_err(RethStateError::Database)?;
+        let key = B256::from(index.to_be_bytes::<32>());
+        let hashed_addr = keccak256(address);
+        let hashed_slot = keccak256(key);
+
+        // Ensure account exists so storage is tied to a canonical state account.
+        if tx
+            .get::<PlainAccountState>(address)
+            .map_err(RethStateError::Database)?
+            .is_none()
+        {
+            let empty = info_to_account(&AccountInfo::default());
+            tx.put::<PlainAccountState>(address, empty)
+                .map_err(RethStateError::Database)?;
+            tx.put::<HashedAccounts>(hashed_addr, empty)
+                .map_err(RethStateError::Database)?;
+        }
+
+        if value.is_zero() {
+            let plain_entry = StorageEntry::new(key, U256::ZERO);
+            let _ = tx.delete::<PlainStorageState>(address, Some(plain_entry));
+
+            let hashed_entry = StorageEntry::new(hashed_slot, U256::ZERO);
+            let _ = tx.delete::<HashedStorages>(hashed_addr, Some(hashed_entry));
+        } else {
+            let plain_entry = StorageEntry::new(key, value);
+            let mut cursor = tx
+                .cursor_dup_write::<PlainStorageState>()
+                .map_err(RethStateError::Database)?;
+            cursor
+                .upsert(address, &plain_entry)
+                .map_err(RethStateError::Database)?;
+
+            let hashed_entry = StorageEntry::new(hashed_slot, value);
+            let mut hcursor = tx
+                .cursor_dup_write::<HashedStorages>()
+                .map_err(RethStateError::Database)?;
+            hcursor
+                .upsert(hashed_addr, &hashed_entry)
+                .map_err(RethStateError::Database)?;
+        }
+
+        tx.commit().map_err(RethStateError::Database)?;
+        Ok(())
+    }
+
     fn insert_block_hash(&mut self, number: u64, hash: B256) -> Result<(), Self::Error> {
         let tx = self.db.tx_mut().map_err(RethStateError::Database)?;
         tx.put::<CanonicalHeaders>(number, hash)

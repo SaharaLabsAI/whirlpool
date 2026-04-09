@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex, RwLock};
 
-use alloy_consensus::TxReceipt;
+use alloy_consensus::{Transaction, TxReceipt};
 use alloy_eips::eip1559::{calc_next_block_base_fee, BaseFeeParams};
 use alloy_eips::eip2718::{Decodable2718, Encodable2718};
 use alloy_primitives::{bytes::BufMut, Address, Bytes, B256, U256};
@@ -9,7 +9,9 @@ use app::{
     traits::{Application, TxSource},
     EvmBlock, ExecutionResult, Receipt,
 };
-use evm_precompiles::COMMUNITY_POOL_ADDRESS;
+use evm_precompiles::{
+    claimable_balance_slot, COMMUNITY_POOL_ADDRESS, FEE_POOL_PRECOMPILE_ADDRESS,
+};
 use reth_ethereum_primitives::TransactionSigned;
 use reth_evm::{
     execute::{BlockBuilder, BlockExecutor},
@@ -118,6 +120,81 @@ where
     credit_account_balance(db, COMMUNITY_POOL_ADDRESS, burned_amount)
 }
 
+fn credit_fee_pool_claim<DB>(
+    db: &mut DB,
+    recipient: Address,
+    amount: U256,
+) -> Result<(), EvmAppError>
+where
+    DB: StateProvider,
+    <DB as StateProvider>::Error: Into<EvmAppError>,
+{
+    if amount.is_zero() {
+        return Ok(());
+    }
+
+    let slot = claimable_balance_slot(recipient);
+    let current = db
+        .get_storage(FEE_POOL_PRECOMPILE_ADDRESS, slot)
+        .map_err(Into::into)?;
+    let next = current
+        .checked_add(amount)
+        .ok_or_else(|| EvmAppError::Execution("fee-pool claim ledger overflow".into()))?;
+
+    db.insert_storage(FEE_POOL_PRECOMPILE_ADDRESS, slot, next)
+        .map_err(Into::into)
+}
+
+fn gas_deltas_and_used<R>(receipts: &[R]) -> Result<(Vec<u64>, u64), EvmAppError>
+where
+    R: TxReceipt,
+{
+    let mut previous = 0_u64;
+    let mut deltas = Vec::with_capacity(receipts.len());
+
+    for receipt in receipts {
+        let cumulative = receipt.cumulative_gas_used();
+        let delta = cumulative.checked_sub(previous).ok_or_else(|| {
+            EvmAppError::InvalidBlock(format!(
+                "receipt cumulative gas must be nondecreasing: previous={previous}, current={cumulative}"
+            ))
+        })?;
+        deltas.push(delta);
+        previous = cumulative;
+    }
+
+    Ok((deltas, previous))
+}
+
+fn aggregate_priority_fees(
+    txs: &[RecoveredTx],
+    gas_deltas: &[u64],
+    base_fee_per_gas: u64,
+) -> Result<U256, EvmAppError> {
+    if txs.len() != gas_deltas.len() {
+        return Err(EvmAppError::Execution(format!(
+            "priority-fee aggregation requires matching tx/receipt counts, got txs={}, gas_deltas={}",
+            txs.len(),
+            gas_deltas.len()
+        )));
+    }
+
+    let mut total = U256::ZERO;
+    for (tx, gas_delta) in txs.iter().zip(gas_deltas.iter()) {
+        let tip_per_gas = tx.effective_tip_per_gas(base_fee_per_gas).ok_or_else(|| {
+            EvmAppError::InvalidBlock("transaction tip under base fee is invalid".into())
+        })?;
+        let fee = U256::from(*gas_delta)
+            .checked_mul(U256::from(tip_per_gas))
+            .ok_or_else(|| EvmAppError::Execution("priority-fee multiplication overflow".into()))?;
+        total = total
+            .checked_add(fee)
+            .ok_or_else(|| EvmAppError::Execution("priority-fee accumulation overflow".into()))?;
+    }
+
+    Ok(total)
+}
+
 fn validate_or_recover_fee_recipient(
     evm_config: &WhirlpoolEvmConfig,
     proposer_public_key: [u8; 32],
@@ -205,7 +282,7 @@ where
 
         let env_attributes = NextBlockEnvAttributes {
             timestamp,
-            suggested_fee_recipient: self.evm_config.fee_recipient(),
+            suggested_fee_recipient: FEE_POOL_PRECOMPILE_ADDRESS,
             prev_randao: B256::ZERO,
             gas_limit: 30_000_000,
             parent_beacon_block_root: Some(B256::ZERO),
@@ -229,11 +306,13 @@ where
             .map_err(|err| EvmAppError::Execution(err.to_string()))?;
 
         let mut included_transactions = Vec::new();
+        let mut included_decoded_txs = Vec::new();
         let mut inclusion_outcomes = Vec::with_capacity(raw_txs.len());
         for (raw_tx, tx) in raw_txs.iter().cloned().zip(decoded_txs) {
-            match builder.execute_transaction(tx) {
+            match builder.execute_transaction(tx.clone()) {
                 Ok(_) => {
                     included_transactions.push(raw_tx);
+                    included_decoded_txs.push(tx);
                     inclusion_outcomes.push(true);
                 }
                 Err(reth_evm::execute::BlockExecutionError::Validation(
@@ -251,12 +330,6 @@ where
 
         state.merge_transitions(BundleRetention::Reverts);
         let bundle = state.take_bundle();
-
-        let gas_used = execution_result
-            .receipts
-            .iter()
-            .map(TxReceipt::cumulative_gas_used)
-            .sum::<u64>();
 
         let receipts: Vec<Receipt> = execution_result
             .receipts
@@ -279,11 +352,16 @@ where
             parent.base_fee_per_gas,
             BaseFeeParams::ethereum(),
         );
+        let (gas_deltas, gas_used) = gas_deltas_and_used(&execution_result.receipts)?;
+        let priority_fees =
+            aggregate_priority_fees(&included_decoded_txs, &gas_deltas, base_fee_per_gas)?;
+        let claim_recipient = self.evm_config.fee_recipient();
 
         let state_root = {
             let mut canonical_db = self.state_db.write().unwrap();
             canonical_db.commit(&bundle).map_err(Into::into)?;
             credit_burned_fees(&mut *canonical_db, gas_used, base_fee_per_gas)?;
+            credit_fee_pool_claim(&mut *canonical_db, claim_recipient, priority_fees)?;
             canonical_db.state_root().map_err(Into::into)?
         };
 
@@ -326,7 +404,7 @@ where
         };
 
         let parent_header = build_sealed_header(parent);
-        let suggested_fee_recipient = validate_or_recover_fee_recipient(
+        let claim_recipient = validate_or_recover_fee_recipient(
             &self.evm_config,
             block.proposer_public_key,
             block.proposer_fee_recipient,
@@ -334,7 +412,7 @@ where
 
         let env_attributes = NextBlockEnvAttributes {
             timestamp: block.timestamp,
-            suggested_fee_recipient,
+            suggested_fee_recipient: FEE_POOL_PRECOMPILE_ADDRESS,
             prev_randao: B256::ZERO,
             gas_limit: 30_000_000,
             parent_beacon_block_root: Some(B256::ZERO),
@@ -357,7 +435,7 @@ where
             .apply_pre_execution_changes()
             .map_err(|err| EvmAppError::Execution(err.to_string()))?;
 
-        for tx in decoded_txs {
+        for tx in decoded_txs.iter().cloned() {
             builder.execute_transaction(tx).map_err(|err| {
                 EvmAppError::Execution(format!("Transaction execution failed: {err}"))
             })?;
@@ -371,19 +449,18 @@ where
 
         state.merge_transitions(BundleRetention::Reverts);
         let bundle = state.take_bundle();
+        let (gas_deltas, computed_gas_used) = gas_deltas_and_used(&execution_result.receipts)?;
+        let priority_fees =
+            aggregate_priority_fees(&decoded_txs, &gas_deltas, block.base_fee_per_gas)?;
         exec_state.commit(&bundle).map_err(Into::into)?;
-        credit_burned_fees(&mut exec_state, block.gas_used, block.base_fee_per_gas)?;
+        credit_burned_fees(&mut exec_state, computed_gas_used, block.base_fee_per_gas)?;
+        credit_fee_pool_claim(&mut exec_state, claim_recipient, priority_fees)?;
 
         let computed_state_root = exec_state.state_root().map_err(Into::into)?;
         let computed_receipts_root =
             ordered_trie_root_with_encoder(&execution_result.receipts, |receipt, out| {
                 receipt.with_bloom_ref().encode_2718(out);
             });
-        let computed_gas_used = execution_result
-            .receipts
-            .iter()
-            .map(TxReceipt::cumulative_gas_used)
-            .sum::<u64>();
 
         if computed_state_root.0 != block.state_root {
             return Err(EvmAppError::StateRootMismatch {
@@ -550,7 +627,10 @@ mod tests {
         build_sahara_chain_spec, build_sahara_chain_spec_with_alloc_and_fee_recipients,
         SAHARA_CHAIN_ID,
     };
-    use evm_precompiles::{mint_calldata, COMMUNITY_POOL_ADDRESS, TEST_TOKEN_PRECOMPILE_ADDRESS};
+    use evm_precompiles::{
+        claimable_balance_slot, mint_calldata, COMMUNITY_POOL_ADDRESS, FEE_POOL_PRECOMPILE_ADDRESS,
+        TEST_TOKEN_PRECOMPILE_ADDRESS,
+    };
     use reth_ethereum_primitives::TransactionSigned;
     use reth_primitives_traits::SignerRecoverable;
     use revm::state::Bytecode;
@@ -597,11 +677,10 @@ mod tests {
         (app, db)
     }
 
-    fn sample_evm_tx() -> (Vec<u8>, Address) {
-        let receiver = Address::with_last_byte(2);
+    fn sample_evm_tx_with_nonce(nonce: u64, receiver: Address) -> (Vec<u8>, Address) {
         let tx = TxLegacy {
             chain_id: Some(SAHARA_CHAIN_ID),
-            nonce: 0,
+            nonce,
             gas_price: 2_000_000_000,
             gas_limit: 21_000,
             to: TxKind::Call(receiver),
@@ -615,6 +694,10 @@ mod tests {
         let mut encoded = Vec::new();
         signed.encode_2718(&mut encoded);
         (encoded, recovered)
+    }
+
+    fn sample_evm_tx() -> (Vec<u8>, Address) {
+        sample_evm_tx_with_nonce(0, Address::with_last_byte(2))
     }
 
     fn precompile_proxy_runtime_bytecode() -> Bytes {
@@ -691,7 +774,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn propose_credits_community_pool_and_fee_recipient() {
+    async fn propose_routes_priority_fees_to_fee_pool_not_proposer() {
         let (tx, recovered) = sample_evm_tx();
         let (app, db) = setup_app(vec![tx]).await;
 
@@ -710,23 +793,90 @@ mod tests {
         let burned_amount = U256::from(block.gas_used) * U256::from(block.base_fee_per_gas);
         let expected_priority_fees =
             U256::from(block.gas_used) * U256::from(2_000_000_000u64 - block.base_fee_per_gas);
+        let claim_slot = claimable_balance_slot(DEFAULT_PROPOSER_FEE_RECIPIENT);
 
         let db = db.read().unwrap();
         let community_pool_balance = db
             .get_account(COMMUNITY_POOL_ADDRESS)
             .unwrap_or_default()
             .balance;
+        let fee_pool_balance = db
+            .get_account(FEE_POOL_PRECOMPILE_ADDRESS)
+            .unwrap_or_default()
+            .balance;
         let fee_recipient_balance = db
             .get_account(DEFAULT_PROPOSER_FEE_RECIPIENT)
             .unwrap_or_default()
             .balance;
+        let claimable = db.get_storage(FEE_POOL_PRECOMPILE_ADDRESS, claim_slot);
 
         assert_eq!(community_pool_balance, burned_amount);
-        assert_eq!(fee_recipient_balance, expected_priority_fees);
+        assert_eq!(fee_pool_balance, expected_priority_fees);
+        assert_eq!(claimable, expected_priority_fees);
+        assert_eq!(fee_recipient_balance, U256::ZERO);
         assert_eq!(
             block.proposer_fee_recipient,
             DEFAULT_PROPOSER_FEE_RECIPIENT.into_array()
         );
+    }
+
+    #[tokio::test]
+    async fn propose_uses_final_cumulative_gas_used_for_block_gas_and_burned_fee_credit() {
+        let (tx0, recovered0) = sample_evm_tx_with_nonce(0, Address::with_last_byte(2));
+        let (tx1, recovered1) = (3u8..=u8::MAX)
+            .map(|byte| sample_evm_tx_with_nonce(0, Address::with_last_byte(byte)))
+            .find(|(_, recovered)| *recovered != recovered0)
+            .expect("must find a second sender");
+        let (app, db) = setup_app(vec![tx0, tx1]).await;
+
+        {
+            let mut db = db.write().unwrap();
+            for recovered in [recovered0, recovered1] {
+                let info = revm::state::AccountInfo {
+                    balance: U256::from(1_000_000_000_000_000_000u64),
+                    nonce: 0,
+                    ..Default::default()
+                };
+                db.insert_account(recovered, info);
+            }
+        }
+
+        let parent = app.genesis().await;
+        let (block, _result) = app.propose(&parent, 1).await.unwrap();
+        let receipts = app.pending_receipts();
+        assert_eq!(receipts.len(), 2, "expected two successful tx receipts");
+
+        let expected_gas_used = receipts.last().expect("has receipts").cumulative_gas_used;
+        assert_eq!(
+            block.gas_used, expected_gas_used,
+            "block gas used should equal final cumulative gas"
+        );
+
+        let burned_amount = U256::from(block.gas_used) * U256::from(block.base_fee_per_gas);
+        let expected_priority_fees =
+            U256::from(block.gas_used) * U256::from(2_000_000_000u64 - block.base_fee_per_gas);
+        let claim_slot = claimable_balance_slot(DEFAULT_PROPOSER_FEE_RECIPIENT);
+
+        let db = db.read().unwrap();
+        let community_pool_balance = db
+            .get_account(COMMUNITY_POOL_ADDRESS)
+            .unwrap_or_default()
+            .balance;
+        let fee_pool_balance = db
+            .get_account(FEE_POOL_PRECOMPILE_ADDRESS)
+            .unwrap_or_default()
+            .balance;
+        let claimable = db.get_storage(FEE_POOL_PRECOMPILE_ADDRESS, claim_slot);
+
+        assert_eq!(
+            community_pool_balance, burned_amount,
+            "community pool burn credit should use corrected block gas used"
+        );
+        assert_eq!(
+            fee_pool_balance, expected_priority_fees,
+            "fee-pool sink should be credited exactly once by execution beneficiary"
+        );
+        assert_eq!(claimable, expected_priority_fees);
     }
 
     #[tokio::test]

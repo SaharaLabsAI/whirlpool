@@ -29,5 +29,8 @@ In-memory state database implementation for EVM execution.
 - `state_memory::DbAccount`
 - `state_memory::InMemoryPersonalityStorage`
 
+## Runtime Notes
+- `insert_storage(address, slot, value)` now mutates in-memory storage directly (`value == 0` deletes slot), enabling app-layer precompile ledger writes in tests and local execution.
+
 ## Status
 Active. Moved under `crates/app/execute/mem/` while keeping package/import names unchanged.

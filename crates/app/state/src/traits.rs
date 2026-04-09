@@ -23,5 +23,11 @@ pub trait StateDb {
     fn get_storage(&self, address: Address, index: U256) -> Result<U256, Self::Error>;
     fn get_block_hash(&self, number: u64) -> Result<B256, Self::Error>;
     fn insert_account(&mut self, address: Address, info: AccountInfo) -> Result<(), Self::Error>;
+    fn insert_storage(
+        &mut self,
+        address: Address,
+        index: U256,
+        value: U256,
+    ) -> Result<(), Self::Error>;
     fn insert_block_hash(&mut self, number: u64, hash: B256) -> Result<(), Self::Error>;
 }
