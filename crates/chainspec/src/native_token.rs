@@ -1,5 +1,6 @@
 use alloy_genesis::GenesisAccount;
 use alloy_primitives::{Address, U256};
+use evm_precompiles::epoch_system_tx_sender;
 use std::collections::BTreeMap;
 
 pub const SAHARA_DECIMALS: u8 = 18;
@@ -31,7 +32,14 @@ pub fn total_allocated_supply(
 pub fn validate_genesis_alloc(
     alloc: &BTreeMap<Address, GenesisAccount>,
 ) -> Result<U256, NativeTokenError> {
-    let total = total_allocated_supply(alloc)?;
+    let total = alloc.iter().try_fold(U256::ZERO, |total, (address, account)| {
+        if *address == epoch_system_tx_sender() {
+            return Ok(total);
+        }
+        total
+            .checked_add(account.balance)
+            .ok_or(NativeTokenError::SupplyOverflow)
+    })?;
     let hard_cap = sahara_hard_cap_base_units();
     if total > hard_cap {
         Err(NativeTokenError::HardCapExceeded { total, hard_cap })
@@ -43,11 +51,13 @@ pub fn validate_genesis_alloc(
 #[cfg(test)]
 mod tests {
     use super::{
-        sahara_hard_cap_base_units, total_allocated_supply, validate_genesis_alloc,
+        epoch_system_tx_sender, sahara_hard_cap_base_units, total_allocated_supply,
+        validate_genesis_alloc,
         NativeTokenError, SAHARA_DECIMALS, SAHARA_HARD_CAP_TOKENS,
     };
     use alloy_genesis::GenesisAccount;
     use alloy_primitives::{Address, U256};
+    use evm_precompiles::EPOCH_SYSTEM_TX_INITIAL_BALANCE_WEI;
     use std::collections::BTreeMap;
 
     #[test]
@@ -117,5 +127,29 @@ mod tests {
         );
 
         assert_eq!(total_allocated_supply(&alloc), Ok(U256::from(16u64)));
+    }
+
+    #[test]
+    fn validate_ignores_epoch_system_sender_balance_for_hard_cap() {
+        let mut alloc = BTreeMap::new();
+        alloc.insert(
+            Address::repeat_byte(0x55),
+            GenesisAccount {
+                balance: sahara_hard_cap_base_units(),
+                ..GenesisAccount::default()
+            },
+        );
+        alloc.insert(
+            epoch_system_tx_sender(),
+            GenesisAccount {
+                balance: U256::from(EPOCH_SYSTEM_TX_INITIAL_BALANCE_WEI),
+                ..GenesisAccount::default()
+            },
+        );
+
+        assert_eq!(
+            validate_genesis_alloc(&alloc),
+            Ok(sahara_hard_cap_base_units())
+        );
     }
 }

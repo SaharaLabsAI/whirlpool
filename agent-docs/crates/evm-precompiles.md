@@ -25,6 +25,17 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
 - `VALIDATORS_PRECOMPILE_ADDRESS`
 - `validators_calldata()`
 - `decode_validators_output(bytes)`
+- `EPOCH_PRECOMPILE_ADDRESS`: stateful epoch metadata precompile endpoint.
+- `current_epoch_calldata()`
+- `next_epoch_block_calldata()`
+- `epoch_blocks_calldata()`
+- `epoch_start_block_calldata(epoch)`
+- `advance_epoch_calldata()`
+- `epoch_system_tx_sender()`
+- `is_advance_epoch_calldata(bytes)`
+- epoch storage slot helpers:
+  - `current_epoch_slot()`, `epoch_blocks_slot()`, `next_epoch_block_slot()`
+  - `epoch_start_block_slot(epoch)` + `encode_epoch_start_block_storage_value(...)`
 
 ## Framework shape
 - `src/lib.rs`: registry, duplicate-address protection, safe-default stateful registration guard, factory wiring, crate-level tests.
@@ -35,6 +46,11 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
 - `src/fee_pool/storage.rs`: deterministic slot derivation for `mapping(address => uint256) claimable`.
 - `src/fee_pool/gas.rs`: fee-pool gas schedule.
 - `src/validators/mod.rs`: ordered simplex-validator precompile ABI, output encoder/decoder, and tests.
+- `src/epoch/mod.rs`: epoch constants, sender derivation, ABI helper exports, and epoch tests.
+- `src/epoch/dispatch.rs`: alloy `sol!` selectors for epoch read/write ABI.
+- `src/epoch/impl.rs`: stateful epoch logic with restricted `advanceEpoch()`.
+- `src/epoch/storage.rs`: scalar slots + append-only epoch-start mapping slot derivation.
+- `src/epoch/gas.rs`: epoch precompile gas schedule.
 
 ## Design notes
 - Custom precompiles are installed through `PrecompilesMap` dynamic entries, not vendor edits.
@@ -46,6 +62,10 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
   - proposer entitlement -> fee-pool claim ledger keyed by recipient address
   - payout -> precompile `withdraw()` path
 - The fee-pool precompile mutates journaled EVM **account balances** and claim-ledger storage through the shared EVM internals.
+- Epoch precompile model:
+  - read selectors: `currentEpoch`, `nextEpochBlock`, `epochBlocks`, `epochStartBlock(epoch)`
+  - write selector: `advanceEpoch()` (restricted to `epoch_system_tx_sender()`, non-static)
+  - append-only epoch start map uses plus-one storage encoding so epoch 0 start block can be stored unambiguously.
 - Whirlpool-owned stateful precompiles registered via `RegisteredPrecompile::new_stateful` are direct-call-only: the final hop must keep `target_address == bytecode_address`, which allows ordinary `CALL`/`STATICCALL` and rejects delegate-style execution.
 - Non-direct-call rejection is a framework-level revert emitted before the target handler runs, so it reports zero precompile-local `gas_used`; enclosing EVM call/setup overhead is still charged outside the precompile.
 - Top-level EOAs calling a precompile address directly are not the only validated path here; the full-node tests use a tiny forwarding contract that performs an internal ordinary `CALL` into the precompile, which remains valid because the precompile boundary is still direct.

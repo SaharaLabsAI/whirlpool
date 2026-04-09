@@ -1,4 +1,5 @@
 pub mod config;
+mod epoch_boundary;
 pub mod error;
 pub mod executor;
 pub mod traits;

@@ -1,0 +1,5 @@
+pub const CURRENT_EPOCH_GAS: u64 = 900;
+pub const NEXT_EPOCH_BLOCK_GAS: u64 = 900;
+pub const EPOCH_BLOCKS_GAS: u64 = 900;
+pub const EPOCH_START_BLOCK_GAS: u64 = 1_200;
+pub const ADVANCE_EPOCH_GAS: u64 = 45_000;

@@ -29,6 +29,7 @@ Those live in `chainspec`.
 ## Key Runtime Notes
 - `WhirlpoolEvmConfig` still derives proposer fee recipients from genesis storage at `VALIDATOR_FEE_RECIPIENTS_REGISTRY`.
 - Precompile injection remains in `WhirlpoolEvmConfig::evm_with_env(...)` via `evm_precompiles::whirlpool_precompiles_with_validators(...)`.
+- Epoch-boundary deterministic system-transaction handling now lives in `epoch_boundary.rs` and is shared between propose/verify paths.
 - Fee routing behavior:
   - burned base fees are credited to `evm_precompiles::COMMUNITY_POOL_ADDRESS`
   - priority fees are credited to `evm_precompiles::FEE_POOL_PRECOMPILE_ADDRESS`
@@ -37,6 +38,8 @@ Those live in `chainspec`.
 - `suggested_fee_recipient` in execution env is now forced to fee-pool address; block header `proposer_fee_recipient` remains proposer metadata.
 - `state::StateDb` writes are now used for claim-ledger slot updates via `insert_storage`.
 - Block gas accounting now uses the final cumulative receipt gas (last receipt), avoiding sum-of-cumulative overcounting.
+- On boundary heights, propose prepends one canonical epoch system tx (slot 0) before user txs.
+- Verify validates full raw tx ordering/bytes for epoch system tx rules before normal transaction execution.
 
 ## Canonical Imports
 - `app_evm::traits::StateProvider`
@@ -44,6 +47,7 @@ Those live in `chainspec`.
 - `app_evm::EvmApplication`
 - `app_evm::decode_evm_transaction`
 - `app_evm::decode_evm_transactions`
+- `app_evm::ProposedEvmPayload`
 - `app_evm::DEFAULT_PROPOSER_FEE_RECIPIENT`
 - `app_evm::VALIDATOR_FEE_RECIPIENTS_REGISTRY`
 - `chainspec::build_sahara_chain_spec*`

@@ -1,6 +1,11 @@
 use alloy_genesis::{Genesis, GenesisAccount};
 use alloy_primitives::{Address, B256, U256};
 use app_evm::VALIDATOR_FEE_RECIPIENTS_REGISTRY;
+use evm_precompiles::{
+    current_epoch_storage_slot, encode_epoch_start_block_storage_value, encode_u64_storage_value,
+    epoch_blocks_storage_slot, epoch_system_tx_sender, next_epoch_block_storage_slot,
+    EPOCH_BLOCKS_DEFAULT, EPOCH_PRECOMPILE_ADDRESS, EPOCH_SYSTEM_TX_INITIAL_BALANCE_WEI,
+};
 use reth_chainspec::{Chain, ChainSpec, ChainSpecBuilder};
 use std::collections::BTreeMap;
 use validators::{
@@ -113,6 +118,8 @@ pub fn try_build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators(
         account.storage = Some(encode_validator_registry_storage(&simplex_validators));
     }
 
+    seed_epoch_precompile_genesis_state(&mut alloc);
+
     validate_genesis_alloc(&alloc)?;
 
     Ok(ChainSpecBuilder::default()
@@ -125,6 +132,40 @@ pub fn try_build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators(
         })
         .cancun_activated()
         .build())
+}
+
+fn seed_epoch_precompile_genesis_state(alloc: &mut BTreeMap<Address, GenesisAccount>) {
+    let account = alloc
+        .entry(EPOCH_PRECOMPILE_ADDRESS)
+        .or_insert_with(|| GenesisAccount {
+            balance: U256::ZERO,
+            ..GenesisAccount::default()
+        });
+    let storage = account.storage.get_or_insert_with(BTreeMap::new);
+    storage.insert(current_epoch_storage_slot(), encode_u64_storage_value(0));
+    storage.insert(
+        epoch_blocks_storage_slot(),
+        encode_u64_storage_value(EPOCH_BLOCKS_DEFAULT),
+    );
+    storage.insert(
+        next_epoch_block_storage_slot(),
+        encode_u64_storage_value(EPOCH_BLOCKS_DEFAULT),
+    );
+    storage.insert(
+        evm_precompiles::epoch_start_block_storage_slot(0),
+        encode_epoch_start_block_storage_value(0),
+    );
+
+    let sender = epoch_system_tx_sender();
+    let sender_account = alloc.entry(sender).or_insert_with(|| GenesisAccount {
+        balance: U256::ZERO,
+        ..GenesisAccount::default()
+    });
+    sender_account.balance = sender_account
+        .balance
+        .checked_add(U256::from(EPOCH_SYSTEM_TX_INITIAL_BALANCE_WEI))
+        .expect("epoch system sender balance seed should not overflow");
+    sender_account.nonce = Some(0);
 }
 
 pub fn try_simplex_validators_from_chain_spec(
@@ -144,8 +185,11 @@ mod tests {
     use super::{
         build_sahara_chain_spec,
         build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators,
+        current_epoch_storage_slot, encode_epoch_start_block_storage_value, encode_u64_storage_value,
+        epoch_blocks_storage_slot, epoch_system_tx_sender, next_epoch_block_storage_slot,
         sahara_hard_cap_base_units, try_build_sahara_chain_spec_with_alloc,
-        try_simplex_validators_from_chain_spec, NativeTokenError, SAHARA_CHAIN_ID,
+        try_simplex_validators_from_chain_spec, NativeTokenError, EPOCH_BLOCKS_DEFAULT,
+        EPOCH_PRECOMPILE_ADDRESS, EPOCH_SYSTEM_TX_INITIAL_BALANCE_WEI, SAHARA_CHAIN_ID,
     };
     use alloy_genesis::GenesisAccount;
     use alloy_primitives::{address, Address, U256};
@@ -160,6 +204,50 @@ mod tests {
         assert_eq!(spec.chain.id(), SAHARA_CHAIN_ID);
         assert_eq!(spec.genesis.gas_limit, 30_000_000);
         assert!(spec.is_cancun_active_at_timestamp(0));
+    }
+
+    #[test]
+    fn chain_spec_builder_writes_epoch_precompile_genesis_state() {
+        let spec = build_sahara_chain_spec();
+        let account = spec
+            .genesis
+            .alloc
+            .get(&EPOCH_PRECOMPILE_ADDRESS)
+            .expect("epoch precompile account");
+        let storage = account.storage.as_ref().expect("epoch storage");
+
+        assert_eq!(
+            storage.get(&current_epoch_storage_slot()),
+            Some(&encode_u64_storage_value(0))
+        );
+        assert_eq!(
+            storage.get(&epoch_blocks_storage_slot()),
+            Some(&encode_u64_storage_value(EPOCH_BLOCKS_DEFAULT))
+        );
+        assert_eq!(
+            storage.get(&next_epoch_block_storage_slot()),
+            Some(&encode_u64_storage_value(EPOCH_BLOCKS_DEFAULT))
+        );
+        assert_eq!(
+            storage.get(&evm_precompiles::epoch_start_block_storage_slot(0)),
+            Some(&encode_epoch_start_block_storage_value(0))
+        );
+    }
+
+    #[test]
+    fn chain_spec_builder_seeds_epoch_system_sender_balance() {
+        let spec = build_sahara_chain_spec();
+        let sender = epoch_system_tx_sender();
+        let account = spec
+            .genesis
+            .alloc
+            .get(&sender)
+            .expect("epoch system sender account");
+        assert_eq!(
+            account.balance,
+            U256::from(EPOCH_SYSTEM_TX_INITIAL_BALANCE_WEI)
+        );
+        assert_eq!(account.nonce, Some(0));
     }
 
     #[test]

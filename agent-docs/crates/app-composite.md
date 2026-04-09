@@ -18,6 +18,8 @@ Consensus-facing composite application that owns mixed transaction ingestion, cl
   - Owns the shared `TxSource`.
   - Maintains composite-level pending receipts and duplicate-proposal cache.
   - `store_finalized_block(&self, block, storage)`: persists finalized block receipts captured during propose/verify.
+  - Mixed-tx propose path preserves deterministic epoch system tx prefix from `app-evm` at tx index 0 on boundary blocks.
+  - Verify path validates epoch-boundary raw-tx rules against the full mixed transaction list before forwarding EVM subset execution.
 
 ## Status
 Active. Moved under `crates/app/execute/mem/`; `whirlpool-node` no longer depends on it directly, and it consumes `tx-dispatch` from the same mem subtree.

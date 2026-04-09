@@ -183,7 +183,8 @@ mod tests {
         SAHARA_CHAIN_ID,
     };
     use evm_precompiles::{
-        COMMUNITY_POOL_ADDRESS, FEE_POOL_PRECOMPILE_ADDRESS, VALIDATORS_PRECOMPILE_ADDRESS,
+        COMMUNITY_POOL_ADDRESS, EPOCH_PRECOMPILE_ADDRESS, FEE_POOL_PRECOMPILE_ADDRESS,
+        VALIDATORS_PRECOMPILE_ADDRESS,
     };
     use reth_chainspec::EthereumHardforks;
     use reth_evm::{ConfigureEvm, Evm, EvmFactory, NextBlockEnvAttributes};
@@ -241,6 +242,7 @@ mod tests {
             .precompiles()
             .get(&VALIDATORS_PRECOMPILE_ADDRESS)
             .is_some());
+        assert!(evm.precompiles().get(&EPOCH_PRECOMPILE_ADDRESS).is_some());
     }
 
     #[test]

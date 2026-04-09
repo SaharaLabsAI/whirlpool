@@ -100,9 +100,9 @@ where
             let timestamp = parent.timestamp + 12;
             let evm_payload =
                 self.evm_app
-                    .propose_evm_transactions(parent, &evm_candidates, timestamp)?;
+                    .propose_evm_transactions(parent, &evm_candidates, timestamp, height)?;
 
-            let mut executed_transactions = Vec::new();
+            let mut executed_transactions = evm_payload.system_transaction_prefix.clone();
             let mut inclusion_iter = evm_payload.inclusion_outcomes.iter();
             for tx in classified_pending {
                 match tx {
@@ -171,6 +171,10 @@ where
                 )));
             }
 
+            self.evm_app
+                .validate_epoch_boundary_block_transactions(block, &block.transactions)
+                .map_err(CompositeAppError::from)?;
+
             let mut evm_transactions = Vec::new();
             for tx in classified_txs {
                 if let ClassifiedTransaction::Evm(raw_tx) = tx {
@@ -201,6 +205,10 @@ mod tests {
     use alloy_trie::EMPTY_ROOT_HASH;
     use app_mem::{PersonalityMarkdownTx, SignatureScheme};
     use chainspec::{build_sahara_chain_spec, SAHARA_CHAIN_ID};
+    use evm_precompiles::{
+        current_epoch_slot, epoch_blocks_slot, epoch_system_tx_sender, next_epoch_block_slot,
+        EPOCH_BLOCKS_DEFAULT, EPOCH_PRECOMPILE_ADDRESS, EPOCH_SYSTEM_TX_INITIAL_BALANCE_WEI,
+    };
     use reth_ethereum_primitives::TransactionSigned;
     use reth_primitives_traits::SignerRecoverable;
     use state_memory::InMemoryStateDb;
@@ -265,6 +273,32 @@ mod tests {
         (encoded, recovered)
     }
 
+    fn seed_epoch_boundary_state(db: &mut InMemoryStateDb, next_epoch_block: u64) {
+        db.insert_storage(
+            EPOCH_PRECOMPILE_ADDRESS,
+            current_epoch_slot(),
+            U256::from(0_u64),
+        );
+        db.insert_storage(
+            EPOCH_PRECOMPILE_ADDRESS,
+            epoch_blocks_slot(),
+            U256::from(EPOCH_BLOCKS_DEFAULT),
+        );
+        db.insert_storage(
+            EPOCH_PRECOMPILE_ADDRESS,
+            next_epoch_block_slot(),
+            U256::from(next_epoch_block),
+        );
+        db.insert_account(
+            epoch_system_tx_sender(),
+            revm::state::AccountInfo {
+                balance: U256::from(EPOCH_SYSTEM_TX_INITIAL_BALANCE_WEI),
+                nonce: 0,
+                ..Default::default()
+            },
+        );
+    }
+
     #[tokio::test]
     async fn propose_mixed_block_preserves_mem_and_executes_evm() {
         let mem_tx = sample_mem_tx();
@@ -295,5 +329,35 @@ mod tests {
 
         assert_eq!(genesis.height, 0);
         assert_eq!(genesis.transactions_root, EMPTY_ROOT_HASH.0);
+    }
+
+    #[tokio::test]
+    async fn boundary_block_prepends_system_tx_before_mem_and_user_evm_txs() {
+        let mem_tx = sample_mem_tx();
+        let (evm_tx, recovered) = sample_evm_tx();
+        let (app, db) = setup_app(vec![mem_tx.clone(), evm_tx.clone()]).await;
+
+        {
+            let mut db = db.write().unwrap();
+            seed_epoch_boundary_state(&mut db, 1);
+            db.insert_account(
+                recovered,
+                revm::state::AccountInfo {
+                    balance: U256::from(1_000_000_000_000_000_000u64),
+                    nonce: 0,
+                    ..Default::default()
+                },
+            );
+        }
+
+        let parent = app.genesis().await;
+        let (block, _result) = app.propose(&parent, 1).await.expect("propose boundary block");
+
+        assert_eq!(block.transactions.len(), 3);
+        let boundary = app_evm::decode_evm_transaction(&block.transactions[0])
+            .expect("decode boundary tx");
+        assert_eq!(boundary.signer(), epoch_system_tx_sender());
+        assert_eq!(block.transactions[1], mem_tx);
+        assert_eq!(block.transactions[2], evm_tx);
     }
 }
