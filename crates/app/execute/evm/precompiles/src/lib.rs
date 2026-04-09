@@ -16,7 +16,6 @@ use std::collections::HashSet;
 
 pub mod community_pool;
 pub mod fee_pool;
-pub mod test_token;
 pub mod validators;
 
 pub use community_pool::{
@@ -27,7 +26,6 @@ pub use fee_pool::{
     decode_fee_pool_balance_output, decode_withdraw_output, fee_pool_balance_calldata,
     withdraw_calldata, FEE_POOL_PRECOMPILE_ADDRESS,
 };
-pub use test_token::{balance_of_calldata, mint_calldata, TEST_TOKEN_PRECOMPILE_ADDRESS};
 pub use validators::{
     decode_validators_output, validators_calldata, VALIDATORS_PRECOMPILE_ADDRESS,
 };
@@ -144,7 +142,6 @@ pub fn build_whirlpool_precompiles_with_validators(
         [
             community_pool::register(),
             fee_pool::register(),
-            test_token::TestTokenPrecompile::register(),
             validators::register(simplex_validators),
         ],
     )
@@ -219,30 +216,13 @@ impl EvmFactory for WhirlpoolEvmFactory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_token::{balance_of_calldata, gas, mint_calldata, TestTokenPrecompile};
+    use crate::fee_pool::{
+        fee_pool_balance_calldata, withdraw_calldata, FEE_POOL_PRECOMPILE_ADDRESS,
+    };
     use alloy_primitives::{address, Bytes, U256};
     use reth_evm::{precompiles::Precompile, traits::EvmInternals};
     use revm::Context;
     use revm::{database::EmptyDB, precompile::PrecompileOutput as RevmPrecompileOutput};
-
-    fn call_registered_precompile(
-        precompile: DynPrecompile,
-        context: &mut Context<BlockEnv, TxEnv, revm::context::CfgEnv, EmptyDB>,
-        data: Bytes,
-        gas: u64,
-        is_static: bool,
-    ) -> RevmPrecompileOutput {
-        call_registered_precompile_with_context(
-            precompile,
-            context,
-            Address::ZERO,
-            data,
-            gas,
-            is_static,
-            TEST_TOKEN_PRECOMPILE_ADDRESS,
-            TEST_TOKEN_PRECOMPILE_ADDRESS,
-        )
-    }
 
     fn call_registered_precompile_with_context(
         precompile: DynPrecompile,
@@ -277,34 +257,24 @@ mod tests {
     #[test]
     fn proxy_style_caller_is_still_treated_as_direct_at_precompile_boundary() {
         let mut ctx = EthEvmContext::new(EmptyDB::default(), Default::default());
-        let precompile = TestTokenPrecompile::register().precompile();
+        let precompile = fee_pool::register().precompile();
         let proxy_caller = address!("0x0000000000000000000000000000000000000abc");
-        let account = address!("0x00000000000000000000000000000000000000ad");
 
-        let mint_result = call_registered_precompile_with_context(
-            precompile.clone(),
-            &mut ctx,
-            proxy_caller,
-            mint_calldata(account, U256::from(3_u64)),
-            gas::MINT_GAS,
-            false,
-            TEST_TOKEN_PRECOMPILE_ADDRESS,
-            TEST_TOKEN_PRECOMPILE_ADDRESS,
-        );
-
-        assert!(
-            !mint_result.reverted,
-            "proxy-style caller should still be direct"
-        );
-
-        let balance_result = call_registered_precompile(
+        let balance_result = call_registered_precompile_with_context(
             precompile,
             &mut ctx,
-            balance_of_calldata(account),
-            gas::BALANCE_OF_GAS,
+            proxy_caller,
+            fee_pool_balance_calldata(),
+            fee_pool::gas::FEE_POOL_BALANCE_GAS,
             true,
+            FEE_POOL_PRECOMPILE_ADDRESS,
+            FEE_POOL_PRECOMPILE_ADDRESS,
         );
-        assert_eq!(decode_word(&balance_result.bytes), U256::from(3_u64));
+        assert!(
+            !balance_result.reverted,
+            "proxy-style caller should still be direct"
+        );
+        assert_eq!(decode_word(&balance_result.bytes), U256::ZERO);
     }
 
     #[test]
@@ -312,161 +282,66 @@ mod tests {
         let registry = build_whirlpool_precompiles(SpecId::CANCUN).expect("registry");
         assert!(registry.get(&COMMUNITY_POOL_ADDRESS).is_some());
         assert!(registry.get(&FEE_POOL_PRECOMPILE_ADDRESS).is_some());
-        assert!(registry.get(&TEST_TOKEN_PRECOMPILE_ADDRESS).is_some());
         assert!(registry.get(&VALIDATORS_PRECOMPILE_ADDRESS).is_some());
 
         let duplicate = build_precompiles(
             SpecId::CANCUN,
             [
-                TestTokenPrecompile::register(),
+                fee_pool::register(),
                 RegisteredPrecompile::new_stateful(
-                    "duplicate_test_token",
-                    TEST_TOKEN_PRECOMPILE_ADDRESS,
+                    "duplicate_fee_pool",
+                    FEE_POOL_PRECOMPILE_ADDRESS,
                     |_input| Ok(RevmPrecompileOutput::new(1, Bytes::new())),
                 ),
             ],
         );
         assert_eq!(
             duplicate.expect_err("duplicate address must fail"),
-            RegistryError::DuplicateCustomAddress(TEST_TOKEN_PRECOMPILE_ADDRESS)
+            RegistryError::DuplicateCustomAddress(FEE_POOL_PRECOMPILE_ADDRESS)
         );
     }
 
     #[test]
-    fn test_token_dispatch_routes_supported_methods() {
+    fn fee_pool_rejects_non_direct_state_changing_calls() {
         let mut ctx = EthEvmContext::new(EmptyDB::default(), Default::default());
-        let precompile = TestTokenPrecompile::register().precompile();
-        let account = address!("0x00000000000000000000000000000000000000aa");
-
-        let mint_result = call_registered_precompile(
-            precompile.clone(),
-            &mut ctx,
-            mint_calldata(account, U256::from(7_u64)),
-            gas::MINT_GAS,
-            false,
-        );
-        assert!(!mint_result.reverted);
-        assert_eq!(mint_result.gas_used, gas::MINT_GAS);
-
-        let balance_result = call_registered_precompile(
-            precompile,
-            &mut ctx,
-            balance_of_calldata(account),
-            gas::BALANCE_OF_GAS,
-            false,
-        );
-        assert_eq!(decode_word(&balance_result.bytes), U256::from(7_u64));
-    }
-
-    #[test]
-    fn test_token_gas_policy_matches_declared_behavior() {
-        let mut ctx = EthEvmContext::new(EmptyDB::default(), Default::default());
-        let precompile = TestTokenPrecompile::register().precompile();
-        let account = address!("0x00000000000000000000000000000000000000bb");
-
-        let mint_result = call_registered_precompile(
-            precompile.clone(),
-            &mut ctx,
-            mint_calldata(account, U256::from(1_u64)),
-            gas::MINT_GAS,
-            false,
-        );
-        assert_eq!(mint_result.gas_used, gas::MINT_GAS);
-
-        let read_result = call_registered_precompile(
-            precompile,
-            &mut ctx,
-            balance_of_calldata(account),
-            gas::BALANCE_OF_GAS,
-            true,
-        );
-        assert_eq!(read_result.gas_used, gas::BALANCE_OF_GAS);
-    }
-
-    #[test]
-    fn test_token_rejects_non_direct_state_changing_calls() {
-        let mut ctx = EthEvmContext::new(EmptyDB::default(), Default::default());
-        let precompile = TestTokenPrecompile::register().precompile();
-        let account = address!("0x00000000000000000000000000000000000000dd");
+        let precompile = fee_pool::register().precompile();
         let proxy_target = address!("0x0000000000000000000000000000000000000def");
 
         let revert_result = call_registered_precompile_with_context(
             precompile.clone(),
             &mut ctx,
             proxy_target,
-            mint_calldata(account, U256::from(1_u64)),
-            gas::MINT_GAS,
+            withdraw_calldata(),
+            fee_pool::gas::WITHDRAW_GAS,
             false,
             proxy_target,
-            TEST_TOKEN_PRECOMPILE_ADDRESS,
+            FEE_POOL_PRECOMPILE_ADDRESS,
         );
 
         assert!(revert_result.reverted);
         assert_eq!(revert_result.bytes, non_direct_call_revert_bytes());
         assert_eq!(revert_result.gas_used, 0);
-
-        let balance_result = call_registered_precompile(
-            precompile,
-            &mut ctx,
-            balance_of_calldata(account),
-            gas::BALANCE_OF_GAS,
-            true,
-        );
-        assert_eq!(decode_word(&balance_result.bytes), U256::ZERO);
     }
 
     #[test]
-    fn test_token_rejects_non_direct_read_calls() {
+    fn fee_pool_rejects_non_direct_read_calls() {
         let mut ctx = EthEvmContext::new(EmptyDB::default(), Default::default());
-        let precompile = TestTokenPrecompile::register().precompile();
+        let precompile = fee_pool::register().precompile();
         let proxy_target = address!("0x0000000000000000000000000000000000000fed");
-        let account = address!("0x00000000000000000000000000000000000000ee");
 
         let revert_result = call_registered_precompile_with_context(
             precompile,
             &mut ctx,
             proxy_target,
-            balance_of_calldata(account),
-            gas::BALANCE_OF_GAS,
+            fee_pool_balance_calldata(),
+            fee_pool::gas::FEE_POOL_BALANCE_GAS,
             true,
             proxy_target,
-            TEST_TOKEN_PRECOMPILE_ADDRESS,
+            FEE_POOL_PRECOMPILE_ADDRESS,
         );
 
         assert!(revert_result.reverted);
         assert_eq!(revert_result.bytes, non_direct_call_revert_bytes());
         assert_eq!(revert_result.gas_used, 0);
-    }
-
-    #[test]
-    fn test_token_error_maps_to_revert() {
-        let mut ctx = EthEvmContext::new(EmptyDB::default(), Default::default());
-        let precompile = TestTokenPrecompile::register().precompile();
-        let account = address!("0x00000000000000000000000000000000000000cc");
-
-        let revert_result = call_registered_precompile(
-            precompile.clone(),
-            &mut ctx,
-            mint_calldata(account, U256::ZERO),
-            gas::MINT_GAS,
-            false,
-        );
-        assert!(revert_result.reverted, "zero-amount mint should revert");
-        assert!(
-            revert_result
-                .bytes
-                .as_ref()
-                .starts_with(&[0x08, 0xc3, 0x79, 0xa0]),
-            "revert payload should use Error(string) encoding"
-        );
-
-        let balance_result = call_registered_precompile(
-            precompile,
-            &mut ctx,
-            balance_of_calldata(account),
-            gas::BALANCE_OF_GAS,
-            false,
-        );
-        assert_eq!(decode_word(&balance_result.bytes), U256::ZERO);
     }
 }

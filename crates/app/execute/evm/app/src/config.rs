@@ -182,7 +182,9 @@ mod tests {
         build_sahara_chain_spec, build_sahara_chain_spec_with_alloc_and_fee_recipients,
         SAHARA_CHAIN_ID,
     };
-    use evm_precompiles::{TEST_TOKEN_PRECOMPILE_ADDRESS, VALIDATORS_PRECOMPILE_ADDRESS};
+    use evm_precompiles::{
+        COMMUNITY_POOL_ADDRESS, FEE_POOL_PRECOMPILE_ADDRESS, VALIDATORS_PRECOMPILE_ADDRESS,
+    };
     use reth_chainspec::EthereumHardforks;
     use reth_evm::{ConfigureEvm, Evm, EvmFactory, NextBlockEnvAttributes};
     use reth_primitives_traits::Header;
@@ -230,9 +232,10 @@ mod tests {
             .expect("next EVM env");
         let evm = config.evm_factory().create_evm(EmptyDB::default(), env);
 
+        assert!(evm.precompiles().get(&COMMUNITY_POOL_ADDRESS).is_some());
         assert!(evm
             .precompiles()
-            .get(&TEST_TOKEN_PRECOMPILE_ADDRESS)
+            .get(&FEE_POOL_PRECOMPILE_ADDRESS)
             .is_some());
         assert!(evm
             .precompiles()

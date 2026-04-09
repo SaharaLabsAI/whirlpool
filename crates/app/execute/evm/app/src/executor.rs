@@ -628,8 +628,8 @@ mod tests {
         SAHARA_CHAIN_ID,
     };
     use evm_precompiles::{
-        claimable_balance_slot, mint_calldata, COMMUNITY_POOL_ADDRESS, FEE_POOL_PRECOMPILE_ADDRESS,
-        TEST_TOKEN_PRECOMPILE_ADDRESS,
+        claimable_balance_slot, withdraw_calldata, COMMUNITY_POOL_ADDRESS,
+        FEE_POOL_PRECOMPILE_ADDRESS,
     };
     use reth_ethereum_primitives::TransactionSigned;
     use reth_primitives_traits::SignerRecoverable;
@@ -703,7 +703,7 @@ mod tests {
     fn precompile_proxy_runtime_bytecode() -> Bytes {
         let mut runtime = alloy_primitives::hex::decode("36600060003760006000366000600073")
             .expect("forwarder prefix");
-        runtime.extend_from_slice(TEST_TOKEN_PRECOMPILE_ADDRESS.as_slice());
+        runtime.extend_from_slice(FEE_POOL_PRECOMPILE_ADDRESS.as_slice());
         runtime.extend_from_slice(
             &alloy_primitives::hex::decode("5af13d600060003e156034573d6000f35b3d6000fd")
                 .expect("forwarder suffix"),
@@ -711,11 +711,7 @@ mod tests {
         Bytes::from(runtime)
     }
 
-    fn sample_proxy_precompile_mint_tx(
-        proxy_address: Address,
-        recipient: Address,
-        amount: U256,
-    ) -> (Vec<u8>, Address) {
+    fn sample_proxy_precompile_withdraw_tx(proxy_address: Address) -> (Vec<u8>, Address) {
         let tx = TxLegacy {
             chain_id: Some(SAHARA_CHAIN_ID),
             nonce: 0,
@@ -723,7 +719,7 @@ mod tests {
             gas_limit: 200_000,
             to: TxKind::Call(proxy_address),
             value: U256::ZERO,
-            input: mint_calldata(recipient, amount),
+            input: withdraw_calldata(),
         };
         let signature = Signature::test_signature();
         let signed: TransactionSigned = tx.into_signed(signature).into();
@@ -910,10 +906,9 @@ mod tests {
     #[tokio::test]
     async fn verify_accepts_block_with_precompile_proxy_transaction() {
         let proxy_address = Address::with_last_byte(0xaa);
-        let recipient = Address::with_last_byte(0xbb);
-        let (tx, recovered) =
-            sample_proxy_precompile_mint_tx(proxy_address, recipient, U256::from(5_u64));
+        let (tx, recovered) = sample_proxy_precompile_withdraw_tx(proxy_address);
         let (app, db) = setup_app(vec![tx]).await;
+        let claimable = U256::from(5_u64);
 
         {
             let mut db = db.write().unwrap();
@@ -928,6 +923,14 @@ mod tests {
             let mut proxy_info = revm::state::AccountInfo::default();
             proxy_info.set_code(Bytecode::new_raw(precompile_proxy_runtime_bytecode()));
             db.insert_account(proxy_address, proxy_info);
+            let mut fee_pool_info = revm::state::AccountInfo::default();
+            fee_pool_info.balance = claimable;
+            db.insert_account(FEE_POOL_PRECOMPILE_ADDRESS, fee_pool_info);
+            db.insert_storage(
+                FEE_POOL_PRECOMPILE_ADDRESS,
+                claimable_balance_slot(proxy_address),
+                claimable,
+            );
         }
 
         let pre_state = db.read().unwrap().clone();
@@ -936,10 +939,10 @@ mod tests {
         let current_balance = db
             .read()
             .unwrap()
-            .get_account(recipient)
+            .get_account(proxy_address)
             .unwrap_or_default()
             .balance;
-        assert_eq!(current_balance, U256::from(5_u64));
+        assert_eq!(current_balance, claimable);
 
         let chain_spec = Arc::new(build_sahara_chain_spec());
         let config = WhirlpoolEvmConfig::new(chain_spec).with_local_proposer_public_key([0x77; 32]);

@@ -16,7 +16,7 @@ The design uses one registry, one factory seam, and one config seam so every EVM
 ## Validation strategy
 - Unit coverage proves the config installs the registry: `crates/app/execute/evm/app/src/config.rs:257-275`.
 - Unit coverage proves replay accepts a block whose transaction reaches a precompile through a forwarding contract: `crates/app/execute/evm/app/src/executor.rs:761-800`.
-- Full-node coverage proves state-changing tx, read-only `eth_call`, and revert surfacing: `testing/integration-tests/tests/precompile_test_token.rs:397-488` and `agent-docs/crates/integration-tests.md:132-141`.
+- Unit + integration coverage proves state-changing tx, read-only `eth_call`, and revert surfacing for shipped precompiles (`community_pool`, `fee_pool`, `validators`), including full-node tokenomics and RPC contract suites.
 
 ## Design consequence
 If Whirlpool adds more custom precompiles, the intended extension point is the registry in `crates/app/execute/evm/precompiles/src/lib.rs`, not ad hoc per-call-site wiring.
