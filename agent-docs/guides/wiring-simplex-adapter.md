@@ -5,7 +5,7 @@ This guide describes wiring against the post-refactor interface boundaries.
 ## Canonical Imports
 - `consensus::traits::{Block, ConsensusApp, EventSink, ConsensusEngine}`
 - `consensus_simplex::traits::CommonwareBlock`
-- `p2p_commonware::traits::CommonwareTransport` (when using dedicated simplex channels)
+- `network_commonware::traits::CommonwareTransport` (when using dedicated simplex channels)
 
 ## 1) Block Contract
 Your block type must satisfy:

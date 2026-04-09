@@ -5,7 +5,7 @@ use std::hash::Hash;
 
 use commonware_cryptography::PublicKey;
 use commonware_p2p::authenticated::discovery::Oracle;
-use p2p::P2pError;
+use network::P2pError;
 
 use crate::provider::PerChannelNetwork;
 

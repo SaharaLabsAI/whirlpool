@@ -1,16 +1,16 @@
-# p2p-commonware Crate
+# network-commonware Crate
 
 ## Purpose
-Bridge the vendor-agnostic `p2p` interfaces to the Commonware networking stack.
+Bridge the vendor-agnostic `network` interfaces to the Commonware networking stack.
 
 ## Interface/Implementation Split
-- Interface module: `crates/p2p/commonware/src/traits.rs`
+- Interface module: `crates/network/commonware/src/traits.rs`
   - `CommonwareTransport`
 - Implementation modules:
-  - `crates/p2p/commonware/src/provider.rs`
-  - `crates/p2p/commonware/src/sender.rs`
-  - `crates/p2p/commonware/src/receiver.rs`
-  - `crates/p2p/commonware/src/lib.rs` (`MultiplexSender`, `MultiplexReceiver`)
+  - `crates/network/commonware/src/provider.rs`
+  - `crates/network/commonware/src/sender.rs`
+  - `crates/network/commonware/src/receiver.rs`
+  - `crates/network/commonware/src/lib.rs` (`MultiplexSender`, `MultiplexReceiver`)
 
 ## Trait Boundary
 `CommonwareTransport` provides an interface boundary for providers that expose dedicated simplex channels:
@@ -18,7 +18,7 @@ Bridge the vendor-agnostic `p2p` interfaces to the Commonware networking stack.
 - `oracle(&self) -> &Oracle<_>`
 
 `CommonwareNetworkProvider` implements both:
-- `p2p::traits::NetworkProvider` (multiplexed sender/receiver)
+- `network::traits::NetworkProvider` (multiplexed sender/receiver)
 - `CommonwareTransport` (dedicated vote/cert/resolver/payload channels)
 
 ## Channel Layout
@@ -28,11 +28,11 @@ Bridge the vendor-agnostic `p2p` interfaces to the Commonware networking stack.
 - `resolver`: `Channel::RESOLVER` (2) — block resolver messages
 - `payload`: `Channel::PAYLOAD` (3) — block payload relay messages
 
-Channel constants defined in `crates/p2p/traits/src/types.rs` as `Channel(N)` associated constants.
+Channel constants defined in `crates/network/traits/src/types.rs` as `Channel(N)` associated constants.
 
 ## Canonical Imports
-- `p2p_commonware::traits::CommonwareTransport`
-- `p2p::traits::{NetworkProvider, NetworkSender, NetworkReceiver, PeerId}`
+- `network_commonware::traits::CommonwareTransport`
+- `network::traits::{NetworkProvider, NetworkSender, NetworkReceiver, PeerId}`
 
 ## Key Types
 - `CommonwareNetworkProviderBuilder`

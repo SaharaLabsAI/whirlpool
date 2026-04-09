@@ -21,7 +21,7 @@ use crate::config::CommonwareConfig;
 use crate::engine::CommonwareEngine;
 use crate::sink::FinalizationSink;
 use crate::traits::CommonwareBlock;
-use p2p_commonware::CommonwareNetworkProviderBuilder;
+use network_commonware::CommonwareNetworkProviderBuilder;
 
 type TestDigest = commonware_cryptography::sha256::Digest;
 

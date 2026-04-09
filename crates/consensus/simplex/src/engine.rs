@@ -30,8 +30,8 @@ use consensus::app::ConsensusApp;
 use consensus::engine::{ConsensusEngine, RunningEngine};
 use consensus::error::ConsensusError;
 use consensus::event::EventSink;
-use p2p::types::Channel;
-use p2p_commonware::CommonwareReceiver;
+use network::types::Channel;
+use network_commonware::CommonwareReceiver;
 use rand_core::CryptoRngCore;
 
 use crate::adapter::AppAdapter;
@@ -71,7 +71,7 @@ where
     app: Arc<A>,
     sink: Arc<S>,
     config: CommonwareConfig,
-    network: p2p_commonware::CommonwareNetworkProvider<E, C>,
+    network: network_commonware::CommonwareNetworkProvider<E, C>,
     context: E,
 }
 
@@ -105,7 +105,7 @@ where
         app: Arc<A>,
         sink: Arc<S>,
         config: CommonwareConfig,
-        network: p2p_commonware::CommonwareNetworkProvider<E, C>,
+        network: network_commonware::CommonwareNetworkProvider<E, C>,
         context: E,
     ) -> Self {
         Self {
@@ -304,7 +304,7 @@ mod tests {
     use commonware_cryptography::ed25519::PrivateKey;
     use commonware_cryptography::Signer as _;
     use commonware_runtime::{tokio as commonware_tokio, Clock, Metrics, Runner};
-    use p2p_commonware::CommonwareNetworkProviderBuilder;
+    use network_commonware::CommonwareNetworkProviderBuilder;
     use std::net::SocketAddr;
     use std::num::NonZeroUsize;
     use std::sync::atomic::AtomicU64;

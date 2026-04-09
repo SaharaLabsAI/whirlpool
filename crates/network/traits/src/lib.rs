@@ -27,10 +27,10 @@
 //! # Example
 //!
 //! ```rust,ignore
-//! use p2p::{NetworkProvider, NetworkSender, Channel, Recipients};
+//! use network::{NetworkProvider, NetworkSender, Channel, Recipients};
 //! use bytes::Bytes;
 //!
-//! async fn send_vote<P: NetworkProvider>(provider: P) -> Result<(), p2p::P2pError> {
+//! async fn send_vote<P: NetworkProvider>(provider: P) -> Result<(), network::P2pError> {
 //!     let (sender, mut receiver) = provider.start()?;
 //!     
 //!     let vote_data = Bytes::from("vote payload");

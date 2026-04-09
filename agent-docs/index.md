@@ -94,7 +94,7 @@ Step-by-step instructions for common tasks and workflows.
 |-------|--------|------------------|-------|
 | `consensus` | `crates/consensus/traits/src/` | `architecture/consensus-traits.md` | `guides/implementing-consensus-traits.md` |
 | `consensus-simplex` | `crates/consensus/simplex/src/` | `architecture/simplex-adapter.md` | `guides/wiring-simplex-adapter.md` |
-| `p2p-commonware` | `crates/p2p/commonware/src/` | `crates/p2p-commonware.md` | — |
+| `network-commonware` | `crates/network/commonware/src/` | `crates/network-commonware.md` | — |
 | `state` | `crates/app/state/src/` | `crates/state.md` | — |
 | `state-memory` | `crates/app/mem/state/src/` | `crates/state-memory.md` | — |
 | `state-reth` | `crates/app/evm/state/src/` | `crates/state-reth.md` | — |

@@ -3,7 +3,7 @@
 use crate::{error::map_send_error, CommonwarePeerId};
 use bytes::Bytes;
 use commonware_p2p::{Recipients as CwRecipients, Sender as CwSender};
-use p2p::{Channel, NetworkSender, P2pError, Recipients};
+use network::{Channel, NetworkSender, P2pError, Recipients};
 use std::fmt::Debug;
 use std::hash::Hash;
 

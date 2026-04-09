@@ -11,7 +11,7 @@
 - `app-evm`: EVM runtime/config/execution (`WhirlpoolEvmConfig`, `EvmApplication`).
 - `consensus` / `consensus-simplex`: consensus traits + adapter/engine.
 - `state` / `state-reth` / `mempool-mdbx`: persistence and tx source.
-- `p2p-commonware`: networking.
+- `network-commonware`: networking.
 - `rpc-eth`: Ethereum JSON-RPC server.
 
 ## node.rs Lifecycle

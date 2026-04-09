@@ -1,4 +1,4 @@
-//! Tests for p2p-commonware crate.
+//! Tests for network-commonware crate.
 
 #[cfg(test)]
 mod tests {
@@ -132,7 +132,7 @@ mod tests {
         let p2p_err = map_send_error(err);
 
         match p2p_err {
-            p2p::P2pError::SendFailed(msg) => {
+            network::P2pError::SendFailed(msg) => {
                 assert!(msg.contains("test error"));
             }
             _ => panic!("Expected SendFailed error"),
@@ -156,7 +156,7 @@ mod tests {
         let p2p_err = map_send_error(err);
 
         match p2p_err {
-            p2p::P2pError::SendFailed(msg) => {
+            network::P2pError::SendFailed(msg) => {
                 assert_eq!(msg, "Custom: my error");
             }
             _ => panic!("Expected SendFailed error"),
@@ -255,7 +255,7 @@ mod tests {
     #[tokio::test]
     async fn test_multiplex_receiver_tags_channel() {
         use crate::{receiver::CommonwareReceiver, MultiplexReceiver};
-        use p2p::{Channel, NetworkReceiver};
+        use network::{Channel, NetworkReceiver};
 
         let pk = create_test_pubkey(42);
 
@@ -276,7 +276,7 @@ mod tests {
     #[tokio::test]
     async fn test_multiplex_receiver_merges_channels() {
         use crate::{receiver::CommonwareReceiver, MultiplexReceiver};
-        use p2p::{Channel, NetworkReceiver};
+        use network::{Channel, NetworkReceiver};
 
         let pk = create_test_pubkey(1);
 
@@ -317,7 +317,7 @@ mod tests {
     #[tokio::test]
     async fn test_multiplex_receiver_returns_none_on_shutdown() {
         use crate::{receiver::CommonwareReceiver, MultiplexReceiver};
-        use p2p::{Channel, NetworkReceiver};
+        use network::{Channel, NetworkReceiver};
 
         // Create receivers but immediately drop senders — simulates shutdown
         let (_tx0, mock0) = MockCwReceiver::new();

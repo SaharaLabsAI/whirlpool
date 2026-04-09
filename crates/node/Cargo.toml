@@ -18,7 +18,7 @@ revm = { version = "34" }
 alloy-primitives = { version = "1.5.0" }
 consensus = { path = "../consensus/traits" }
 consensus-simplex = { path = "../consensus/simplex" }
-p2p-commonware = { path = "../p2p/commonware" }
+network-commonware = { path = "../network/commonware" }
 commonware-cryptography = { path = "../../vendor/commonware/cryptography" }
 commonware-codec = { path = "../../vendor/commonware/codec" }
 commonware-p2p = { path = "../../vendor/commonware/p2p" }

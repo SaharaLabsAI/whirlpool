@@ -1,6 +1,6 @@
 //! Error mapping from Commonware errors to P2P errors.
 
-use p2p::P2pError;
+use network::P2pError;
 
 /// Maps a send error from Commonware into a P2pError::SendFailed variant.
 ///

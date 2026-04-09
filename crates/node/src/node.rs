@@ -13,7 +13,7 @@ use commonware_runtime::{tokio, Metrics, Runner};
 use consensus::traits::ConsensusEngine;
 use consensus_simplex::{CommonwareConfig, CommonwareEngine, FinalizationSink};
 use mempool_mdbx::PersistentTxPool;
-use p2p_commonware::CommonwareNetworkProviderBuilder;
+use network_commonware::CommonwareNetworkProviderBuilder;
 use reth_chainspec::ChainSpec;
 use rpc_eth as eth_rpc;
 use std::error::Error;

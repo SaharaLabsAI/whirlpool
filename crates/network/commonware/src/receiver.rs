@@ -2,7 +2,7 @@
 
 use crate::CommonwarePeerId;
 use commonware_p2p::Receiver as CwReceiver;
-use p2p::{Channel, NetworkMessage, NetworkReceiver};
+use network::{Channel, NetworkMessage, NetworkReceiver};
 use std::fmt::Debug;
 use std::hash::Hash;
 
@@ -47,7 +47,7 @@ mod tests {
     use bytes::Bytes;
     use commonware_cryptography::ed25519;
     use commonware_cryptography::Signer;
-    use p2p::{Channel, NetworkReceiver};
+    use network::{Channel, NetworkReceiver};
 
     #[derive(Debug)]
     struct MockCwReceiver {

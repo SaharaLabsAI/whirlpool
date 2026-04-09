@@ -17,7 +17,7 @@ use crate::{
     traits::CommonwareTransport, CommonwarePeerId, CommonwareReceiver, CommonwareSender,
     MultiplexReceiver, MultiplexSender,
 };
-use p2p::{Channel, NetworkProvider, P2pError};
+use network::{Channel, NetworkProvider, P2pError};
 
 /// Configuration for channel registration.
 #[derive(Debug, Clone)]
@@ -366,7 +366,7 @@ mod tests {
     use commonware_cryptography::Signer;
     use commonware_p2p::{Manager, Receiver as _, Recipients, Sender as _};
     use commonware_runtime::{deterministic, Clock, Runner};
-    use p2p::{NetworkReceiver, NetworkSender, Recipients as P2pRecipients};
+    use network::{NetworkReceiver, NetworkSender, Recipients as P2pRecipients};
     use std::net::SocketAddr;
     use std::time::Duration;
 

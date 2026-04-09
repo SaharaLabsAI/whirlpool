@@ -3,7 +3,7 @@
 //! This crate provides adapter types that bridge our vendor-agnostic `p2p` trait system
 //! to the Commonware P2P implementation.
 use bytes::Bytes;
-use p2p::{Channel, NetworkMessage, NetworkReceiver, NetworkSender, P2pError, Recipients};
+use network::{Channel, NetworkMessage, NetworkReceiver, NetworkSender, P2pError, Recipients};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -134,7 +134,7 @@ mod multiplex_receiver_contract_tests {
     use crate::receiver::CommonwareReceiver;
     use commonware_cryptography::ed25519;
     use commonware_cryptography::Signer;
-    use p2p::{Channel, NetworkReceiver};
+    use network::{Channel, NetworkReceiver};
 
     #[derive(Debug)]
     struct MockCwReceiver {

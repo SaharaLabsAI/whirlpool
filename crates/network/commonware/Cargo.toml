@@ -1,10 +1,10 @@
 [package]
-name = "p2p-commonware"
+name = "network-commonware"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-p2p = { path = "../traits" }
+network = { path = "../traits" }
 commonware-p2p = { path = "../../../vendor/commonware/p2p" }
 commonware-cryptography = { path = "../../../vendor/commonware/cryptography" }
 commonware-runtime = { path = "../../../vendor/commonware/runtime" }

@@ -6,7 +6,7 @@ The Whirlpool node uses a modular architecture where business logic (blocks and 
 
 ## Network Provider Construction
 
-The node uses the `p2p-commonware` crate to bridge to the Commonware P2P stack. Construction follows a builder pattern:
+The node uses the `network-commonware` crate to bridge to the Commonware P2P stack. Construction follows a builder pattern:
 
 1.  **Initialize Builder**: Provide the signer (private key) and a unique namespace.
 2.  **Configure Network**: Set the listen address, dialable address, and any bootstrapper nodes.

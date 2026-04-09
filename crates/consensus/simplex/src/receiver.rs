@@ -5,7 +5,7 @@
 use commonware_codec::Decode;
 use commonware_cryptography::sha256::Digest;
 use commonware_cryptography::Digestible;
-use p2p::NetworkReceiver;
+use network::NetworkReceiver;
 
 use crate::mailbox::PayloadRelayMessage;
 use crate::BlockStore;
@@ -88,9 +88,9 @@ mod tests {
     use bytes::Bytes;
     use commonware_codec::Encode;
     use commonware_cryptography::sha256::Digest;
-    use p2p::mock::MockPeerId;
-    use p2p::types::{Channel, NetworkMessage};
-    use p2p::NetworkReceiver;
+    use network::mock::MockPeerId;
+    use network::types::{Channel, NetworkMessage};
+    use network::NetworkReceiver;
     use std::collections::HashMap;
     use std::sync::Arc;
     use tokio::sync::RwLock;

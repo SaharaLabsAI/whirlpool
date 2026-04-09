@@ -8,8 +8,8 @@ doctest = false
 
 [dependencies]
 consensus = { path = "../traits" }
-p2p = { path = "../../p2p/traits", features = ["mock"] }
-p2p-commonware = { path = "../../p2p/commonware" }
+network = { path = "../../network/traits", features = ["mock"] }
+network-commonware = { path = "../../network/commonware" }
 commonware-consensus = { path = "../../../vendor/commonware/consensus" }
 commonware-broadcast = { path = "../../../vendor/commonware/broadcast" }
 commonware-cryptography = { path = "../../../vendor/commonware/cryptography" }

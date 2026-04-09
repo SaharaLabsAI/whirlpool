@@ -1,7 +1,7 @@
 //! CommonwarePeerId newtype that implements our PeerId trait.
 
 use commonware_cryptography::PublicKey;
-use p2p::PeerId;
+use network::PeerId;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 
@@ -12,7 +12,7 @@ use std::hash::{Hash, Hasher};
 ///
 /// # Example
 /// ```ignore
-/// use p2p_commonware::CommonwarePeerId;
+/// use network_commonware::CommonwarePeerId;
 /// use commonware_cryptography::ed25519::PublicKey;
 ///
 /// let pk: PublicKey = // ... some public key
