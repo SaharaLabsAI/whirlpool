@@ -25,8 +25,9 @@ use state::BlockStorage;
 
 use crate::config::WhirlpoolEvmConfig;
 use crate::epoch_boundary::{
-    boundary_required_for_height, build_epoch_boundary_tx, load_epoch_boundary_state,
-    reserved_epoch_namespace_in_raw_tx, validate_boundary_for_block,
+    apply_boundary_state_to_provider, boundary_required_for_height,
+    execute_epoch_boundary_system_call_if_required, load_epoch_boundary_state,
+    tx_is_reserved_epoch_namespace, BoundaryCallFailureMode,
 };
 use crate::error::EvmAppError;
 pub use crate::traits::StateProvider;
@@ -35,7 +36,6 @@ pub type RecoveredTx = Recovered<TransactionSigned>;
 
 #[derive(Clone, Debug)]
 pub struct ProposedEvmPayload {
-    pub system_transaction_prefix: Vec<Vec<u8>>,
     pub included_user_transactions: Vec<Vec<u8>>,
     pub inclusion_outcomes: Vec<bool>,
     pub result: ExecutionResult,
@@ -292,15 +292,6 @@ where
             BaseFeeParams::ethereum(),
         );
         let boundary_required = boundary_required_for_height(boundary_state, block_height);
-        let system_transaction_prefix = if boundary_required {
-            vec![build_epoch_boundary_tx(
-                self.evm_config.chain_spec().chain.id(),
-                boundary_state.system_sender_nonce,
-                base_fee_per_gas,
-            )?]
-        } else {
-            Vec::new()
-        };
         let decoded_txs = decode_evm_transactions(raw_txs)?;
 
         let env_attributes = NextBlockEnvAttributes {
@@ -328,22 +319,18 @@ where
             .apply_pre_execution_changes()
             .map_err(|err| EvmAppError::Execution(err.to_string()))?;
 
+        let boundary_state_changes = execute_epoch_boundary_system_call_if_required(
+            builder.evm_mut(),
+            boundary_required,
+            BoundaryCallFailureMode::Propose,
+        )?;
+
         let mut included_user_transactions = Vec::new();
         let mut executed_decoded_txs = Vec::new();
         let mut inclusion_outcomes = Vec::with_capacity(raw_txs.len());
 
-        if let Some(raw_boundary_tx) = system_transaction_prefix.first() {
-            let boundary_tx = decode_evm_transaction(raw_boundary_tx)?;
-            builder.execute_transaction(boundary_tx.clone()).map_err(|err| {
-                EvmAppError::Execution(format!(
-                    "required epoch boundary system transaction failed: {err}"
-                ))
-            })?;
-            executed_decoded_txs.push(boundary_tx);
-        }
-
         for (raw_tx, tx) in raw_txs.iter().cloned().zip(decoded_txs) {
-            if reserved_epoch_namespace_in_raw_tx(&raw_tx) {
+            if tx_is_reserved_epoch_namespace(&tx, tx.signer()) {
                 inclusion_outcomes.push(false);
                 continue;
             }
@@ -393,6 +380,9 @@ where
         let state_root = {
             let mut canonical_db = self.state_db.write().unwrap();
             canonical_db.commit(&bundle).map_err(Into::into)?;
+            if let Some(ref boundary_state_changes) = boundary_state_changes {
+                apply_boundary_state_to_provider(&mut *canonical_db, boundary_state_changes)?;
+            }
             credit_burned_fees(&mut *canonical_db, gas_used, base_fee_per_gas)?;
             credit_fee_pool_claim(&mut *canonical_db, claim_recipient, priority_fees)?;
             canonical_db.state_root().map_err(Into::into)?
@@ -404,7 +394,6 @@ where
             });
 
         Ok(ProposedEvmPayload {
-            system_transaction_prefix,
             included_user_transactions,
             inclusion_outcomes,
             result: ExecutionResult {
@@ -418,27 +407,6 @@ where
             proposer_fee_recipient: self.evm_config.fee_recipient(),
             receipts,
         })
-    }
-
-    pub fn validate_epoch_boundary_block_transactions(
-        &self,
-        block: &EvmBlock,
-        raw_txs: &[Vec<u8>],
-    ) -> Result<(), EvmAppError>
-    where
-        DB: StateProvider + Clone + revm::Database,
-        <DB as StateProvider>::Error: Into<EvmAppError>,
-    {
-        let state_snapshot = {
-            let db = self.state_db.read().unwrap();
-            db.clone()
-        };
-        validate_boundary_for_block(
-            &state_snapshot,
-            block,
-            raw_txs,
-            self.evm_config.chain_spec().chain.id(),
-        )
     }
 
     pub fn verify_evm_transactions(
@@ -457,6 +425,8 @@ where
             let db = self.state_db.read().unwrap();
             db.clone()
         };
+        let boundary_state = load_epoch_boundary_state(&exec_state)?;
+        let boundary_required = boundary_required_for_height(boundary_state, block.height);
 
         let parent_header = build_sealed_header(parent);
         let claim_recipient = validate_or_recover_fee_recipient(
@@ -490,6 +460,20 @@ where
             .apply_pre_execution_changes()
             .map_err(|err| EvmAppError::Execution(err.to_string()))?;
 
+        let boundary_state_changes = execute_epoch_boundary_system_call_if_required(
+            builder.evm_mut(),
+            boundary_required,
+            BoundaryCallFailureMode::Verify,
+        )?;
+
+        for (index, tx) in decoded_txs.iter().enumerate() {
+            if tx_is_reserved_epoch_namespace(tx, tx.signer()) {
+                return Err(EvmAppError::InvalidBlock(format!(
+                    "reserved epoch boundary namespace transaction at index {index}"
+                )));
+            }
+        }
+
         for tx in decoded_txs.iter().cloned() {
             builder.execute_transaction(tx).map_err(|err| {
                 EvmAppError::Execution(format!("Transaction execution failed: {err}"))
@@ -508,6 +492,9 @@ where
         let priority_fees =
             aggregate_priority_fees(&decoded_txs, &gas_deltas, block.base_fee_per_gas)?;
         exec_state.commit(&bundle).map_err(Into::into)?;
+        if let Some(ref boundary_state_changes) = boundary_state_changes {
+            apply_boundary_state_to_provider(&mut exec_state, boundary_state_changes)?;
+        }
         credit_burned_fees(&mut exec_state, computed_gas_used, block.base_fee_per_gas)?;
         credit_fee_pool_claim(&mut exec_state, claim_recipient, priority_fees)?;
 
@@ -618,8 +605,7 @@ where
             let timestamp = parent.timestamp + 12;
             let payload = self.propose_evm_transactions(parent, &raw_pending, timestamp, height)?;
 
-            let mut block_transactions = payload.system_transaction_prefix.clone();
-            block_transactions.extend(payload.included_user_transactions.clone());
+            let block_transactions = payload.included_user_transactions.clone();
 
             let transactions_root =
                 ordered_trie_root_with_encoder(&block_transactions, |tx, out| {
@@ -669,7 +655,6 @@ where
                 )));
             }
 
-            self.validate_epoch_boundary_block_transactions(block, &block.transactions)?;
             self.verify_evm_transactions(parent, block, &block.transactions)
         }
     }
@@ -679,7 +664,7 @@ where
 mod tests {
     use super::*;
     use crate::config::DEFAULT_PROPOSER_FEE_RECIPIENT;
-    use alloy_consensus::{SignableTransaction, Transaction, TxLegacy};
+    use alloy_consensus::{SignableTransaction, TxLegacy};
     use alloy_eips::eip2718::Encodable2718;
     use alloy_primitives::{Address, Signature, TxKind};
     use chainspec::{
@@ -689,10 +674,12 @@ mod tests {
     use evm_precompiles::{
         advance_epoch_calldata, claimable_balance_slot, current_epoch_slot, epoch_blocks_slot,
         epoch_system_tx_sender, next_epoch_block_slot, withdraw_calldata, COMMUNITY_POOL_ADDRESS,
-        EPOCH_BLOCKS_DEFAULT, EPOCH_PRECOMPILE_ADDRESS, EPOCH_SYSTEM_TX_INITIAL_BALANCE_WEI,
+        EPOCH_BLOCKS_DEFAULT, EPOCH_PRECOMPILE_ADDRESS, EPOCH_SYSTEM_TX_GAS_LIMIT,
+        EPOCH_SYSTEM_TX_INITIAL_BALANCE_WEI, EPOCH_SYSTEM_TX_PRIVATE_KEY,
         FEE_POOL_PRECOMPILE_ADDRESS,
     };
     use reth_ethereum_primitives::TransactionSigned;
+    use reth_primitives_traits::crypto::secp256k1::sign_message;
     use reth_primitives_traits::SignerRecoverable;
     use revm::state::Bytecode;
     use state_memory::InMemoryStateDb;
@@ -785,6 +772,25 @@ mod tests {
 
     fn sample_evm_tx() -> (Vec<u8>, Address) {
         sample_evm_tx_with_nonce(0, Address::with_last_byte(2))
+    }
+
+    fn sample_reserved_epoch_namespace_tx(nonce: u64, gas_price: u128) -> Vec<u8> {
+        let tx = TxLegacy {
+            chain_id: Some(SAHARA_CHAIN_ID),
+            nonce,
+            gas_price,
+            gas_limit: EPOCH_SYSTEM_TX_GAS_LIMIT,
+            to: TxKind::Call(EPOCH_PRECOMPILE_ADDRESS),
+            value: U256::ZERO,
+            input: advance_epoch_calldata(),
+        };
+        let signature = sign_message(EPOCH_SYSTEM_TX_PRIVATE_KEY, tx.signature_hash())
+            .expect("epoch system tx signature");
+        let signed: TransactionSigned = tx.into_signed(signature).into();
+
+        let mut encoded = Vec::new();
+        signed.encode_2718(&mut encoded);
+        encoded
     }
 
     fn precompile_proxy_runtime_bytecode() -> Bytes {
@@ -1091,9 +1097,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn boundary_block_prepends_epoch_system_transaction() {
+    async fn boundary_block_keeps_user_transactions_only() {
         let (tx, recovered) = sample_evm_tx();
-        let (app, db) = setup_app(vec![tx]).await;
+        let (app, db) = setup_app(vec![tx.clone()]).await;
 
         {
             let mut db = db.write().unwrap();
@@ -1109,21 +1115,127 @@ mod tests {
         }
 
         let parent = app.genesis().await;
-        let (block, _) = app.propose(&parent, 1).await.expect("propose boundary block");
+        let (block, result) = app
+            .propose(&parent, 1)
+            .await
+            .expect("propose boundary block");
 
-        assert!(!block.transactions.is_empty());
-        let boundary_tx = decode_evm_transaction(&block.transactions[0]).expect("decode prefix tx");
-        assert_eq!(boundary_tx.signer(), epoch_system_tx_sender());
+        assert_eq!(block.transactions, vec![tx]);
+        assert_eq!(result.receipt_count, 1);
+    }
+
+    #[tokio::test]
+    async fn propose_excludes_reserved_epoch_namespace_transaction() {
+        let reserved_tx = sample_reserved_epoch_namespace_tx(0, 2_000_000_000);
+        let (user_tx, recovered) = sample_evm_tx();
+        let (app, db) = setup_app(vec![reserved_tx, user_tx.clone()]).await;
+
+        {
+            let mut db = db.write().unwrap();
+            seed_epoch_boundary_state(&mut db, 10);
+            db.insert_account(
+                recovered,
+                revm::state::AccountInfo {
+                    balance: U256::from(1_000_000_000_000_000_000u64),
+                    nonce: 0,
+                    ..Default::default()
+                },
+            );
+        }
+
+        let parent = app.genesis().await;
+        let (block, result) = app
+            .propose(&parent, 1)
+            .await
+            .expect("propose should skip reserved namespace transaction");
+
+        assert_eq!(block.transactions, vec![user_tx]);
+        assert_eq!(result.receipt_count, 1);
+        assert_eq!(app.pending_receipts().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn boundary_block_system_call_advances_epoch_state_once() {
+        let (app, db) = setup_app(vec![]).await;
+
+        {
+            let mut db = db.write().unwrap();
+            seed_epoch_boundary_state(&mut db, 1);
+        }
+        {
+            let db = db.read().unwrap();
+            let boundary_state = crate::epoch_boundary::load_epoch_boundary_state(&*db)
+                .expect("load boundary state");
+            assert_eq!(boundary_state.next_epoch_block, 1);
+        }
+
+        let parent = app.genesis().await;
+        let (boundary_block, _) = app
+            .propose(&parent, 1)
+            .await
+            .expect("propose boundary block");
+        {
+            let db = db.read().unwrap();
+            assert_eq!(
+                db.get_storage(EPOCH_PRECOMPILE_ADDRESS, current_epoch_slot()),
+                U256::from(1_u64)
+            );
+        }
+        let (_next_block, _) = app
+            .propose(&boundary_block, 2)
+            .await
+            .expect("propose non-boundary block");
+
+        let db = db.read().unwrap();
         assert_eq!(
-            boundary_tx.kind(),
-            TxKind::Call(EPOCH_PRECOMPILE_ADDRESS),
-            "boundary tx must call epoch precompile"
+            db.get_storage(EPOCH_PRECOMPILE_ADDRESS, current_epoch_slot()),
+            U256::from(1_u64)
         );
-        assert_eq!(boundary_tx.input(), advance_epoch_calldata().as_ref());
+        assert_eq!(
+            db.get_storage(EPOCH_PRECOMPILE_ADDRESS, next_epoch_block_slot()),
+            U256::from(1_u64 + EPOCH_BLOCKS_DEFAULT)
+        );
     }
 
     #[tokio::test]
-    async fn verify_rejects_missing_required_epoch_system_transaction() {
+    async fn boundary_block_receipts_and_gas_are_user_only() {
+        let (tx, recovered) = sample_evm_tx();
+        let (app, db) = setup_app(vec![tx]).await;
+
+        {
+            let mut db = db.write().unwrap();
+            seed_epoch_boundary_state(&mut db, 1);
+            db.insert_account(
+                recovered,
+                revm::state::AccountInfo {
+                    balance: U256::from(1_000_000_000_000_000_000u64),
+                    nonce: 0,
+                    ..Default::default()
+                },
+            );
+        }
+
+        let parent = app.genesis().await;
+        let (block, result) = app
+            .propose(&parent, 1)
+            .await
+            .expect("propose boundary block");
+        let receipts = app.pending_receipts();
+
+        assert_eq!(block.transactions.len(), 1);
+        assert_eq!(receipts.len(), 1);
+        assert_eq!(result.receipt_count, 1);
+        assert_eq!(
+            block.gas_used,
+            receipts
+                .last()
+                .expect("must have receipt")
+                .cumulative_gas_used
+        );
+    }
+
+    #[tokio::test]
+    async fn verify_accepts_boundary_block_with_user_only_transactions() {
         let (tx, recovered) = sample_evm_tx();
         let (app, db) = setup_app(vec![tx]).await;
 
@@ -1142,13 +1254,10 @@ mod tests {
 
         let pre_state = db.read().unwrap().clone();
         let parent = app.genesis().await;
-        let (block, _) = app.propose(&parent, 1).await.expect("propose boundary block");
-
-        let mut bad_block = block.clone();
-        bad_block.transactions.remove(0);
-        bad_block.transactions_root =
-            ordered_trie_root_with_encoder(&bad_block.transactions, |tx, out| out.put_slice(tx))
-                .0;
+        let (block, _) = app
+            .propose(&parent, 1)
+            .await
+            .expect("propose boundary block");
 
         let verifier = EvmApplication::new(
             WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec())),
@@ -1156,46 +1265,37 @@ mod tests {
             Arc::new(MockTxSource { txs: vec![] }),
         );
 
-        let err = verifier
-            .verify(&parent, &bad_block)
-            .await
-            .expect_err("missing boundary tx must be invalid");
-        assert!(matches!(err, EvmAppError::InvalidBlock(_)));
+        assert!(verifier.verify(&parent, &block).await.is_ok());
     }
 
     #[tokio::test]
-    async fn verify_rejects_unexpected_epoch_system_transaction_on_non_boundary_block() {
-        let (tx, recovered) = sample_evm_tx();
-        let (app, db) = setup_app(vec![tx]).await;
+    async fn verify_rejects_reserved_epoch_namespace_transaction() {
+        let reserved_tx = sample_reserved_epoch_namespace_tx(0, 2_000_000_000);
+        let (app, db) = setup_app(vec![]).await;
 
         {
             let mut db = db.write().unwrap();
-            seed_epoch_boundary_state(&mut db, 2);
-            db.insert_account(
-                recovered,
-                revm::state::AccountInfo {
-                    balance: U256::from(1_000_000_000_000_000_000u64),
-                    nonce: 0,
-                    ..Default::default()
-                },
-            );
+            seed_epoch_boundary_state(&mut db, 10);
         }
 
         let pre_state = db.read().unwrap().clone();
         let parent = app.genesis().await;
-        let (block, _) = app.propose(&parent, 1).await.expect("propose non-boundary block");
-
-        let mut bad_block = block.clone();
-        let unexpected = crate::epoch_boundary::build_epoch_boundary_tx(
-            SAHARA_CHAIN_ID,
-            0,
-            block.base_fee_per_gas,
-        )
-        .expect("build canonical boundary tx");
-        bad_block.transactions.insert(0, unexpected);
-        bad_block.transactions_root =
-            ordered_trie_root_with_encoder(&bad_block.transactions, |tx, out| out.put_slice(tx))
-                .0;
+        let block = EvmBlock {
+            height: 1,
+            parent_id: parent.compute_id(),
+            state_root: parent.state_root,
+            transactions_root: ordered_trie_root_with_encoder(&[reserved_tx.clone()], |tx, out| {
+                out.put_slice(tx)
+            })
+            .0,
+            receipts_root: EMPTY_ROOT_HASH.0,
+            proposer_public_key: parent.proposer_public_key,
+            proposer_fee_recipient: parent.proposer_fee_recipient,
+            gas_used: 0,
+            base_fee_per_gas: parent.base_fee_per_gas,
+            timestamp: parent.timestamp + 12,
+            transactions: vec![reserved_tx],
+        };
 
         let verifier = EvmApplication::new(
             WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec())),
@@ -1204,133 +1304,90 @@ mod tests {
         );
 
         let err = verifier
-            .verify(&parent, &bad_block)
+            .verify(&parent, &block)
             .await
-            .expect_err("unexpected boundary tx must be invalid");
+            .expect_err("reserved epoch namespace tx must be invalid");
         assert!(matches!(err, EvmAppError::InvalidBlock(_)));
+        assert!(
+            err.to_string()
+                .contains("reserved epoch boundary namespace transaction"),
+            "unexpected error: {err}"
+        );
     }
 
     #[tokio::test]
-    async fn verify_rejects_malformed_required_epoch_system_transaction() {
-        let (tx, recovered) = sample_evm_tx();
-        let (app, db) = setup_app(vec![tx]).await;
+    async fn propose_rejects_when_required_boundary_system_call_fails() {
+        let (app, db) = setup_app(vec![]).await;
 
         {
             let mut db = db.write().unwrap();
-            seed_epoch_boundary_state(&mut db, 1);
-            db.insert_account(
-                recovered,
-                revm::state::AccountInfo {
-                    balance: U256::from(1_000_000_000_000_000_000u64),
-                    nonce: 0,
-                    ..Default::default()
-                },
+            db.insert_storage(
+                EPOCH_PRECOMPILE_ADDRESS,
+                current_epoch_slot(),
+                U256::from(u64::MAX),
+            );
+            db.insert_storage(
+                EPOCH_PRECOMPILE_ADDRESS,
+                epoch_blocks_slot(),
+                U256::from(EPOCH_BLOCKS_DEFAULT),
+            );
+            db.insert_storage(
+                EPOCH_PRECOMPILE_ADDRESS,
+                next_epoch_block_slot(),
+                U256::from(1_u64),
             );
         }
 
-        let pre_state = db.read().unwrap().clone();
         let parent = app.genesis().await;
-        let (block, _) = app.propose(&parent, 1).await.expect("propose boundary block");
-
-        let mut bad_block = block.clone();
-        bad_block.transactions[0][0] ^= 0x01;
-        bad_block.transactions_root =
-            ordered_trie_root_with_encoder(&bad_block.transactions, |tx, out| out.put_slice(tx))
-                .0;
-
-        let verifier = EvmApplication::new(
-            WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec())),
-            Arc::new(RwLock::new(pre_state)),
-            Arc::new(MockTxSource { txs: vec![] }),
-        );
-
-        let err = verifier
-            .verify(&parent, &bad_block)
+        let err = app
+            .propose(&parent, 1)
             .await
-            .expect_err("malformed boundary tx must be invalid");
-        assert!(matches!(err, EvmAppError::InvalidBlock(_)));
+            .expect_err("boundary system call failure must fail proposal");
+        assert!(matches!(err, EvmAppError::Execution(_)));
     }
 
     #[tokio::test]
-    async fn verify_rejects_epoch_system_transaction_not_at_index_zero() {
-        let (tx, recovered) = sample_evm_tx();
-        let (app, db) = setup_app(vec![tx]).await;
+    async fn verify_rejects_when_required_boundary_system_call_fails() {
+        let (app, db) = setup_app(vec![]).await;
 
         {
             let mut db = db.write().unwrap();
-            seed_epoch_boundary_state(&mut db, 1);
-            db.insert_account(
-                recovered,
-                revm::state::AccountInfo {
-                    balance: U256::from(1_000_000_000_000_000_000u64),
-                    nonce: 0,
-                    ..Default::default()
-                },
+            db.insert_storage(
+                EPOCH_PRECOMPILE_ADDRESS,
+                current_epoch_slot(),
+                U256::from(u64::MAX),
+            );
+            db.insert_storage(
+                EPOCH_PRECOMPILE_ADDRESS,
+                epoch_blocks_slot(),
+                U256::from(EPOCH_BLOCKS_DEFAULT),
+            );
+            db.insert_storage(
+                EPOCH_PRECOMPILE_ADDRESS,
+                next_epoch_block_slot(),
+                U256::from(1_u64),
             );
         }
 
-        let pre_state = db.read().unwrap().clone();
         let parent = app.genesis().await;
-        let (block, _) = app.propose(&parent, 1).await.expect("propose boundary block");
+        let boundary_block = EvmBlock {
+            height: 1,
+            parent_id: parent.compute_id(),
+            state_root: parent.state_root,
+            transactions_root: EMPTY_ROOT_HASH.0,
+            receipts_root: EMPTY_ROOT_HASH.0,
+            proposer_public_key: parent.proposer_public_key,
+            proposer_fee_recipient: parent.proposer_fee_recipient,
+            gas_used: 0,
+            base_fee_per_gas: parent.base_fee_per_gas,
+            timestamp: parent.timestamp + 12,
+            transactions: vec![],
+        };
 
-        let mut bad_block = block.clone();
-        let boundary_tx = bad_block.transactions.remove(0);
-        bad_block.transactions.insert(1, boundary_tx);
-        bad_block.transactions_root =
-            ordered_trie_root_with_encoder(&bad_block.transactions, |tx, out| out.put_slice(tx))
-                .0;
-
-        let verifier = EvmApplication::new(
-            WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec())),
-            Arc::new(RwLock::new(pre_state)),
-            Arc::new(MockTxSource { txs: vec![] }),
-        );
-
-        let err = verifier
-            .verify(&parent, &bad_block)
+        let err = app
+            .verify(&parent, &boundary_block)
             .await
-            .expect_err("off-slot boundary tx must be invalid");
-        assert!(matches!(err, EvmAppError::InvalidBlock(_)));
-    }
-
-    #[tokio::test]
-    async fn verify_rejects_duplicate_epoch_system_transaction_on_boundary_block() {
-        let (tx, recovered) = sample_evm_tx();
-        let (app, db) = setup_app(vec![tx]).await;
-
-        {
-            let mut db = db.write().unwrap();
-            seed_epoch_boundary_state(&mut db, 1);
-            db.insert_account(
-                recovered,
-                revm::state::AccountInfo {
-                    balance: U256::from(1_000_000_000_000_000_000u64),
-                    nonce: 0,
-                    ..Default::default()
-                },
-            );
-        }
-
-        let pre_state = db.read().unwrap().clone();
-        let parent = app.genesis().await;
-        let (block, _) = app.propose(&parent, 1).await.expect("propose boundary block");
-
-        let mut bad_block = block.clone();
-        bad_block.transactions.push(block.transactions[0].clone());
-        bad_block.transactions_root =
-            ordered_trie_root_with_encoder(&bad_block.transactions, |tx, out| out.put_slice(tx))
-                .0;
-
-        let verifier = EvmApplication::new(
-            WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec())),
-            Arc::new(RwLock::new(pre_state)),
-            Arc::new(MockTxSource { txs: vec![] }),
-        );
-
-        let err = verifier
-            .verify(&parent, &bad_block)
-            .await
-            .expect_err("duplicate boundary tx must be invalid");
+            .expect_err("boundary system call must fail verification");
         assert!(matches!(err, EvmAppError::InvalidBlock(_)));
     }
 

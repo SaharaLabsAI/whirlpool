@@ -98,11 +98,14 @@ where
             }
 
             let timestamp = parent.timestamp + 12;
-            let evm_payload =
-                self.evm_app
-                    .propose_evm_transactions(parent, &evm_candidates, timestamp, height)?;
+            let evm_payload = self.evm_app.propose_evm_transactions(
+                parent,
+                &evm_candidates,
+                timestamp,
+                height,
+            )?;
 
-            let mut executed_transactions = evm_payload.system_transaction_prefix.clone();
+            let mut executed_transactions = Vec::new();
             let mut inclusion_iter = evm_payload.inclusion_outcomes.iter();
             for tx in classified_pending {
                 match tx {
@@ -170,10 +173,6 @@ where
                     block.transactions_root, computed_tx_root.0
                 )));
             }
-
-            self.evm_app
-                .validate_epoch_boundary_block_transactions(block, &block.transactions)
-                .map_err(CompositeAppError::from)?;
 
             let mut evm_transactions = Vec::new();
             for tx in classified_txs {
@@ -332,7 +331,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn boundary_block_prepends_system_tx_before_mem_and_user_evm_txs() {
+    async fn boundary_block_keeps_only_user_mem_and_user_evm_txs() {
         let mem_tx = sample_mem_tx();
         let (evm_tx, recovered) = sample_evm_tx();
         let (app, db) = setup_app(vec![mem_tx.clone(), evm_tx.clone()]).await;
@@ -351,13 +350,19 @@ mod tests {
         }
 
         let parent = app.genesis().await;
-        let (block, _result) = app.propose(&parent, 1).await.expect("propose boundary block");
+        let (block, _result) = app
+            .propose(&parent, 1)
+            .await
+            .expect("propose boundary block");
 
-        assert_eq!(block.transactions.len(), 3);
-        let boundary = app_evm::decode_evm_transaction(&block.transactions[0])
-            .expect("decode boundary tx");
-        assert_eq!(boundary.signer(), epoch_system_tx_sender());
-        assert_eq!(block.transactions[1], mem_tx);
-        assert_eq!(block.transactions[2], evm_tx);
+        assert_eq!(block.transactions.len(), 2);
+        assert_eq!(block.transactions[0], mem_tx);
+        assert_eq!(block.transactions[1], evm_tx);
+
+        let db = db.read().unwrap();
+        assert_eq!(
+            db.get_storage(EPOCH_PRECOMPILE_ADDRESS, current_epoch_slot()),
+            U256::from(1_u64)
+        );
     }
 }

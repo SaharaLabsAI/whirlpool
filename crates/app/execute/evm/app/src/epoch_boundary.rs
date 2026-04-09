@@ -1,21 +1,27 @@
-use alloy_consensus::{SignableTransaction, Transaction, TxLegacy};
-use alloy_eips::eip2718::Encodable2718;
+use std::fmt::Display;
+
+use alloy_consensus::Transaction;
 use alloy_primitives::{Address, TxKind, U256};
-use app::EvmBlock;
 use evm_precompiles::{
-    advance_epoch_calldata, epoch_system_tx_sender, is_advance_epoch_calldata, next_epoch_block_slot,
-    EPOCH_PRECOMPILE_ADDRESS,
-    EPOCH_SYSTEM_TX_GAS_LIMIT, EPOCH_SYSTEM_TX_PRIVATE_KEY,
+    advance_epoch_calldata, epoch_system_tx_sender, is_advance_epoch_calldata,
+    next_epoch_block_slot, EPOCH_PRECOMPILE_ADDRESS,
 };
 use reth_ethereum_primitives::TransactionSigned;
-use reth_primitives_traits::crypto::secp256k1::sign_message;
+use reth_evm::Evm;
+use revm::state::EvmState;
+use revm::DatabaseCommit;
 
 use crate::{error::EvmAppError, traits::StateProvider};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EpochBoundaryState {
     pub next_epoch_block: u64,
-    pub system_sender_nonce: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BoundaryCallFailureMode {
+    Propose,
+    Verify,
 }
 
 pub fn load_epoch_boundary_state<DB>(db: &DB) -> Result<EpochBoundaryState, EvmAppError>
@@ -30,125 +36,83 @@ where
         EvmAppError::InvalidBlock("epoch nextEpochBlock storage does not fit into u64".into())
     })?;
 
-    let sender_info = db
-        .get_account(epoch_system_tx_sender())
-        .map_err(Into::into)?
-        .unwrap_or_default();
-
-    Ok(EpochBoundaryState {
-        next_epoch_block,
-        system_sender_nonce: sender_info.nonce,
-    })
+    Ok(EpochBoundaryState { next_epoch_block })
 }
 
 pub fn boundary_required_for_height(state: EpochBoundaryState, block_height: u64) -> bool {
     block_height == state.next_epoch_block
 }
 
-pub fn build_epoch_boundary_tx(
-    chain_id: u64,
-    nonce: u64,
-    base_fee_per_gas: u64,
-) -> Result<Vec<u8>, EvmAppError> {
-    let tx = TxLegacy {
-        chain_id: Some(chain_id),
-        nonce,
-        gas_price: base_fee_per_gas as u128,
-        gas_limit: EPOCH_SYSTEM_TX_GAS_LIMIT,
-        to: TxKind::Call(EPOCH_PRECOMPILE_ADDRESS),
-        value: U256::ZERO,
-        input: advance_epoch_calldata(),
-    };
-    let signature = sign_message(EPOCH_SYSTEM_TX_PRIVATE_KEY, tx.signature_hash())
-        .map_err(|err| EvmAppError::Execution(format!("failed to sign epoch boundary tx: {err}")))?;
-    let signed: TransactionSigned = tx.into_signed(signature).into();
-    let mut encoded = Vec::new();
-    signed.encode_2718(&mut encoded);
-    Ok(encoded)
-}
-
 pub fn tx_is_reserved_epoch_namespace(tx: &TransactionSigned, signer: Address) -> bool {
-    if signer != epoch_system_tx_sender() {
-        return false;
-    }
-    if tx.kind() != TxKind::Call(EPOCH_PRECOMPILE_ADDRESS) {
-        return false;
-    }
-    if tx.value() != U256::ZERO {
-        return false;
-    }
-    is_advance_epoch_calldata(tx.input())
+    signer == epoch_system_tx_sender()
+        && tx.kind() == TxKind::Call(EPOCH_PRECOMPILE_ADDRESS)
+        && tx.value() == U256::ZERO
+        && is_advance_epoch_calldata(tx.input())
 }
 
-pub fn validate_epoch_boundary_raw_transactions(
-    raw_txs: &[Vec<u8>],
+pub fn execute_epoch_boundary_system_call_if_required<EVM>(
+    evm: &mut EVM,
     boundary_required: bool,
-    expected_raw_boundary_tx: &[u8],
-) -> Result<(), EvmAppError> {
-    if boundary_required {
-        let first = raw_txs.first().ok_or_else(|| {
-            EvmAppError::InvalidBlock("missing required epoch boundary system transaction".into())
-        })?;
-        if first.as_slice() != expected_raw_boundary_tx {
-            return Err(EvmAppError::InvalidBlock(
-                "malformed or non-canonical epoch boundary system transaction".into(),
-            ));
-        }
+    failure_mode: BoundaryCallFailureMode,
+) -> Result<Option<EvmState>, EvmAppError>
+where
+    EVM: Evm,
+    EVM::DB: DatabaseCommit,
+    EVM::Error: Display,
+{
+    if !boundary_required {
+        return Ok(None);
     }
 
-    for (index, raw_tx) in raw_txs.iter().enumerate() {
-        let recovered = match super::decode_evm_transaction(raw_tx) {
-            Ok(tx) => tx,
-            Err(_) => continue,
-        };
+    let outcome = evm
+        .transact_system_call(
+            epoch_system_tx_sender(),
+            EPOCH_PRECOMPILE_ADDRESS,
+            advance_epoch_calldata(),
+        )
+        .map_err(|err| {
+            boundary_call_failure(
+                failure_mode,
+                format!("required epoch boundary system call execution failed: {err}"),
+            )
+        })?;
 
-        if !tx_is_reserved_epoch_namespace(&recovered, recovered.signer()) {
-            continue;
-        }
+    if !outcome.result.is_success() {
+        return Err(boundary_call_failure(
+            failure_mode,
+            "required epoch boundary system call did not succeed".into(),
+        ));
+    }
 
-        if !boundary_required {
-            return Err(EvmAppError::InvalidBlock(format!(
-                "unexpected epoch boundary system transaction on non-boundary block at index {index}"
-            )));
-        }
+    evm.db_mut().commit(outcome.state.clone());
 
-        if index != 0 {
-            return Err(EvmAppError::InvalidBlock(format!(
-                "epoch boundary system transaction must appear at index 0, found at index {index}"
-            )));
-        }
+    Ok(Some(outcome.state))
+}
 
-        if raw_tx.as_slice() != expected_raw_boundary_tx {
-            return Err(EvmAppError::InvalidBlock(
-                "epoch boundary system transaction does not match canonical bytes".into(),
-            ));
+pub fn apply_boundary_state_to_provider<DB>(
+    db: &mut DB,
+    boundary_state: &EvmState,
+) -> Result<(), EvmAppError>
+where
+    DB: StateProvider,
+    <DB as StateProvider>::Error: Into<EvmAppError>,
+{
+    for (address, account) in boundary_state {
+        db.insert_account(*address, account.info.clone())
+            .map_err(Into::into)?;
+
+        for (slot, slot_value) in account.changed_storage_slots() {
+            db.insert_storage(*address, *slot, slot_value.present_value())
+                .map_err(Into::into)?;
         }
     }
 
     Ok(())
 }
 
-pub fn reserved_epoch_namespace_in_raw_tx(raw_tx: &[u8]) -> bool {
-    let recovered = match super::decode_evm_transaction(raw_tx) {
-        Ok(tx) => tx,
-        Err(_) => return false,
-    };
-    tx_is_reserved_epoch_namespace(&recovered, recovered.signer())
-}
-
-pub fn validate_boundary_for_block<DB>(
-    db: &DB,
-    block: &EvmBlock,
-    raw_txs: &[Vec<u8>],
-    chain_id: u64,
-) -> Result<(), EvmAppError>
-where
-    DB: StateProvider,
-    <DB as StateProvider>::Error: Into<EvmAppError>,
-{
-    let state = load_epoch_boundary_state(db)?;
-    let boundary_required = boundary_required_for_height(state, block.height);
-    let expected_raw =
-        build_epoch_boundary_tx(chain_id, state.system_sender_nonce, block.base_fee_per_gas)?;
-    validate_epoch_boundary_raw_transactions(raw_txs, boundary_required, &expected_raw)
+fn boundary_call_failure(mode: BoundaryCallFailureMode, message: String) -> EvmAppError {
+    match mode {
+        BoundaryCallFailureMode::Propose => EvmAppError::Execution(message),
+        BoundaryCallFailureMode::Verify => EvmAppError::InvalidBlock(message),
+    }
 }
