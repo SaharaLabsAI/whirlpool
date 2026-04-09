@@ -8,6 +8,7 @@ Node-facing Sahara chain-spec ownership crate.
 
 ## Owns
 - `SAHARA_CHAIN_ID`
+- Native-token hard-cap constants + validation helpers (`sahara_hard_cap_base_units`, `validate_genesis_alloc`, `NativeTokenError`)
 - `build_sahara_chain_spec*`
 - `try_build_sahara_chain_spec*`
 - `try_simplex_validators_from_chain_spec`
@@ -18,5 +19,5 @@ Node-facing Sahara chain-spec ownership crate.
 - No runtime dependency from `app-evm` back to `chainspec` (only test/dev usage in `app-evm`).
 
 ## Notes
-- Genesis alloc hard-cap enforcement remains via `native-token::validate_genesis_alloc`.
+- Genesis alloc hard-cap enforcement is implemented in `chainspec::native_token` and re-exported from `chainspec` root.
 - Ordered simplex-validator registry storage remains encoded/decoded through `validators`.

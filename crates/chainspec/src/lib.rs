@@ -1,13 +1,18 @@
 use alloy_genesis::{Genesis, GenesisAccount};
 use alloy_primitives::{Address, B256, U256};
 use app_evm::VALIDATOR_FEE_RECIPIENTS_REGISTRY;
-use native_token::{validate_genesis_alloc, NativeTokenError};
 use reth_chainspec::{Chain, ChainSpec, ChainSpecBuilder};
 use std::collections::BTreeMap;
 use validators::{
     decode_validator_registry_storage_opt, encode_ethereum_address_storage_value,
     encode_validator_registry_storage, ValidatorEntry, ValidatorRegistryError,
     SIMPLEX_VALIDATORS_REGISTRY,
+};
+
+mod native_token;
+pub use native_token::{
+    sahara_hard_cap_base_units, total_allocated_supply, validate_genesis_alloc, NativeTokenError,
+    SAHARA_DECIMALS, SAHARA_HARD_CAP_BASE_UNITS_U128, SAHARA_HARD_CAP_TOKENS,
 };
 
 pub const SAHARA_CHAIN_ID: u64 = 313_371;
@@ -139,12 +144,11 @@ mod tests {
     use super::{
         build_sahara_chain_spec,
         build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators,
-        try_build_sahara_chain_spec_with_alloc, try_simplex_validators_from_chain_spec,
-        SAHARA_CHAIN_ID,
+        sahara_hard_cap_base_units, try_build_sahara_chain_spec_with_alloc,
+        try_simplex_validators_from_chain_spec, NativeTokenError, SAHARA_CHAIN_ID,
     };
     use alloy_genesis::GenesisAccount;
     use alloy_primitives::{address, Address, U256};
-    use native_token::{sahara_hard_cap_base_units, NativeTokenError};
     use reth_chainspec::EthereumHardforks;
     use std::collections::BTreeMap;
     use validators::{ValidatorEntry, SIMPLEX_VALIDATORS_REGISTRY};

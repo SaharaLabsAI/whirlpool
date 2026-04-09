@@ -17,7 +17,7 @@
 ## node.rs Lifecycle
 - `start_node(NodeConfig) -> NodeHandle`
 - `start_node_with_chain_spec(NodeConfig, Option<Arc<ChainSpec>>) -> NodeHandle`
-- Startup validates supplied genesis alloc against native-token cap.
+- Startup validates supplied genesis alloc against Sahara hard cap via `chainspec::validate_genesis_alloc`.
 
 ## Runtime Wiring
 - Default chainspec construction uses `chainspec::build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators(...)`.

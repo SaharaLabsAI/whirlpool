@@ -14,11 +14,10 @@ use alloy_signer_local::PrivateKeySigner;
 use app_evm::DEFAULT_PROPOSER_FEE_RECIPIENT;
 use chainspec::{
     build_sahara_chain_spec_with_alloc, build_sahara_chain_spec_with_alloc_and_fee_recipients,
-    SAHARA_CHAIN_ID,
+    sahara_hard_cap_base_units, SAHARA_CHAIN_ID,
 };
 use commonware_cryptography::{ed25519, Signer as CwSigner};
 use evm_precompiles::{community_pool_balance_calldata, COMMUNITY_POOL_ADDRESS};
-use native_token::sahara_hard_cap_base_units;
 use reth_chainspec::{Chain, ChainSpec, ChainSpecBuilder};
 use tempfile::TempDir;
 use validators::{encode_validator_registry_storage, ValidatorEntry, SIMPLEX_VALIDATORS_REGISTRY};

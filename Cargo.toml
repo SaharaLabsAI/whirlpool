@@ -3,7 +3,6 @@ exclude = ["vendor"]
 resolver = "2"
 members = [
     "crates/chainspec",
-    "crates/native-token",
     "crates/validators",
     "crates/consensus/traits",
     "crates/consensus/simplex",

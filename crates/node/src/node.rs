@@ -4,7 +4,7 @@ use app::ApplicationAdapter;
 use app_evm::{EvmApplication, WhirlpoolEvmConfig};
 use chainspec::{
     build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators,
-    try_simplex_validators_from_chain_spec,
+    try_simplex_validators_from_chain_spec, validate_genesis_alloc,
 };
 use commonware_codec::Read;
 use commonware_cryptography::ed25519;
@@ -13,7 +13,6 @@ use commonware_runtime::{tokio, Metrics, Runner};
 use consensus::traits::ConsensusEngine;
 use consensus_simplex::{CommonwareConfig, CommonwareEngine, FinalizationSink};
 use mempool_mdbx::PersistentTxPool;
-use native_token::validate_genesis_alloc;
 use p2p_commonware::CommonwareNetworkProviderBuilder;
 use reth_chainspec::ChainSpec;
 use rpc_eth as eth_rpc;

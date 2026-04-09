@@ -9,7 +9,6 @@ doctest = false
 [dependencies]
 app = { path = "../../traits" }
 evm-precompiles = { path = "../precompiles" }
-native-token = { path = "../../../native-token" }
 validators = { path = "../../../validators" }
 state = { path = "../../state" }
 state-memory = { path = "../../mem/state" }

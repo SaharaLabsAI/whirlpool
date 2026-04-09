@@ -8,7 +8,7 @@ Location: `testing/integration-tests/`
 - `chainspec`: canonical Sahara chain-spec builders/chain-id used by full-node tests.
 - `app-evm`: runtime-owned constants and EVM runtime behavior under test.
 - `whirlpool-node`: in-process node startup via `start_node_with_chain_spec(...)`.
-- `rpc-eth`, `state-reth`, `native-token`, `validators`, `evm-precompiles`: subsystem coverage.
+- `rpc-eth`, `state-reth`, `validators`, `evm-precompiles`: subsystem coverage.
 
 ## Notable Coverage
 - `tests/tokenomics/native_token_supply_cap.rs`: over-cap rejection + supply conservation.
@@ -24,4 +24,4 @@ Location: `testing/integration-tests/`
 - Shared helpers: `tests/common/http.rs` and `tests/common/encoding.rs`
 
 ## Chain-spec Ownership Note
-Integration tests now source Sahara chain-spec builders and `SAHARA_CHAIN_ID` from `chainspec` instead of `app-evm`.
+Integration tests source Sahara chain-spec builders, `SAHARA_CHAIN_ID`, and native-token hard-cap helpers from `chainspec`.
