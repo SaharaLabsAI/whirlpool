@@ -4,7 +4,7 @@
 `rpc-mem` exposes the memory/personality JSON-RPC surface for Whirlpool. It keeps submit behavior in-process through `TxSource` and serves finalized personality reads through a storage-backed service adapter.
 
 ## Location
-`crates/app/execute/mem/rpc/`
+`crates/rpc/mem/`
 
 ## Dependency Boundaries
 - `app`: `TxSource` trait for submit ingress.

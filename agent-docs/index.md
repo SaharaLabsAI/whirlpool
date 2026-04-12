@@ -106,7 +106,7 @@ Step-by-step instructions for common tasks and workflows.
 | `validators` | `crates/validators/src/` | `crates/validators.md` | — |
 | `mempool` | `crates/mempool/traits/src/` | `crates/mempool.md` | — |
 | `tx-dispatch` | `crates/app/execute/mem/tx-dispatch/src/` | `crates/tx-dispatch.md` | — |
-| `rpc-mem` | `crates/app/execute/mem/rpc/src/` | `crates/rpc-mem.md` | — |
+| `rpc-mem` | `crates/rpc/mem/src/` | `crates/rpc-mem.md` | — |
 | `whirlpool-node` | `crates/node/src/` | `architecture/whirlpool-node.md` (lib) + `crates/whirlpool-node.md` (EVM bin) | `guides/whirlpool-node-components.md` |
-| `rpc-eth` | `crates/app/execute/evm/rpc/src/` | `crates/rpc-eth.md` | — |
+| `rpc-eth` | `crates/rpc/evm/src/` | `crates/rpc-eth.md` | — |
 | `integration-tests` | `testing/integration-tests/tests/` | `crates/integration-tests.md` | — |

@@ -3,7 +3,7 @@
 ## Summary
 `rpc-eth` provides a full Ethereum-compatible JSON-RPC server for the Whirlpool node by wiring reth's production `reth-rpc` stack through three adapter types. Serves all standard `eth_*` methods over HTTP. EIP-4844 blob transactions are explicitly excluded (rejected at pool ingress).
 
-Location: `crates/app/execute/evm/rpc/`
+Location: `crates/rpc/evm/`
 
 ## Dependency Boundaries
 - `app`: `TxSource` trait (`app::traits`) — transaction submission bridge.

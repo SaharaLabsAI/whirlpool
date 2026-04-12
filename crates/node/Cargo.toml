@@ -9,7 +9,7 @@ app-evm = { path = "../app/execute/evm/app" }
 chainspec = { path = "../chainspec" }
 mempool-mdbx = { path = "../mempool/mdbx" }
 validators = { path = "../validators" }
-rpc-eth = { path = "../app/execute/evm/rpc" }
+rpc-eth = { path = "../rpc/evm" }
 reth-chainspec = { path = "../../vendor/reth/crates/chainspec" }
 reth-revm = { path = "../../vendor/reth/crates/revm" }
 state = { path = "../app/state" }
