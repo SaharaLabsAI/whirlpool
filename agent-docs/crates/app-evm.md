@@ -33,11 +33,13 @@ Those live in `chainspec`.
 - Boundary unlock flow:
   - after a successful boundary `advanceEpoch()` call, runtime may unlock community-pool funds
   - cadence is keyed to post-boundary `currentEpoch`
+  - unlock cadence regression coverage includes `unlock_every_epochs > 1` with explicit non-multiple-epoch skip + matching-epoch single-application assertions
   - tranche moves from `COMMUNITY_POOL_ADDRESS` -> `FEE_POOL_PRECOMPILE_ADDRESS`
   - tranche is credited into existing fee-pool claim slots by ordered `simplex_validators` addresses with top-k remainder assignment
   - unlock progress is tracked by `lockedRemaining` + `lastProcessedEpoch` slots at the community-pool account
 - Fee routing behavior:
   - burned base fees are credited to `evm_precompiles::COMMUNITY_POOL_ADDRESS`
+  - regression coverage asserts burned-fee account rewrites preserve all community-pool unlock slots (`unlockEveryEpochs`, `unlockAmountPerCycle`, `lockedRemaining`, `lastProcessedEpoch`) on non-boundary blocks
   - priority fees are credited to `evm_precompiles::FEE_POOL_PRECOMPILE_ADDRESS`
   - per-recipient claimable balances are stored in fee-pool precompile storage (`claimable_balance_slot`)
   - proposers withdraw later via fee-pool precompile `withdraw()`
