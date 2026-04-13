@@ -30,6 +30,12 @@ Those live in `chainspec`.
 - `WhirlpoolEvmConfig` still derives proposer fee recipients from genesis storage at `VALIDATOR_FEE_RECIPIENTS_REGISTRY`.
 - Precompile injection remains in `WhirlpoolEvmConfig::evm_with_env(...)` via `evm_precompiles::whirlpool_precompiles_with_validators(...)`.
 - Epoch-boundary deterministic system-call handling now lives in `epoch_boundary.rs` and is shared between propose/verify paths.
+- Boundary unlock flow:
+  - after a successful boundary `advanceEpoch()` call, runtime may unlock community-pool funds
+  - cadence is keyed to post-boundary `currentEpoch`
+  - tranche moves from `COMMUNITY_POOL_ADDRESS` -> `FEE_POOL_PRECOMPILE_ADDRESS`
+  - tranche is credited into existing fee-pool claim slots by ordered `simplex_validators` addresses with top-k remainder assignment
+  - unlock progress is tracked by `lockedRemaining` + `lastProcessedEpoch` slots at the community-pool account
 - Fee routing behavior:
   - burned base fees are credited to `evm_precompiles::COMMUNITY_POOL_ADDRESS`
   - priority fees are credited to `evm_precompiles::FEE_POOL_PRECOMPILE_ADDRESS`
@@ -40,6 +46,7 @@ Those live in `chainspec`.
 - Block gas accounting now uses the final cumulative receipt gas (last receipt), avoiding sum-of-cumulative overcounting.
 - On boundary heights, propose executes `advanceEpoch` as an internal system call before user tx execution; no synthetic boundary tx bytes are added to `block.transactions`.
 - Reserved epoch namespace tx bytes in the user payload are treated as invalid protocol artifacts: propose excludes them and verify rejects blocks that contain them.
+- `verify()` computes against a cloned state snapshot and validates roots; it does not persist the computed post-state back into `state_db`.
 
 ## Canonical Imports
 - `app_evm::traits::StateProvider`

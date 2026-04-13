@@ -60,18 +60,26 @@ fn epoch_blocks(input: &mut PrecompileInput<'_>, gas_limit: u64) -> PrecompileRe
     ))
 }
 
-fn epoch_start_block(input: &mut PrecompileInput<'_>, gas_limit: u64, epoch: u64) -> PrecompileResult {
+fn epoch_start_block(
+    input: &mut PrecompileInput<'_>,
+    gas_limit: u64,
+    epoch: u64,
+) -> PrecompileResult {
     if gas_limit < gas::EPOCH_START_BLOCK_GAS {
         return Err(PrecompileError::OutOfGas);
     }
 
     let raw = input
         .internals_mut()
-        .sload(EPOCH_PRECOMPILE_ADDRESS, storage::epoch_start_block_slot(epoch))
+        .sload(
+            EPOCH_PRECOMPILE_ADDRESS,
+            storage::epoch_start_block_slot(epoch),
+        )
         .map(|value| value.data)
         .map_err(|err| PrecompileError::other(err.to_string()))?;
-    let decoded = storage::decode_epoch_start_block_storage_value(raw)
-        .ok_or_else(|| PrecompileError::other(EpochPrecompileError::EpochNotInitialized(epoch).to_string()))?;
+    let decoded = storage::decode_epoch_start_block_storage_value(raw).ok_or_else(|| {
+        PrecompileError::other(EpochPrecompileError::EpochNotInitialized(epoch).to_string())
+    })?;
 
     Ok(PrecompileOutput::new(
         gas::EPOCH_START_BLOCK_GAS,
@@ -114,9 +122,9 @@ fn advance_epoch(mut input: PrecompileInput<'_>, gas_limit: u64) -> PrecompileRe
         );
     }
 
-    let next_epoch = current_epoch
-        .checked_add(1)
-        .ok_or_else(|| PrecompileError::other(EpochPrecompileError::ArithmeticOverflow.to_string()))?;
+    let next_epoch = current_epoch.checked_add(1).ok_or_else(|| {
+        PrecompileError::other(EpochPrecompileError::ArithmeticOverflow.to_string())
+    })?;
 
     let start_slot = storage::epoch_start_block_slot(next_epoch);
     let existing = input
@@ -131,12 +139,12 @@ fn advance_epoch(mut input: PrecompileInput<'_>, gas_limit: u64) -> PrecompileRe
         );
     }
 
-    let encoded_start = block_number
-        .checked_add(1)
-        .ok_or_else(|| PrecompileError::other(EpochPrecompileError::ArithmeticOverflow.to_string()))?;
-    let next_boundary = next_epoch_block
-        .checked_add(epoch_blocks)
-        .ok_or_else(|| PrecompileError::other(EpochPrecompileError::ArithmeticOverflow.to_string()))?;
+    let encoded_start = block_number.checked_add(1).ok_or_else(|| {
+        PrecompileError::other(EpochPrecompileError::ArithmeticOverflow.to_string())
+    })?;
+    let next_boundary = next_epoch_block.checked_add(epoch_blocks).ok_or_else(|| {
+        PrecompileError::other(EpochPrecompileError::ArithmeticOverflow.to_string())
+    })?;
 
     input
         .internals_mut()
@@ -156,10 +164,17 @@ fn advance_epoch(mut input: PrecompileInput<'_>, gas_limit: u64) -> PrecompileRe
         .map_err(|err| PrecompileError::other(err.to_string()))?;
     input
         .internals_mut()
-        .sstore(EPOCH_PRECOMPILE_ADDRESS, start_slot, U256::from(encoded_start))
+        .sstore(
+            EPOCH_PRECOMPILE_ADDRESS,
+            start_slot,
+            U256::from(encoded_start),
+        )
         .map_err(|err| PrecompileError::other(err.to_string()))?;
 
-    Ok(PrecompileOutput::new(gas::ADVANCE_EPOCH_GAS, Default::default()))
+    Ok(PrecompileOutput::new(
+        gas::ADVANCE_EPOCH_GAS,
+        Default::default(),
+    ))
 }
 
 fn load_u64_slot(input: &mut PrecompileInput<'_>, slot: U256) -> Result<u64, PrecompileError> {

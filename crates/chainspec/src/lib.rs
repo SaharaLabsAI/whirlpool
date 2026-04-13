@@ -2,9 +2,13 @@ use alloy_genesis::{Genesis, GenesisAccount};
 use alloy_primitives::{Address, B256, U256};
 use app_evm::VALIDATOR_FEE_RECIPIENTS_REGISTRY;
 use evm_precompiles::{
-    current_epoch_storage_slot, encode_epoch_start_block_storage_value, encode_u64_storage_value,
+    community_pool_last_processed_epoch_storage_slot, community_pool_locked_remaining_storage_slot,
+    community_pool_unlock_amount_per_cycle_storage_slot,
+    community_pool_unlock_every_epochs_storage_slot, current_epoch_storage_slot,
+    encode_epoch_start_block_storage_value, encode_u256_storage_value, encode_u64_storage_value,
     epoch_blocks_storage_slot, epoch_system_tx_sender, next_epoch_block_storage_slot,
-    EPOCH_BLOCKS_DEFAULT, EPOCH_PRECOMPILE_ADDRESS, EPOCH_SYSTEM_TX_INITIAL_BALANCE_WEI,
+    COMMUNITY_POOL_ADDRESS, EPOCH_BLOCKS_DEFAULT, EPOCH_PRECOMPILE_ADDRESS,
+    EPOCH_SYSTEM_TX_INITIAL_BALANCE_WEI,
 };
 use reth_chainspec::{Chain, ChainSpec, ChainSpecBuilder};
 use std::collections::BTreeMap;
@@ -21,6 +25,33 @@ pub use native_token::{
 };
 
 pub const SAHARA_CHAIN_ID: u64 = 313_371;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CommunityPoolUnlockConfig {
+    pub genesis_prefund_amount: U256,
+    pub unlock_every_epochs: u64,
+    pub unlock_amount_per_cycle: U256,
+}
+
+impl CommunityPoolUnlockConfig {
+    pub const fn disabled() -> Self {
+        Self {
+            genesis_prefund_amount: U256::ZERO,
+            unlock_every_epochs: 0,
+            unlock_amount_per_cycle: U256::ZERO,
+        }
+    }
+
+    pub fn is_unlock_enabled(&self) -> bool {
+        self.unlock_every_epochs > 0 && !self.unlock_amount_per_cycle.is_zero()
+    }
+}
+
+impl Default for CommunityPoolUnlockConfig {
+    fn default() -> Self {
+        Self::disabled()
+    }
+}
 
 pub fn build_sahara_chain_spec() -> ChainSpec {
     try_build_sahara_chain_spec()
@@ -43,10 +74,11 @@ pub fn build_sahara_chain_spec_with_alloc(alloc: BTreeMap<Address, GenesisAccoun
 pub fn try_build_sahara_chain_spec_with_alloc(
     alloc: BTreeMap<Address, GenesisAccount>,
 ) -> Result<ChainSpec, NativeTokenError> {
-    try_build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators(
+    try_build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators_and_community_pool_unlock_config(
         alloc,
         BTreeMap::new(),
         Vec::new(),
+        CommunityPoolUnlockConfig::default(),
     )
 }
 
@@ -54,10 +86,11 @@ pub fn build_sahara_chain_spec_with_alloc_and_fee_recipients(
     alloc: BTreeMap<Address, GenesisAccount>,
     validator_fee_recipients: BTreeMap<[u8; 32], Address>,
 ) -> ChainSpec {
-    try_build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators(
+    try_build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators_and_community_pool_unlock_config(
         alloc,
         validator_fee_recipients,
         Vec::new(),
+        CommunityPoolUnlockConfig::default(),
     )
     .expect("provided genesis alloc should satisfy native-token cap")
 }
@@ -67,10 +100,11 @@ pub fn build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators(
     validator_fee_recipients: BTreeMap<[u8; 32], Address>,
     simplex_validators: Vec<ValidatorEntry>,
 ) -> ChainSpec {
-    try_build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators(
+    try_build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators_and_community_pool_unlock_config(
         alloc,
         validator_fee_recipients,
         simplex_validators,
+        CommunityPoolUnlockConfig::default(),
     )
     .expect("provided genesis alloc should satisfy native-token cap")
 }
@@ -79,17 +113,47 @@ pub fn try_build_sahara_chain_spec_with_alloc_and_fee_recipients(
     alloc: BTreeMap<Address, GenesisAccount>,
     validator_fee_recipients: BTreeMap<[u8; 32], Address>,
 ) -> Result<ChainSpec, NativeTokenError> {
-    try_build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators(
+    try_build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators_and_community_pool_unlock_config(
         alloc,
         validator_fee_recipients,
         Vec::new(),
+        CommunityPoolUnlockConfig::default(),
     )
 }
 
 pub fn try_build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators(
+    alloc: BTreeMap<Address, GenesisAccount>,
+    validator_fee_recipients: BTreeMap<[u8; 32], Address>,
+    simplex_validators: Vec<ValidatorEntry>,
+) -> Result<ChainSpec, NativeTokenError> {
+    try_build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators_and_community_pool_unlock_config(
+        alloc,
+        validator_fee_recipients,
+        simplex_validators,
+        CommunityPoolUnlockConfig::default(),
+    )
+}
+
+pub fn build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators_and_community_pool_unlock_config(
+    alloc: BTreeMap<Address, GenesisAccount>,
+    validator_fee_recipients: BTreeMap<[u8; 32], Address>,
+    simplex_validators: Vec<ValidatorEntry>,
+    community_pool_unlock_config: CommunityPoolUnlockConfig,
+) -> ChainSpec {
+    try_build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators_and_community_pool_unlock_config(
+        alloc,
+        validator_fee_recipients,
+        simplex_validators,
+        community_pool_unlock_config,
+    )
+    .expect("provided genesis alloc should satisfy native-token cap")
+}
+
+pub fn try_build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators_and_community_pool_unlock_config(
     mut alloc: BTreeMap<Address, GenesisAccount>,
     validator_fee_recipients: BTreeMap<[u8; 32], Address>,
     simplex_validators: Vec<ValidatorEntry>,
+    community_pool_unlock_config: CommunityPoolUnlockConfig,
 ) -> Result<ChainSpec, NativeTokenError> {
     if !validator_fee_recipients.is_empty() {
         let account = alloc
@@ -118,7 +182,12 @@ pub fn try_build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators(
         account.storage = Some(encode_validator_registry_storage(&simplex_validators));
     }
 
+    if community_pool_unlock_config.is_unlock_enabled() && simplex_validators.is_empty() {
+        return Err(NativeTokenError::CommunityPoolUnlockRequiresValidators);
+    }
+
     seed_epoch_precompile_genesis_state(&mut alloc);
+    seed_community_pool_genesis_state(&mut alloc, community_pool_unlock_config)?;
 
     validate_genesis_alloc(&alloc)?;
 
@@ -168,6 +237,50 @@ fn seed_epoch_precompile_genesis_state(alloc: &mut BTreeMap<Address, GenesisAcco
     sender_account.nonce = Some(0);
 }
 
+fn seed_community_pool_genesis_state(
+    alloc: &mut BTreeMap<Address, GenesisAccount>,
+    config: CommunityPoolUnlockConfig,
+) -> Result<(), NativeTokenError> {
+    let has_config = !config.genesis_prefund_amount.is_zero()
+        || config.unlock_every_epochs > 0
+        || !config.unlock_amount_per_cycle.is_zero();
+    if !has_config {
+        return Ok(());
+    }
+
+    let account = alloc
+        .entry(COMMUNITY_POOL_ADDRESS)
+        .or_insert_with(|| GenesisAccount {
+            balance: U256::ZERO,
+            ..GenesisAccount::default()
+        });
+
+    account.balance = account
+        .balance
+        .checked_add(config.genesis_prefund_amount)
+        .ok_or(NativeTokenError::SupplyOverflow)?;
+
+    let storage = account.storage.get_or_insert_with(BTreeMap::new);
+    storage.insert(
+        community_pool_unlock_every_epochs_storage_slot(),
+        encode_u64_storage_value(config.unlock_every_epochs),
+    );
+    storage.insert(
+        community_pool_unlock_amount_per_cycle_storage_slot(),
+        encode_u256_storage_value(config.unlock_amount_per_cycle),
+    );
+    storage.insert(
+        community_pool_locked_remaining_storage_slot(),
+        encode_u256_storage_value(config.genesis_prefund_amount),
+    );
+    storage.insert(
+        community_pool_last_processed_epoch_storage_slot(),
+        encode_u64_storage_value(0),
+    );
+
+    Ok(())
+}
+
 pub fn try_simplex_validators_from_chain_spec(
     chain_spec: &ChainSpec,
 ) -> Result<Vec<ValidatorEntry>, ValidatorRegistryError> {
@@ -185,11 +298,19 @@ mod tests {
     use super::{
         build_sahara_chain_spec,
         build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators,
-        current_epoch_storage_slot, encode_epoch_start_block_storage_value, encode_u64_storage_value,
-        epoch_blocks_storage_slot, epoch_system_tx_sender, next_epoch_block_storage_slot,
-        sahara_hard_cap_base_units, try_build_sahara_chain_spec_with_alloc,
-        try_simplex_validators_from_chain_spec, NativeTokenError, EPOCH_BLOCKS_DEFAULT,
-        EPOCH_PRECOMPILE_ADDRESS, EPOCH_SYSTEM_TX_INITIAL_BALANCE_WEI, SAHARA_CHAIN_ID,
+        build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators_and_community_pool_unlock_config,
+        community_pool_last_processed_epoch_storage_slot,
+        community_pool_locked_remaining_storage_slot,
+        community_pool_unlock_amount_per_cycle_storage_slot,
+        community_pool_unlock_every_epochs_storage_slot, current_epoch_storage_slot,
+        encode_epoch_start_block_storage_value, encode_u256_storage_value,
+        encode_u64_storage_value, epoch_blocks_storage_slot, epoch_system_tx_sender,
+        next_epoch_block_storage_slot, sahara_hard_cap_base_units,
+        try_build_sahara_chain_spec_with_alloc,
+        try_build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators_and_community_pool_unlock_config,
+        try_simplex_validators_from_chain_spec, CommunityPoolUnlockConfig, NativeTokenError,
+        COMMUNITY_POOL_ADDRESS, EPOCH_BLOCKS_DEFAULT, EPOCH_PRECOMPILE_ADDRESS,
+        EPOCH_SYSTEM_TX_INITIAL_BALANCE_WEI, SAHARA_CHAIN_ID,
     };
     use alloy_genesis::GenesisAccount;
     use alloy_primitives::{address, Address, U256};
@@ -324,6 +445,74 @@ mod tests {
         assert_ne!(
             app_evm::VALIDATOR_FEE_RECIPIENTS_REGISTRY,
             SIMPLEX_VALIDATORS_REGISTRY
+        );
+    }
+
+    #[test]
+    fn chain_spec_builder_prefunds_community_pool_and_seeds_unlock_state() {
+        let unlock_config = CommunityPoolUnlockConfig {
+            genesis_prefund_amount: U256::from(123_u64),
+            unlock_every_epochs: 4,
+            unlock_amount_per_cycle: U256::from(25_u64),
+        };
+        let validators = vec![ValidatorEntry {
+            consensus_pubkey: [0x11; 32],
+            ethereum_address: address!("0x0000000000000000000000000000000000000011"),
+        }];
+
+        let spec = build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators_and_community_pool_unlock_config(
+            BTreeMap::new(),
+            BTreeMap::new(),
+            validators,
+            unlock_config,
+        );
+
+        let account = spec
+            .genesis
+            .alloc
+            .get(&COMMUNITY_POOL_ADDRESS)
+            .expect("community pool account");
+        assert_eq!(account.balance, unlock_config.genesis_prefund_amount);
+
+        let storage = account.storage.as_ref().expect("community pool storage");
+        assert_eq!(
+            storage.get(&community_pool_unlock_every_epochs_storage_slot()),
+            Some(&encode_u64_storage_value(unlock_config.unlock_every_epochs))
+        );
+        assert_eq!(
+            storage.get(&community_pool_unlock_amount_per_cycle_storage_slot()),
+            Some(&encode_u256_storage_value(
+                unlock_config.unlock_amount_per_cycle
+            ))
+        );
+        assert_eq!(
+            storage.get(&community_pool_locked_remaining_storage_slot()),
+            Some(&encode_u256_storage_value(
+                unlock_config.genesis_prefund_amount
+            ))
+        );
+        assert_eq!(
+            storage.get(&community_pool_last_processed_epoch_storage_slot()),
+            Some(&encode_u64_storage_value(0))
+        );
+    }
+
+    #[test]
+    fn unlock_enabled_without_simplex_validators_is_rejected() {
+        let unlock_config = CommunityPoolUnlockConfig {
+            genesis_prefund_amount: U256::from(123_u64),
+            unlock_every_epochs: 4,
+            unlock_amount_per_cycle: U256::from(25_u64),
+        };
+
+        assert_eq!(
+            try_build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators_and_community_pool_unlock_config(
+                BTreeMap::new(),
+                BTreeMap::new(),
+                Vec::new(),
+                unlock_config,
+            ),
+            Err(NativeTokenError::CommunityPoolUnlockRequiresValidators)
         );
     }
 

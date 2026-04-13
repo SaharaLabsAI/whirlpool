@@ -12,10 +12,11 @@ Node-facing Sahara chain-spec ownership crate.
 - `build_sahara_chain_spec*`
 - `try_build_sahara_chain_spec*`
 - `try_simplex_validators_from_chain_spec`
+- `CommunityPoolUnlockConfig` and the extended builder path `*_and_community_pool_unlock_config`
 
 ## Dependency Boundary
 - Depends on `app-evm` for fee-recipient registry constants only.
-- Depends on `evm-precompiles` for epoch precompile genesis storage constants/helpers.
+- Depends on `evm-precompiles` for epoch + community-pool unlock storage constants/helpers.
 - Reuses `validators` codec helpers, including `encode_ethereum_address_storage_value` and validator-registry decode helpers.
 - No runtime dependency from `app-evm` back to `chainspec` (only test/dev usage in `app-evm`).
 
@@ -28,4 +29,9 @@ Node-facing Sahara chain-spec ownership crate.
   - `nextEpochBlock=403200`
   - `epochStartBlock(0)=0` (plus-one encoded in storage)
 - Genesis builder also seeds `epoch_system_tx_sender()` balance+nonce for deterministic boundary tx execution.
+- Optional community-pool genesis seeding now includes:
+  - prefund at `COMMUNITY_POOL_ADDRESS`
+  - unlock cadence slots (`unlockEveryEpochs`, `unlockAmountPerCycle`)
+  - unlock progress slots (`lockedRemaining`, `lastProcessedEpoch`)
+- Unlock enablement guard: if unlock schedule is enabled, `simplex_validators` must be non-empty.
 - Native-token cap validation excludes the reserved epoch system sender seed balance from hard-cap summation.

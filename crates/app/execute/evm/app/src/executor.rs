@@ -10,7 +10,10 @@ use app::{
     EvmBlock, ExecutionResult, Receipt,
 };
 use evm_precompiles::{
-    claimable_balance_slot, COMMUNITY_POOL_ADDRESS, FEE_POOL_PRECOMPILE_ADDRESS,
+    claimable_balance_slot, community_pool_last_processed_epoch_slot,
+    community_pool_locked_remaining_slot, community_pool_unlock_amount_per_cycle_slot,
+    community_pool_unlock_every_epochs_slot, current_epoch_slot, COMMUNITY_POOL_ADDRESS,
+    EPOCH_PRECOMPILE_ADDRESS, FEE_POOL_PRECOMPILE_ADDRESS,
 };
 use reth_ethereum_primitives::TransactionSigned;
 use reth_evm::{
@@ -22,6 +25,7 @@ use reth_primitives_traits::{Recovered, SignedTransaction};
 use reth_revm::State;
 use revm::database::states::bundle_state::BundleRetention;
 use state::BlockStorage;
+use validators::ValidatorEntry;
 
 use crate::config::WhirlpoolEvmConfig;
 use crate::epoch_boundary::{
@@ -109,7 +113,72 @@ where
         .map_err(Into::into)?
         .unwrap_or_default();
     info.balance += amount;
-    db.insert_account(address, info).map_err(Into::into)
+    insert_account_preserving_community_pool_unlock_storage(db, address, info)
+}
+
+fn insert_account_preserving_community_pool_unlock_storage<DB>(
+    db: &mut DB,
+    address: Address,
+    info: revm::state::AccountInfo,
+) -> Result<(), EvmAppError>
+where
+    DB: StateProvider,
+    <DB as StateProvider>::Error: Into<EvmAppError>,
+{
+    if address != COMMUNITY_POOL_ADDRESS {
+        return db.insert_account(address, info).map_err(Into::into);
+    }
+
+    let unlock_every_epochs = db
+        .get_storage(
+            COMMUNITY_POOL_ADDRESS,
+            community_pool_unlock_every_epochs_slot(),
+        )
+        .map_err(Into::into)?;
+    let unlock_amount_per_cycle = db
+        .get_storage(
+            COMMUNITY_POOL_ADDRESS,
+            community_pool_unlock_amount_per_cycle_slot(),
+        )
+        .map_err(Into::into)?;
+    let locked_remaining = db
+        .get_storage(
+            COMMUNITY_POOL_ADDRESS,
+            community_pool_locked_remaining_slot(),
+        )
+        .map_err(Into::into)?;
+    let last_processed_epoch = db
+        .get_storage(
+            COMMUNITY_POOL_ADDRESS,
+            community_pool_last_processed_epoch_slot(),
+        )
+        .map_err(Into::into)?;
+
+    db.insert_account(address, info).map_err(Into::into)?;
+    db.insert_storage(
+        COMMUNITY_POOL_ADDRESS,
+        community_pool_unlock_every_epochs_slot(),
+        unlock_every_epochs,
+    )
+    .map_err(Into::into)?;
+    db.insert_storage(
+        COMMUNITY_POOL_ADDRESS,
+        community_pool_unlock_amount_per_cycle_slot(),
+        unlock_amount_per_cycle,
+    )
+    .map_err(Into::into)?;
+    db.insert_storage(
+        COMMUNITY_POOL_ADDRESS,
+        community_pool_locked_remaining_slot(),
+        locked_remaining,
+    )
+    .map_err(Into::into)?;
+    db.insert_storage(
+        COMMUNITY_POOL_ADDRESS,
+        community_pool_last_processed_epoch_slot(),
+        last_processed_epoch,
+    )
+    .map_err(Into::into)
 }
 
 fn credit_burned_fees<DB>(
@@ -148,6 +217,208 @@ where
 
     db.insert_storage(FEE_POOL_PRECOMPILE_ADDRESS, slot, next)
         .map_err(Into::into)
+}
+
+fn transfer_account_balance<DB>(
+    db: &mut DB,
+    from: Address,
+    to: Address,
+    amount: U256,
+) -> Result<(), EvmAppError>
+where
+    DB: StateProvider,
+    <DB as StateProvider>::Error: Into<EvmAppError>,
+{
+    if amount.is_zero() {
+        return Ok(());
+    }
+
+    let mut from_info = db
+        .get_account(from)
+        .map_err(Into::into)?
+        .unwrap_or_default();
+    if from_info.balance < amount {
+        return Err(EvmAppError::Execution(format!(
+            "insufficient balance for unlock transfer from {from}: balance={}, required={amount}",
+            from_info.balance
+        )));
+    }
+    from_info.balance -= amount;
+    insert_account_preserving_community_pool_unlock_storage(db, from, from_info)?;
+
+    let mut to_info = db.get_account(to).map_err(Into::into)?.unwrap_or_default();
+    to_info.balance = to_info
+        .balance
+        .checked_add(amount)
+        .ok_or_else(|| EvmAppError::Execution("fee-pool balance overflow".into()))?;
+    insert_account_preserving_community_pool_unlock_storage(db, to, to_info)
+}
+
+fn load_u64_storage_value<DB>(
+    db: &DB,
+    address: Address,
+    slot: U256,
+    field: &str,
+) -> Result<u64, EvmAppError>
+where
+    DB: StateProvider,
+    <DB as StateProvider>::Error: Into<EvmAppError>,
+{
+    let raw = db.get_storage(address, slot).map_err(Into::into)?;
+    u64::try_from(raw).map_err(|_| {
+        EvmAppError::InvalidBlock(format!("{field} storage does not fit into u64: {raw}"))
+    })
+}
+
+fn maybe_apply_community_pool_unlock<DB>(
+    db: &mut DB,
+    boundary_required: bool,
+    simplex_validators: &[ValidatorEntry],
+) -> Result<(), EvmAppError>
+where
+    DB: StateProvider,
+    <DB as StateProvider>::Error: Into<EvmAppError>,
+{
+    if !boundary_required {
+        return Ok(());
+    }
+
+    let unlock_every_epochs = load_u64_storage_value(
+        db,
+        COMMUNITY_POOL_ADDRESS,
+        community_pool_unlock_every_epochs_slot(),
+        "community-pool unlockEveryEpochs",
+    )?;
+    let unlock_amount_per_cycle = db
+        .get_storage(
+            COMMUNITY_POOL_ADDRESS,
+            community_pool_unlock_amount_per_cycle_slot(),
+        )
+        .map_err(Into::into)?;
+
+    let unlock_enabled = unlock_every_epochs > 0 && !unlock_amount_per_cycle.is_zero();
+    if !unlock_enabled {
+        return Ok(());
+    }
+
+    if simplex_validators.is_empty() {
+        return Err(EvmAppError::Execution(
+            "community-pool unlock schedule enabled but simplex validators are empty".into(),
+        ));
+    }
+
+    let current_epoch = load_u64_storage_value(
+        db,
+        EPOCH_PRECOMPILE_ADDRESS,
+        current_epoch_slot(),
+        "epoch currentEpoch",
+    )?;
+    if current_epoch == 0 || current_epoch % unlock_every_epochs != 0 {
+        return Ok(());
+    }
+
+    let last_processed_epoch = load_u64_storage_value(
+        db,
+        COMMUNITY_POOL_ADDRESS,
+        community_pool_last_processed_epoch_slot(),
+        "community-pool lastProcessedEpoch",
+    )?;
+    if last_processed_epoch > current_epoch {
+        return Err(EvmAppError::InvalidBlock(format!(
+            "community-pool lastProcessedEpoch {last_processed_epoch} exceeds current epoch {current_epoch}"
+        )));
+    }
+    if last_processed_epoch == current_epoch {
+        return Ok(());
+    }
+
+    let locked_remaining = db
+        .get_storage(
+            COMMUNITY_POOL_ADDRESS,
+            community_pool_locked_remaining_slot(),
+        )
+        .map_err(Into::into)?;
+    if locked_remaining.is_zero() {
+        db.insert_storage(
+            COMMUNITY_POOL_ADDRESS,
+            community_pool_last_processed_epoch_slot(),
+            U256::from(current_epoch),
+        )
+        .map_err(Into::into)?;
+        return Ok(());
+    }
+
+    let unlock_tranche = if unlock_amount_per_cycle > locked_remaining {
+        locked_remaining
+    } else {
+        unlock_amount_per_cycle
+    };
+    if unlock_tranche.is_zero() {
+        db.insert_storage(
+            COMMUNITY_POOL_ADDRESS,
+            community_pool_last_processed_epoch_slot(),
+            U256::from(current_epoch),
+        )
+        .map_err(Into::into)?;
+        return Ok(());
+    }
+
+    transfer_account_balance(
+        db,
+        COMMUNITY_POOL_ADDRESS,
+        FEE_POOL_PRECOMPILE_ADDRESS,
+        unlock_tranche,
+    )?;
+
+    let validator_count = U256::from(
+        u64::try_from(simplex_validators.len())
+            .map_err(|_| EvmAppError::Execution("validator count does not fit into u64".into()))?,
+    );
+    let base_share = unlock_tranche / validator_count;
+    let remainder_u64 = u64::try_from(unlock_tranche % validator_count).map_err(|_| {
+        EvmAppError::Execution("community-pool unlock remainder does not fit into u64".into())
+    })?;
+    let remainder = usize::try_from(remainder_u64).map_err(|_| {
+        EvmAppError::Execution("community-pool unlock remainder does not fit into usize".into())
+    })?;
+
+    let mut total_credited = U256::ZERO;
+    for (index, validator) in simplex_validators.iter().enumerate() {
+        let extra = if index < remainder {
+            U256::from(1_u64)
+        } else {
+            U256::ZERO
+        };
+        let share = base_share
+            .checked_add(extra)
+            .ok_or_else(|| EvmAppError::Execution("community-pool share overflow".into()))?;
+        credit_fee_pool_claim(db, validator.ethereum_address, share)?;
+        total_credited = total_credited
+            .checked_add(share)
+            .ok_or_else(|| EvmAppError::Execution("community-pool total credit overflow".into()))?;
+    }
+
+    if total_credited != unlock_tranche {
+        return Err(EvmAppError::Execution(format!(
+            "community-pool unlock accounting mismatch: credited {total_credited}, tranche {unlock_tranche}"
+        )));
+    }
+
+    let next_locked_remaining = locked_remaining
+        .checked_sub(unlock_tranche)
+        .ok_or_else(|| EvmAppError::Execution("community-pool remaining underflow".into()))?;
+    db.insert_storage(
+        COMMUNITY_POOL_ADDRESS,
+        community_pool_locked_remaining_slot(),
+        next_locked_remaining,
+    )
+    .map_err(Into::into)?;
+    db.insert_storage(
+        COMMUNITY_POOL_ADDRESS,
+        community_pool_last_processed_epoch_slot(),
+        U256::from(current_epoch),
+    )
+    .map_err(Into::into)
 }
 
 fn gas_deltas_and_used<R>(receipts: &[R]) -> Result<(Vec<u64>, u64), EvmAppError>
@@ -383,6 +654,11 @@ where
             if let Some(ref boundary_state_changes) = boundary_state_changes {
                 apply_boundary_state_to_provider(&mut *canonical_db, boundary_state_changes)?;
             }
+            maybe_apply_community_pool_unlock(
+                &mut *canonical_db,
+                boundary_required,
+                self.evm_config.simplex_validators(),
+            )?;
             credit_burned_fees(&mut *canonical_db, gas_used, base_fee_per_gas)?;
             credit_fee_pool_claim(&mut *canonical_db, claim_recipient, priority_fees)?;
             canonical_db.state_root().map_err(Into::into)?
@@ -495,6 +771,11 @@ where
         if let Some(ref boundary_state_changes) = boundary_state_changes {
             apply_boundary_state_to_provider(&mut exec_state, boundary_state_changes)?;
         }
+        maybe_apply_community_pool_unlock(
+            &mut exec_state,
+            boundary_required,
+            self.evm_config.simplex_validators(),
+        )?;
         credit_burned_fees(&mut exec_state, computed_gas_used, block.base_fee_per_gas)?;
         credit_fee_pool_claim(&mut exec_state, claim_recipient, priority_fees)?;
 
@@ -669,10 +950,13 @@ mod tests {
     use alloy_primitives::{Address, Signature, TxKind};
     use chainspec::{
         build_sahara_chain_spec, build_sahara_chain_spec_with_alloc_and_fee_recipients,
-        SAHARA_CHAIN_ID,
+        build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators_and_community_pool_unlock_config,
+        CommunityPoolUnlockConfig, SAHARA_CHAIN_ID,
     };
     use evm_precompiles::{
-        advance_epoch_calldata, claimable_balance_slot, current_epoch_slot, epoch_blocks_slot,
+        advance_epoch_calldata, claimable_balance_slot, community_pool_last_processed_epoch_slot,
+        community_pool_locked_remaining_slot, community_pool_unlock_amount_per_cycle_slot,
+        community_pool_unlock_every_epochs_slot, current_epoch_slot, epoch_blocks_slot,
         epoch_system_tx_sender, next_epoch_block_slot, withdraw_calldata, COMMUNITY_POOL_ADDRESS,
         EPOCH_BLOCKS_DEFAULT, EPOCH_PRECOMPILE_ADDRESS, EPOCH_SYSTEM_TX_GAS_LIMIT,
         EPOCH_SYSTEM_TX_INITIAL_BALANCE_WEI, EPOCH_SYSTEM_TX_PRIVATE_KEY,
@@ -725,7 +1009,35 @@ mod tests {
         (app, db)
     }
 
-    fn seed_epoch_boundary_state(db: &mut InMemoryStateDb, next_epoch_block: u64) {
+    fn setup_app_with_unlock_config(
+        txs: Vec<Vec<u8>>,
+        unlock_config: CommunityPoolUnlockConfig,
+        simplex_validators: Vec<validators::ValidatorEntry>,
+    ) -> (
+        EvmApplication<InMemoryStateDb>,
+        Arc<RwLock<InMemoryStateDb>>,
+    ) {
+        let chain_spec = Arc::new(
+            build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators_and_community_pool_unlock_config(
+                BTreeMap::new(),
+                BTreeMap::new(),
+                simplex_validators,
+                unlock_config,
+            ),
+        );
+        let config = WhirlpoolEvmConfig::new(chain_spec);
+        let db = Arc::new(RwLock::new(InMemoryStateDb::new()));
+        let source = Arc::new(MockTxSource { txs });
+
+        let app = EvmApplication::new(config, db.clone(), source);
+        (app, db)
+    }
+
+    fn seed_epoch_boundary_state(
+        db: &mut InMemoryStateDb,
+        next_epoch_block: u64,
+        epoch_blocks: u64,
+    ) {
         db.insert_storage(
             EPOCH_PRECOMPILE_ADDRESS,
             current_epoch_slot(),
@@ -734,7 +1046,7 @@ mod tests {
         db.insert_storage(
             EPOCH_PRECOMPILE_ADDRESS,
             epoch_blocks_slot(),
-            U256::from(EPOCH_BLOCKS_DEFAULT),
+            U256::from(epoch_blocks),
         );
         db.insert_storage(
             EPOCH_PRECOMPILE_ADDRESS,
@@ -748,6 +1060,43 @@ mod tests {
                 nonce: 0,
                 ..Default::default()
             },
+        );
+    }
+
+    fn seed_community_pool_unlock_state(
+        db: &mut InMemoryStateDb,
+        unlock_every_epochs: u64,
+        unlock_amount_per_cycle: U256,
+        locked_remaining: U256,
+        community_pool_balance: U256,
+    ) {
+        db.insert_account(
+            COMMUNITY_POOL_ADDRESS,
+            revm::state::AccountInfo {
+                balance: community_pool_balance,
+                nonce: 0,
+                ..Default::default()
+            },
+        );
+        db.insert_storage(
+            COMMUNITY_POOL_ADDRESS,
+            community_pool_unlock_every_epochs_slot(),
+            U256::from(unlock_every_epochs),
+        );
+        db.insert_storage(
+            COMMUNITY_POOL_ADDRESS,
+            community_pool_unlock_amount_per_cycle_slot(),
+            unlock_amount_per_cycle,
+        );
+        db.insert_storage(
+            COMMUNITY_POOL_ADDRESS,
+            community_pool_locked_remaining_slot(),
+            locked_remaining,
+        );
+        db.insert_storage(
+            COMMUNITY_POOL_ADDRESS,
+            community_pool_last_processed_epoch_slot(),
+            U256::ZERO,
         );
     }
 
@@ -1103,7 +1452,7 @@ mod tests {
 
         {
             let mut db = db.write().unwrap();
-            seed_epoch_boundary_state(&mut db, 1);
+            seed_epoch_boundary_state(&mut db, 1, EPOCH_BLOCKS_DEFAULT);
             db.insert_account(
                 recovered,
                 revm::state::AccountInfo {
@@ -1132,7 +1481,7 @@ mod tests {
 
         {
             let mut db = db.write().unwrap();
-            seed_epoch_boundary_state(&mut db, 10);
+            seed_epoch_boundary_state(&mut db, 10, EPOCH_BLOCKS_DEFAULT);
             db.insert_account(
                 recovered,
                 revm::state::AccountInfo {
@@ -1160,7 +1509,7 @@ mod tests {
 
         {
             let mut db = db.write().unwrap();
-            seed_epoch_boundary_state(&mut db, 1);
+            seed_epoch_boundary_state(&mut db, 1, EPOCH_BLOCKS_DEFAULT);
         }
         {
             let db = db.read().unwrap();
@@ -1198,13 +1547,249 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn boundary_unlock_credits_simplex_validator_addresses_and_conserves_balance() {
+        let validators = vec![
+            validators::ValidatorEntry {
+                consensus_pubkey: [0x11; 32],
+                ethereum_address: Address::repeat_byte(0x11),
+            },
+            validators::ValidatorEntry {
+                consensus_pubkey: [0x22; 32],
+                ethereum_address: Address::repeat_byte(0x22),
+            },
+            validators::ValidatorEntry {
+                consensus_pubkey: [0x33; 32],
+                ethereum_address: Address::repeat_byte(0x33),
+            },
+        ];
+        let unlock_config = CommunityPoolUnlockConfig {
+            genesis_prefund_amount: U256::from(25_u64),
+            unlock_every_epochs: 1,
+            unlock_amount_per_cycle: U256::from(10_u64),
+        };
+        let (app, db) = setup_app_with_unlock_config(vec![], unlock_config, validators.clone());
+
+        {
+            let mut db = db.write().unwrap();
+            seed_epoch_boundary_state(&mut db, 1, 1);
+            seed_community_pool_unlock_state(
+                &mut db,
+                unlock_config.unlock_every_epochs,
+                unlock_config.unlock_amount_per_cycle,
+                unlock_config.genesis_prefund_amount,
+                unlock_config.genesis_prefund_amount,
+            );
+        }
+
+        let parent = app.genesis().await;
+        let (_block, _result) = app.propose(&parent, 1).await.expect("boundary propose");
+
+        let db = db.read().unwrap();
+        let community_pool_balance = db
+            .get_account(COMMUNITY_POOL_ADDRESS)
+            .unwrap_or_default()
+            .balance;
+        let fee_pool_balance = db
+            .get_account(FEE_POOL_PRECOMPILE_ADDRESS)
+            .unwrap_or_default()
+            .balance;
+        let remaining_locked = db.get_storage(
+            COMMUNITY_POOL_ADDRESS,
+            community_pool_locked_remaining_slot(),
+        );
+        let last_processed = db.get_storage(
+            COMMUNITY_POOL_ADDRESS,
+            community_pool_last_processed_epoch_slot(),
+        );
+        let current_epoch = db.get_storage(EPOCH_PRECOMPILE_ADDRESS, current_epoch_slot());
+
+        assert_eq!(current_epoch, U256::from(1_u64));
+        assert_eq!(community_pool_balance, U256::from(15_u64));
+        assert_eq!(fee_pool_balance, U256::from(10_u64));
+        assert_eq!(remaining_locked, U256::from(15_u64));
+        assert_eq!(last_processed, U256::from(1_u64));
+
+        let claim0 = db.get_storage(
+            FEE_POOL_PRECOMPILE_ADDRESS,
+            claimable_balance_slot(validators[0].ethereum_address),
+        );
+        let claim1 = db.get_storage(
+            FEE_POOL_PRECOMPILE_ADDRESS,
+            claimable_balance_slot(validators[1].ethereum_address),
+        );
+        let claim2 = db.get_storage(
+            FEE_POOL_PRECOMPILE_ADDRESS,
+            claimable_balance_slot(validators[2].ethereum_address),
+        );
+        assert_eq!(claim0, U256::from(4_u64));
+        assert_eq!(claim1, U256::from(3_u64));
+        assert_eq!(claim2, U256::from(3_u64));
+        assert_eq!(claim0 + claim1 + claim2, U256::from(10_u64));
+    }
+
+    #[tokio::test]
+    async fn boundary_unlock_final_tranche_distributes_top_k_remainder() {
+        let validators: Vec<_> = (1_u8..=5_u8)
+            .map(|idx| validators::ValidatorEntry {
+                consensus_pubkey: [idx; 32],
+                ethereum_address: Address::repeat_byte(idx),
+            })
+            .collect();
+        let unlock_config = CommunityPoolUnlockConfig {
+            genesis_prefund_amount: U256::from(4_u64),
+            unlock_every_epochs: 1,
+            unlock_amount_per_cycle: U256::from(10_u64),
+        };
+        let (app, db) = setup_app_with_unlock_config(vec![], unlock_config, validators.clone());
+
+        {
+            let mut db = db.write().unwrap();
+            seed_epoch_boundary_state(&mut db, 1, 1);
+            seed_community_pool_unlock_state(
+                &mut db,
+                unlock_config.unlock_every_epochs,
+                unlock_config.unlock_amount_per_cycle,
+                unlock_config.genesis_prefund_amount,
+                unlock_config.genesis_prefund_amount,
+            );
+        }
+
+        let parent = app.genesis().await;
+        let (_block, _result) = app.propose(&parent, 1).await.expect("boundary propose");
+
+        let db = db.read().unwrap();
+        assert_eq!(
+            db.get_account(COMMUNITY_POOL_ADDRESS)
+                .unwrap_or_default()
+                .balance,
+            U256::ZERO
+        );
+        assert_eq!(
+            db.get_account(FEE_POOL_PRECOMPILE_ADDRESS)
+                .unwrap_or_default()
+                .balance,
+            U256::from(4_u64)
+        );
+        assert_eq!(
+            db.get_storage(
+                COMMUNITY_POOL_ADDRESS,
+                community_pool_locked_remaining_slot()
+            ),
+            U256::ZERO
+        );
+
+        for (index, validator) in validators.iter().enumerate() {
+            let claim = db.get_storage(
+                FEE_POOL_PRECOMPILE_ADDRESS,
+                claimable_balance_slot(validator.ethereum_address),
+            );
+            let expected = if index < 4 {
+                U256::from(1_u64)
+            } else {
+                U256::ZERO
+            };
+            assert_eq!(claim, expected, "validator index {index}");
+        }
+    }
+
+    #[tokio::test]
+    async fn verify_boundary_unlock_matches_propose_state() {
+        let validators = vec![
+            validators::ValidatorEntry {
+                consensus_pubkey: [0x01; 32],
+                ethereum_address: Address::repeat_byte(0x01),
+            },
+            validators::ValidatorEntry {
+                consensus_pubkey: [0x02; 32],
+                ethereum_address: Address::repeat_byte(0x02),
+            },
+        ];
+        let unlock_config = CommunityPoolUnlockConfig {
+            genesis_prefund_amount: U256::from(11_u64),
+            unlock_every_epochs: 1,
+            unlock_amount_per_cycle: U256::from(5_u64),
+        };
+        let chain_spec = Arc::new(
+            build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators_and_community_pool_unlock_config(
+                BTreeMap::new(),
+                BTreeMap::new(),
+                validators.clone(),
+                unlock_config,
+            ),
+        );
+        let (app, db) =
+            setup_app_with_config(vec![], WhirlpoolEvmConfig::new(chain_spec.clone())).await;
+
+        {
+            let mut db = db.write().unwrap();
+            seed_epoch_boundary_state(&mut db, 1, 1);
+            seed_community_pool_unlock_state(
+                &mut db,
+                unlock_config.unlock_every_epochs,
+                unlock_config.unlock_amount_per_cycle,
+                unlock_config.genesis_prefund_amount,
+                unlock_config.genesis_prefund_amount,
+            );
+        }
+
+        let pre_state = db.read().unwrap().clone();
+        let parent = app.genesis().await;
+        let (block, _result) = app
+            .propose(&parent, 1)
+            .await
+            .expect("propose boundary block");
+
+        let proposer_state = db.read().unwrap().clone();
+        let proposer_state_root = proposer_state.state_root().0;
+        let verifier_db = Arc::new(RwLock::new(pre_state));
+        let verifier_app = EvmApplication::new(
+            WhirlpoolEvmConfig::new(chain_spec),
+            verifier_db.clone(),
+            Arc::new(MockTxSource { txs: vec![] }),
+        );
+        let verify_result = verifier_app
+            .verify(&parent, &block)
+            .await
+            .expect("verify boundary block with unlock");
+
+        // verify() computes against an ephemeral clone and checks the computed state root
+        // against the block; it does not mutate the application's backing DB.
+        assert_eq!(verify_result.state_root, block.state_root);
+        assert_eq!(verify_result.receipts_root, block.receipts_root);
+        assert_eq!(proposer_state_root, block.state_root);
+
+        let verifier_state = verifier_db.read().unwrap();
+        assert_eq!(
+            verifier_state
+                .get_account(COMMUNITY_POOL_ADDRESS)
+                .unwrap_or_default()
+                .balance,
+            unlock_config.genesis_prefund_amount
+        );
+        assert_eq!(
+            verifier_state.get_storage(
+                COMMUNITY_POOL_ADDRESS,
+                community_pool_locked_remaining_slot()
+            ),
+            unlock_config.genesis_prefund_amount
+        );
+        assert_eq!(
+            verifier_state.get_storage(
+                COMMUNITY_POOL_ADDRESS,
+                community_pool_last_processed_epoch_slot()
+            ),
+            U256::ZERO
+        );
+    }
+
+    #[tokio::test]
     async fn boundary_block_receipts_and_gas_are_user_only() {
         let (tx, recovered) = sample_evm_tx();
         let (app, db) = setup_app(vec![tx]).await;
 
         {
             let mut db = db.write().unwrap();
-            seed_epoch_boundary_state(&mut db, 1);
+            seed_epoch_boundary_state(&mut db, 1, EPOCH_BLOCKS_DEFAULT);
             db.insert_account(
                 recovered,
                 revm::state::AccountInfo {
@@ -1241,7 +1826,7 @@ mod tests {
 
         {
             let mut db = db.write().unwrap();
-            seed_epoch_boundary_state(&mut db, 1);
+            seed_epoch_boundary_state(&mut db, 1, EPOCH_BLOCKS_DEFAULT);
             db.insert_account(
                 recovered,
                 revm::state::AccountInfo {
@@ -1275,7 +1860,7 @@ mod tests {
 
         {
             let mut db = db.write().unwrap();
-            seed_epoch_boundary_state(&mut db, 10);
+            seed_epoch_boundary_state(&mut db, 10, EPOCH_BLOCKS_DEFAULT);
         }
 
         let pre_state = db.read().unwrap().clone();

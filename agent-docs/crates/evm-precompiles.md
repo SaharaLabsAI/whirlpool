@@ -14,6 +14,12 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
 - `COMMUNITY_POOL_ADDRESS`: canonical single-address business sink and read-only precompile endpoint for community-pool balance.
 - `community_pool_balance_calldata()`
 - `decode_community_pool_balance_output(bytes)`
+- community-pool unlock storage helpers:
+  - `community_pool_unlock_every_epochs_{storage_slot,slot}()`
+  - `community_pool_unlock_amount_per_cycle_{storage_slot,slot}()`
+  - `community_pool_locked_remaining_{storage_slot,slot}()`
+  - `community_pool_last_processed_epoch_{storage_slot,slot}()`
+  - `encode_u256_storage_value(...)`
 - `FEE_POOL_PRECOMPILE_ADDRESS`: stateful fee-pool precompile endpoint for priority-fee sink + claim ledger.
 - `fee_pool_balance_calldata()`
 - `claimable_balance_calldata(address)`
@@ -56,6 +62,7 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
 - Custom precompiles are installed through `PrecompilesMap` dynamic entries, not vendor edits.
 - The validators precompile is read-only and returns the ordered list provided by the canonical Rust validator reader (`validators` crate).
 - The community-pool precompile is read-only and returns the balance of `COMMUNITY_POOL_ADDRESS`.
+- Community-pool unlock schedule state is also anchored at `COMMUNITY_POOL_ADDRESS` storage (configured by chainspec/runtime), but unlock execution itself is runtime logic in `app-evm`, not a mutable community-pool precompile method.
 - Fee routing model:
   - burned base fees -> `COMMUNITY_POOL_ADDRESS`
   - priority fees -> `FEE_POOL_PRECOMPILE_ADDRESS`

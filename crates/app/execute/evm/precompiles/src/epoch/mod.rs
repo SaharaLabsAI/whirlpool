@@ -1,4 +1,4 @@
-use alloy_primitives::{address, Address, B256, Bytes, U256};
+use alloy_primitives::{address, Address, Bytes, B256, U256};
 use reth_primitives_traits::crypto::secp256k1::{recover_signer, sign_message};
 use revm::precompile::PrecompileResult;
 use std::sync::OnceLock;

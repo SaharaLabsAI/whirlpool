@@ -20,18 +20,22 @@ pub mod fee_pool;
 pub mod validators;
 
 pub use community_pool::{
-    community_pool_balance_calldata, decode_community_pool_balance_output, COMMUNITY_POOL_ADDRESS,
+    community_pool_balance_calldata, community_pool_last_processed_epoch_slot,
+    community_pool_last_processed_epoch_storage_slot, community_pool_locked_remaining_slot,
+    community_pool_locked_remaining_storage_slot, community_pool_unlock_amount_per_cycle_slot,
+    community_pool_unlock_amount_per_cycle_storage_slot, community_pool_unlock_every_epochs_slot,
+    community_pool_unlock_every_epochs_storage_slot, decode_community_pool_balance_output,
+    encode_u256_storage_value, COMMUNITY_POOL_ADDRESS,
 };
 pub use epoch::{
-    advance_epoch_calldata, current_epoch_calldata, decode_current_epoch_output,
-    decode_epoch_blocks_output, decode_epoch_start_block_output, decode_next_epoch_block_output,
-    encode_epoch_start_block_storage_value, encode_u64_storage_value, epoch_blocks_calldata,
-    epoch_blocks_slot, epoch_blocks_storage_slot, epoch_start_block_calldata,
-    epoch_start_block_storage_slot, epoch_system_tx_sender, is_advance_epoch_calldata,
-    next_epoch_block_calldata, next_epoch_block_slot, next_epoch_block_storage_slot,
-    current_epoch_slot, current_epoch_storage_slot, EPOCH_BLOCKS_DEFAULT,
-    EPOCH_PRECOMPILE_ADDRESS, EPOCH_SYSTEM_TX_GAS_LIMIT, EPOCH_SYSTEM_TX_INITIAL_BALANCE_WEI,
-    EPOCH_SYSTEM_TX_PRIVATE_KEY,
+    advance_epoch_calldata, current_epoch_calldata, current_epoch_slot, current_epoch_storage_slot,
+    decode_current_epoch_output, decode_epoch_blocks_output, decode_epoch_start_block_output,
+    decode_next_epoch_block_output, encode_epoch_start_block_storage_value,
+    encode_u64_storage_value, epoch_blocks_calldata, epoch_blocks_slot, epoch_blocks_storage_slot,
+    epoch_start_block_calldata, epoch_start_block_storage_slot, epoch_system_tx_sender,
+    is_advance_epoch_calldata, next_epoch_block_calldata, next_epoch_block_slot,
+    next_epoch_block_storage_slot, EPOCH_BLOCKS_DEFAULT, EPOCH_PRECOMPILE_ADDRESS,
+    EPOCH_SYSTEM_TX_GAS_LIMIT, EPOCH_SYSTEM_TX_INITIAL_BALANCE_WEI, EPOCH_SYSTEM_TX_PRIVATE_KEY,
 };
 pub use fee_pool::{
     claimable_balance_calldata, claimable_balance_slot, decode_claimable_balance_output,

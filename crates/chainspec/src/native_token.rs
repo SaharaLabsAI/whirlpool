@@ -13,6 +13,8 @@ pub enum NativeTokenError {
     SupplyOverflow,
     #[error("native token hard cap exceeded: total {total} > cap {hard_cap}")]
     HardCapExceeded { total: U256, hard_cap: U256 },
+    #[error("community-pool unlock schedule requires at least one simplex validator")]
+    CommunityPoolUnlockRequiresValidators,
 }
 
 pub fn sahara_hard_cap_base_units() -> U256 {
@@ -32,14 +34,16 @@ pub fn total_allocated_supply(
 pub fn validate_genesis_alloc(
     alloc: &BTreeMap<Address, GenesisAccount>,
 ) -> Result<U256, NativeTokenError> {
-    let total = alloc.iter().try_fold(U256::ZERO, |total, (address, account)| {
-        if *address == epoch_system_tx_sender() {
-            return Ok(total);
-        }
-        total
-            .checked_add(account.balance)
-            .ok_or(NativeTokenError::SupplyOverflow)
-    })?;
+    let total = alloc
+        .iter()
+        .try_fold(U256::ZERO, |total, (address, account)| {
+            if *address == epoch_system_tx_sender() {
+                return Ok(total);
+            }
+            total
+                .checked_add(account.balance)
+                .ok_or(NativeTokenError::SupplyOverflow)
+        })?;
     let hard_cap = sahara_hard_cap_base_units();
     if total > hard_cap {
         Err(NativeTokenError::HardCapExceeded { total, hard_cap })
@@ -52,8 +56,7 @@ pub fn validate_genesis_alloc(
 mod tests {
     use super::{
         epoch_system_tx_sender, sahara_hard_cap_base_units, total_allocated_supply,
-        validate_genesis_alloc,
-        NativeTokenError, SAHARA_DECIMALS, SAHARA_HARD_CAP_TOKENS,
+        validate_genesis_alloc, NativeTokenError, SAHARA_DECIMALS, SAHARA_HARD_CAP_TOKENS,
     };
     use alloy_genesis::GenesisAccount;
     use alloy_primitives::{Address, U256};
