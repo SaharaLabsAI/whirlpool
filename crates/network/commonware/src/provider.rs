@@ -366,7 +366,6 @@ mod tests {
     use commonware_cryptography::Signer;
     use commonware_p2p::{Manager, Receiver as _, Recipients, Sender as _};
     use commonware_runtime::{deterministic, Clock, Runner};
-    use network::{NetworkReceiver, NetworkSender, Recipients as P2pRecipients};
     use std::net::SocketAddr;
     use std::time::Duration;
 

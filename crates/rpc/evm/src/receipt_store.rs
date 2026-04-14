@@ -17,12 +17,6 @@ impl ReceiptStore {
         }
     }
 
-    /// Insert a receipt for a confirmed transaction.
-    pub fn insert(&self, tx_hash: B256, receipt: TransactionReceipt) {
-        let mut store = self.inner.write().expect("receipt store poisoned");
-        store.insert(tx_hash, receipt);
-    }
-
     /// Look up a receipt by transaction hash.
     pub fn get(&self, tx_hash: &B256) -> Option<TransactionReceipt> {
         let store = self.inner.read().expect("receipt store poisoned");

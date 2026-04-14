@@ -209,7 +209,6 @@ fn evm_block_to_rpc_block(evm_block: &app::EvmBlock, _full_transactions: bool) -
 mod tests {
     use super::*;
     use crate::context::EthRpcContext;
-    use app::traits::TxSource;
     use app::tx_source::InMemoryTxPool;
     use app::{EvmBlock, Receipt};
     use state::block_storage::BlockStorageError;
