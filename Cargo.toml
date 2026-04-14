@@ -28,9 +28,3 @@ members = [
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-
-[patch.crates-io]
-reth-codecs = { git = "https://github.com/paradigmxyz/reth-core", tag = "v0.1.1" }
-reth-codecs-derive = { git = "https://github.com/paradigmxyz/reth-core", tag = "v0.1.1" }
-reth-primitives-traits = { git = "https://github.com/paradigmxyz/reth-core", tag = "v0.1.1" }
-reth-zstd-compressors = { git = "https://github.com/paradigmxyz/reth-core", tag = "v0.1.1" }

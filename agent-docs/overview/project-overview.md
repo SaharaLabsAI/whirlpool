@@ -24,5 +24,5 @@ Three layers with explicit interface boundaries:
 - Adapter isolation for vendor-specific code.
 - Canonical `::traits::` imports for cross-crate wiring.
 
-## Reth Core Pinning
-- Workspace patches `reth-primitives-traits` plus companion `reth-codecs`, `reth-codecs-derive`, and `reth-zstd-compressors` to `paradigmxyz/reth-core` tag `v0.1.1` for `reth v2.0.0` compatibility.
+## Reth Primitives Traits Pin
+- Workspace depends on `reth-primitives-traits = 0.1.1` from crates.io for `reth v2.0.0` compatibility.
