@@ -35,9 +35,13 @@
         cargoTOML = builtins.fromTOML (builtins.readFile ./Cargo.toml);
         packageVersion = cargoTOML.workspace.package.version;
 
-        # Latest stable rust toolchain (rustup "default" profile) plus rust-src for IDEs.
+        # Latest stable rust toolchain (rustup "default" profile) plus IDE/lint/format extensions.
         rustStable = pkgs.rust-bin.stable.latest.default.override {
-          extensions = [ "rust-src" ];
+          extensions = [
+            "rust-src"
+            "clippy"
+            "rustfmt"
+          ];
         };
 
         craneLib = (crane.mkLib pkgs).overrideToolchain rustStable;
