@@ -194,7 +194,7 @@ fn evm_block_to_rpc_block(evm_block: &app::EvmBlock, _full_transactions: bool) -
     let tx_hashes: Vec<B256> = evm_block
         .transactions
         .iter()
-        .map(|tx_bytes| alloy_primitives::keccak256(tx_bytes))
+        .map(alloy_primitives::keccak256)
         .collect();
 
     Block {

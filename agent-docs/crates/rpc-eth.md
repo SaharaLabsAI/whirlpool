@@ -27,7 +27,12 @@ Location: `crates/rpc/evm/`
 ### Adapter Pattern
 Three adapter types bridge Whirlpool's backend into reth's RPC trait requirements:
 
-1. **WhirlpoolProvider** (`provider.rs`, ~960 lines): Wraps `Arc<RethStateDb>` + `Arc<ChainSpec>`. Implements reth provider traits with real MDBX-backed reads for blocks, headers, transactions, receipts, accounts, bytecodes, and storage. Key implementations:
+1. **WhirlpoolProvider** (`provider.rs` + `provider/*.rs`): Wraps `Arc<RethStateDb>` + `Arc<ChainSpec>`. The provider is split by responsibility into submodules:
+   - `provider/block.rs` — block/hash/header/body index readers
+   - `provider/transactions.rs` — transaction/receipt providers
+   - `provider/state.rs` — account/state/bytecode/provider-factory/proof/checkpoint surfaces
+   - `provider/subscriptions.rs` — canon/fork-choice/persisted subscription traits
+   Key implementations:
    - `BlockReaderIdExt`: `block_by_id`, `sealed_header_by_id`, `header_by_id` resolve `BlockId` (Latest/Number/Hash) to block numbers via `convert_block_number` → MDBX lookups.
    - `bytecode_by_hash`: reads from MDBX `Bytecodes` table, wraps `revm::state::Bytecode` → `reth_primitives_traits::Bytecode`.
    - `storage`: reads from MDBX `PlainStorageState` table.
@@ -73,7 +78,11 @@ pub async fn start_rpc_server(config: RpcConfig) -> Result<(RpcServerHandle, Soc
 
 ## Module Layout
 - `lib.rs`: Public API (`RpcConfig`, `RpcError`, `start_rpc_server`). Uses `#[path]` pattern to rename internal modules. Legacy modules (`context`, `eth_api`, `eth_handler`, `receipt_store`) are still `#[cfg(test)]` only.
-- `provider.rs`: `WhirlpoolProvider` with real MDBX trait implementations.
+- `provider.rs`: `WhirlpoolProvider` root (constructor/shared helpers + submodule wiring).
+- `provider/block.rs`: block/hash/header readers + block body index provider.
+- `provider/transactions.rs`: transaction and receipt provider implementations.
+- `provider/state.rs`: account/state/bytecode/provider-factory/proof/checkpoint implementations.
+- `provider/subscriptions.rs`: canon/fork-choice/persisted subscription implementations.
 - `pool.rs`: `WhirlpoolTxPool` with blob rejection.
 - `network.rs`: `WhirlpoolNetwork` with static network info.
 - `convert.rs`: `EvmBlock` ↔ reth type conversion helpers.
