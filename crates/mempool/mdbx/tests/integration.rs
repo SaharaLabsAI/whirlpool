@@ -11,7 +11,7 @@ use mempool_mdbx::PersistentTxPool;
 use tempfile::TempDir;
 
 /// INT-FLOW-01: PersistentTxPool can be used as `Arc<dyn TxSource>`
-/// across crate boundaries (the same way EthRpcContext and EvmApplication
+/// across crate boundaries (the same way RPC and application components
 /// consume the pool).
 #[test]
 fn trait_object_coercion_across_crates() {

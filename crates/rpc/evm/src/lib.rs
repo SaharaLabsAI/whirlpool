@@ -19,16 +19,6 @@ mod provider_impl;
 #[path = "server.rs"]
 mod server_impl;
 
-// Legacy modules kept private for inline tests.
-#[cfg(test)]
-mod context;
-#[cfg(test)]
-mod eth_api;
-#[cfg(test)]
-mod eth_handler;
-#[cfg(test)]
-mod receipt_store;
-
 // Compatibility exports used by integration contracts.
 #[doc(hidden)]
 pub mod convert {

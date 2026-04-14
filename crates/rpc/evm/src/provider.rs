@@ -3,6 +3,7 @@ use std::{
     sync::Arc,
 };
 
+use ::state::StateDb as StateDbTrait;
 use alloy_consensus::{transaction::TransactionMeta, BlockBody, BlockHeader, Header};
 use alloy_eips::{BlockHashOrNumber, BlockId, BlockNumberOrTag};
 use alloy_primitives::{
@@ -40,7 +41,6 @@ use reth_trie::{
     updates::TrieUpdates, AccountProof, HashedPostState, HashedStorage, MultiProof,
     MultiProofTargets, StorageMultiProof, StorageProof, TrieInput,
 };
-use ::state::StateDb as StateDbTrait;
 use state_reth::{
     tables::{
         BlockBodyIndices, CanonicalHeaders, HeaderNumbers, Headers, PlainAccountState, Receipts,

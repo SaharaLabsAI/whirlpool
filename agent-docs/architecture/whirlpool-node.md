@@ -23,7 +23,7 @@ The `whirlpool-node` crate library exports a comprehensive configuration system 
 
 The JSON-RPC implementation has been extracted to the `rpc-eth` crate. See `agent-docs/crates/rpc-eth.md` for full details.
 
-The `whirlpool-node` binary wires `rpc-eth` via `rpc_eth::context::EthRpcContext` and `rpc_eth::server::start_rpc_server` (crates/node/src/node.rs:140).
+The `whirlpool-node` binary wires `rpc-eth` via `rpc_eth::RpcConfig` and `rpc_eth::start_rpc_server` (crates/node/src/node.rs).
 
 ## Dependency Graph
 

@@ -18,8 +18,7 @@ Location: `crates/rpc/evm/`
 - `reth-consensus`: `NoopConsensus` — no consensus validation in RPC path.
 - `reth-tasks`: `TaskExecutor` runtime passed to `RpcModuleBuilder::with_executor(...)`.
 - `reth-tokio-util`: `EventSender` for RPC event fanout.
-- `jsonrpsee`: JSON-RPC server framework (0.26.0).
-- `alloy-primitives`, `alloy-rpc-types`, `alloy-consensus`: Ethereum types.
+- `alloy-primitives`, `alloy-consensus`, `alloy-eips`: Ethereum transaction/header and EIP codec types.
 - `thiserror`: Error derive macro for `RpcError`.
 
 ## Architecture
@@ -77,7 +76,7 @@ pub async fn start_rpc_server(config: RpcConfig) -> Result<(RpcServerHandle, Soc
 ```
 
 ## Module Layout
-- `lib.rs`: Public API (`RpcConfig`, `RpcError`, `start_rpc_server`). Uses `#[path]` pattern to rename internal modules. Legacy modules (`context`, `eth_api`, `eth_handler`, `receipt_store`) are still `#[cfg(test)]` only.
+- `lib.rs`: Public API (`RpcConfig`, `RpcError`, `start_rpc_server`) and hidden compatibility re-exports for contract tests.
 - `provider.rs`: `WhirlpoolProvider` root (constructor/shared helpers + submodule wiring).
 - `provider/block.rs`: block/hash/header readers + block body index provider.
 - `provider/transactions.rs`: transaction and receipt provider implementations.
@@ -87,11 +86,6 @@ pub async fn start_rpc_server(config: RpcConfig) -> Result<(RpcServerHandle, Soc
 - `network.rs`: `WhirlpoolNetwork` with static network info.
 - `convert.rs`: `EvmBlock` ↔ reth type conversion helpers.
 - `server.rs`: `start_rpc_server()` — RpcModuleBuilder-based server startup.
-- `context.rs` [cfg(test)]: Legacy `EthRpcContext` — test-only.
-- `eth_api.rs` [cfg(test)]: Legacy `EthApi` trait — test-only.
-- `eth_handler.rs` [cfg(test)]: Legacy handler implementation — test-only.
-- `receipt_store.rs` [cfg(test)]: Legacy `ReceiptStore` — test-only.
-- `tests/eth_handler.rs` [cfg(test) via `eth_handler.rs`]: 17 legacy handler unit tests, file-separated via `#[path = "tests/eth_handler.rs"] mod tests;`.
 
 ## Supported RPC Methods
 All standard `eth_*` methods from `RpcModuleSelection::standard_modules()` are served, including:
@@ -118,15 +112,14 @@ All standard `eth_*` methods from `RpcModuleSelection::standard_modules()` are s
 - `tests/network_contract.rs`: 5 tests — chain ID, bounds, syncing, peers, status (TST-3).
 - `tests/convert_tests.rs`: 5 tests — decode roundtrip, malformed bytes, header/block conversion.
 - `tests/server_contract.rs`: 2 tests — server startup, eth_chainId response.
-- `src/tests/eth_handler.rs` [cfg(test)]: 17 legacy handler unit tests (file-separated).
-- **Total**: 36 tests.
+- **Total**: 19 tests.
 
 ## Key Design Notes
 - `WhirlpoolProvider` constructor creates internal `broadcast::channel(16)` for canon state notifications and `watch::channel(None)` for safe/finalized/persisted block subscriptions.
 - MDBX access pattern: `self.state_db.inner().tx().map_err(map_db_err)?` for read-only transactions.
 - State tables used: `CanonicalHeaders`, `HeaderNumbers`, `Headers`, `BlockBodyIndices`, `Transactions`, `TransactionHashNumbers`, `TransactionBlocks`, `Receipts`, `HeaderTerminalDifficulties`, `PlainAccountState`, `PlainStorageState`, `Bytecodes`.
-- On empty DB: `eth_blockNumber` returns 0, `eth_getBalance` returns 0, `eth_gasPrice` returns error ("block not found: latest").
+- On empty DB: `eth_blockNumber` returns 0 and `eth_getBalance` returns 0.
 - RPC `eth_call` / estimation now share the same Whirlpool precompile registry as consensus execution by using `app_evm::WhirlpoolEvmConfig` in `server.rs`.
 
 ## Status
-Complete. Replaces the original hand-rolled JSON-RPC with reth's production RPC stack (Tasks 01-13).
+Complete. Replaces the original hand-rolled JSON-RPC with reth's production RPC stack (Tasks 01-13), with legacy in-crate JSON-RPC handler/test scaffolding removed.

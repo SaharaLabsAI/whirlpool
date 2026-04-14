@@ -10,13 +10,9 @@ app-evm = { path = "../../app/execute/evm/app" }
 state = { path = "../../app/state" }
 state-reth = { path = "../../app/execute/evm/state" }
 
-# --- Legacy deps (still used by existing source; removed when source is rewritten) ---
-jsonrpsee = { version = "0.26.0", features = ["client", "server", "macros"] }
 alloy-consensus = "1.4.3"
 alloy-eips = "1.1.2"
 alloy-primitives = { version = "1.5.0" }
-alloy-rpc-types = { version = "1.4.3", features = ["eth"] }
-async-trait = "0.1"
 
 # --- Reth RPC stack ---
 reth-rpc = { path = "../../../vendor/reth/crates/rpc/rpc" }
@@ -54,18 +50,13 @@ reth-tokio-util = { path = "../../../vendor/reth/crates/tokio-util" }
 enr = { version = "0.13", default-features = false, features = ["rust-secp256k1"] }
 
 # --- Common ---
-serde = { version = "1" }
 thiserror = "2"
 tracing = "0.1"
 tokio = { version = "1", features = ["full"] }
-parking_lot = "0.12"
 
 [dev-dependencies]
-state-memory = { path = "../../app/execute/mem/state" }
 state-reth = { path = "../../app/execute/evm/state" }
-commonware-cryptography = { path = "../../../vendor/commonware/cryptography" }
-revm = { version = "36" }
+jsonrpsee = { version = "0.26.0", features = ["client"] }
 tempfile = "3"
 tokio = { version = "1", features = ["full", "test-util"] }
-rand = "0.8"
 reth-transaction-pool = { path = "../../../vendor/reth/crates/transaction-pool", features = ["test-utils"] }
