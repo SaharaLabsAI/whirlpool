@@ -11,6 +11,7 @@ In-memory state database implementation for EVM execution.
 
 ## Modules
 - `crates/app/execute/mem/state/src/db.rs` — `InMemoryStateDb`, `DbAccount`, revm `Database`/`DatabaseRef` impls
+- `crates/app/execute/mem/state/src/tests/db.rs` — file-separated `db.rs` unit tests (wired via `#[path = "tests/db.rs"] mod tests;`)
 - `crates/app/execute/mem/state/src/personality.rs` — `InMemoryPersonalityStorage` and in-memory finalized personality indexes
 
 ## Key Types

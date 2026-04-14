@@ -13,6 +13,7 @@ The `whirlpool-node` crate library exports a comprehensive configuration system 
 - Functions: `load_config(args: NodeArgs) -> Result<NodeConfig, ConfigError>` (crates/node/src/config.rs:319)
 - Impl: `From<NodeArgs> for NodeConfig`, `Default` for all config types
 - Constants (defaults): `APPLICATION_NAMESPACE`, `NAMESPACE`, `BLOCK_INTERVAL`, `VALIDATOR_SEED`, `BIND_ADDR`, `RPC_BIND_ADDR`, `DEFAULT_DATA_DIR`, `DEFAULT_MAX_MESSAGE_SIZE`
+- Tests: file-separated in `crates/node/src/tests/config.rs` via `#[path = "tests/config.rs"] mod tests;`
 
 ### node.rs
 - `start_node(config: NodeConfig) -> Result<NodeHandle, ...>`: Spawns the node lifecycle thread (crates/node/src/node.rs:50).
@@ -44,4 +45,3 @@ Location: `crates/node/src/main.rs`
 | config.rs | 8 |
 | main.rs (bin) | 1 |
 | **Total** | **9** |
-

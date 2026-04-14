@@ -72,7 +72,7 @@ pub async fn start_rpc_server(config: RpcConfig) -> Result<(RpcServerHandle, Soc
 ```
 
 ## Module Layout
-- `lib.rs`: Public API (`RpcConfig`, `RpcError`, `start_rpc_server`). Uses `#[path]` pattern to rename internal modules. Legacy modules (`context`, `eth_api`, `eth_handler`, `receipt_store`) kept as `#[cfg(test)]` only to preserve 17 inline unit tests.
+- `lib.rs`: Public API (`RpcConfig`, `RpcError`, `start_rpc_server`). Uses `#[path]` pattern to rename internal modules. Legacy modules (`context`, `eth_api`, `eth_handler`, `receipt_store`) are still `#[cfg(test)]` only.
 - `provider.rs`: `WhirlpoolProvider` with real MDBX trait implementations.
 - `pool.rs`: `WhirlpoolTxPool` with blob rejection.
 - `network.rs`: `WhirlpoolNetwork` with static network info.
@@ -80,8 +80,9 @@ pub async fn start_rpc_server(config: RpcConfig) -> Result<(RpcServerHandle, Soc
 - `server.rs`: `start_rpc_server()` — RpcModuleBuilder-based server startup.
 - `context.rs` [cfg(test)]: Legacy `EthRpcContext` — test-only.
 - `eth_api.rs` [cfg(test)]: Legacy `EthApi` trait — test-only.
-- `eth_handler.rs` [cfg(test)]: Legacy handler with 17 unit tests — test-only.
+- `eth_handler.rs` [cfg(test)]: Legacy handler implementation — test-only.
 - `receipt_store.rs` [cfg(test)]: Legacy `ReceiptStore` — test-only.
+- `tests/eth_handler.rs` [cfg(test) via `eth_handler.rs`]: 17 legacy handler unit tests, file-separated via `#[path = "tests/eth_handler.rs"] mod tests;`.
 
 ## Supported RPC Methods
 All standard `eth_*` methods from `RpcModuleSelection::standard_modules()` are served, including:
@@ -108,7 +109,7 @@ All standard `eth_*` methods from `RpcModuleSelection::standard_modules()` are s
 - `tests/network_contract.rs`: 5 tests — chain ID, bounds, syncing, peers, status (TST-3).
 - `tests/convert_tests.rs`: 5 tests — decode roundtrip, malformed bytes, header/block conversion.
 - `tests/server_contract.rs`: 2 tests — server startup, eth_chainId response.
-- `src/eth_handler.rs` [cfg(test)]: 17 legacy unit tests (inline).
+- `src/tests/eth_handler.rs` [cfg(test)]: 17 legacy handler unit tests (file-separated).
 - **Total**: 36 tests.
 
 ## Key Design Notes

@@ -5,6 +5,7 @@ Persistent state storage implementation backed by reth-db (MDBX/libmdbx).
 
 ## Modules
 - `crates/app/execute/evm/state/src/db.rs` — `RethStateDb` implementation, revm `Database`/`DatabaseRef` impls
+- `crates/app/execute/evm/state/src/tests/db.rs` — file-separated `db.rs` unit tests (wired via `#[path = "tests/db.rs"] mod tests;`)
 - `crates/app/execute/evm/state/src/block_storage.rs` — `BlockStorage` persistence for finalized blocks + receipts
 - `crates/app/execute/evm/state/src/init.rs` — `open_state_db` helper
 - `crates/app/execute/evm/state/src/error.rs` — `RethStateError` enum
