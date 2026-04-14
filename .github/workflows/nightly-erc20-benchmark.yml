@@ -1,0 +1,92 @@
+name: Nightly ERC20 Benchmark (Single Node)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 2 * * *"
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: nightly-erc20-benchmark-gh-pages
+  cancel-in-progress: false
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    env:
+      BENCH_TRANSFER_COUNT: "1"
+      BENCHMARK_TIMEOUT_SECONDS: "3600"
+      # Fallback deterministic single-node transfer scenario until a dedicated ERC20 benchmark binary is added.
+      BENCHMARK_COMMAND: >-
+        nix develop --command cargo test -p integration-tests --test rpc -- test_eth_transfer_full_node --exact --nocapture
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+
+      - name: Run benchmark command and emit raw result
+        run: |
+          mkdir -p out
+          python3 devtools/benchmark/run_single_node_transfer_benchmark.py \
+            --output out/raw-result.json \
+            --transfer-count "${BENCH_TRANSFER_COUNT}" \
+            --timeout-seconds "${BENCHMARK_TIMEOUT_SECONDS}" \
+            --command "${BENCHMARK_COMMAND}"
+
+      - name: Checkout gh-pages baseline (if exists)
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          ref: gh-pages
+          path: gh-pages-baseline
+          fetch-depth: 1
+
+      - name: Build latest report + updated history
+        run: |
+          mkdir -p out/pages/benchmarks
+          python3 devtools/benchmark/update_history_and_render_report.py \
+            --raw-result out/raw-result.json \
+            --history-in gh-pages-baseline/benchmarks/history.json \
+            --history-out out/pages/benchmarks/history.json \
+            --report-out out/pages/benchmarks/latest.html \
+            --status-out out/status.json
+
+      - name: Publish benchmark pages
+        if: always()
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: out/pages
+
+      - name: Attach benchmark artifacts to run
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-erc20-benchmark
+          path: |
+            out/raw-result.json
+            out/status.json
+            out/pages/benchmarks/latest.html
+            out/pages/benchmarks/history.json
+
+      - name: Enforce regression gate (after publish)
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          status = json.loads(Path('out/status.json').read_text(encoding='utf-8'))
+          print(json.dumps(status, indent=2))
+
+          if status.get('should_fail'):
+              raise SystemExit('Regression gate failed: current TPS is below 50% of rolling 7-night median')
+          print('Regression gate passed')
+          PY
