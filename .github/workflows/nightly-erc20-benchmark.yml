@@ -57,6 +57,23 @@ jobs:
             --report-out out/pages/benchmarks/latest.html \
             --status-out out/status.json
 
+      - name: Prepare GitHub Pages entrypoint files
+        run: |
+          cat > out/pages/index.html <<'HTML'
+          <!doctype html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8" />
+            <meta http-equiv="refresh" content="0; url=./benchmarks/latest.html" />
+            <title>Nightly ERC20 benchmark report</title>
+          </head>
+          <body>
+            <p>Redirecting to <a href="./benchmarks/latest.html">latest benchmark report</a>…</p>
+          </body>
+          </html>
+          HTML
+          touch out/pages/.nojekyll
+
       - name: Publish benchmark pages
         if: always()
         uses: peaceiris/actions-gh-pages@v4
@@ -64,6 +81,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
           publish_dir: out/pages
+          enable_jekyll: false
 
       - name: Attach benchmark artifacts to run
         if: always()
@@ -73,6 +91,7 @@ jobs:
           path: |
             out/raw-result.json
             out/status.json
+            out/pages/index.html
             out/pages/benchmarks/latest.html
             out/pages/benchmarks/history.json
 
