@@ -4,8 +4,8 @@
 The design uses one registry, one factory seam, and one config seam so every EVM entrypoint gets the same precompile set.
 
 ## Wiring path
-- Registry assembly: `crates/app/execute/evm/precompiles/src/lib.rs:94-124`.
-- EVM factory seam: `crates/app/execute/evm/precompiles/src/lib.rs:127-163`.
+- Registry assembly: `crates/precompiles/evm/src/lib.rs:94-124`.
+- EVM factory seam: `crates/precompiles/evm/src/lib.rs:127-163`.
 - App-level config seam: `crates/app/execute/evm/app/src/config.rs:27`, `crates/app/execute/evm/app/src/config.rs:103-108`, and `crates/app/execute/evm/app/src/config.rs:195-199`.
 
 ## Why the seam lives here
@@ -19,4 +19,4 @@ The design uses one registry, one factory seam, and one config seam so every EVM
 - Unit + integration coverage proves state-changing tx, read-only `eth_call`, and revert surfacing for shipped precompiles (`community_pool`, `fee_pool`, `validators`), including full-node tokenomics and RPC contract suites.
 
 ## Design consequence
-If Whirlpool adds more custom precompiles, the intended extension point is the registry in `crates/app/execute/evm/precompiles/src/lib.rs`, not ad hoc per-call-site wiring.
+If Whirlpool adds more custom precompiles, the intended extension point is the registry in `crates/precompiles/evm/src/lib.rs`, not ad hoc per-call-site wiring.

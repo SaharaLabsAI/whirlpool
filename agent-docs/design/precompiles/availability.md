@@ -4,7 +4,7 @@
 Whirlpool precompiles do not require an on-chain deployment transaction. They are available as soon as a node starts with the Whirlpool EVM configuration.
 
 ## Why
-`whirlpool_precompiles(spec)` builds a `PrecompilesMap` from the built-in precompiles plus Whirlpool-owned entries in `crates/app/execute/evm/precompiles/src/lib.rs:94-124`. `WhirlpoolEvmFactory` and `WhirlpoolEvmConfig::evm_with_env(...)` inject that map directly into `EthEvmBuilder` in `crates/app/execute/evm/precompiles/src/lib.rs:142-163` and `crates/app/execute/evm/app/src/config.rs:195-199`.
+`whirlpool_precompiles(spec)` builds a `PrecompilesMap` from the built-in precompiles plus Whirlpool-owned entries in `crates/precompiles/evm/src/lib.rs:94-124`. `WhirlpoolEvmFactory` and `WhirlpoolEvmConfig::evm_with_env(...)` inject that map directly into `EthEvmBuilder` in `crates/precompiles/evm/src/lib.rs:142-163` and `crates/app/execute/evm/app/src/config.rs:195-199`.
 
 ## Lifecycle model
 - Genesis alloc and chain spec decide normal account/code/storage state; see `crates/app/execute/evm/app/src/config.rs:29-94`.

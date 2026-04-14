@@ -4,7 +4,7 @@
 Whirlpool-owned stateful precompiles are direct-call-only at the precompile boundary. Ordinary `CALL` and `STATICCALL` into the precompile address are allowed. Delegate-style execution is rejected before business logic runs.
 
 ## Framework rule
-`RegisteredPrecompile::new_stateful(...)` wraps each handler with a shared guard in `crates/app/execute/evm/precompiles/src/lib.rs:47-60`. If `input.is_direct_call()` is false, the framework returns `NonDirectCall` in `crates/app/execute/evm/precompiles/src/lib.rs:17-21` and `crates/app/execute/evm/precompiles/src/lib.rs:73-92`.
+`RegisteredPrecompile::new_stateful(...)` wraps each handler with a shared guard in `crates/precompiles/evm/src/lib.rs:47-60`. If `input.is_direct_call()` is false, the framework returns `NonDirectCall` in `crates/precompiles/evm/src/lib.rs:17-21` and `crates/precompiles/evm/src/lib.rs:73-92`.
 
 ## Why this design exists
 - Prevent context confusion for stateful precompiles. Delegate-style paths blur which account/code identity is being executed.

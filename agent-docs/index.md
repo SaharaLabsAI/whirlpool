@@ -101,7 +101,7 @@ Step-by-step instructions for common tasks and workflows.
 | `app` | `crates/app/traits/src/` | `crates/app.md` | — |
 | `chainspec` | `crates/chainspec/src/` | `crates/chainspec.md` | — |
 | `app-evm` | `crates/app/execute/evm/app/src/` | `crates/app-evm.md` | — |
-| `evm-precompiles` | `crates/app/execute/evm/precompiles/src/` | `crates/evm-precompiles.md` | — |
+| `evm-precompiles` | `crates/precompiles/evm/src/` | `crates/evm-precompiles.md` | — |
 | `app-composite` | `crates/app/execute/mem/composite/src/` | `crates/app-composite.md` | — |
 | `validators` | `crates/validators/src/` | `crates/validators.md` | — |
 | `mempool` | `crates/mempool/traits/src/` | `crates/mempool.md` | — |

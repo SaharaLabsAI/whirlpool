@@ -20,7 +20,7 @@ thiserror = "2"
 
 [dev-dependencies]
 chainspec = { path = "../../../../chainspec" }
-evm-precompiles = { path = "../../evm/precompiles" }
+evm-precompiles = { path = "../../../../precompiles/evm" }
 state-memory = { path = "../state" }
 tokio = { version = "1", features = ["rt", "macros"] }
 alloy-consensus = "1.4.3"

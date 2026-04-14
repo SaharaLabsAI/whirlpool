@@ -8,7 +8,7 @@ doctest = false
 
 [dependencies]
 app = { path = "../../../traits" }
-evm-precompiles = { path = "../precompiles" }
+evm-precompiles = { path = "../../../../precompiles/evm" }
 validators = { path = "../../../../validators" }
 state = { path = "../../../state" }
 state-memory = { path = "../../mem/state" }

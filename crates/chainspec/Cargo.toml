@@ -8,7 +8,7 @@ doctest = false
 
 [dependencies]
 app-evm = { path = "../app/execute/evm/app" }
-evm-precompiles = { path = "../app/execute/evm/precompiles" }
+evm-precompiles = { path = "../precompiles/evm" }
 validators = { path = "../validators" }
 reth-chainspec = { path = "../../vendor/reth/crates/chainspec" }
 alloy-genesis = "1.0.31"
