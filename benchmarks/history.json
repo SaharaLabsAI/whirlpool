@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-04-14T09:04:48Z",
+  "samples": [
+    {
+      "timestamp": "2026-04-14T09:04:48Z",
+      "git_sha": "0feb577fd283087fc969efd620898952ce953fe4",
+      "transfer_count": 1,
+      "successful_transfers": 1,
+      "elapsed_seconds": 0.46486629299988635,
+      "tps": 2.1511561820212344
+    }
+  ]
+}

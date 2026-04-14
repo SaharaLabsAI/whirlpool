@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Whirlpool Nightly ERC20 Benchmark (Single Node)</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; line-height: 1.4; }
+    code { background: #f5f5f5; padding: 0.1rem 0.3rem; border-radius: 4px; }
+    .ok { color: #0a7f28; font-weight: 600; }
+    .bad { color: #b00020; font-weight: 700; }
+    table { border-collapse: collapse; margin-top: 1rem; }
+    td, th { border: 1px solid #ddd; padding: 0.4rem 0.6rem; text-align: left; }
+  </style>
+</head>
+<body>
+  <h1>Whirlpool Nightly ERC20 Benchmark (Single Node)</h1>
+  <p><strong>Run timestamp:</strong> 2026-04-14T09:04:48Z</p>
+  <p><strong>Commit SHA:</strong> <code>0feb577fd283087fc969efd620898952ce953fe4</code></p>
+  <p><strong>Source of truth:</strong> <code>gh-pages/benchmarks/history.json</code></p>
+  <p><strong>Policy:</strong> fail when <code>current_tps &lt; 0.5 × rolling_7_night_median_tps</code> (only after warm-up).</p>
+
+  <table>
+    <tr><th>Metric</th><th>Value</th></tr>
+    <tr><td>Transfer count</td><td>1</td></tr>
+    <tr><td>Successful transfers</td><td>1</td></tr>
+    <tr><td>Elapsed seconds</td><td>0.464866</td></tr>
+    <tr><td>Current TPS</td><td>2.151156</td></tr>
+    <tr><td>Rolling 7-night median TPS</td><td>warming up</td></tr>
+    <tr><td>Threshold TPS (50% median)</td><td>warming up</td></tr>
+  </table>
+
+  <p><strong>Warm-up baseline:</strong> true</p>
+  <p><strong>Regression verdict:</strong>
+    <span class="ok">OK</span>
+  </p>
+  <p><em>This benchmark is a coarse large-regression signal and not a strict lab-grade benchmark.</em></p>
+</body>
+</html>
