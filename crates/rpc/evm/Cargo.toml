@@ -29,7 +29,7 @@ reth-chain-state = { path = "../../../vendor/reth/crates/chain-state" }
 reth-db-api = { path = "../../../vendor/reth/crates/storage/db-api" }
 
 # --- Reth primitives / types ---
-reth-primitives-traits = { version = "0.1.0" }
+reth-primitives-traits = { version = "0.1.1" }
 reth-ethereum-primitives = { path = "../../../vendor/reth/crates/ethereum/primitives" }
 reth-chainspec = { path = "../../../vendor/reth/crates/chainspec" }
 reth-execution-types = { path = "../../../vendor/reth/crates/evm/execution-types" }

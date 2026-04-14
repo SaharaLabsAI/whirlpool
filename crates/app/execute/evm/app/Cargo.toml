@@ -19,7 +19,7 @@ reth-evm-ethereum = { path = "../../../../../vendor/reth/crates/ethereum/evm" }
 reth-ethereum-primitives = { path = "../../../../../vendor/reth/crates/ethereum/primitives" }
 reth-execution-types = { path = "../../../../../vendor/reth/crates/evm/execution-types" }
 reth-execution-errors = { path = "../../../../../vendor/reth/crates/evm/execution-errors" }
-reth-primitives-traits = { version = "0.1.0" }
+reth-primitives-traits = { version = "0.1.1" }
 reth-chainspec = { path = "../../../../../vendor/reth/crates/chainspec" }
 alloy-consensus = "1.4.3"
 alloy-eips = "1.4.3"
