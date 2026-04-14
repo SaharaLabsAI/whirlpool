@@ -37,6 +37,7 @@ def to_iso_utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
+
 def main() -> int:
     args = parse_args()
 
@@ -44,16 +45,21 @@ def main() -> int:
     required = [
         "timestamp",
         "git_sha",
-        "transfer_count",
-        "successful_transfers",
-        "elapsed_seconds",
+        "measurement_window_seconds",
+        "sender_accounts",
+        "recipient_accounts",
+        "start_block",
+        "end_block",
+        "block_count",
+        "average_block_time_seconds",
+        "transaction_count",
         "tps",
     ]
     missing = [k for k in required if k not in raw]
     if missing:
         raise SystemExit(f"raw benchmark result missing keys: {missing}")
 
-    history = read_json(Path(args.history_in), default={"schema_version": 1, "samples": []})
+    history = read_json(Path(args.history_in), default={"schema_version": 2, "samples": []})
     samples = history.get("samples", [])
     if not isinstance(samples, list):
         raise SystemExit("history.json has invalid 'samples' value")
@@ -72,21 +78,29 @@ def main() -> int:
     sample_entry = {
         "timestamp": raw["timestamp"],
         "git_sha": raw["git_sha"],
-        "transfer_count": int(raw["transfer_count"]),
-        "successful_transfers": int(raw["successful_transfers"]),
-        "elapsed_seconds": float(raw["elapsed_seconds"]),
+        "measurement_window_seconds": int(raw["measurement_window_seconds"]),
+        "sender_accounts": int(raw["sender_accounts"]),
+        "recipient_accounts": int(raw["recipient_accounts"]),
+        "start_block": int(raw["start_block"]),
+        "end_block": int(raw["end_block"]),
+        "block_count": int(raw["block_count"]),
+        "average_block_time_seconds": float(raw["average_block_time_seconds"]),
+        "transaction_count": int(raw["transaction_count"]),
+        "submitted_transactions": int(raw.get("submitted_transactions", 0)),
+        "accepted_transactions": int(raw.get("accepted_transactions", 0)),
+        "rejected_submissions": int(raw.get("rejected_submissions", 0)),
         "tps": current_tps,
     }
 
     updated_samples = prior_samples + [sample_entry]
     history_out = {
-        "schema_version": 1,
+        "schema_version": 2,
         "updated_at": to_iso_utc_now(),
         "samples": updated_samples,
     }
 
     status = {
-        "schema_version": 1,
+        "schema_version": 2,
         "warming_up_baseline": warming_up,
         "current_tps": current_tps,
         "rolling_7_night_median_tps": rolling_median,
@@ -96,6 +110,12 @@ def main() -> int:
         "source_of_truth": "gh-pages/benchmarks/history.json",
         "note": "Coarse large-regression signal on shared CI runners.",
     }
+
+    acceptance_rate = None
+    if sample_entry["submitted_transactions"] > 0:
+        acceptance_rate = (
+            sample_entry["accepted_transactions"] / sample_entry["submitted_transactions"]
+        ) * 100.0
 
     report = f"""<!doctype html>
 <html lang=\"en\">
@@ -121,9 +141,18 @@ def main() -> int:
 
   <table>
     <tr><th>Metric</th><th>Value</th></tr>
-    <tr><td>Transfer count</td><td>{sample_entry['transfer_count']}</td></tr>
-    <tr><td>Successful transfers</td><td>{sample_entry['successful_transfers']}</td></tr>
-    <tr><td>Elapsed seconds</td><td>{sample_entry['elapsed_seconds']:.6f}</td></tr>
+    <tr><td>Measurement window (seconds)</td><td>{sample_entry['measurement_window_seconds']}</td></tr>
+    <tr><td>Sender accounts</td><td>{sample_entry['sender_accounts']}</td></tr>
+    <tr><td>Recipient accounts</td><td>{sample_entry['recipient_accounts']}</td></tr>
+    <tr><td>Start block</td><td>{sample_entry['start_block']}</td></tr>
+    <tr><td>End block</td><td>{sample_entry['end_block']}</td></tr>
+    <tr><td>Number of blocks</td><td>{sample_entry['block_count']}</td></tr>
+    <tr><td>Average block time (seconds)</td><td>{sample_entry['average_block_time_seconds']:.6f}</td></tr>
+    <tr><td>Number of transactions (packaged)</td><td>{sample_entry['transaction_count']}</td></tr>
+    <tr><td>Submitted transactions</td><td>{sample_entry['submitted_transactions']}</td></tr>
+    <tr><td>Accepted submissions</td><td>{sample_entry['accepted_transactions']}</td></tr>
+    <tr><td>Rejected submissions</td><td>{sample_entry['rejected_submissions']}</td></tr>
+    <tr><td>Submission acceptance rate</td><td>{'n/a' if acceptance_rate is None else f'{acceptance_rate:.2f}%'} </td></tr>
     <tr><td>Current TPS</td><td>{current_tps:.6f}</td></tr>
     <tr><td>Rolling 7-night median TPS</td><td>{'warming up' if rolling_median is None else f'{rolling_median:.6f}'}</td></tr>
     <tr><td>Threshold TPS (50% median)</td><td>{'warming up' if threshold_tps is None else f'{threshold_tps:.6f}'}</td></tr>

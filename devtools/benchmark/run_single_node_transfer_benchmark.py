@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run a deterministic benchmark command and emit raw benchmark JSON."""
+"""Run benchmark command and emit normalized benchmark JSON."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ import subprocess
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 
 def utc_now_iso() -> str:
@@ -21,10 +22,7 @@ def git_sha_fallback() -> str:
     if sha:
         return sha
     try:
-        return (
-            subprocess.check_output(["git", "rev-parse", "HEAD"], text=True)
-            .strip()
-        )
+        return subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
     except Exception:
         return "unknown"
 
@@ -32,17 +30,7 @@ def git_sha_fallback() -> str:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", required=True, help="Raw benchmark JSON output path")
-    parser.add_argument(
-        "--command",
-        required=True,
-        help="Benchmark command to execute",
-    )
-    parser.add_argument(
-        "--transfer-count",
-        type=int,
-        default=int(os.getenv("BENCH_TRANSFER_COUNT", "1")),
-        help="Logical transfer count used for TPS computation",
-    )
+    parser.add_argument("--command", required=True, help="Benchmark command to execute")
     parser.add_argument(
         "--timeout-seconds",
         type=int,
@@ -52,25 +40,66 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def extract_metrics_from_stdout(stdout: str) -> dict[str, Any]:
+    for line in reversed(stdout.splitlines()):
+        candidate = line.strip()
+        if not candidate:
+            continue
+        if not candidate.startswith("{"):
+            continue
+        try:
+            parsed = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict):
+            return parsed
+
+    raise ValueError("benchmark command did not emit a JSON metrics line on stdout")
+
+
 def main() -> int:
     args = parse_args()
 
     start = time.perf_counter()
-    proc = subprocess.run(args.command, shell=True, timeout=args.timeout_seconds)
-    elapsed_seconds = max(time.perf_counter() - start, 1e-9)
+    proc = subprocess.run(
+        args.command,
+        shell=True,
+        timeout=args.timeout_seconds,
+        text=True,
+        capture_output=True,
+    )
+    command_elapsed_seconds = max(time.perf_counter() - start, 1e-9)
 
-    successful_transfers = args.transfer_count if proc.returncode == 0 else 0
-    tps = successful_transfers / elapsed_seconds
+    if proc.stdout:
+        print(proc.stdout, end="" if proc.stdout.endswith("\n") else "\n")
+    if proc.stderr:
+        print(proc.stderr, end="" if proc.stderr.endswith("\n") else "\n")
+
+    metrics: dict[str, Any] = {}
+    if proc.returncode == 0:
+        metrics = extract_metrics_from_stdout(proc.stdout)
+        required_metrics = [
+            "measurement_window_seconds",
+            "sender_accounts",
+            "recipient_accounts",
+            "start_block",
+            "end_block",
+            "block_count",
+            "average_block_time_seconds",
+            "transaction_count",
+            "tps",
+        ]
+        missing = [key for key in required_metrics if key not in metrics]
+        if missing:
+            raise SystemExit(f"benchmark metrics JSON missing keys: {missing}")
 
     payload = {
         "timestamp": utc_now_iso(),
         "git_sha": git_sha_fallback(),
-        "transfer_count": args.transfer_count,
-        "successful_transfers": successful_transfers,
-        "elapsed_seconds": elapsed_seconds,
-        "tps": tps,
         "command": args.command,
         "command_exit_code": proc.returncode,
+        "command_elapsed_seconds": command_elapsed_seconds,
+        **metrics,
     }
 
     output_path = Path(args.output)

@@ -17,11 +17,18 @@ jobs:
   benchmark:
     runs-on: ubuntu-latest
     env:
-      BENCH_TRANSFER_COUNT: "1"
       BENCHMARK_TIMEOUT_SECONDS: "3600"
-      # Execute the dedicated single-node benchmark harness against the release whirlpool-node binary.
+      BENCHMARK_DURATION_SECONDS: "120"
+      BENCH_SENDER_ACCOUNTS: "2000"
+      BENCH_RECIPIENT_ACCOUNTS: "2000"
+      BENCH_BLOCK_INTERVAL_MS: "1000"
+      # Execute the dedicated single-node benchmark harness with fixed 2-minute measurement window.
       BENCHMARK_COMMAND: >-
-        ./target/release/single_node_transfer_benchmark --whirlpool-node-bin ./target/release/whirlpool-node
+        ./target/release/single_node_transfer_benchmark
+        --duration-seconds 120
+        --sender-accounts 2000
+        --recipient-accounts 2000
+        --block-interval-ms 1000
 
     steps:
       - name: Checkout repository
@@ -36,7 +43,6 @@ jobs:
       - name: Build release benchmark artifacts
         run: |
           nix develop --command bash -lc '
-            cargo build --release -p whirlpool-node --bin whirlpool-node &&
             cargo build --release -p integration-tests --bin single_node_transfer_benchmark
           '
 
@@ -45,7 +51,6 @@ jobs:
           mkdir -p out
           python3 devtools/benchmark/run_single_node_transfer_benchmark.py \
             --output out/raw-result.json \
-            --transfer-count "${BENCH_TRANSFER_COUNT}" \
             --timeout-seconds "${BENCHMARK_TIMEOUT_SECONDS}" \
             --command "${BENCHMARK_COMMAND}"
 
