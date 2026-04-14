@@ -22,8 +22,8 @@ use reth_evm::{
 };
 use reth_primitives_traits::{Header, SealedHeader};
 use reth_primitives_traits::{Recovered, SignedTransaction};
-use reth_revm::State;
 use revm::database::states::bundle_state::BundleRetention;
+use revm::database::State;
 use state::BlockStorage;
 use validators::ValidatorEntry;
 
@@ -578,7 +578,6 @@ where
         let mut state = State::builder()
             .with_database(&mut state_snapshot)
             .with_bundle_update()
-            .without_state_clear()
             .build();
 
         let mut builder = self
@@ -631,7 +630,7 @@ where
         let receipts: Vec<Receipt> = execution_result
             .receipts
             .iter()
-            .map(|r| Receipt {
+            .map(|r: &reth_ethereum_primitives::Receipt| Receipt {
                 status: r.status().into(),
                 cumulative_gas_used: r.cumulative_gas_used(),
                 logs: r.logs().to_vec(),
@@ -664,10 +663,12 @@ where
             canonical_db.state_root().map_err(Into::into)?
         };
 
-        let receipts_root =
-            ordered_trie_root_with_encoder(&execution_result.receipts, |receipt, out| {
+        let receipts_root = ordered_trie_root_with_encoder(
+            &execution_result.receipts,
+            |receipt: &reth_ethereum_primitives::Receipt, out| {
                 receipt.with_bloom_ref().encode_2718(out);
-            });
+            },
+        );
 
         Ok(ProposedEvmPayload {
             included_user_transactions,
@@ -724,7 +725,6 @@ where
         let mut state = State::builder()
             .with_database(&mut exec_state)
             .with_bundle_update()
-            .without_state_clear()
             .build();
 
         let mut builder = self
@@ -780,10 +780,12 @@ where
         credit_fee_pool_claim(&mut exec_state, claim_recipient, priority_fees)?;
 
         let computed_state_root = exec_state.state_root().map_err(Into::into)?;
-        let computed_receipts_root =
-            ordered_trie_root_with_encoder(&execution_result.receipts, |receipt, out| {
+        let computed_receipts_root = ordered_trie_root_with_encoder(
+            &execution_result.receipts,
+            |receipt: &reth_ethereum_primitives::Receipt, out| {
                 receipt.with_bloom_ref().encode_2718(out);
-            });
+            },
+        );
 
         if computed_state_root.0 != block.state_root {
             return Err(EvmAppError::StateRootMismatch {
@@ -809,7 +811,7 @@ where
         let receipts: Vec<Receipt> = execution_result
             .receipts
             .iter()
-            .map(|r| Receipt {
+            .map(|r: &reth_ethereum_primitives::Receipt| Receipt {
                 status: r.status().into(),
                 cumulative_gas_used: r.cumulative_gas_used(),
                 logs: r.logs().to_vec(),

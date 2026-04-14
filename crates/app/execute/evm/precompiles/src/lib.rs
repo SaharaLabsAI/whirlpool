@@ -1,16 +1,16 @@
 use ::validators::ValidatorEntry as RegistryValidatorEntry;
 use alloy_primitives::{Address, Bytes};
 use alloy_sol_types::{sol, SolError};
-use reth_evm::{
-    eth::{EthEvm, EthEvmBuilder, EthEvmContext},
-    precompiles::{DynPrecompile, PrecompileInput, PrecompilesMap},
-    EvmEnv, EvmFactory,
-};
-use revm::{
+use reth_evm::revm::{
     context::{BlockEnv, TxEnv},
     inspector::{Inspector, NoOpInspector},
     precompile::{PrecompileId, PrecompileOutput, PrecompileResult, PrecompileSpecId, Precompiles},
     primitives::hardfork::SpecId,
+};
+use reth_evm::{
+    eth::{EthEvm, EthEvmBuilder, EthEvmContext},
+    precompiles::{DynPrecompile, PrecompileInput, PrecompilesMap},
+    EvmEnv, EvmFactory,
 };
 use std::collections::HashSet;
 
@@ -193,8 +193,8 @@ impl EvmFactory for WhirlpoolEvmFactory {
     type Context<DB: reth_evm::Database> = EthEvmContext<DB>;
     type Tx = TxEnv;
     type Error<DBError: std::error::Error + Send + Sync + 'static> =
-        revm::context_interface::result::EVMError<DBError>;
-    type HaltReason = revm::context_interface::result::HaltReason;
+        reth_evm::revm::context_interface::result::EVMError<DBError>;
+    type HaltReason = reth_evm::revm::context_interface::result::HaltReason;
     type Spec = SpecId;
     type BlockEnv = BlockEnv;
     type Precompiles = PrecompilesMap;
@@ -237,13 +237,13 @@ mod tests {
         fee_pool_balance_calldata, withdraw_calldata, FEE_POOL_PRECOMPILE_ADDRESS,
     };
     use alloy_primitives::{address, Bytes, U256};
+    use reth_evm::revm::Context;
+    use reth_evm::revm::{database::EmptyDB, precompile::PrecompileOutput as RevmPrecompileOutput};
     use reth_evm::{precompiles::Precompile, traits::EvmInternals};
-    use revm::Context;
-    use revm::{database::EmptyDB, precompile::PrecompileOutput as RevmPrecompileOutput};
 
     fn call_registered_precompile_with_context(
         precompile: DynPrecompile,
-        context: &mut Context<BlockEnv, TxEnv, revm::context::CfgEnv, EmptyDB>,
+        context: &mut Context<BlockEnv, TxEnv, reth_evm::revm::context::CfgEnv, EmptyDB>,
         caller: Address,
         data: Bytes,
         gas: u64,

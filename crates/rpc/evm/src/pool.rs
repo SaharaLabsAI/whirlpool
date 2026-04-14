@@ -1,4 +1,4 @@
-use std::{collections::HashSet, sync::Arc};
+use std::sync::Arc;
 
 use alloy_consensus::TxType;
 use alloy_eips::{
@@ -7,7 +7,7 @@ use alloy_eips::{
     eip4844::{BlobAndProofV1, BlobAndProofV2},
     eip7594::BlobTransactionSidecarVariant,
 };
-use alloy_primitives::{Address, TxHash, B256};
+use alloy_primitives::{map::AddressSet, Address, TxHash, B256};
 use app::traits::TxSource;
 use reth_eth_wire_types::HandleMempoolData;
 use reth_primitives_traits::Recovered;
@@ -113,6 +113,17 @@ impl TransactionPool for WhirlpoolTxPool {
     ) -> Vec<PoolResult<AddedTransactionOutcome>> {
         let mut outcomes = Vec::with_capacity(transactions.len());
         for transaction in transactions {
+            outcomes.push(self.add_transaction(origin, transaction).await);
+        }
+        outcomes
+    }
+
+    async fn add_transactions_with_origins(
+        &self,
+        transactions: Vec<(TransactionOrigin, Self::Transaction)>,
+    ) -> Vec<PoolResult<AddedTransactionOutcome>> {
+        let mut outcomes = Vec::with_capacity(transactions.len());
+        for (origin, transaction) in transactions {
             outcomes.push(self.add_transaction(origin, transaction).await);
         }
         outcomes
@@ -251,6 +262,13 @@ impl TransactionPool for WhirlpoolTxPool {
         vec![]
     }
 
+    fn prune_transactions(
+        &self,
+        _hashes: Vec<TxHash>,
+    ) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>> {
+        vec![]
+    }
+
     fn retain_unknown<A>(&self, _announcement: &mut A)
     where
         A: HandleMempoolData,
@@ -332,7 +350,7 @@ impl TransactionPool for WhirlpoolTxPool {
         vec![]
     }
 
-    fn unique_senders(&self) -> HashSet<Address> {
+    fn unique_senders(&self) -> AddressSet {
         Default::default()
     }
 

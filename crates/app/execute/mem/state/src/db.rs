@@ -296,7 +296,7 @@ mod tests {
     use alloy_genesis::GenesisAccount;
     use revm::database::states::StorageSlot;
     use revm::database::{AccountStatus, BundleAccount, BundleState};
-    use revm::primitives::{Address, Bytes, HashMap as RevmHashMap, B256, KECCAK_EMPTY, U256};
+    use revm::primitives::{Address, Bytes, StorageKeyMap, B256, KECCAK_EMPTY, U256};
     use revm::state::{AccountInfo, Bytecode};
     use revm::DatabaseRef;
 
@@ -326,7 +326,7 @@ mod tests {
         status: AccountStatus,
         storage: &[(U256, U256, U256)],
     ) -> BundleState {
-        let mut storage_map: RevmHashMap<U256, StorageSlot> = RevmHashMap::default();
+        let mut storage_map: StorageKeyMap<StorageSlot> = StorageKeyMap::default();
         for (key, original_value, present_value) in storage {
             storage_map.insert(
                 *key,

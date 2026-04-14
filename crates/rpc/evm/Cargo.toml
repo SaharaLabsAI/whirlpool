@@ -33,14 +33,14 @@ reth-chain-state = { path = "../../../vendor/reth/crates/chain-state" }
 reth-db-api = { path = "../../../vendor/reth/crates/storage/db-api" }
 
 # --- Reth primitives / types ---
-reth-primitives-traits = { path = "../../../vendor/reth/crates/primitives-traits" }
+reth-primitives-traits = { version = "0.1.0" }
 reth-ethereum-primitives = { path = "../../../vendor/reth/crates/ethereum/primitives" }
 reth-chainspec = { path = "../../../vendor/reth/crates/chainspec" }
 reth-execution-types = { path = "../../../vendor/reth/crates/evm/execution-types" }
 reth-prune = { path = "../../../vendor/reth/crates/prune/prune" }
 reth-stages-api = { path = "../../../vendor/reth/crates/stages/api" }
 reth-trie = { path = "../../../vendor/reth/crates/trie/trie" }
-revm-database = { version = "10.0.0", default-features = false }
+revm-database = { version = "12.0.0", default-features = false }
 
 # --- Reth network / pool / evm / consensus ---
 reth-network-api = { path = "../../../vendor/reth/crates/net/network-api" }
@@ -64,7 +64,7 @@ parking_lot = "0.12"
 state-memory = { path = "../../app/execute/mem/state" }
 state-reth = { path = "../../app/execute/evm/state" }
 commonware-cryptography = { path = "../../../vendor/commonware/cryptography" }
-revm = { version = "34" }
+revm = { version = "36" }
 tempfile = "3"
 tokio = { version = "1", features = ["full", "test-util"] }
 rand = "0.8"

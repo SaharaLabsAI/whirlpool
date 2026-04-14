@@ -19,7 +19,7 @@ state-memory = { path = "../../crates/app/execute/mem/state" }
 state-reth = { path = "../../crates/app/execute/evm/state" }
 whirlpool-node = { path = "../../crates/node" }
 commonware-cryptography = { path = "../../vendor/commonware/cryptography" }
-revm = { version = "34" }
+revm = { version = "36" }
 alloy-primitives = { version = "1.5.0" }
 alloy-consensus = "1.4.3"
 alloy-eips = "1.4.3"

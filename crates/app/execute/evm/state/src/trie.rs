@@ -7,7 +7,9 @@
 use alloy_primitives::B256;
 use reth_db_api::transaction::DbTx;
 use reth_trie::StateRoot;
-use reth_trie_db::DatabaseStateRoot;
+use reth_trie_db::{
+    DatabaseHashedCursorFactory, DatabaseStateRoot, DatabaseTrieCursorFactory, LegacyKeyAdapter,
+};
 
 use crate::error::RethStateError;
 
@@ -16,7 +18,8 @@ use crate::error::RethStateError;
 /// Uses `reth_trie::StateRoot` to compute a proper Merkle Patricia Trie root
 /// from the HashedAccounts, HashedStorages, AccountsTrie, and StoragesTrie tables.
 pub fn compute_state_root(tx: &impl DbTx) -> Result<B256, RethStateError> {
-    StateRoot::from_tx(tx)
+    <StateRoot<DatabaseTrieCursorFactory<_, LegacyKeyAdapter>, DatabaseHashedCursorFactory<_>> as
+        DatabaseStateRoot<_>>::from_tx(tx)
         .root()
         .map_err(|e| RethStateError::StateRoot(e.to_string()))
 }

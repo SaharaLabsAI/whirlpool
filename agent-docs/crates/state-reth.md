@@ -9,7 +9,7 @@ Persistent state storage implementation backed by reth-db (MDBX/libmdbx).
 - `crates/app/execute/evm/state/src/init.rs` — `open_state_db` helper
 - `crates/app/execute/evm/state/src/error.rs` — `RethStateError` enum
 - `crates/app/execute/evm/state/src/tables.rs` — reth-db table re-exports
-- `crates/app/execute/evm/state/src/trie.rs` — Keccak256 state root computation
+- `crates/app/execute/evm/state/src/trie.rs` — state root computation via `StateRoot<DatabaseTrieCursorFactory<_, LegacyKeyAdapter>, ...>`
 - `crates/app/execute/evm/state/src/codec.rs` — account/info serialization
 
 ## Key Types
@@ -32,7 +32,7 @@ Persistent state storage implementation backed by reth-db (MDBX/libmdbx).
 - **Dual-Writes**: state is written to both Plain and Hashed tables to support both direct lookups and Merkle trie generation.
 - **Storage writer seam**: `insert_storage` writes/deletes storage slots in both Plain and Hashed tables, creating an empty account row when needed so slot ownership is canonical.
 - **Block Storage**: `store_block` validates tx/receipt length before opening a write tx, decodes 2718 txs once, writes canonical header/body/tx/receipt records atomically, and treats identical `(number, hash)` re-inserts as idempotent no-ops. Stored headers include `base_fee_per_gas`, proposer fee recipient in `beneficiary`, proposer public key in `extra_data`, and post-Cancun blob gas fields (`excess_blob_gas: Some(0)`, `blob_gas_used: Some(0)`). `get_latest_block_number` uses `cursor_read::<CanonicalHeaders>().last()` for O(log N) tip recovery.
-- **Trie**: Keccak256 hashing for state root computation via `compute_state_root`.
+- **Trie**: state root computation uses explicit `LegacyKeyAdapter` wiring for `StateRoot::from_tx(...)` compatibility with reth v2 trie-db generics.
 - **Concurrency**: `Arc<DatabaseEnv>` enables `Clone + Send + Sync`.
 
 ## Tables Used

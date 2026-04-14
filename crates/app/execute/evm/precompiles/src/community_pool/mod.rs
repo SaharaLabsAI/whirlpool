@@ -1,7 +1,7 @@
 use alloy_primitives::{Address, Bytes, B256, U256};
 use alloy_sol_types::{sol, SolCall};
 use reth_evm::precompiles::PrecompileInput;
-use revm::precompile::{PrecompileError, PrecompileOutput, PrecompileResult};
+use reth_evm::revm::precompile::{PrecompileError, PrecompileOutput, PrecompileResult};
 
 use crate::RegisteredPrecompile;
 
@@ -142,12 +142,12 @@ pub mod gas {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use reth_evm::{eth::EthEvmContext, precompiles::Precompile, traits::EvmInternals};
-    use revm::{
+    use reth_evm::revm::{
         context::{BlockEnv, TxEnv},
         database::EmptyDB,
         Context,
     };
+    use reth_evm::{eth::EthEvmContext, precompiles::Precompile, traits::EvmInternals};
 
     #[test]
     fn calldata_roundtrip_decodes_balance_word() {
@@ -167,7 +167,7 @@ mod tests {
     #[test]
     fn rejects_unsupported_selector() {
         let precompile = register().precompile();
-        let mut context: Context<BlockEnv, TxEnv, revm::context::CfgEnv, EmptyDB> =
+        let mut context: Context<BlockEnv, TxEnv, reth_evm::revm::context::CfgEnv, EmptyDB> =
             EthEvmContext::new(EmptyDB::default(), Default::default());
 
         let result = precompile
@@ -191,7 +191,7 @@ mod tests {
     #[test]
     fn empty_state_balance_defaults_to_zero() {
         let precompile = register().precompile();
-        let mut context: Context<BlockEnv, TxEnv, revm::context::CfgEnv, EmptyDB> =
+        let mut context: Context<BlockEnv, TxEnv, reth_evm::revm::context::CfgEnv, EmptyDB> =
             EthEvmContext::new(EmptyDB::default(), Default::default());
 
         let output = precompile

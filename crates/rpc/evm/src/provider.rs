@@ -10,7 +10,8 @@ use alloy_primitives::{
 };
 use reth_chain_state::{
     CanonStateNotification, CanonStateNotifications, CanonStateSubscriptions,
-    PersistedBlockNotifications, PersistedBlockSubscriptions,
+    ForkChoiceNotifications, ForkChoiceSubscriptions, PersistedBlockNotifications,
+    PersistedBlockSubscriptions,
 };
 use reth_chainspec::{ChainInfo, ChainSpec, ChainSpecProvider};
 use reth_db_api::{
@@ -86,17 +87,23 @@ pub struct WhirlpoolProvider {
     state_db: Arc<RethStateDb>,
     chain_spec: Arc<ChainSpec>,
     canon_state_tx: broadcast::Sender<CanonStateNotification<EthPrimitives>>,
+    safe_block_tx: watch::Sender<Option<SealedHeader<Header>>>,
+    finalized_block_tx: watch::Sender<Option<SealedHeader<Header>>>,
     persisted_block_tx: watch::Sender<Option<alloy_eips::BlockNumHash>>,
 }
 
 impl WhirlpoolProvider {
     pub fn new(state_db: Arc<RethStateDb>, chain_spec: Arc<ChainSpec>) -> Self {
         let (canon_state_tx, _rx) = broadcast::channel(16);
+        let (safe_block_tx, _safe_block_rx) = watch::channel(None);
+        let (finalized_block_tx, _finalized_block_rx) = watch::channel(None);
         let (persisted_block_tx, _persisted_block_rx) = watch::channel(None);
         Self {
             state_db,
             chain_spec,
             canon_state_tx,
+            safe_block_tx,
+            finalized_block_tx,
             persisted_block_tx,
         }
     }
@@ -901,6 +908,18 @@ impl PersistedBlockSubscriptions for WhirlpoolProvider {
     }
 }
 
+impl ForkChoiceSubscriptions for WhirlpoolProvider {
+    type Header = Header;
+
+    fn subscribe_safe_block(&self) -> ForkChoiceNotifications<Self::Header> {
+        ForkChoiceNotifications(self.safe_block_tx.subscribe())
+    }
+
+    fn subscribe_finalized_block(&self) -> ForkChoiceNotifications<Self::Header> {
+        ForkChoiceNotifications(self.finalized_block_tx.subscribe())
+    }
+}
+
 impl StageCheckpointReader for WhirlpoolProvider {
     fn get_stage_checkpoint(&self, _id: StageId) -> ProviderResult<Option<StageCheckpoint>> {
         Ok(None)
@@ -936,10 +955,6 @@ impl ChangeSetReader for WhirlpoolProvider {
         _range: impl RangeBounds<BlockNumber>,
     ) -> ProviderResult<Vec<(BlockNumber, AccountBeforeTx)>> {
         Ok(Vec::default())
-    }
-
-    fn account_changeset_count(&self) -> ProviderResult<usize> {
-        Ok(0)
     }
 }
 

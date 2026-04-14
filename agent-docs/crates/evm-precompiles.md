@@ -59,6 +59,7 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
 - `src/epoch/gas.rs`: epoch precompile gas schedule.
 
 ## Design notes
+- Reth v2 alignment: this crate uses `reth_evm::revm::*` types everywhere (no direct `revm` crate import) to avoid mixed-REVM type graphs during factory wiring.
 - Custom precompiles are installed through `PrecompilesMap` dynamic entries, not vendor edits.
 - The validators precompile is read-only and returns the ordered list provided by the canonical Rust validator reader (`validators` crate).
 - The community-pool precompile is read-only and returns the balance of `COMMUNITY_POOL_ADDRESS`.

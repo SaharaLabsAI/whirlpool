@@ -1,6 +1,6 @@
 use alloy_primitives::{address, Address, Bytes, B256, U256};
+use reth_evm::revm::precompile::PrecompileResult;
 use reth_primitives_traits::crypto::secp256k1::{recover_signer, sign_message};
-use revm::precompile::PrecompileResult;
 use std::sync::OnceLock;
 
 use crate::RegisteredPrecompile;
@@ -120,7 +120,7 @@ fn encode_revert_reason(reason: &str) -> Bytes {
 }
 
 fn revert_result(gas_used: u64, error: EpochPrecompileError) -> PrecompileResult {
-    Ok(revm::precompile::PrecompileOutput::new_reverted(
+    Ok(reth_evm::revm::precompile::PrecompileOutput::new_reverted(
         gas_used,
         encode_revert_reason(&error.to_string()),
     ))
@@ -129,24 +129,24 @@ fn revert_result(gas_used: u64, error: EpochPrecompileError) -> PrecompileResult
 #[cfg(test)]
 mod tests {
     use super::*;
+    use reth_evm::revm::{
+        context::{BlockEnv, TxEnv},
+        database::EmptyDB,
+        Context,
+    };
     use reth_evm::{
         eth::EthEvmContext,
         precompiles::{Precompile, PrecompileInput},
         traits::EvmInternals,
     };
-    use revm::{
-        context::{BlockEnv, TxEnv},
-        database::EmptyDB,
-        Context,
-    };
 
     fn call_precompile(
-        context: &mut Context<BlockEnv, TxEnv, revm::context::CfgEnv, EmptyDB>,
+        context: &mut Context<BlockEnv, TxEnv, reth_evm::revm::context::CfgEnv, EmptyDB>,
         caller: Address,
         data: Bytes,
         gas: u64,
         is_static: bool,
-    ) -> revm::precompile::PrecompileOutput {
+    ) -> reth_evm::revm::precompile::PrecompileOutput {
         register()
             .precompile()
             .call(PrecompileInput {
@@ -163,7 +163,7 @@ mod tests {
     }
 
     fn seed_epoch_state(
-        context: &mut Context<BlockEnv, TxEnv, revm::context::CfgEnv, EmptyDB>,
+        context: &mut Context<BlockEnv, TxEnv, reth_evm::revm::context::CfgEnv, EmptyDB>,
         current_epoch: u64,
         epoch_blocks: u64,
         next_epoch_block: u64,
@@ -228,7 +228,7 @@ mod tests {
 
     #[test]
     fn advance_epoch_updates_epoch_state() {
-        let mut context: Context<BlockEnv, TxEnv, revm::context::CfgEnv, EmptyDB> =
+        let mut context: Context<BlockEnv, TxEnv, reth_evm::revm::context::CfgEnv, EmptyDB> =
             EthEvmContext::new(EmptyDB::default(), Default::default());
         context.block.number = U256::from(5_u64);
         seed_epoch_state(&mut context, 0, 10, 5);
@@ -279,7 +279,7 @@ mod tests {
 
     #[test]
     fn advance_epoch_reverts_for_unauthorized_caller() {
-        let mut context: Context<BlockEnv, TxEnv, revm::context::CfgEnv, EmptyDB> =
+        let mut context: Context<BlockEnv, TxEnv, reth_evm::revm::context::CfgEnv, EmptyDB> =
             EthEvmContext::new(EmptyDB::default(), Default::default());
         context.block.number = U256::from(5_u64);
         seed_epoch_state(&mut context, 0, 10, 5);
@@ -296,7 +296,7 @@ mod tests {
 
     #[test]
     fn advance_epoch_reverts_for_static_call() {
-        let mut context: Context<BlockEnv, TxEnv, revm::context::CfgEnv, EmptyDB> =
+        let mut context: Context<BlockEnv, TxEnv, reth_evm::revm::context::CfgEnv, EmptyDB> =
             EthEvmContext::new(EmptyDB::default(), Default::default());
         context.block.number = U256::from(5_u64);
         seed_epoch_state(&mut context, 0, 10, 5);
@@ -313,7 +313,7 @@ mod tests {
 
     #[test]
     fn advance_epoch_reverts_when_next_epoch_start_is_already_initialized() {
-        let mut context: Context<BlockEnv, TxEnv, revm::context::CfgEnv, EmptyDB> =
+        let mut context: Context<BlockEnv, TxEnv, reth_evm::revm::context::CfgEnv, EmptyDB> =
             EthEvmContext::new(EmptyDB::default(), Default::default());
         context.block.number = U256::from(5_u64);
         seed_epoch_state(&mut context, 0, 10, 5);
@@ -340,7 +340,7 @@ mod tests {
 
     #[test]
     fn historical_epoch_starts_remain_immutable_after_epoch_blocks_change() {
-        let mut context: Context<BlockEnv, TxEnv, revm::context::CfgEnv, EmptyDB> =
+        let mut context: Context<BlockEnv, TxEnv, reth_evm::revm::context::CfgEnv, EmptyDB> =
             EthEvmContext::new(EmptyDB::default(), Default::default());
         context.block.number = U256::from(5_u64);
         seed_epoch_state(&mut context, 0, 10, 5);

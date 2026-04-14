@@ -5,6 +5,6 @@ edition.workspace = true
 
 [dependencies]
 app = { path = "../traits" }
-revm = "34"
+revm = "36"
 thiserror = "2"
 alloy-genesis = "1.5"

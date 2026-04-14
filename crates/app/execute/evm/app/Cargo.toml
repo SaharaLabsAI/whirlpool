@@ -17,16 +17,15 @@ consensus = { path = "../../../../consensus/traits" }
 reth-evm = { path = "../../../../../vendor/reth/crates/evm/evm" }
 reth-evm-ethereum = { path = "../../../../../vendor/reth/crates/ethereum/evm" }
 reth-ethereum-primitives = { path = "../../../../../vendor/reth/crates/ethereum/primitives" }
-reth-revm = { path = "../../../../../vendor/reth/crates/revm" }
 reth-execution-types = { path = "../../../../../vendor/reth/crates/evm/execution-types" }
 reth-execution-errors = { path = "../../../../../vendor/reth/crates/evm/execution-errors" }
-reth-primitives-traits = { path = "../../../../../vendor/reth/crates/primitives-traits" }
+reth-primitives-traits = { version = "0.1.0" }
 reth-chainspec = { path = "../../../../../vendor/reth/crates/chainspec" }
 alloy-consensus = "1.4.3"
 alloy-eips = "1.4.3"
 alloy-genesis = "1.0.31"
 alloy-primitives = "1.5.0"
-revm = "34"
+revm = "36"
 thiserror = "2"
 alloy-trie = "0.9"
 

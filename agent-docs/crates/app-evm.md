@@ -49,6 +49,9 @@ Those live in `chainspec`.
 - On boundary heights, propose executes `advanceEpoch` as an internal system call before user tx execution; no synthetic boundary tx bytes are added to `block.transactions`.
 - Reserved epoch namespace tx bytes in the user payload are treated as invalid protocol artifacts: propose excludes them and verify rejects blocks that contain them.
 - `verify()` computes against a cloned state snapshot and validates roots; it does not persist the computed post-state back into `state_db`.
+- Reth v2 / REVM 36 alignment:
+  - execution state uses `revm::database::State` builder with `with_bundle_update()` (no legacy `without_state_clear()` hook),
+  - receipt handling/Trie-root encoding is explicitly typed against `reth_ethereum_primitives::Receipt` in propose/verify flows.
 
 ## Canonical Imports
 - `app_evm::traits::StateProvider`

@@ -5,7 +5,7 @@ edition.workspace = true
 
 [dependencies]
 state = { path = "../../../state" }
-revm = "34"
+revm = "36"
 sha2 = "0.10"
 alloy-genesis = "1.5"
 thiserror = "2"

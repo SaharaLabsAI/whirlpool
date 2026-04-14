@@ -8,7 +8,7 @@ use reth_rpc_builder::{
     RpcModuleBuilder, RpcServerConfig, RpcServerHandle, TransportRpcModuleConfig,
 };
 use reth_rpc_server_types::RpcModuleSelection;
-use reth_tasks::TokioTaskExecutor;
+use reth_tasks::TaskExecutor;
 use reth_tokio_util::EventSender;
 use state_reth::db::RethStateDb;
 use tracing::info;
@@ -32,7 +32,7 @@ pub async fn start_rpc_server(
         .with_provider(provider)
         .with_pool(pool)
         .with_network(network)
-        .with_executor(Box::new(TokioTaskExecutor::default()))
+        .with_executor(TaskExecutor::test())
         .with_evm_config(WhirlpoolEvmConfig::new(chain_spec))
         .with_consensus(NoopConsensus::default());
 

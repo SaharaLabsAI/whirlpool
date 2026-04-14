@@ -1,5 +1,5 @@
 use alloy_primitives::{address, Address, Bytes, U256};
-use revm::precompile::PrecompileResult;
+use reth_evm::revm::precompile::PrecompileResult;
 
 use crate::RegisteredPrecompile;
 
@@ -79,7 +79,7 @@ fn encode_revert_reason(reason: &str) -> Bytes {
 }
 
 fn revert_result(gas_used: u64, error: FeePoolPrecompileError) -> PrecompileResult {
-    Ok(revm::precompile::PrecompileOutput::new_reverted(
+    Ok(reth_evm::revm::precompile::PrecompileOutput::new_reverted(
         gas_used,
         encode_revert_reason(&error.to_string()),
     ))
@@ -88,24 +88,24 @@ fn revert_result(gas_used: u64, error: FeePoolPrecompileError) -> PrecompileResu
 #[cfg(test)]
 mod tests {
     use super::*;
+    use reth_evm::revm::{
+        context::{BlockEnv, TxEnv},
+        database::EmptyDB,
+        Context,
+    };
     use reth_evm::{
         eth::EthEvmContext,
         precompiles::{Precompile, PrecompileInput},
         traits::EvmInternals,
     };
-    use revm::{
-        context::{BlockEnv, TxEnv},
-        database::EmptyDB,
-        Context,
-    };
 
     fn call_precompile(
-        context: &mut Context<BlockEnv, TxEnv, revm::context::CfgEnv, EmptyDB>,
+        context: &mut Context<BlockEnv, TxEnv, reth_evm::revm::context::CfgEnv, EmptyDB>,
         caller: Address,
         data: Bytes,
         gas: u64,
         is_static: bool,
-    ) -> revm::precompile::PrecompileOutput {
+    ) -> reth_evm::revm::precompile::PrecompileOutput {
         register()
             .precompile()
             .call(PrecompileInput {
@@ -149,7 +149,7 @@ mod tests {
 
     #[test]
     fn claimable_balance_defaults_to_zero() {
-        let mut context: Context<BlockEnv, TxEnv, revm::context::CfgEnv, EmptyDB> =
+        let mut context: Context<BlockEnv, TxEnv, reth_evm::revm::context::CfgEnv, EmptyDB> =
             EthEvmContext::new(EmptyDB::default(), Default::default());
         let caller = Address::repeat_byte(0xaa);
 
@@ -170,7 +170,7 @@ mod tests {
 
     #[test]
     fn withdraw_transfers_claim_and_clears_ledger() {
-        let mut context: Context<BlockEnv, TxEnv, revm::context::CfgEnv, EmptyDB> =
+        let mut context: Context<BlockEnv, TxEnv, reth_evm::revm::context::CfgEnv, EmptyDB> =
             EthEvmContext::new(EmptyDB::default(), Default::default());
         let caller = Address::repeat_byte(0x33);
         let claimable = U256::from(21_000_u64);
@@ -217,7 +217,7 @@ mod tests {
 
     #[test]
     fn remapped_recipient_cannot_withdraw_historical_claim() {
-        let mut context: Context<BlockEnv, TxEnv, revm::context::CfgEnv, EmptyDB> =
+        let mut context: Context<BlockEnv, TxEnv, reth_evm::revm::context::CfgEnv, EmptyDB> =
             EthEvmContext::new(EmptyDB::default(), Default::default());
         let original = Address::repeat_byte(0x44);
         let remapped = Address::repeat_byte(0x55);

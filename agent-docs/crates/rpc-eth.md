@@ -16,7 +16,8 @@ Location: `crates/rpc/evm/`
 - `reth-chainspec`: `ChainSpec`, `EthereumHardforks`.
 - `app-evm`: `WhirlpoolEvmConfig` for shared Whirlpool EVM/precompile configuration.
 - `reth-consensus`: `NoopConsensus` — no consensus validation in RPC path.
-- `reth-tokio-util`: `TokioTaskExecutor` for async task execution.
+- `reth-tasks`: `TaskExecutor` runtime passed to `RpcModuleBuilder::with_executor(...)`.
+- `reth-tokio-util`: `EventSender` for RPC event fanout.
 - `jsonrpsee`: JSON-RPC server framework (0.26.0).
 - `alloy-primitives`, `alloy-rpc-types`, `alloy-consensus`: Ethereum types.
 - `thiserror`: Error derive macro for `RpcError`.
@@ -26,14 +27,14 @@ Location: `crates/rpc/evm/`
 ### Adapter Pattern
 Three adapter types bridge Whirlpool's backend into reth's RPC trait requirements:
 
-1. **WhirlpoolProvider** (`provider.rs`, ~960 lines): Wraps `Arc<RethStateDb>` + `Arc<ChainSpec>`. Implements ~22 reth provider traits with real MDBX-backed reads for blocks, headers, transactions, receipts, accounts, bytecodes, and storage. Key implementations:
+1. **WhirlpoolProvider** (`provider.rs`, ~960 lines): Wraps `Arc<RethStateDb>` + `Arc<ChainSpec>`. Implements reth provider traits with real MDBX-backed reads for blocks, headers, transactions, receipts, accounts, bytecodes, and storage. Key implementations:
    - `BlockReaderIdExt`: `block_by_id`, `sealed_header_by_id`, `header_by_id` resolve `BlockId` (Latest/Number/Hash) to block numbers via `convert_block_number` → MDBX lookups.
    - `bytecode_by_hash`: reads from MDBX `Bytecodes` table, wraps `revm::state::Bytecode` → `reth_primitives_traits::Bytecode`.
    - `storage`: reads from MDBX `PlainStorageState` table.
-   - `CanonStateSubscriptions` via `broadcast::channel` and `PersistedBlockSubscriptions` via `watch::channel`.
+  - `CanonStateSubscriptions` via `broadcast::channel`, plus `ForkChoiceSubscriptions` and `PersistedBlockSubscriptions` via `watch::channel`.
    - Noop stubs for traits not yet needed (e.g., `EvmEnvProvider`, `WithdrawalsProvider`).
 
-2. **WhirlpoolTxPool** (`pool.rs`, ~380 lines): Wraps `Arc<dyn TxSource>`. Implements `TransactionPool` trait. Decodes incoming transactions via RLP, rejects EIP-4844 (Type-3) blob transactions at ingress with `PoolError::other`. Non-blob transactions are forwarded to `TxSource::push()`.
+2. **WhirlpoolTxPool** (`pool.rs`, ~380 lines): Wraps `Arc<dyn TxSource>`. Implements current `TransactionPool` trait surface (including `add_transactions_with_origins`, `prune_transactions`, and `AddressSet` sender reporting). Decodes incoming transactions via RLP, rejects EIP-4844 (Type-3) blob transactions at ingress with `PoolError::other`. Non-blob transactions are forwarded to `TxSource::push()`.
 
 3. **WhirlpoolNetwork** (`network.rs`, ~159 lines): Implements `NetworkInfo + PeersInfo + Peers`. Returns static values (chain ID, no peers, not syncing). Suitable for standalone/single-node operation.
 
@@ -44,7 +45,7 @@ RpcModuleBuilder::default()
   .with_provider(WhirlpoolProvider)
   .with_pool(WhirlpoolTxPool)
   .with_network(WhirlpoolNetwork)
-  .with_executor(TokioTaskExecutor)
+  .with_executor(TaskExecutor::test())
   .with_evm_config(WhirlpoolEvmConfig)
   .with_consensus(NoopConsensus)
   → bootstrap_eth_api() → build() → RpcServerConfig::http().start()
@@ -111,7 +112,7 @@ All standard `eth_*` methods from `RpcModuleSelection::standard_modules()` are s
 - **Total**: 36 tests.
 
 ## Key Design Notes
-- `WhirlpoolProvider` constructor creates internal `broadcast::channel(16)` for canon state notifications and `watch::channel(None)` for persisted block subscriptions.
+- `WhirlpoolProvider` constructor creates internal `broadcast::channel(16)` for canon state notifications and `watch::channel(None)` for safe/finalized/persisted block subscriptions.
 - MDBX access pattern: `self.state_db.inner().tx().map_err(map_db_err)?` for read-only transactions.
 - State tables used: `CanonicalHeaders`, `HeaderNumbers`, `Headers`, `BlockBodyIndices`, `Transactions`, `TransactionHashNumbers`, `TransactionBlocks`, `Receipts`, `HeaderTerminalDifficulties`, `PlainAccountState`, `PlainStorageState`, `Bytecodes`.
 - On empty DB: `eth_blockNumber` returns 0, `eth_getBalance` returns 0, `eth_gasPrice` returns error ("block not found: latest").

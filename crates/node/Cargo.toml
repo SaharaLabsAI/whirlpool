@@ -11,10 +11,9 @@ mempool-mdbx = { path = "../mempool/mdbx" }
 validators = { path = "../validators" }
 rpc-eth = { path = "../rpc/evm" }
 reth-chainspec = { path = "../../vendor/reth/crates/chainspec" }
-reth-revm = { path = "../../vendor/reth/crates/revm" }
 state = { path = "../app/state" }
 state-reth = { path = "../app/execute/evm/state" }
-revm = { version = "34" }
+revm = { version = "36" }
 alloy-primitives = { version = "1.5.0" }
 consensus = { path = "../consensus/traits" }
 consensus-simplex = { path = "../consensus/simplex" }

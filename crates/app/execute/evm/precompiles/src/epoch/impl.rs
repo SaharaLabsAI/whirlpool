@@ -1,6 +1,6 @@
 use alloy_primitives::U256;
 use reth_evm::precompiles::PrecompileInput;
-use revm::precompile::{PrecompileError, PrecompileOutput, PrecompileResult};
+use reth_evm::revm::precompile::{PrecompileError, PrecompileOutput, PrecompileResult};
 
 use super::{
     dispatch::{decode_call, EpochCall},
