@@ -3,8 +3,8 @@ name = "integration-tests"
 version.workspace = true
 edition.workspace = true
 
-# This crate exists only for its integration tests; there is no library.
-# `cargo test -p integration-tests` runs everything under tests/.
+# This crate has integration tests plus small benchmark harness binaries.
+# There is no library target.
 [dependencies]
 app = { path = "../../crates/app/traits" }
 app-evm = { path = "../../crates/app/execute/evm/app" }

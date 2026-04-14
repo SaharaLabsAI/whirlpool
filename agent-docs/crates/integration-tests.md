@@ -16,11 +16,13 @@ Location: `testing/integration-tests/`
 - `tests/rpc/evm.rs`: JSON-RPC contract + full-node transfer/deploy/call flows.
 - `tests/consensus/multinode.rs`: multi-node consensus progression.
 - `rpc_mem_integration.rs`: currently disabled during mem unwiring transition.
+- `src/bin/single_node_transfer_benchmark.rs`: release-binary benchmark harness; spawns `target/release/whirlpool-node`, submits a signed transfer from the epoch-system sender account, and exits non-zero on receipt/balance failure.
 
 ## Test Layout
 - Cargo entrypoints: `tests/rpc.rs`, `tests/tokenomics.rs`, `tests/consensus.rs`
 - Domain modules: `tests/{rpc,tokenomics,consensus}/mod.rs`
 - Shared helpers: `tests/common/http.rs`, `tests/common/encoding.rs`, and `tests/common/ports.rs`
+- Benchmark entrypoint: `cargo run --release -p integration-tests --bin single_node_transfer_benchmark -- --whirlpool-node-bin ./target/release/whirlpool-node`
 
 ## Chain-spec Ownership Note
 Integration tests source Sahara chain-spec builders, `SAHARA_CHAIN_ID`, and native-token hard-cap helpers from `chainspec`.

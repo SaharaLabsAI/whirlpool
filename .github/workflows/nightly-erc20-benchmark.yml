@@ -19,9 +19,9 @@ jobs:
     env:
       BENCH_TRANSFER_COUNT: "1"
       BENCHMARK_TIMEOUT_SECONDS: "3600"
-      # Fallback deterministic single-node transfer scenario until a dedicated ERC20 benchmark binary is added.
+      # Execute the dedicated single-node benchmark harness against the release whirlpool-node binary.
       BENCHMARK_COMMAND: >-
-        nix develop --command cargo test -p integration-tests --test rpc -- test_eth_transfer_full_node --exact --nocapture
+        ./target/release/single_node_transfer_benchmark --whirlpool-node-bin ./target/release/whirlpool-node
 
     steps:
       - name: Checkout repository
@@ -29,6 +29,13 @@ jobs:
 
       - name: Install Nix
         uses: cachix/install-nix-action@v31
+
+      - name: Build release benchmark artifacts
+        run: |
+          nix develop --command bash -lc '
+            cargo build --release -p whirlpool-node --bin whirlpool-node &&
+            cargo build --release -p integration-tests --bin single_node_transfer_benchmark
+          '
 
       - name: Run benchmark command and emit raw result
         run: |
