@@ -18,3 +18,11 @@ Each submodule may include its own:
 - `agent-docs/`
 
 When work touches a vendor project, follow that subproject's local instructions as authoritative.
+
+## Tooling exclusions for `vendor/**`
+
+Vendor code is excluded from this repository's local quality gates unless the task explicitly targets vendor changes.
+
+- Do not run `cargo fmt` on `vendor/**`.
+- Treat `cargo check` warnings originating from `vendor/**` as non-blocking.
+- Treat `cargo clippy` warnings originating from `vendor/**` as non-blocking.
