@@ -1,7 +1,7 @@
 //! Tests for network-commonware crate.
 
 #[cfg(test)]
-mod tests {
+mod network_commonware_tests {
     use crate::{
         map_send_error, CommonwareNetworkProviderBuilder, CommonwarePeerId, MultiplexSender,
     };
@@ -127,7 +127,7 @@ mod tests {
 
     #[test]
     fn test_map_send_error_with_string() {
-        let err = std::io::Error::new(std::io::ErrorKind::Other, "test error");
+        let err = std::io::Error::other("test error");
         let p2p_err = map_send_error(err);
 
         match p2p_err {

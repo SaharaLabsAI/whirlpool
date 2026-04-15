@@ -57,7 +57,7 @@ where
         let sender = self
             .senders
             .get(&channel)
-            .ok_or_else(|| P2pError::InvalidChannel(channel.0))?;
+            .ok_or(P2pError::InvalidChannel(channel.0))?;
         sender.send(channel, data, recipients).await
     }
 }
@@ -100,31 +100,16 @@ where
             return None;
         }
 
-        // Poll all receivers in round-robin fashion until we get a message or all are exhausted
-        loop {
-            if self.receivers.is_empty() {
-                return None;
+        // Poll all receivers in round-robin order once; return on first available message.
+        for (_, receiver) in &mut self.receivers {
+            if let Some(msg) = receiver.recv().await {
+                // Trust receiver-owned channel tagging.
+                return Some(msg);
             }
-
-            let len = self.receivers.len();
-
-            // Try each receiver in order
-            for i in 0..len {
-                let (_, receiver) = &mut self.receivers[i];
-                match receiver.recv().await {
-                    Some(msg) => {
-                        // Trust receiver-owned channel tagging.
-                        return Some(msg);
-                    }
-                    None => {
-                        // This receiver is done - continue checking others
-                    }
-                }
-            }
-
-            // All receivers returned None - they're all exhausted
-            return None;
         }
+
+        // All receivers returned None - they're all exhausted.
+        None
     }
 }
 

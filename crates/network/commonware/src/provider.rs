@@ -182,6 +182,11 @@ pub struct PerChannelNetwork<S, R> {
     pub network_handle: commonware_runtime::Handle<()>,
 }
 
+type DiscoveryPerChannelNetwork<E, C> = PerChannelNetwork<
+    DiscoverySender<<C as Signer>::PublicKey, E>,
+    DiscoveryReceiver<<C as Signer>::PublicKey>,
+>;
+
 /// Network provider that uses commonware's discovery::Network.
 ///
 /// Registers 3 channels (VOTE, CERTIFICATE, RESOLVER) and multiplexes them
@@ -225,24 +230,17 @@ where
     }
 
     /// Start the network and return dedicated channel pairs.
-    pub fn start_per_channel(
-        mut self,
-    ) -> Result<
-        PerChannelNetwork<DiscoverySender<C::PublicKey, E>, DiscoveryReceiver<C::PublicKey>>,
-        P2pError,
-    > {
+    pub fn start_per_channel(mut self) -> Result<DiscoveryPerChannelNetwork<E, C>, P2pError> {
         let backlog = self.channel_config.backlog;
         let quota = Quota::per_second(NonZeroU32::new(10000).unwrap());
 
-        let (vote_sender, vote_receiver) =
-            self.network
-                .register(Channel::VOTE.0, quota.clone(), backlog);
+        let (vote_sender, vote_receiver) = self.network.register(Channel::VOTE.0, quota, backlog);
         let (cert_sender, cert_receiver) =
             self.network
-                .register(Channel::CERTIFICATE.0, quota.clone(), backlog);
+                .register(Channel::CERTIFICATE.0, quota, backlog);
         let (resolver_sender, resolver_receiver) =
             self.network
-                .register(Channel::RESOLVER.0, quota.clone(), backlog);
+                .register(Channel::RESOLVER.0, quota, backlog);
         let (payload_sender, payload_receiver) =
             self.network.register(Channel::PAYLOAD.0, quota, backlog);
 
@@ -302,24 +300,22 @@ where
         let quota = Quota::per_second(NonZeroU32::new(10000).unwrap());
 
         // Register VOTE channel (0)
-        let (vote_sender, vote_receiver) =
-            self.network
-                .register(Channel::VOTE.0, quota.clone(), backlog);
+        let (vote_sender, vote_receiver) = self.network.register(Channel::VOTE.0, quota, backlog);
 
         // Register CERTIFICATE channel (1)
         let (cert_sender, cert_receiver) =
             self.network
-                .register(Channel::CERTIFICATE.0, quota.clone(), backlog);
+                .register(Channel::CERTIFICATE.0, quota, backlog);
 
         // Register RESOLVER channel (2)
         let (res_sender, res_receiver) =
             self.network
-                .register(Channel::RESOLVER.0, quota.clone(), backlog);
+                .register(Channel::RESOLVER.0, quota, backlog);
 
         // Register PAYLOAD channel (3)
         let (payload_sender, payload_receiver) =
             self.network
-                .register(Channel::PAYLOAD.0, quota.clone(), backlog);
+                .register(Channel::PAYLOAD.0, quota, backlog);
 
         // Start the network (returns handle that keeps network alive)
         let handle = self.network.start();

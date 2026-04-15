@@ -72,3 +72,4 @@ Persistent state storage implementation backed by reth-db (MDBX/libmdbx).
 
 ## Status
 Complete. Production-ready persistent state implementation for Whirlpool nodes.
+Clippy hygiene: receipt mapping in `block_storage` now forwards `cumulative_gas_used` without redundant same-type casts.

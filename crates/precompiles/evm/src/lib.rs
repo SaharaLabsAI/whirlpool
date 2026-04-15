@@ -241,6 +241,7 @@ mod tests {
     use reth_evm::revm::{database::EmptyDB, precompile::PrecompileOutput as RevmPrecompileOutput};
     use reth_evm::{precompiles::Precompile, traits::EvmInternals};
 
+    #[allow(clippy::too_many_arguments)]
     fn call_registered_precompile_with_context(
         precompile: DynPrecompile,
         context: &mut Context<BlockEnv, TxEnv, reth_evm::revm::context::CfgEnv, EmptyDB>,

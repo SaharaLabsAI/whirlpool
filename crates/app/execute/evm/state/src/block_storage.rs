@@ -240,7 +240,7 @@ impl BlockStorage for RethStateDb {
 
             receipts.push(AppReceipt {
                 status: reth_receipt.success.into(),
-                cumulative_gas_used: reth_receipt.cumulative_gas_used as u64,
+                cumulative_gas_used: reth_receipt.cumulative_gas_used,
                 logs: reth_receipt.logs,
             });
         }

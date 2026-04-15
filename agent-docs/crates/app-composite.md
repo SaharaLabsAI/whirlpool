@@ -23,3 +23,4 @@ Consensus-facing composite application that owns mixed transaction ingestion, cl
 
 ## Status
 Active. Moved under `crates/app/execute/mem/`; `whirlpool-node` no longer depends on it directly, and it consumes `tx-dispatch` from the same mem subtree.
+Clippy hygiene: duplicate-proposal cache tuple shape is factored behind a local `ProposedCacheEntry` alias.

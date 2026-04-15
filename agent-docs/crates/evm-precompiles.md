@@ -80,3 +80,4 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
 
 ## Verification
 - Crate tests cover registry construction, duplicate-address rejection, dispatch routing, direct-call boundary enforcement, gas behavior, revert mapping, and fee-pool withdraw/claim invariants.
+- Test helper note: the shared precompile-call helper intentionally keeps a wide argument list and is locally annotated for `clippy::too_many_arguments`.

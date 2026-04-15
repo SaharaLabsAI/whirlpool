@@ -280,7 +280,7 @@ fn digest_to_block_id(digest: Digest) -> [u8; 32] {
 fn is_valid_digest(digest: Digest) -> bool {
     // For testing: reject all-255 digests as invalid, accept others
     let bytes: &[u8] = digest.as_ref();
-    bytes != &[255u8; 32]
+    bytes != [255u8; 32]
 }
 
 // ---------------------------------------------------------------------------

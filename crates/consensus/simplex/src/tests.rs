@@ -1,4 +1,5 @@
 //! Unit tests for the consensus-simplex crate.
+#![allow(clippy::manual_async_fn)]
 
 use std::net::SocketAddr;
 use std::num::NonZeroUsize;
@@ -360,8 +361,8 @@ fn test_adapter_type_bounds_compile() {
 }
 
 async fn spawn_engine(
-    app: Arc<impl consensus::app::ConsensusApp<Block = TestBlock> + Clone + Send + Sync + 'static>,
-    sink: Arc<impl EventSink<Block = TestBlock> + Send + Sync + 'static>,
+    app: Arc<impl consensus::app::ConsensusApp<Block = TestBlock> + Clone + 'static>,
+    sink: Arc<impl EventSink<Block = TestBlock> + 'static>,
     config: CommonwareConfig,
     context: commonware_tokio::Context,
 ) -> consensus::engine::RunningEngine {

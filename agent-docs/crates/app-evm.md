@@ -52,6 +52,10 @@ Those live in `chainspec`.
 - Reth v2 / REVM 36 alignment:
   - execution state uses `revm::database::State` builder with `with_bundle_update()` (no legacy `without_state_clear()` hook),
   - receipt handling/Trie-root encoding is explicitly typed against `reth_ethereum_primitives::Receipt` in propose/verify flows.
+- Clippy hygiene:
+  - duplicate-proposal cache tuple shape is factored behind a `ProposedCacheEntry` alias,
+  - test helpers avoid post-`Default` field reassignment for `AccountInfo`,
+  - one-off single-element slices use `std::slice::from_ref(...)`.
 
 ## Canonical Imports
 - `app_evm::traits::StateProvider`

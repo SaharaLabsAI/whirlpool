@@ -5,6 +5,7 @@
 use std::collections::BTreeMap;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, TcpListener};
 use std::sync::{Arc, Mutex, OnceLock};
+use tokio::sync::Mutex as AsyncMutex;
 use std::time::{Duration, Instant};
 
 use crate::common::encoding::raw_tx_hex;
@@ -117,16 +118,13 @@ async fn post_json(
         .unwrap()
 }
 
-fn rpc_test_lock() -> &'static Mutex<()> {
-    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-    LOCK.get_or_init(|| Mutex::new(()))
+fn rpc_test_lock() -> &'static AsyncMutex<()> {
+    static LOCK: OnceLock<AsyncMutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| AsyncMutex::new(()))
 }
 
-fn lock_rpc_tests() -> std::sync::MutexGuard<'static, ()> {
-    match rpc_test_lock().lock() {
-        Ok(guard) => guard,
-        Err(poisoned) => poisoned.into_inner(),
-    }
+async fn lock_rpc_tests() -> tokio::sync::MutexGuard<'static, ()> {
+    rpc_test_lock().lock().await
 }
 
 fn signed_legacy_tx_bytes() -> Vec<u8> {
@@ -148,7 +146,7 @@ fn signed_legacy_tx_bytes() -> Vec<u8> {
 
 #[tokio::test(flavor = "current_thread")]
 async fn tst4_server_returns_chain_id() {
-    let _guard = lock_rpc_tests();
+    let _guard = lock_rpc_tests().await;
     let server = start_test_rpc().await;
     let provider = ProviderBuilder::new().connect_http(rpc_url(&server).parse().unwrap());
 
@@ -159,7 +157,7 @@ async fn tst4_server_returns_chain_id() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn tst5_latest_block_number() {
-    let _guard = lock_rpc_tests();
+    let _guard = lock_rpc_tests().await;
     let server = start_test_rpc().await;
     let provider = ProviderBuilder::new().connect_http(rpc_url(&server).parse().unwrap());
 
@@ -170,7 +168,7 @@ async fn tst5_latest_block_number() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn tst6_balance_query_returns_zero_for_empty_db() {
-    let _guard = lock_rpc_tests();
+    let _guard = lock_rpc_tests().await;
     let server = start_test_rpc().await;
     let provider = ProviderBuilder::new().connect_http(rpc_url(&server).parse().unwrap());
 
@@ -181,12 +179,12 @@ async fn tst6_balance_query_returns_zero_for_empty_db() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn tst7_eth_syncing_returns_false() {
-    let _guard = lock_rpc_tests();
+    let _guard = lock_rpc_tests().await;
     let server = start_test_rpc().await;
     let client = test_client();
 
     let body = post_json(
-        &client,
+        client,
         &server,
         serde_json::json!({
             "jsonrpc": "2.0",
@@ -202,12 +200,12 @@ async fn tst7_eth_syncing_returns_false() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn tst8_get_block_by_number() {
-    let _guard = lock_rpc_tests();
+    let _guard = lock_rpc_tests().await;
     let server = start_test_rpc().await;
     let client = test_client();
 
     let body = post_json(
-        &client,
+        client,
         &server,
         serde_json::json!({
             "jsonrpc": "2.0",
@@ -233,14 +231,14 @@ async fn tst8_get_block_by_number() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn tst9_send_raw_transaction_acceptance_and_blob_rejection() {
-    let _guard = lock_rpc_tests();
+    let _guard = lock_rpc_tests().await;
     let (server, tx_source) = start_test_rpc_with_tx_source().await;
     let client = test_client();
 
     let raw_legacy = signed_legacy_tx_bytes();
     let legacy_hash = format!("0x{:x}", alloy_primitives::keccak256(&raw_legacy));
     let legacy_body = post_json(
-        &client,
+        client,
         &server,
         serde_json::json!({
             "jsonrpc": "2.0",
@@ -263,7 +261,7 @@ async fn tst9_send_raw_transaction_acceptance_and_blob_rejection() {
 
     let raw_blob = vec![0x03];
     let blob_body = post_json(
-        &client,
+        client,
         &server,
         serde_json::json!({
             "jsonrpc": "2.0",
@@ -294,12 +292,12 @@ async fn tst9_send_raw_transaction_acceptance_and_blob_rejection() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn tst10_blob_base_fee_behavior() {
-    let _guard = lock_rpc_tests();
+    let _guard = lock_rpc_tests().await;
     let server = start_test_rpc().await;
     let client = test_client();
 
     let body = post_json(
-        &client,
+        client,
         &server,
         serde_json::json!({
             "jsonrpc": "2.0",
@@ -321,12 +319,12 @@ async fn tst10_blob_base_fee_behavior() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn tst11_request_shape_permutations() {
-    let _guard = lock_rpc_tests();
+    let _guard = lock_rpc_tests().await;
     let server = start_test_rpc().await;
     let client = test_client();
 
     let invalid_method = post_json(
-        &client,
+        client,
         &server,
         serde_json::json!({
             "jsonrpc": "2.0",
@@ -342,7 +340,7 @@ async fn tst11_request_shape_permutations() {
     );
 
     let gas_price = post_json(
-        &client,
+        client,
         &server,
         serde_json::json!({
             "jsonrpc": "2.0",
@@ -361,7 +359,7 @@ async fn tst11_request_shape_permutations() {
     );
 
     let accounts = post_json(
-        &client,
+        client,
         &server,
         serde_json::json!({
             "jsonrpc": "2.0",
@@ -419,7 +417,7 @@ const ZERO_HASH: &str = "0x00000000000000000000000000000000000000000000000000000
 
 #[tokio::test(flavor = "current_thread")]
 async fn contract_eth_get_transaction_count() {
-    let _guard = lock_rpc_tests();
+    let _guard = lock_rpc_tests().await;
     let server = start_test_rpc().await;
     let client = test_client();
 
@@ -468,7 +466,7 @@ async fn contract_eth_get_transaction_count() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn contract_eth_get_code() {
-    let _guard = lock_rpc_tests();
+    let _guard = lock_rpc_tests().await;
     let server = start_test_rpc().await;
     let client = test_client();
 
@@ -502,7 +500,7 @@ async fn contract_eth_get_code() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn contract_eth_get_storage_at() {
-    let _guard = lock_rpc_tests();
+    let _guard = lock_rpc_tests().await;
     let server = start_test_rpc().await;
     let client = test_client();
 
@@ -541,7 +539,7 @@ async fn contract_eth_get_storage_at() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn contract_eth_get_block_by_hash() {
-    let _guard = lock_rpc_tests();
+    let _guard = lock_rpc_tests().await;
     let server = start_test_rpc().await;
     let client = test_client();
 
@@ -578,7 +576,7 @@ async fn contract_eth_get_block_by_hash() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn contract_eth_get_transaction_by_hash() {
-    let _guard = lock_rpc_tests();
+    let _guard = lock_rpc_tests().await;
     let server = start_test_rpc().await;
     let client = test_client();
 
@@ -609,7 +607,7 @@ async fn contract_eth_get_transaction_by_hash() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn contract_eth_get_transaction_receipt() {
-    let _guard = lock_rpc_tests();
+    let _guard = lock_rpc_tests().await;
     let server = start_test_rpc().await;
     let client = test_client();
 
@@ -643,7 +641,7 @@ async fn contract_eth_get_transaction_receipt() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn contract_eth_get_block_transaction_count_by_hash() {
-    let _guard = lock_rpc_tests();
+    let _guard = lock_rpc_tests().await;
     let server = start_test_rpc().await;
     let client = test_client();
 
@@ -680,7 +678,7 @@ async fn contract_eth_get_block_transaction_count_by_hash() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn contract_eth_get_uncle_count_by_block_hash() {
-    let _guard = lock_rpc_tests();
+    let _guard = lock_rpc_tests().await;
     let server = start_test_rpc().await;
     let client = test_client();
 
@@ -708,7 +706,7 @@ async fn contract_eth_get_uncle_count_by_block_hash() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn contract_eth_get_block_transaction_count_by_number() {
-    let _guard = lock_rpc_tests();
+    let _guard = lock_rpc_tests().await;
     let server = start_test_rpc().await;
     let client = test_client();
 
@@ -737,7 +735,7 @@ async fn contract_eth_get_block_transaction_count_by_number() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn contract_eth_get_uncle_count_by_block_number() {
-    let _guard = lock_rpc_tests();
+    let _guard = lock_rpc_tests().await;
     let server = start_test_rpc().await;
     let client = test_client();
 
@@ -760,7 +758,7 @@ async fn contract_eth_get_uncle_count_by_block_number() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn contract_eth_get_block_receipts() {
-    let _guard = lock_rpc_tests();
+    let _guard = lock_rpc_tests().await;
     let server = start_test_rpc().await;
     let client = test_client();
 
@@ -786,7 +784,7 @@ async fn contract_eth_get_block_receipts() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn contract_eth_get_uncle_by_block_hash_and_index() {
-    let _guard = lock_rpc_tests();
+    let _guard = lock_rpc_tests().await;
     let server = start_test_rpc().await;
     let client = test_client();
 
@@ -812,7 +810,7 @@ async fn contract_eth_get_uncle_by_block_hash_and_index() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn contract_eth_get_uncle_by_block_number_and_index() {
-    let _guard = lock_rpc_tests();
+    let _guard = lock_rpc_tests().await;
     let server = start_test_rpc().await;
     let client = test_client();
 
@@ -838,7 +836,7 @@ async fn contract_eth_get_uncle_by_block_number_and_index() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn contract_eth_get_transaction_by_block_hash_and_index() {
-    let _guard = lock_rpc_tests();
+    let _guard = lock_rpc_tests().await;
     let server = start_test_rpc().await;
     let client = test_client();
 
@@ -867,7 +865,7 @@ async fn contract_eth_get_transaction_by_block_hash_and_index() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn contract_eth_get_transaction_by_block_number_and_index() {
-    let _guard = lock_rpc_tests();
+    let _guard = lock_rpc_tests().await;
     let server = start_test_rpc().await;
     let client = test_client();
 
@@ -898,7 +896,7 @@ async fn contract_eth_get_transaction_by_block_number_and_index() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn contract_eth_fee_history() {
-    let _guard = lock_rpc_tests();
+    let _guard = lock_rpc_tests().await;
     let server = start_test_rpc().await;
     let client = test_client();
 
@@ -942,7 +940,7 @@ async fn contract_eth_fee_history() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn contract_eth_estimate_gas() {
-    let _guard = lock_rpc_tests();
+    let _guard = lock_rpc_tests().await;
     let server = start_test_rpc().await;
     let client = test_client();
 
@@ -967,7 +965,7 @@ async fn contract_eth_estimate_gas() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn contract_eth_call() {
-    let _guard = lock_rpc_tests();
+    let _guard = lock_rpc_tests().await;
     let server = start_test_rpc().await;
     let client = test_client();
 
@@ -987,7 +985,7 @@ async fn contract_eth_call() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn contract_eth_create_access_list() {
-    let _guard = lock_rpc_tests();
+    let _guard = lock_rpc_tests().await;
     let server = start_test_rpc().await;
     let client = test_client();
 
@@ -1015,7 +1013,7 @@ async fn contract_eth_create_access_list() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn contract_eth_max_priority_fee_per_gas() {
-    let _guard = lock_rpc_tests();
+    let _guard = lock_rpc_tests().await;
     let server = start_test_rpc().await;
     let client = test_client();
 
@@ -1036,7 +1034,7 @@ async fn contract_eth_max_priority_fee_per_gas() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn contract_net_version() {
-    let _guard = lock_rpc_tests();
+    let _guard = lock_rpc_tests().await;
     let server = start_test_rpc().await;
     let client = test_client();
 
@@ -1051,7 +1049,7 @@ async fn contract_net_version() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn contract_net_peer_count() {
-    let _guard = lock_rpc_tests();
+    let _guard = lock_rpc_tests().await;
     let server = start_test_rpc().await;
     let client = test_client();
 
@@ -1066,7 +1064,7 @@ async fn contract_net_peer_count() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn contract_net_listening() {
-    let _guard = lock_rpc_tests();
+    let _guard = lock_rpc_tests().await;
     let server = start_test_rpc().await;
     let client = test_client();
 
@@ -1081,7 +1079,7 @@ async fn contract_net_listening() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn contract_web3_client_version() {
-    let _guard = lock_rpc_tests();
+    let _guard = lock_rpc_tests().await;
     let server = start_test_rpc().await;
     let client = test_client();
 
@@ -1096,7 +1094,7 @@ async fn contract_web3_client_version() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn contract_web3_sha3() {
-    let _guard = lock_rpc_tests();
+    let _guard = lock_rpc_tests().await;
     let server = start_test_rpc().await;
     let client = test_client();
 
@@ -1132,7 +1130,7 @@ async fn contract_web3_sha3() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn contract_eth_coinbase() {
-    let _guard = lock_rpc_tests();
+    let _guard = lock_rpc_tests().await;
     let server = start_test_rpc().await;
     let client = test_client();
 
@@ -1147,7 +1145,7 @@ async fn contract_eth_coinbase() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn contract_eth_mining() {
-    let _guard = lock_rpc_tests();
+    let _guard = lock_rpc_tests().await;
     let server = start_test_rpc().await;
     let client = test_client();
 
@@ -1166,7 +1164,7 @@ async fn contract_eth_mining() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn contract_eth_get_work() {
-    let _guard = lock_rpc_tests();
+    let _guard = lock_rpc_tests().await;
     let server = start_test_rpc().await;
     let client = test_client();
 
@@ -1181,7 +1179,7 @@ async fn contract_eth_get_work() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn contract_eth_submit_work() {
-    let _guard = lock_rpc_tests();
+    let _guard = lock_rpc_tests().await;
     let server = start_test_rpc().await;
     let client = test_client();
 
@@ -1201,7 +1199,7 @@ async fn contract_eth_submit_work() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn contract_eth_protocol_version() {
-    let _guard = lock_rpc_tests();
+    let _guard = lock_rpc_tests().await;
     let server = start_test_rpc().await;
     let client = test_client();
 

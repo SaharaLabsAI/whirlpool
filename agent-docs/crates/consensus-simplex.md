@@ -22,6 +22,7 @@ The primary entry point for starting the consensus engine.
 - Shared `height` Arc is passed to `MailboxActor` to track the current chain tip (crates/consensus/simplex/src/engine.rs).
 - `start()` wires the payload relay: creates an mpsc channel, constructs `Mailbox::with_relay()`, spawns an outbound forwarder task (reads from channel, sends via `NetworkSender::send(Recipients::All, ...)`), and spawns an inbound `payload_receive_loop` task.
 - Trait bounds on block type: `CommonwareBlock + Encode + Decode<Cfg = ()>`.
+- Clippy hygiene: actor task exits without explicit unit-expression tails; digest validation compares directly against the all-`0xff` array.
 
 ### Mailbox
 Manages block proposals and relay broadcasting (crates/consensus/simplex/src/mailbox.rs).

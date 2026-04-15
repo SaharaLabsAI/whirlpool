@@ -37,6 +37,7 @@ use crate::error::EvmAppError;
 pub use crate::traits::StateProvider;
 
 pub type RecoveredTx = Recovered<TransactionSigned>;
+type ProposedCacheEntry = (u64, EvmBlock, ExecutionResult, Vec<Receipt>);
 
 #[derive(Clone, Debug)]
 pub struct ProposedEvmPayload {
@@ -495,7 +496,7 @@ pub struct EvmApplication<DB> {
     state_db: Arc<RwLock<DB>>,
     tx_source: Arc<dyn TxSource + Send + Sync>,
     pending_receipts: Arc<Mutex<Option<Vec<Receipt>>>>,
-    last_proposed: Arc<Mutex<Option<(u64, EvmBlock, ExecutionResult, Vec<Receipt>)>>>,
+    last_proposed: Arc<Mutex<Option<ProposedCacheEntry>>>,
 }
 
 impl<DB> EvmApplication<DB>
@@ -832,6 +833,7 @@ where
     }
 }
 
+#[allow(clippy::manual_async_fn)]
 impl<DB> Application for EvmApplication<DB>
 where
     DB: StateProvider + Clone + Send + Sync + 'static + revm::Database + std::fmt::Debug,
@@ -1461,8 +1463,10 @@ mod tests {
             let mut proxy_info = revm::state::AccountInfo::default();
             proxy_info.set_code(Bytecode::new_raw(precompile_proxy_runtime_bytecode()));
             db.insert_account(proxy_address, proxy_info);
-            let mut fee_pool_info = revm::state::AccountInfo::default();
-            fee_pool_info.balance = claimable;
+            let fee_pool_info = revm::state::AccountInfo {
+                balance: claimable,
+                ..Default::default()
+            };
             db.insert_account(FEE_POOL_PRECOMPILE_ADDRESS, fee_pool_info);
             db.insert_storage(
                 FEE_POOL_PRECOMPILE_ADDRESS,
@@ -2201,9 +2205,10 @@ mod tests {
             height: 1,
             parent_id: parent.compute_id(),
             state_root: parent.state_root,
-            transactions_root: ordered_trie_root_with_encoder(&[reserved_tx.clone()], |tx, out| {
-                out.put_slice(tx)
-            })
+            transactions_root: ordered_trie_root_with_encoder(
+                std::slice::from_ref(&reserved_tx),
+                |tx, out| out.put_slice(tx),
+            )
             .0,
             receipts_root: EMPTY_ROOT_HASH.0,
             proposer_public_key: parent.proposer_public_key,

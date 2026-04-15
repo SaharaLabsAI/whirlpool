@@ -15,12 +15,14 @@ use tx_dispatch::{classify_transactions, ClassifiedTransaction};
 pub use app_evm::traits::StateProvider;
 pub use error::CompositeAppError;
 
+type ProposedCacheEntry = (u64, EvmBlock, ExecutionResult, Vec<Receipt>);
+
 #[derive(Clone)]
 pub struct CompositeApplication<DB> {
     evm_app: EvmApplication<DB>,
     tx_source: Arc<dyn TxSource + Send + Sync>,
     pending_receipts: Arc<Mutex<Option<Vec<Receipt>>>>,
-    last_proposed: Arc<Mutex<Option<(u64, EvmBlock, ExecutionResult, Vec<Receipt>)>>>,
+    last_proposed: Arc<Mutex<Option<ProposedCacheEntry>>>,
 }
 
 impl<DB> CompositeApplication<DB>
@@ -55,6 +57,7 @@ where
     }
 }
 
+#[allow(clippy::manual_async_fn)]
 impl<DB> Application for CompositeApplication<DB>
 where
     DB: StateProvider + Clone + Send + Sync + 'static + revm::Database + std::fmt::Debug,

@@ -26,3 +26,6 @@ Location: `testing/integration-tests/`
 
 ## Chain-spec Ownership Note
 Integration tests source Sahara chain-spec builders, `SAHARA_CHAIN_ID`, and native-token hard-cap helpers from `chainspec`.
+
+## Harness Notes
+- RPC contract tests serialize access with an async `tokio::sync::Mutex` guard (not a blocking std mutex), so lock scope safely spans awaited RPC calls.

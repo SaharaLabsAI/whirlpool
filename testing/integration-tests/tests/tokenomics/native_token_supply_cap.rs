@@ -96,23 +96,18 @@ fn start_node_for_chain_spec(
         .unwrap_or_else(|err| panic!("failed to create temp dir for funded node {seed}: {err}"));
     let validator_key = ed25519::PrivateKey::from_seed(seed);
     let public_key = validator_key.public_key();
-    if !chain_spec
+    chain_spec
         .genesis
         .alloc
-        .contains_key(&SIMPLEX_VALIDATORS_REGISTRY)
-    {
-        chain_spec.genesis.alloc.insert(
-            SIMPLEX_VALIDATORS_REGISTRY,
-            GenesisAccount {
-                balance: U256::ZERO,
-                storage: Some(encode_validator_registry_storage(&[ValidatorEntry {
-                    consensus_pubkey: validator_public_key_bytes(&public_key),
-                    ethereum_address: Address::ZERO,
-                }])),
-                ..GenesisAccount::default()
-            },
-        );
-    }
+        .entry(SIMPLEX_VALIDATORS_REGISTRY)
+        .or_insert_with(|| GenesisAccount {
+            balance: U256::ZERO,
+            storage: Some(encode_validator_registry_storage(&[ValidatorEntry {
+                consensus_pubkey: validator_public_key_bytes(&public_key),
+                ethereum_address: Address::ZERO,
+            }])),
+            ..GenesisAccount::default()
+        });
     let p2p_port = allocate_port();
     let rpc_port = allocate_port();
     let p2p_addr: SocketAddr = format!("127.0.0.1:{p2p_port}")

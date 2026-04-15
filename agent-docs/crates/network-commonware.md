@@ -41,6 +41,8 @@ Channel constants defined in `crates/network/traits/src/types.rs` as `Channel(N)
 - `MultiplexSender`, `MultiplexReceiver`
 - `CommonwarePeerId`
 - `PerChannelNetwork` (with `vote`, `cert`, `resolver`, `payload` fields)
+- `MultiplexReceiver::recv` scans each registered receiver once per call and returns the first available tagged message
 
 ## Status
 Complete. Transport interface is explicitly separated into `traits.rs`. PAYLOAD channel (3) registered for consensus relay.
+Clippy hygiene: provider channel registration reuses `Quota` by value (copy semantics); unit-test module is named `network_commonware_tests` to avoid module-inception lint.

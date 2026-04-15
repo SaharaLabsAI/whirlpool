@@ -193,7 +193,6 @@ where
                 "MailboxActor completed, final height: {}",
                 height_for_actor.load(Ordering::SeqCst)
             );
-            ()
         });
 
         // Step 7: Spawn outbound payload relay forwarder
