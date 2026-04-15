@@ -23,8 +23,8 @@ use commonware_cryptography::{
     Committable, Digestible,
 };
 use commonware_parallel::Sequential;
-use commonware_runtime::buffer::PoolRef;
-use commonware_runtime::{Clock, Metrics, Spawner, Storage};
+use commonware_runtime::buffer::paged::CacheRef;
+use commonware_runtime::{BufferPooler, Clock, Metrics, Spawner, Storage};
 use commonware_utils::ordered::Set;
 use consensus::app::ConsensusApp;
 use consensus::engine::{ConsensusEngine, RunningEngine};
@@ -59,6 +59,7 @@ where
     S: EventSink<Block = A::Block>,
     A::Block: CommonwareBlock + Digestible<Digest = Digest>,
     E: Spawner
+        + BufferPooler
         + Clock
         + CryptoRngCore
         + commonware_runtime::Network
@@ -81,6 +82,7 @@ where
     S: EventSink<Block = A::Block> + Send + Sync + 'static,
     A::Block: CommonwareBlock + Digestible<Digest = Digest> + Send + Sync + 'static,
     E: Spawner
+        + BufferPooler
         + Clock
         + CryptoRngCore
         + commonware_runtime::Network
@@ -131,6 +133,7 @@ where
         + Sync
         + 'static,
     E: Spawner
+        + BufferPooler
         + Clock
         + CryptoRngCore
         + commonware_runtime::Network
@@ -255,17 +258,19 @@ where
             epoch: Epoch::new(self.config.epoch),
             replay_buffer: self.config.replay_buffer,
             write_buffer: self.config.write_buffer,
-            buffer_pool: PoolRef::new(
+            page_cache: CacheRef::from_pooler(
+                &self.context,
                 NonZeroU16::new(4096).unwrap(),  // page_size
                 NonZeroUsize::new(100).unwrap(), // capacity
             ),
             leader_timeout: self.config.leader_timeout,
-            notarization_timeout: self.config.notarization_timeout,
-            nullify_retry: self.config.nullify_retry,
+            certification_timeout: self.config.notarization_timeout,
+            timeout_retry: self.config.nullify_retry,
             activity_timeout: ViewDelta::new(self.config.activity_timeout),
             skip_timeout: ViewDelta::new(self.config.skip_timeout),
             fetch_timeout: self.config.fetch_timeout,
             fetch_concurrent: self.config.fetch_concurrent,
+            forwarding: simplex::ForwardingPolicy::Disabled,
         };
 
         // Step 12: Validate config

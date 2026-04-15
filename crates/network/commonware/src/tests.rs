@@ -227,12 +227,12 @@ mod network_commonware_tests {
     /// Allows tests to feed `(PublicKey, Bytes)` tuples and control shutdown.
     #[derive(Debug)]
     struct MockCwReceiver {
-        rx: tokio::sync::mpsc::UnboundedReceiver<(ed25519::PublicKey, bytes::Bytes)>,
+        rx: tokio::sync::mpsc::UnboundedReceiver<(ed25519::PublicKey, commonware_runtime::IoBuf)>,
     }
 
     impl MockCwReceiver {
         fn new() -> (
-            tokio::sync::mpsc::UnboundedSender<(ed25519::PublicKey, bytes::Bytes)>,
+            tokio::sync::mpsc::UnboundedSender<(ed25519::PublicKey, commonware_runtime::IoBuf)>,
             Self,
         ) {
             let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
@@ -244,7 +244,9 @@ mod network_commonware_tests {
         type Error = std::io::Error;
         type PublicKey = ed25519::PublicKey;
 
-        async fn recv(&mut self) -> Result<(Self::PublicKey, bytes::Bytes), Self::Error> {
+        async fn recv(
+            &mut self,
+        ) -> Result<(Self::PublicKey, commonware_runtime::IoBuf), Self::Error> {
             self.rx.recv().await.ok_or_else(|| {
                 std::io::Error::new(std::io::ErrorKind::BrokenPipe, "channel closed")
             })
@@ -260,7 +262,7 @@ mod network_commonware_tests {
 
         // Single receiver on VOTE channel
         let (tx, mock) = MockCwReceiver::new();
-        tx.send((pk.clone(), bytes::Bytes::from_static(b"hello")))
+        tx.send((pk.clone(), bytes::Bytes::from_static(b"hello").into()))
             .unwrap();
         drop(tx); // close the channel after sending
 
@@ -284,11 +286,11 @@ mod network_commonware_tests {
         let (tx1, mock1) = MockCwReceiver::new();
         let (tx2, mock2) = MockCwReceiver::new();
 
-        tx0.send((pk.clone(), bytes::Bytes::from_static(b"vote")))
+        tx0.send((pk.clone(), bytes::Bytes::from_static(b"vote").into()))
             .unwrap();
-        tx1.send((pk.clone(), bytes::Bytes::from_static(b"cert")))
+        tx1.send((pk.clone(), bytes::Bytes::from_static(b"cert").into()))
             .unwrap();
-        tx2.send((pk.clone(), bytes::Bytes::from_static(b"resolve")))
+        tx2.send((pk.clone(), bytes::Bytes::from_static(b"resolve").into()))
             .unwrap();
 
         // Close all senders so recv will terminate

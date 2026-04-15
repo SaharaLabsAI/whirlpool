@@ -27,6 +27,11 @@ The adapter crate translates Commonware Simplex APIs into Whirlpool consensus tr
 - `PayloadRelayMessage`: wire format `[32-byte digest][encoded block bytes]` for relayed payloads.
 - `payload_receive_loop`: async inbound handler that decodes, validates, and stores received block payloads.
 
+## Commonware 2026.4.0 Compatibility Notes
+- Adapter propose/verify callbacks now use `commonware_consensus::marshal::ancestry::AncestorStream` with generic `BlockProvider` type parameters.
+- `Mailbox` relay now implements plan-aware simplex relay (`broadcast(payload, simplex::Plan<_>)`).
+- Engine wiring now uses `simplex::Config::page_cache` via `commonware_runtime::buffer::paged::CacheRef::from_pooler`, and maps timeout fields to `certification_timeout`/`timeout_retry` with `ForwardingPolicy::Disabled`.
+
 ## Clone Semantics
 `AppAdapter::Clone` clones the `Arc` to the shared `finalized_blocks` map. All clones (batcher, voter/reporter) operate on the same block store. `remember_block()` is async (acquires write lock).
 `Mailbox::Clone` clones `Option<BlockStore<B>>` (Arc-based) and `Option<mpsc::UnboundedSender<Bytes>>`.

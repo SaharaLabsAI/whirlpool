@@ -223,7 +223,7 @@ impl Heightable for EvmBlock {
 }
 
 impl VendorBlock for EvmBlock {
-    fn parent(&self) -> Self::Commitment {
+    fn parent(&self) -> Self::Digest {
         BlockDigest::from(self.parent_id)
     }
 }

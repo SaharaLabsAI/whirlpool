@@ -11,14 +11,15 @@
 
 use bytes::{BufMut, Bytes, BytesMut};
 use commonware_codec::Encode;
-use commonware_consensus::simplex::types::Context;
+use commonware_consensus::simplex::{types::Context, Plan};
 use commonware_consensus::types::Epoch;
 use commonware_consensus::{Automaton, CertifiableAutomaton, Relay};
 use commonware_cryptography::ed25519::PublicKey;
 use commonware_cryptography::sha256::Digest;
 use commonware_cryptography::Digestible;
+use commonware_utils::channel::oneshot;
 use consensus::app::ConsensusApp;
-use futures::channel::{mpsc, oneshot};
+use futures::channel::mpsc;
 use futures::SinkExt;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -135,8 +136,10 @@ where
     B: Digestible<Digest = Digest>,
 {
     type Digest = Digest;
+    type PublicKey = PublicKey;
+    type Plan = Plan<Self::PublicKey>;
 
-    async fn broadcast(&mut self, digest: Self::Digest) {
+    async fn broadcast(&mut self, digest: Self::Digest, _plan: Self::Plan) {
         let (Some(ref block_store), Some(ref payload_tx)) = (&self.block_store, &self.payload_tx)
         else {
             // No relay wiring — silent no-op (single-node mode).
@@ -336,6 +339,7 @@ mod tests {
     use super::*;
     use crate::tests::{MockApp, TestBlock};
     use commonware_codec::Encode;
+    use commonware_consensus::simplex::Plan;
     use commonware_consensus::types::{Epoch, Round, View};
     use commonware_consensus::{Automaton, Relay};
     use commonware_cryptography::ed25519::PrivateKey;
@@ -436,7 +440,9 @@ mod tests {
         let app = Arc::new(MockApp);
         tokio::spawn(MailboxActor::new(rx, height, app, empty_block_store()).run());
 
-        mailbox.broadcast(Digest::from([1u8; 32])).await;
+        mailbox
+            .broadcast(Digest::from([1u8; 32]), Plan::Propose)
+            .await;
         // No panic, no message sent — passes by definition.
     }
 
@@ -460,7 +466,7 @@ mod tests {
         block_store.write().await.insert(digest, block.clone());
 
         // Broadcast the digest — should produce one outbound message.
-        mailbox.broadcast(digest).await;
+        mailbox.broadcast(digest, Plan::Propose).await;
 
         // Verify a PayloadRelayMessage was enqueued.
         let wire = payload_rx.try_recv().expect("should have a message");
@@ -486,7 +492,7 @@ mod tests {
 
         // Broadcast a digest that has NO corresponding block.
         let unknown_digest = Digest::from([42u8; 32]);
-        mailbox.broadcast(unknown_digest).await;
+        mailbox.broadcast(unknown_digest, Plan::Propose).await;
 
         // Channel should be empty — nothing was sent.
         assert!(payload_rx.try_recv().is_err(), "no message should be sent");

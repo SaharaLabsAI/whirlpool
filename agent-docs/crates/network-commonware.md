@@ -43,6 +43,11 @@ Channel constants defined in `crates/network/traits/src/types.rs` as `Channel(N)
 - `PerChannelNetwork` (with `vote`, `cert`, `resolver`, `payload` fields)
 - `MultiplexReceiver::recv` scans each registered receiver once per call and returns the first available tagged message
 
+## Commonware 2026.4.0 Compatibility Notes
+- Discovery network contexts now require `commonware_runtime::BufferPooler` in addition to spawner/clock/network traits.
+- `OracleHandle::update_validators` now uses `commonware_p2p::Manager::track` with a deduplicated `commonware_utils::ordered::Set` (the old `Manager::Peers`/`update` path is removed upstream).
+- Commonware receivers now yield `IoBuf`; `CommonwareReceiver` converts to `bytes::Bytes` before emitting `NetworkMessage`.
+
 ## Status
 Complete. Transport interface is explicitly separated into `traits.rs`. PAYLOAD channel (3) registered for consensus relay.
 Clippy hygiene: provider channel registration reuses `Quota` by value (copy semantics); unit-test module is named `network_commonware_tests` to avoid module-inception lint.

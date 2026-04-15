@@ -4,9 +4,10 @@ use commonware_cryptography::{PublicKey, Signer};
 use commonware_p2p::authenticated::discovery::{
     self, Bootstrapper, Oracle, Receiver as DiscoveryReceiver, Sender as DiscoverySender,
 };
-use commonware_runtime::{Clock, Metrics, Network, Quota, Resolver, Spawner};
+use commonware_runtime::{BufferPooler, Clock, Metrics, Network, Quota, Resolver, Spawner};
+use commonware_utils::ordered::Set;
 use rand_core::CryptoRngCore;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::marker::PhantomData;
@@ -46,14 +47,8 @@ where
     ) {
         use commonware_p2p::Manager;
 
-        let deduped = validators
-            .into_iter()
-            .collect::<BTreeSet<_>>()
-            .into_iter()
-            .collect();
-        let peers = <<Oracle<PK> as Manager>::Peers as TryFrom<Vec<PK>>>::try_from(deduped)
-            .expect("deduplicated validators must form a valid peer set");
-        self.0.update(epoch, peers).await;
+        let peers = Set::from_iter_dedup(validators);
+        self.0.track(epoch, peers).await;
     }
 }
 
@@ -139,7 +134,15 @@ where
         OracleHandle<C::PublicKey>,
     )
     where
-        Ctx: Spawner + Clock + CryptoRngCore + Network + Resolver + Metrics + Send + 'static,
+        Ctx: Spawner
+            + BufferPooler
+            + Clock
+            + CryptoRngCore
+            + Network
+            + Resolver
+            + Metrics
+            + Send
+            + 'static,
     {
         let config = discovery::Config::local(
             self.signer,
@@ -193,7 +196,7 @@ type DiscoveryPerChannelNetwork<E, C> = PerChannelNetwork<
 /// through a single NetworkSender/NetworkReceiver interface.
 pub struct CommonwareNetworkProvider<E, C>
 where
-    E: Spawner + Clock + CryptoRngCore + Network + Resolver + Metrics,
+    E: Spawner + BufferPooler + Clock + CryptoRngCore + Network + Resolver + Metrics,
     C: Signer,
 {
     network: discovery::Network<E, C>,
@@ -203,7 +206,7 @@ where
 
 impl<E, C> CommonwareNetworkProvider<E, C>
 where
-    E: Spawner + Clock + CryptoRngCore + Network + Resolver + Metrics,
+    E: Spawner + BufferPooler + Clock + CryptoRngCore + Network + Resolver + Metrics,
     C: Signer,
     C::PublicKey: Clone + std::hash::Hash + Eq + std::fmt::Debug + Send + Sync + 'static,
 {
@@ -239,8 +242,7 @@ where
             self.network
                 .register(Channel::CERTIFICATE.0, quota, backlog);
         let (resolver_sender, resolver_receiver) =
-            self.network
-                .register(Channel::RESOLVER.0, quota, backlog);
+            self.network.register(Channel::RESOLVER.0, quota, backlog);
         let (payload_sender, payload_receiver) =
             self.network.register(Channel::PAYLOAD.0, quota, backlog);
 
@@ -265,7 +267,7 @@ where
 
 impl<E, C> CommonwareTransport for CommonwareNetworkProvider<E, C>
 where
-    E: Spawner + Clock + CryptoRngCore + Network + Resolver + Metrics,
+    E: Spawner + BufferPooler + Clock + CryptoRngCore + Network + Resolver + Metrics,
     C: Signer,
     C::PublicKey: Clone + std::hash::Hash + Eq + std::fmt::Debug + Send + Sync + 'static,
 {
@@ -286,7 +288,7 @@ where
 
 impl<E, C> NetworkProvider for CommonwareNetworkProvider<E, C>
 where
-    E: Spawner + Clock + CryptoRngCore + Network + Resolver + Metrics,
+    E: Spawner + BufferPooler + Clock + CryptoRngCore + Network + Resolver + Metrics,
     C: Signer,
     C::PublicKey: Clone + std::hash::Hash + Eq + std::fmt::Debug + Send + Sync + 'static,
 {
@@ -308,14 +310,11 @@ where
                 .register(Channel::CERTIFICATE.0, quota, backlog);
 
         // Register RESOLVER channel (2)
-        let (res_sender, res_receiver) =
-            self.network
-                .register(Channel::RESOLVER.0, quota, backlog);
+        let (res_sender, res_receiver) = self.network.register(Channel::RESOLVER.0, quota, backlog);
 
         // Register PAYLOAD channel (3)
         let (payload_sender, payload_receiver) =
-            self.network
-                .register(Channel::PAYLOAD.0, quota, backlog);
+            self.network.register(Channel::PAYLOAD.0, quota, backlog);
 
         // Start the network (returns handle that keeps network alive)
         let handle = self.network.start();
@@ -360,7 +359,7 @@ mod tests {
     use bytes::Bytes;
     use commonware_cryptography::ed25519;
     use commonware_cryptography::Signer;
-    use commonware_p2p::{Manager, Receiver as _, Recipients, Sender as _};
+    use commonware_p2p::{Provider as _, Receiver as _, Recipients, Sender as _};
     use commonware_runtime::{deterministic, Clock, Runner};
     use std::net::SocketAddr;
     use std::time::Duration;
@@ -465,7 +464,7 @@ mod tests {
                 .peer_set(0)
                 .await
                 .expect("validator set seeded for bootstrap test");
-            assert!(seeded.iter().any(|pk| pk == &pk_0));
+            assert!(seeded.primary.iter().any(|pk| pk == &pk_0));
         });
     }
 
@@ -592,9 +591,13 @@ mod tests {
             let cert = peer_1.cert.1.recv().await.expect("cert receive");
             let resolver = peer_1.resolver.1.recv().await.expect("resolver receive");
 
-            assert_eq!(vote.1, Bytes::from_static(b"vote-msg"));
-            assert_eq!(cert.1, Bytes::from_static(b"cert-msg"));
-            assert_eq!(resolver.1, Bytes::from_static(b"resolver-msg"));
+            let vote_data: Bytes = vote.1.into();
+            let cert_data: Bytes = cert.1.into();
+            let resolver_data: Bytes = resolver.1.into();
+
+            assert_eq!(vote_data, Bytes::from_static(b"vote-msg"));
+            assert_eq!(cert_data, Bytes::from_static(b"cert-msg"));
+            assert_eq!(resolver_data, Bytes::from_static(b"resolver-msg"));
         });
     }
 }

@@ -33,7 +33,7 @@ where
         match self.inner.recv().await {
             Ok((peer_id, data)) => Some(NetworkMessage {
                 channel: self.channel,
-                data,
+                data: data.into(),
                 peer_id: CommonwarePeerId(peer_id),
             }),
             Err(_) => None,
@@ -51,12 +51,12 @@ mod tests {
 
     #[derive(Debug)]
     struct MockCwReceiver {
-        rx: tokio::sync::mpsc::UnboundedReceiver<(ed25519::PublicKey, bytes::Bytes)>,
+        rx: tokio::sync::mpsc::UnboundedReceiver<(ed25519::PublicKey, commonware_runtime::IoBuf)>,
     }
 
     impl MockCwReceiver {
         fn new() -> (
-            tokio::sync::mpsc::UnboundedSender<(ed25519::PublicKey, bytes::Bytes)>,
+            tokio::sync::mpsc::UnboundedSender<(ed25519::PublicKey, commonware_runtime::IoBuf)>,
             Self,
         ) {
             let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
@@ -68,7 +68,9 @@ mod tests {
         type Error = std::io::Error;
         type PublicKey = ed25519::PublicKey;
 
-        async fn recv(&mut self) -> Result<(Self::PublicKey, bytes::Bytes), Self::Error> {
+        async fn recv(
+            &mut self,
+        ) -> Result<(Self::PublicKey, commonware_runtime::IoBuf), Self::Error> {
             self.rx.recv().await.ok_or_else(|| {
                 std::io::Error::new(std::io::ErrorKind::BrokenPipe, "channel closed")
             })
@@ -85,7 +87,7 @@ mod tests {
         let pk = create_test_pubkey(42);
         let payload = Bytes::from_static(b"vote-message");
         let (tx, mock) = MockCwReceiver::new();
-        tx.send((pk.clone(), payload.clone()))
+        tx.send((pk.clone(), payload.clone().into()))
             .expect("send succeeds");
         drop(tx);
 
@@ -107,13 +109,13 @@ mod tests {
 
         let (tx_cert, cert_mock) = MockCwReceiver::new();
         tx_cert
-            .send((pk_a.clone(), cert_payload.clone()))
+            .send((pk_a.clone(), cert_payload.clone().into()))
             .expect("cert send succeeds");
         drop(tx_cert);
 
         let (tx_resolver, resolver_mock) = MockCwReceiver::new();
         tx_resolver
-            .send((pk_b.clone(), resolver_payload.clone()))
+            .send((pk_b.clone(), resolver_payload.clone().into()))
             .expect("resolver send succeeds");
         drop(tx_resolver);
 

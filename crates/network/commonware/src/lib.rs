@@ -123,12 +123,12 @@ mod multiplex_receiver_contract_tests {
 
     #[derive(Debug)]
     struct MockCwReceiver {
-        rx: tokio::sync::mpsc::UnboundedReceiver<(ed25519::PublicKey, bytes::Bytes)>,
+        rx: tokio::sync::mpsc::UnboundedReceiver<(ed25519::PublicKey, commonware_runtime::IoBuf)>,
     }
 
     impl MockCwReceiver {
         fn new() -> (
-            tokio::sync::mpsc::UnboundedSender<(ed25519::PublicKey, bytes::Bytes)>,
+            tokio::sync::mpsc::UnboundedSender<(ed25519::PublicKey, commonware_runtime::IoBuf)>,
             Self,
         ) {
             let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
@@ -140,7 +140,9 @@ mod multiplex_receiver_contract_tests {
         type Error = std::io::Error;
         type PublicKey = ed25519::PublicKey;
 
-        async fn recv(&mut self) -> Result<(Self::PublicKey, bytes::Bytes), Self::Error> {
+        async fn recv(
+            &mut self,
+        ) -> Result<(Self::PublicKey, commonware_runtime::IoBuf), Self::Error> {
             self.rx.recv().await.ok_or_else(|| {
                 std::io::Error::new(std::io::ErrorKind::BrokenPipe, "channel closed")
             })
@@ -161,13 +163,13 @@ mod multiplex_receiver_contract_tests {
         let (tx_resolver, resolver_mock) = MockCwReceiver::new();
 
         tx_vote
-            .send((pk.clone(), bytes::Bytes::from_static(b"vote")))
+            .send((pk.clone(), bytes::Bytes::from_static(b"vote").into()))
             .expect("vote send succeeds");
         tx_cert
-            .send((pk.clone(), bytes::Bytes::from_static(b"cert")))
+            .send((pk.clone(), bytes::Bytes::from_static(b"cert").into()))
             .expect("certificate send succeeds");
         tx_resolver
-            .send((pk.clone(), bytes::Bytes::from_static(b"resolver")))
+            .send((pk.clone(), bytes::Bytes::from_static(b"resolver").into()))
             .expect("resolver send succeeds");
 
         drop(tx_vote);

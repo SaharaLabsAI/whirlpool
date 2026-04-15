@@ -8,7 +8,7 @@ use rand::Rng;
 use tracing::{debug, warn};
 
 use commonware_consensus::{
-    marshal::ingress::mailbox::AncestorStream,
+    marshal::ancestry::{AncestorStream, BlockProvider},
     simplex::types::{Activity, Context},
     Application, Heightable, Reporter, VerifyingApplication,
 };
@@ -104,10 +104,10 @@ where
         block
     }
 
-    async fn propose(
+    async fn propose<M: BlockProvider<Block = Self::Block>>(
         &mut self,
         (_runtime, _context): (E, Self::Context),
-        mut ancestry: AncestorStream<Self::SigningScheme, Self::Block>,
+        mut ancestry: AncestorStream<M, Self::Block>,
     ) -> Option<Self::Block> {
         // Marshaled passes [parent] in the ancestry stream for propose()
         let parent = ancestry.next().await?;
@@ -129,10 +129,10 @@ where
     B: CommonwareBlock + Committable<Commitment = Digest> + 'static,
     Sig: Scheme + 'static,
 {
-    async fn verify(
+    async fn verify<M: BlockProvider<Block = Self::Block>>(
         &mut self,
         (_runtime, _context): (E, Self::Context),
-        mut ancestry: AncestorStream<Self::SigningScheme, Self::Block>,
+        mut ancestry: AncestorStream<M, Self::Block>,
     ) -> bool {
         // Marshaled passes [block, parent] in the ancestry stream for verify()
         let Some(block) = ancestry.next().await else {

@@ -178,7 +178,7 @@ impl Heightable for TestBlock {
 }
 
 impl VendorBlock for TestBlock {
-    fn parent(&self) -> Self::Commitment {
+    fn parent(&self) -> Self::Digest {
         self.parent
     }
 }
