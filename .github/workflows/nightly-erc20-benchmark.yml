@@ -1,18 +1,14 @@
 name: Nightly ERC20 Benchmark (Single Node)
-
 on:
   workflow_dispatch:
   schedule:
     - cron: "0 2 * * *"
-
 permissions:
   contents: write
   actions: read
-
 concurrency:
   group: nightly-erc20-benchmark-gh-pages
   cancel-in-progress: false
-
 jobs:
   benchmark:
     # GitHub-hosted runners currently support Ubuntu/Windows/macOS labels, not Debian/Alpine.
@@ -20,24 +16,18 @@ jobs:
     env:
       BENCHMARK_TIMEOUT_SECONDS: "3600"
       BENCHMARK_DURATION_SECONDS: "120"
-      BENCH_SENDER_ACCOUNTS: "2000"
-      BENCH_RECIPIENT_ACCOUNTS: "2000"
+      BENCH_SENDER_ACCOUNTS: "10000"
+      BENCH_RECIPIENT_ACCOUNTS: "10000"
       BENCH_BLOCK_INTERVAL_MS: "1000"
       # Execute the dedicated single-node benchmark harness with fixed 2-minute measurement window.
       BENCHMARK_COMMAND: >-
-        ./target/release/single_node_transfer_benchmark
-        --duration-seconds 120
-        --sender-accounts 2000
-        --recipient-accounts 2000
-        --block-interval-ms 1000
-
+        ./target/release/single_node_transfer_benchmark --duration-seconds 120 --sender-accounts 10000 --recipient-accounts 10000 --block-interval-ms 1000
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           submodules: recursive
           fetch-depth: 0
-
       - name: Reclaim disk space for Nix build artifacts
         run: |
           echo "Disk usage before cleanup:"
@@ -55,16 +45,13 @@ jobs:
 
           echo "Disk usage after cleanup:"
           df -h
-
       - name: Install Nix
         uses: cachix/install-nix-action@v31
-
       - name: Build release benchmark artifacts
         run: |
           nix develop --command bash -lc '
             cargo build --release -p integration-tests --bin single_node_transfer_benchmark
           '
-
       - name: Run benchmark command and emit raw result
         run: |
           mkdir -p out
@@ -72,7 +59,6 @@ jobs:
             --output out/raw-result.json \
             --timeout-seconds "${BENCHMARK_TIMEOUT_SECONDS}" \
             --command "${BENCHMARK_COMMAND}"
-
       - name: Checkout gh-pages baseline (if exists)
         uses: actions/checkout@v4
         continue-on-error: true
@@ -80,7 +66,6 @@ jobs:
           ref: gh-pages
           path: gh-pages-baseline
           fetch-depth: 1
-
       - name: Build latest report + updated history
         run: |
           mkdir -p out/pages/benchmarks
@@ -90,7 +75,6 @@ jobs:
             --history-out out/pages/benchmarks/history.json \
             --report-out out/pages/benchmarks/latest.html \
             --status-out out/status.json
-
       - name: Prepare GitHub Pages entrypoint files
         run: |
           cat > out/pages/index.html <<'HTML'
@@ -107,7 +91,6 @@ jobs:
           </html>
           HTML
           touch out/pages/.nojekyll
-
       - name: Publish benchmark pages
         if: always()
         uses: peaceiris/actions-gh-pages@v4
@@ -116,7 +99,6 @@ jobs:
           publish_branch: gh-pages
           publish_dir: out/pages
           enable_jekyll: false
-
       - name: Attach benchmark artifacts to run
         if: always()
         uses: actions/upload-artifact@v4
@@ -128,7 +110,6 @@ jobs:
             out/pages/index.html
             out/pages/benchmarks/latest.html
             out/pages/benchmarks/history.json
-
       - name: Enforce regression gate (after publish)
         if: always()
         run: |
