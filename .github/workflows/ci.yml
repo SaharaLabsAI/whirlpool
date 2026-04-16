@@ -15,6 +15,7 @@ concurrency:
 jobs:
   test:
     name: Run all tests
+    # GitHub-hosted runners currently support Ubuntu/Windows/macOS labels, not Debian/Alpine.
     runs-on: ubuntu-latest
 
     steps:
@@ -22,6 +23,24 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+
+      - name: Reclaim disk space for Nix build artifacts
+        run: |
+          echo "Disk usage before cleanup:"
+          df -h
+
+          sudo rm -rf \
+            /usr/share/dotnet \
+            /opt/ghc \
+            /usr/local/.ghcup \
+            /usr/local/lib/android \
+            /opt/hostedtoolcache/CodeQL
+
+          docker system prune --all --force || true
+          sudo apt-get clean
+
+          echo "Disk usage after cleanup:"
+          df -h
 
       - name: Install Nix
         uses: cachix/install-nix-action@v31
