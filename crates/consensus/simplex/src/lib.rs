@@ -22,7 +22,7 @@ pub mod types;
 pub type BlockStore<B> = Arc<RwLock<HashMap<Digest, B>>>;
 
 pub use adapter::AppAdapter;
-pub use config::CommonwareConfig;
+pub use config::{CommonwareConfig, SigningSchemeConfig};
 pub use engine::CommonwareEngine;
 pub use mailbox::{Mailbox, MailboxActor, Message, PayloadRelayMessage};
 pub use receiver::payload_receive_loop;

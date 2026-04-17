@@ -6,3 +6,4 @@ devtools/demo/personality/.run/
 .omx/
 .sisyphus/
 .whiteboard/
+.cargo-home/

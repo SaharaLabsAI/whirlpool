@@ -2473,6 +2473,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "consensus-manager"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "commonware-codec",
+ "commonware-cryptography",
+ "commonware-utils",
+ "rand 0.8.5",
+]
+
+[[package]]
 name = "consensus-simplex"
 version = "0.1.0"
 dependencies = [
@@ -4427,6 +4438,7 @@ dependencies = [
  "app-mem",
  "chainspec",
  "commonware-cryptography",
+ "consensus-manager",
  "evm-precompiles",
  "hex",
  "jsonrpsee",
@@ -10615,6 +10627,7 @@ dependencies = [
  "commonware-runtime",
  "commonware-utils",
  "consensus",
+ "consensus-manager",
  "consensus-simplex",
  "mempool-mdbx",
  "network-commonware",

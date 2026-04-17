@@ -29,3 +29,4 @@ Integration tests source Sahara chain-spec builders, `SAHARA_CHAIN_ID`, and nati
 
 ## Harness Notes
 - RPC contract tests serialize access with an async `tokio::sync::Mutex` guard (not a blocking std mutex), so lock scope safely spans awaited RPC calls.
+- Consensus multinode tests allocate ports through `tests/common/ports.rs` so repeated local binds do not recycle duplicate ephemeral ports across concurrently-started nodes.

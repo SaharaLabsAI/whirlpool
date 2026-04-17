@@ -220,6 +220,7 @@ fn start_funded_node(seed: u64, funded_address: Address, balance: U256) -> (Node
             block_interval: Duration::from_secs(1),
         },
         bootstrap_validators: Some(vec![public_key.clone()]),
+        bootstrap: Default::default(),
     };
 
     let handle = start_node_with_chain_spec(config, Some(Arc::new(chain_spec)))

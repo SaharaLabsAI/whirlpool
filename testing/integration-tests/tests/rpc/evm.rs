@@ -5,8 +5,8 @@
 use std::collections::BTreeMap;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, TcpListener};
 use std::sync::{Arc, Mutex, OnceLock};
-use tokio::sync::Mutex as AsyncMutex;
 use std::time::{Duration, Instant};
+use tokio::sync::Mutex as AsyncMutex;
 
 use crate::common::encoding::raw_tx_hex;
 use crate::common::http::{post_json_to_addr, rpc_req, test_client};
@@ -1341,6 +1341,7 @@ fn start_funded_node(seed: u64, funded_address: Address, balance: U256) -> (Node
             block_interval: Duration::from_secs(1),
         },
         bootstrap_validators: Some(vec![public_key.clone()]),
+        bootstrap: Default::default(),
     };
 
     let handle = start_node_with_chain_spec(config, Some(Arc::new(chain_spec)))

@@ -162,6 +162,7 @@ fn start_funded_node(
             block_interval: Duration::from_secs(1),
         },
         bootstrap_validators: Some(vec![public_key.clone()]),
+        bootstrap: Default::default(),
     };
 
     let handle = start_node_with_chain_spec(config, Some(std::sync::Arc::new(chain_spec)))
@@ -256,6 +257,7 @@ fn start_multinode_fee_network(
                 block_interval: Duration::from_secs(1),
             },
             bootstrap_validators: Some(validator_pubkeys.clone()),
+            bootstrap: Default::default(),
         };
 
         let handle = start_node_with_chain_spec(config, Some(chain_spec.clone()))

@@ -18,7 +18,7 @@ use consensus::engine::ConsensusEngine;
 use consensus::error::ConsensusError;
 use consensus::event::{ConsensusEvent, EventSink};
 
-use crate::config::CommonwareConfig;
+use crate::config::{CommonwareConfig, SigningSchemeConfig};
 use crate::engine::CommonwareEngine;
 use crate::sink::FinalizationSink;
 use crate::traits::CommonwareBlock;
@@ -327,8 +327,7 @@ fn test_config(namespace: &str) -> CommonwareConfig {
         height: Arc::new(AtomicU64::new(0)),
         fetch_timeout: Duration::from_secs(1),
         fetch_concurrent: 4,
-        signer,
-        validators,
+        signing_scheme: SigningSchemeConfig::Ed25519 { signer, validators },
     }
 }
 
@@ -366,14 +365,21 @@ async fn spawn_engine(
     config: CommonwareConfig,
     context: commonware_tokio::Context,
 ) -> consensus::engine::RunningEngine {
+    let (network_signer, validators) = match &config.signing_scheme {
+        SigningSchemeConfig::Ed25519 { signer, validators } => (signer.clone(), validators.clone()),
+        SigningSchemeConfig::BlsThresholdVrf { .. } => {
+            panic!("test helper currently supports ed25519 signing only")
+        }
+    };
+
     let (network, mut oracle_handle) =
-        CommonwareNetworkProviderBuilder::new(config.signer.clone(), config.namespace.as_bytes())
+        CommonwareNetworkProviderBuilder::new(network_signer, config.namespace.as_bytes())
             .listen_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
             .dialable_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
             .build(context.with_label("network"))
             .await;
     oracle_handle
-        .update_validators(config.epoch, config.validators.clone())
+        .update_validators(config.epoch, validators)
         .await;
     let engine = CommonwareEngine::new(app, sink, config, network, context);
     engine.start().expect("engine should start")

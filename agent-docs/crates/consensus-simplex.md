@@ -10,6 +10,9 @@ Location: `crates/consensus/simplex/`
 ### CommonwareConfig
 Holds parameters for the Simplex engine.
 - `height: Arc<AtomicU64>`: Caller-owned shared height tracker used for recovery and block production (crates/consensus/simplex/src/config.rs:54).
+- `signing_scheme: SigningSchemeConfig`: runtime-selected consensus signature mode.
+  - `Ed25519 { signer, validators }` keeps legacy behavior.
+  - `BlsThresholdVrf { participants, polynomial, share }` enables threshold-BLS certificates while preserving ed25519 participant identities.
 
 ### AppAdapter
 Bridges `ConsensusApp` and `EventSink` to vendor traits.
@@ -22,6 +25,9 @@ The primary entry point for starting the consensus engine.
 - Shared `height` Arc is passed to `MailboxActor` to track the current chain tip (crates/consensus/simplex/src/engine.rs).
 - `start()` wires the payload relay: creates an mpsc channel, constructs `Mailbox::with_relay()`, spawns an outbound forwarder task (reads from channel, sends via `NetworkSender::send(Recipients::All, ...)`), and spawns an inbound `payload_receive_loop` task.
 - Trait bounds on block type: `CommonwareBlock + Encode + Decode<Cfg = ()>`.
+- `start()` now branches on `SigningSchemeConfig` and instantiates either:
+  - `simplex::scheme::ed25519::Scheme::signer(...)`, or
+  - `simplex::scheme::bls12381_threshold::vrf::Scheme::signer(...)`.
 - Clippy hygiene: actor task exits without explicit unit-expression tails; digest validation compares directly against the all-`0xff` array.
 
 ### Mailbox

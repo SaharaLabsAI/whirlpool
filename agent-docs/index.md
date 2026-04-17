@@ -41,6 +41,7 @@ Structured reference docs optimized for fast LLM lookup. Each contains type sign
 | [crates/evm-precompiles.md](crates/evm-precompiles.md) | Workspace-owned registry/factory crate for Whirlpool custom EVM precompiles, including canonical community-pool address + read-only balance ABI | `evm-precompiles` |
 | [crates/validators.md](crates/validators.md) | Ordered simplex validator-registry model and genesis-storage codec shared across node/app/precompile surfaces | `validators` |
 | [crates/tx-dispatch.md](crates/tx-dispatch.md) | Mem-scoped mixed transaction classification across EVM and mem tx families | `tx-dispatch` |
+| [crates/consensus-manager.md](crates/consensus-manager.md) | Trusted-dealer bootstrap artifact manager for BLS threshold startup material | `consensus-manager` |
 | [crates/rpc-eth.md](crates/rpc-eth.md) | Ethereum JSON-RPC server: reth-backed adapters (WhirlpoolProvider, WhirlpoolTxPool, WhirlpoolNetwork), RpcConfig API, blob exclusion | `rpc-eth` |
 | [crates/state-reth.md](crates/state-reth.md) | Persistent state implementation: RethStateDb, MDBX, state root | `state-reth` |
 | [crates/mempool.md](crates/mempool.md) | Persistent transaction pool: MempoolStore, MDBX, FIFO ordering | `mempool` |
@@ -94,6 +95,7 @@ Step-by-step instructions for common tasks and workflows.
 |-------|--------|------------------|-------|
 | `consensus` | `crates/consensus/traits/src/` | `architecture/consensus-traits.md` | `guides/implementing-consensus-traits.md` |
 | `consensus-simplex` | `crates/consensus/simplex/src/` | `architecture/simplex-adapter.md` | `guides/wiring-simplex-adapter.md` |
+| `consensus-manager` | `crates/consensus/manager/src/` | `crates/consensus-manager.md` | — |
 | `network-commonware` | `crates/network/commonware/src/` | `crates/network-commonware.md` | — |
 | `state` | `crates/app/state/src/` | `crates/state.md` | — |
 | `state-memory` | `crates/app/execute/mem/state/src/` | `crates/state-memory.md` | — |

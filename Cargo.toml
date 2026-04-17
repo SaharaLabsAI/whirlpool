@@ -6,6 +6,7 @@ members = [
     "crates/validators",
     "crates/consensus/traits",
     "crates/consensus/simplex",
+    "crates/consensus/manager",
     "crates/network/traits",
     "crates/network/commonware",
     "crates/rpc/evm",

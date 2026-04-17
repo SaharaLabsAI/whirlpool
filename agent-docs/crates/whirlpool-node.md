@@ -23,6 +23,14 @@
 - Default chainspec construction uses `chainspec::build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators(...)`.
 - Simplex membership is decoded via `chainspec::try_simplex_validators_from_chain_spec(...)`.
 - Node startup still fails early when the local signer is not present in the resolved simplex validator set.
+- Optional genesis bootstrap mode:
+  - `--genesis-bootstrap-dkg`
+  - `--genesis-bootstrap-validator-count`
+  - `--genesis-dkg-session-dir`
+  - `--genesis-dkg-dealer-pubkey`
+- `run_genesis_bootstrap()` invokes `consensus-manager` trusted-dealer generation and exits without starting the node.
+- Normal startup optionally loads local bundle material from `genesis_dkg_session_dir`; on load/validation failure startup hard-fails before engine start.
+- Startup rejects `--genesis-dkg-dealer-pubkey` when no `--genesis-dkg-session-dir` is configured.
 - `EvmApplication` is wired through `ApplicationAdapter` + `PersistingFinalizationSink`.
 
 ## RPC

@@ -1,0 +1,11 @@
+[package]
+name = "consensus-manager"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+commonware-codec = { path = "../../../vendor/commonware/codec" }
+commonware-cryptography = { path = "../../../vendor/commonware/cryptography" }
+commonware-utils = { path = "../../../vendor/commonware/utils" }
+rand = "0.8"
+bytes = "1"

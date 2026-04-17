@@ -59,6 +59,14 @@ pub struct NodeArgs {
     pub consensus_namespace: Option<String>,
     #[arg(long)]
     pub block_interval_ms: Option<u64>,
+    #[arg(long, default_value_t = false)]
+    pub genesis_bootstrap_dkg: bool,
+    #[arg(long)]
+    pub genesis_bootstrap_validator_count: Option<u32>,
+    #[arg(long)]
+    pub genesis_dkg_session_dir: Option<PathBuf>,
+    #[arg(long)]
+    pub genesis_dkg_dealer_pubkey: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -73,6 +81,19 @@ pub struct NodeConfig {
     /// This does not define simplex consensus authority; simplex validators are
     /// sourced from the genesis-backed registry.
     pub bootstrap_validators: Option<Vec<ed25519::PublicKey>>,
+    pub bootstrap: BootstrapConfig,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct BootstrapConfig {
+    /// Run trusted-dealer genesis bootstrap and exit.
+    pub genesis_bootstrap_dkg: bool,
+    /// Optional consistency check for explicit validator list length during bootstrap.
+    pub genesis_bootstrap_validator_count: Option<u32>,
+    /// Session directory holding manifest and per-validator bundles.
+    pub genesis_dkg_session_dir: Option<PathBuf>,
+    /// Expected trusted-dealer public key (hex encoded ed25519 key).
+    pub genesis_dkg_dealer_pubkey: Option<ed25519::PublicKey>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -121,6 +142,10 @@ pub struct TomlConfig {
     pub block_interval_ms: Option<u64>,
     #[serde(alias = "validators")]
     pub bootstrap_validators: Option<Vec<String>>,
+    pub genesis_bootstrap_dkg: Option<bool>,
+    pub genesis_bootstrap_validator_count: Option<u32>,
+    pub genesis_dkg_session_dir: Option<String>,
+    pub genesis_dkg_dealer_pubkey: Option<String>,
 }
 
 #[derive(Debug)]
@@ -147,6 +172,11 @@ pub enum ConfigError {
         reason: String,
     },
     EmptyBootstrapValidators,
+    InvalidGenesisBootstrapValidatorCount(u32),
+    InvalidGenesisDkgDealerPubkey {
+        value: String,
+        reason: String,
+    },
 }
 
 impl fmt::Display for ConfigError {
@@ -183,6 +213,14 @@ impl fmt::Display for ConfigError {
                     "bootstrap validators must not be empty when explicitly configured"
                 )
             }
+            Self::InvalidGenesisBootstrapValidatorCount(value) => write!(
+                f,
+                "genesis bootstrap validator count must be greater than zero, got {value}"
+            ),
+            Self::InvalidGenesisDkgDealerPubkey { value, reason } => write!(
+                f,
+                "failed to parse genesis DKG dealer public key '{value}': {reason}"
+            ),
         }
     }
 }
@@ -195,7 +233,9 @@ impl std::error::Error for ConfigError {
             Self::InvalidSocketAddr { source, .. } => Some(source),
             Self::InvalidBootstrapPeer { .. }
             | Self::InvalidValidator { .. }
-            | Self::EmptyBootstrapValidators => None,
+            | Self::EmptyBootstrapValidators
+            | Self::InvalidGenesisBootstrapValidatorCount(..)
+            | Self::InvalidGenesisDkgDealerPubkey { .. } => None,
         }
     }
 }
@@ -364,11 +404,44 @@ pub fn load_config(args: NodeArgs) -> Result<NodeConfig, ConfigError> {
     let bootstrap_validators = if !args.validator.is_empty() {
         Some(parse_validator_list(args.validator)?)
     } else {
-        match file_config.and_then(|cfg| cfg.bootstrap_validators) {
+        match file_config
+            .as_ref()
+            .and_then(|cfg| cfg.bootstrap_validators.clone())
+        {
             Some(values) => Some(parse_validator_list(values)?),
             None => None,
         }
     };
+
+    let genesis_bootstrap_dkg = args.genesis_bootstrap_dkg
+        || file_config
+            .as_ref()
+            .and_then(|cfg| cfg.genesis_bootstrap_dkg)
+            .unwrap_or(false);
+    let genesis_bootstrap_validator_count = args.genesis_bootstrap_validator_count.or_else(|| {
+        file_config
+            .as_ref()
+            .and_then(|cfg| cfg.genesis_bootstrap_validator_count)
+    });
+    if let Some(0) = genesis_bootstrap_validator_count {
+        return Err(ConfigError::InvalidGenesisBootstrapValidatorCount(0));
+    }
+    let genesis_dkg_session_dir = args.genesis_dkg_session_dir.clone().or_else(|| {
+        file_config
+            .as_ref()
+            .and_then(|cfg| cfg.genesis_dkg_session_dir.as_ref().map(PathBuf::from))
+    });
+    let genesis_dkg_dealer_pubkey_hex = args.genesis_dkg_dealer_pubkey.clone().or_else(|| {
+        file_config
+            .as_ref()
+            .and_then(|cfg| cfg.genesis_dkg_dealer_pubkey.clone())
+    });
+    let genesis_dkg_dealer_pubkey = genesis_dkg_dealer_pubkey_hex
+        .map(|value| {
+            parse_validator_hex(&value)
+                .map_err(|reason| ConfigError::InvalidGenesisDkgDealerPubkey { value, reason })
+        })
+        .transpose()?;
 
     Ok(NodeConfig {
         network: NetworkConfig {
@@ -395,6 +468,12 @@ pub fn load_config(args: NodeArgs) -> Result<NodeConfig, ConfigError> {
             block_interval,
         },
         bootstrap_validators,
+        bootstrap: BootstrapConfig {
+            genesis_bootstrap_dkg,
+            genesis_bootstrap_validator_count,
+            genesis_dkg_session_dir,
+            genesis_dkg_dealer_pubkey,
+        },
     })
 }
 
@@ -458,6 +537,19 @@ impl From<NodeArgs> for NodeConfig {
                     .unwrap_or(defaults.consensus.block_interval),
             },
             bootstrap_validators,
+            bootstrap: BootstrapConfig {
+                genesis_bootstrap_dkg: args.genesis_bootstrap_dkg,
+                genesis_bootstrap_validator_count: args.genesis_bootstrap_validator_count,
+                genesis_dkg_session_dir: args.genesis_dkg_session_dir,
+                genesis_dkg_dealer_pubkey: args.genesis_dkg_dealer_pubkey.as_deref().map(|value| {
+                    match parse_validator_hex(value) {
+                        Ok(parsed) => parsed,
+                        Err(err) => {
+                            panic!("failed to parse dealer public key '{value}': {err}")
+                        }
+                    }
+                }),
+            },
         }
     }
 }

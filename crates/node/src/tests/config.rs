@@ -38,6 +38,10 @@ fn test_node_config_default_matches_hardcoded() {
     assert_eq!(config.consensus.namespace, b"sahara-chain-v0");
     assert_eq!(config.consensus.block_interval, Duration::from_secs(5));
     assert_eq!(config.bootstrap_validators, None);
+    assert!(!config.bootstrap.genesis_bootstrap_dkg);
+    assert_eq!(config.bootstrap.genesis_bootstrap_validator_count, None);
+    assert_eq!(config.bootstrap.genesis_dkg_session_dir, None);
+    assert_eq!(config.bootstrap.genesis_dkg_dealer_pubkey, None);
 }
 
 #[test]
@@ -104,6 +108,10 @@ fn test_node_args_to_node_config_full_custom() {
         network_namespace: Some("custom-net".to_string()),
         consensus_namespace: Some("custom-cons".to_string()),
         block_interval_ms: Some(2000),
+        genesis_bootstrap_dkg: false,
+        genesis_bootstrap_validator_count: None,
+        genesis_dkg_session_dir: None,
+        genesis_dkg_dealer_pubkey: None,
     };
 
     let config = NodeConfig::from(args);
@@ -187,6 +195,10 @@ fn tst_01_toml_file_loading() {
         network_namespace: None,
         consensus_namespace: None,
         block_interval_ms: None,
+        genesis_bootstrap_dkg: false,
+        genesis_bootstrap_validator_count: None,
+        genesis_dkg_session_dir: None,
+        genesis_dkg_dealer_pubkey: None,
     })
     .expect("toml config should load");
 
@@ -232,6 +244,10 @@ fn tst_02_cli_overrides_toml() {
         network_namespace: Some("cli-net".into()),
         consensus_namespace: None,
         block_interval_ms: None,
+        genesis_bootstrap_dkg: false,
+        genesis_bootstrap_validator_count: None,
+        genesis_dkg_session_dir: None,
+        genesis_dkg_dealer_pubkey: None,
     })
     .expect("cli should override toml");
 
@@ -265,6 +281,10 @@ fn tst_03_no_config_backward_compat() {
         network_namespace: Some("compat-net".into()),
         consensus_namespace: Some("compat-cons".into()),
         block_interval_ms: Some(555),
+        genesis_bootstrap_dkg: false,
+        genesis_bootstrap_validator_count: None,
+        genesis_dkg_session_dir: None,
+        genesis_dkg_dealer_pubkey: None,
     };
 
     let expected = NodeConfig::from(args.clone());
@@ -298,6 +318,10 @@ fn tst_04_multi_validator_from_toml() {
         network_namespace: None,
         consensus_namespace: None,
         block_interval_ms: None,
+        genesis_bootstrap_dkg: false,
+        genesis_bootstrap_validator_count: None,
+        genesis_dkg_session_dir: None,
+        genesis_dkg_dealer_pubkey: None,
     })
     .expect("multi-validator toml should parse");
 
@@ -333,6 +357,10 @@ fn tst_08_missing_config_file_error() {
         network_namespace: None,
         consensus_namespace: None,
         block_interval_ms: None,
+        genesis_bootstrap_dkg: false,
+        genesis_bootstrap_validator_count: None,
+        genesis_dkg_session_dir: None,
+        genesis_dkg_dealer_pubkey: None,
     })
     .expect_err("missing config should error");
 
@@ -358,6 +386,10 @@ fn tst_09_invalid_toml_error() {
         network_namespace: None,
         consensus_namespace: None,
         block_interval_ms: None,
+        genesis_bootstrap_dkg: false,
+        genesis_bootstrap_validator_count: None,
+        genesis_dkg_session_dir: None,
+        genesis_dkg_dealer_pubkey: None,
     })
     .expect_err("invalid toml should error");
 
@@ -386,6 +418,10 @@ fn tst_10_partial_toml_cli_merge() {
         network_namespace: Some("cli-net".into()),
         consensus_namespace: None,
         block_interval_ms: Some(2500),
+        genesis_bootstrap_dkg: false,
+        genesis_bootstrap_validator_count: None,
+        genesis_dkg_session_dir: None,
+        genesis_dkg_dealer_pubkey: None,
     })
     .expect("partial merge should work");
 
@@ -419,6 +455,10 @@ fn tst_11_empty_bootstrap_validators_rejection() {
         network_namespace: None,
         consensus_namespace: None,
         block_interval_ms: None,
+        genesis_bootstrap_dkg: false,
+        genesis_bootstrap_validator_count: None,
+        genesis_dkg_session_dir: None,
+        genesis_dkg_dealer_pubkey: None,
     })
     .expect_err("empty validators should fail");
 
@@ -445,6 +485,10 @@ fn tst_12_legacy_validators_alias_maps_to_bootstrap_validators() {
         network_namespace: None,
         consensus_namespace: None,
         block_interval_ms: None,
+        genesis_bootstrap_dkg: false,
+        genesis_bootstrap_validator_count: None,
+        genesis_dkg_session_dir: None,
+        genesis_dkg_dealer_pubkey: None,
     })
     .expect("legacy validators alias should parse");
 
@@ -455,4 +499,90 @@ fn tst_12_legacy_validators_alias_maps_to_bootstrap_validators() {
             .len(),
         1
     );
+}
+
+#[test]
+fn tst_13_genesis_bootstrap_flags_roundtrip() {
+    let args = NodeArgs::parse_from([
+        "whirlpool-node",
+        "--genesis-bootstrap-dkg",
+        "--genesis-bootstrap-validator-count",
+        "4",
+        "--genesis-dkg-session-dir",
+        "/tmp/bootstrap-session",
+    ]);
+
+    let config = NodeConfig::from(args);
+    assert!(config.bootstrap.genesis_bootstrap_dkg);
+    assert_eq!(config.bootstrap.genesis_bootstrap_validator_count, Some(4));
+    assert_eq!(
+        config.bootstrap.genesis_dkg_session_dir,
+        Some(PathBuf::from("/tmp/bootstrap-session"))
+    );
+    assert_eq!(config.bootstrap.genesis_dkg_dealer_pubkey, None);
+}
+
+#[test]
+fn tst_14_genesis_bootstrap_rejects_zero_count() {
+    let err = load_config(NodeArgs {
+        config: None,
+        listen_addr: None,
+        dialable_addr: None,
+        bootstrap_peer: vec![],
+        dial_peer: vec![],
+        validator_seed: None,
+        validator: vec![],
+        rpc_addr: None,
+        mem_rpc_addr: None,
+        data_dir: None,
+        max_message_size: None,
+        network_namespace: None,
+        consensus_namespace: None,
+        block_interval_ms: None,
+        genesis_bootstrap_dkg: true,
+        genesis_bootstrap_validator_count: Some(0),
+        genesis_dkg_session_dir: None,
+        genesis_dkg_dealer_pubkey: None,
+    })
+    .expect_err("zero bootstrap validator count must fail");
+
+    assert!(matches!(
+        err,
+        ConfigError::InvalidGenesisBootstrapValidatorCount(0)
+    ));
+}
+
+#[test]
+fn tst_15_genesis_dkg_dealer_pubkey_roundtrip_and_invalid_parse() {
+    let dealer = ed25519::PrivateKey::from_seed(77).public_key();
+    let dealer_hex = hex(dealer.as_ref());
+    let args = NodeArgs::parse_from(["whirlpool-node", "--genesis-dkg-dealer-pubkey", &dealer_hex]);
+    let config = NodeConfig::from(args);
+    assert_eq!(config.bootstrap.genesis_dkg_dealer_pubkey, Some(dealer));
+
+    let err = load_config(NodeArgs {
+        config: None,
+        listen_addr: None,
+        dialable_addr: None,
+        bootstrap_peer: vec![],
+        dial_peer: vec![],
+        validator_seed: None,
+        validator: vec![],
+        rpc_addr: None,
+        mem_rpc_addr: None,
+        data_dir: None,
+        max_message_size: None,
+        network_namespace: None,
+        consensus_namespace: None,
+        block_interval_ms: None,
+        genesis_bootstrap_dkg: false,
+        genesis_bootstrap_validator_count: None,
+        genesis_dkg_session_dir: None,
+        genesis_dkg_dealer_pubkey: Some("not-hex".to_string()),
+    })
+    .expect_err("invalid dealer key must fail");
+    assert!(matches!(
+        err,
+        ConfigError::InvalidGenesisDkgDealerPubkey { .. }
+    ));
 }

@@ -11,7 +11,13 @@ use commonware_cryptography::ed25519;
 use commonware_cryptography::Signer;
 use commonware_runtime::{tokio, Metrics, Runner};
 use consensus::traits::ConsensusEngine;
-use consensus_simplex::{CommonwareConfig, CommonwareEngine, FinalizationSink};
+use consensus_manager::{
+    load_local_bundle, run_trusted_dealer_bootstrap, LoadLocalBundleConfig, LocalBundleMaterial,
+    TrustedDealerBootstrapConfig,
+};
+use consensus_simplex::{
+    CommonwareConfig, CommonwareEngine, FinalizationSink, SigningSchemeConfig,
+};
 use mempool_mdbx::PersistentTxPool;
 use network_commonware::CommonwareNetworkProviderBuilder;
 use reth_chainspec::ChainSpec;
@@ -53,6 +59,61 @@ struct NodeInfo {
 }
 
 type NodeResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
+
+fn bootstrap_session_id() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .unwrap_or(0)
+}
+
+fn bootstrap_participants(config: &NodeConfig) -> NodeResult<Vec<ed25519::PublicKey>> {
+    if let Some(validators) = config.bootstrap_validators.clone() {
+        if let Some(expected_count) = config.bootstrap.genesis_bootstrap_validator_count {
+            if validators.len() != expected_count as usize {
+                return Err(Box::new(std::io::Error::other(format!(
+                    "genesis bootstrap validator count mismatch: expected {expected_count}, got {}",
+                    validators.len()
+                ))));
+            }
+        }
+        return Ok(validators);
+    }
+
+    Err(Box::new(std::io::Error::other(
+        "genesis bootstrap requires explicit --validator values; validator-count can only validate explicit input",
+    )))
+}
+
+/// Run trusted-dealer genesis bootstrap and write validator bundles.
+pub fn run_genesis_bootstrap(config: &NodeConfig) -> NodeResult<()> {
+    let participants = bootstrap_participants(config)?;
+    let output_root = config
+        .bootstrap
+        .genesis_dkg_session_dir
+        .clone()
+        .unwrap_or_else(|| config.storage.data_dir.join("bootstrap"));
+
+    let result = run_trusted_dealer_bootstrap(TrustedDealerBootstrapConfig {
+        session_id: bootstrap_session_id(),
+        output_dir: output_root,
+        participants,
+    })
+    .map_err(|err| {
+        Box::new(std::io::Error::other(format!(
+            "trusted-dealer bootstrap failed: {err}"
+        ))) as Box<dyn Error + Send + Sync>
+    })?;
+
+    info!(
+        session_dir = %result.session_dir.display(),
+        manifest = %result.manifest_path.display(),
+        dealer_pubkey = %commonware_utils::hex(result.dealer_public_key.as_ref()),
+        bundles = result.bundle_paths.len(),
+        "genesis bootstrap completed"
+    );
+    Ok(())
+}
 
 fn decode_consensus_pubkey(bytes: [u8; 32]) -> NodeResult<ed25519::PublicKey> {
     let mut reader = bytes.as_slice();
@@ -115,6 +176,49 @@ fn ensure_signer_is_simplex_member(
     )))
 }
 
+fn load_bls_material_for_signer(
+    config: &NodeConfig,
+    signer_public_key: &ed25519::PublicKey,
+    simplex_validators: &[ed25519::PublicKey],
+) -> NodeResult<Option<LocalBundleMaterial>> {
+    let session_dir = config.bootstrap.genesis_dkg_session_dir.clone();
+    let expected_dealer = config.bootstrap.genesis_dkg_dealer_pubkey.clone();
+
+    let Some(session_dir) = session_dir else {
+        if expected_dealer.is_some() {
+            return Err(Box::new(std::io::Error::other(
+                "--genesis-dkg-dealer-pubkey requires --genesis-dkg-session-dir",
+            )));
+        }
+        return Ok(None);
+    };
+
+    let Some(expected_dealer) = expected_dealer else {
+        return Err(Box::new(std::io::Error::other(
+            "BLS session directory requires --genesis-dkg-dealer-pubkey for trusted manifest verification",
+        )));
+    };
+
+    let material = load_local_bundle(LoadLocalBundleConfig {
+        session_dir,
+        local_validator: signer_public_key.clone(),
+        expected_dealer,
+    })
+    .map_err(|err| {
+        Box::new(std::io::Error::other(format!(
+            "failed to load BLS bundle material: {err}"
+        ))) as Box<dyn Error + Send + Sync>
+    })?;
+
+    if material.participants != simplex_validators {
+        return Err(Box::new(std::io::Error::other(
+            "BLS bundle participant list does not match genesis validator registry",
+        )));
+    }
+
+    Ok(Some(material))
+}
+
 /// Start a node with the default Sahara chain specification.
 pub fn start_node(config: NodeConfig) -> NodeResult<NodeHandle> {
     start_node_with_chain_spec(config, None)
@@ -162,7 +266,13 @@ pub fn start_node_with_chain_spec(
         let executor = tokio::Runner::new(runtime_cfg);
 
         executor.start(|context| async move {
-            info!(?config, "Commonware runtime started");
+            info!(
+                rpc_addr = %config.rpc.bind_addr,
+                p2p_listen_addr = %config.network.listen_addr,
+                bootstrap_mode = config.bootstrap.genesis_bootstrap_dkg,
+                has_bls_session_dir = config.bootstrap.genesis_dkg_session_dir.is_some(),
+                "Commonware runtime started"
+            );
 
             let signer = ed25519::PrivateKey::from_seed(config.identity.seed);
             let signer_public_key = signer.public_key();
@@ -183,6 +293,18 @@ pub fn start_node_with_chain_spec(
                 let _ = info_tx.send(Err(err));
                 return;
             }
+
+            let bls_material = match load_bls_material_for_signer(
+                &config,
+                &signer_public_key,
+                &simplex_validators,
+            ) {
+                Ok(material) => material,
+                Err(err) => {
+                    let _ = info_tx.send(Err(err));
+                    return;
+                }
+            };
 
             let listen_addr = config.network.listen_addr;
             let dialable_addr = config.network.dialable_addr;
@@ -246,8 +368,17 @@ pub fn start_node_with_chain_spec(
                 height: Arc::clone(&height),
                 fetch_timeout: Duration::from_secs(5),
                 fetch_concurrent: 4,
-                signer,
-                validators: simplex_validators,
+                signing_scheme: match bls_material {
+                    Some(material) => SigningSchemeConfig::BlsThresholdVrf {
+                        participants: material.participants,
+                        polynomial: material.polynomial,
+                        share: material.share,
+                    },
+                    None => SigningSchemeConfig::Ed25519 {
+                        signer,
+                        validators: simplex_validators,
+                    },
+                },
             };
 
             let mut proposer_public_key = [0u8; 32];
@@ -309,10 +440,26 @@ pub fn start_node_with_chain_spec(
 
 #[cfg(test)]
 mod tests {
-    use super::{ensure_signer_is_simplex_member, resolve_validator_sets};
+    use super::{
+        bootstrap_participants, ensure_signer_is_simplex_member, load_bls_material_for_signer,
+        resolve_validator_sets,
+    };
     use crate::config::NodeConfig;
     use commonware_cryptography::ed25519;
     use commonware_cryptography::Signer;
+    use consensus_manager::{run_trusted_dealer_bootstrap, TrustedDealerBootstrapConfig};
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::{fs, path::PathBuf};
+
+    static NEXT_TEST_ID: AtomicU64 = AtomicU64::new(1);
+
+    fn temp_dir(label: &str) -> PathBuf {
+        let id = NEXT_TEST_ID.fetch_add(1, Ordering::Relaxed);
+        let path = std::env::temp_dir().join(format!("whirlpool-node-{label}-{id}"));
+        let _ = fs::remove_dir_all(&path);
+        fs::create_dir_all(&path).expect("create temp dir");
+        path
+    }
 
     #[test]
     fn node_uses_genesis_registry_for_simplex_validators() {
@@ -391,5 +538,277 @@ mod tests {
             err.to_string().contains("local signer is not present"),
             "unexpected error: {err}"
         );
+    }
+
+    #[test]
+    fn bootstrap_participants_generates_count_when_validators_missing() {
+        let config = NodeConfig {
+            bootstrap: crate::config::BootstrapConfig {
+                genesis_bootstrap_validator_count: Some(3),
+                ..Default::default()
+            },
+            ..NodeConfig::default()
+        };
+
+        let err = bootstrap_participants(&config)
+            .expect_err("count-only bootstrap without explicit validators must fail");
+        assert!(err
+            .to_string()
+            .contains("requires explicit --validator values"));
+    }
+
+    #[test]
+    fn bootstrap_participants_prefers_explicit_validators() {
+        let explicit = vec![
+            ed25519::PrivateKey::from_seed(21).public_key(),
+            ed25519::PrivateKey::from_seed(22).public_key(),
+        ];
+        let config = NodeConfig {
+            bootstrap_validators: Some(explicit.clone()),
+            bootstrap: crate::config::BootstrapConfig {
+                genesis_bootstrap_validator_count: Some(2),
+                ..Default::default()
+            },
+            ..NodeConfig::default()
+        };
+
+        let participants = bootstrap_participants(&config).expect("explicit validators should win");
+        assert_eq!(participants, explicit);
+    }
+
+    #[test]
+    fn bootstrap_participants_rejects_count_mismatch() {
+        let explicit = vec![
+            ed25519::PrivateKey::from_seed(31).public_key(),
+            ed25519::PrivateKey::from_seed(32).public_key(),
+        ];
+        let config = NodeConfig {
+            bootstrap_validators: Some(explicit),
+            bootstrap: crate::config::BootstrapConfig {
+                genesis_bootstrap_validator_count: Some(3),
+                ..Default::default()
+            },
+            ..NodeConfig::default()
+        };
+
+        let err =
+            bootstrap_participants(&config).expect_err("validator-count mismatch must be rejected");
+        assert!(err.to_string().contains("count mismatch"));
+    }
+
+    #[test]
+    fn bls_material_load_rejects_missing_bundle() {
+        let participants = vec![
+            ed25519::PrivateKey::from_seed(41).public_key(),
+            ed25519::PrivateKey::from_seed(42).public_key(),
+        ];
+        let local = participants[0].clone();
+        let session_root = temp_dir("missing-bundle");
+        let bootstrap_result = run_trusted_dealer_bootstrap(TrustedDealerBootstrapConfig {
+            session_id: 100,
+            output_dir: session_root,
+            participants: participants.clone(),
+        })
+        .expect("bootstrap");
+        let bundle_path = bootstrap_result
+            .session_dir
+            .join("bundles")
+            .join(format!("{}.bundle", commonware_utils::hex(local.as_ref())));
+        fs::remove_file(&bundle_path).expect("remove local bundle");
+
+        let config = NodeConfig {
+            bootstrap: crate::config::BootstrapConfig {
+                genesis_dkg_session_dir: Some(bootstrap_result.session_dir),
+                genesis_dkg_dealer_pubkey: Some(bootstrap_result.dealer_public_key),
+                ..Default::default()
+            },
+            ..NodeConfig::default()
+        };
+        let err = match load_bls_material_for_signer(&config, &local, &participants) {
+            Ok(_) => panic!("missing bundle must fail"),
+            Err(err) => err,
+        };
+        assert!(err
+            .to_string()
+            .contains("failed to load BLS bundle material"));
+    }
+
+    #[test]
+    fn bls_material_load_requires_explicit_dealer_key() {
+        let participants = vec![
+            ed25519::PrivateKey::from_seed(401).public_key(),
+            ed25519::PrivateKey::from_seed(402).public_key(),
+        ];
+        let local = participants[0].clone();
+        let session_root = temp_dir("missing-dealer-key");
+        let bootstrap_result = run_trusted_dealer_bootstrap(TrustedDealerBootstrapConfig {
+            session_id: 120,
+            output_dir: session_root,
+            participants: participants.clone(),
+        })
+        .expect("bootstrap");
+
+        let config = NodeConfig {
+            bootstrap: crate::config::BootstrapConfig {
+                genesis_dkg_session_dir: Some(bootstrap_result.session_dir),
+                ..Default::default()
+            },
+            ..NodeConfig::default()
+        };
+        let err = match load_bls_material_for_signer(&config, &local, &participants) {
+            Ok(_) => panic!("missing dealer key must fail"),
+            Err(err) => err,
+        };
+        assert!(err
+            .to_string()
+            .contains("requires --genesis-dkg-dealer-pubkey"));
+    }
+
+    #[test]
+    fn bls_material_load_rejects_dealer_key_without_session_dir() {
+        let participants = vec![
+            ed25519::PrivateKey::from_seed(410).public_key(),
+            ed25519::PrivateKey::from_seed(411).public_key(),
+        ];
+        let local = participants[0].clone();
+        let dealer = ed25519::PrivateKey::from_seed(499).public_key();
+        let config = NodeConfig {
+            bootstrap: crate::config::BootstrapConfig {
+                genesis_dkg_dealer_pubkey: Some(dealer),
+                ..Default::default()
+            },
+            ..NodeConfig::default()
+        };
+
+        let err = match load_bls_material_for_signer(&config, &local, &participants) {
+            Ok(_) => panic!("dealer key without session directory must fail"),
+            Err(err) => err,
+        };
+        assert!(
+            err.to_string()
+                .contains("requires --genesis-dkg-session-dir"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn bls_material_load_rejects_invalid_manifest_hash() {
+        let participants = vec![
+            ed25519::PrivateKey::from_seed(51).public_key(),
+            ed25519::PrivateKey::from_seed(52).public_key(),
+        ];
+        let local = participants[0].clone();
+        let session_root = temp_dir("invalid-manifest");
+        let bootstrap_result = run_trusted_dealer_bootstrap(TrustedDealerBootstrapConfig {
+            session_id: 101,
+            output_dir: session_root,
+            participants: participants.clone(),
+        })
+        .expect("bootstrap");
+        fs::write(
+            bootstrap_result.session_dir.join("manifest.sha256"),
+            [0u8; 32],
+        )
+        .expect("tamper manifest hash");
+
+        let config = NodeConfig {
+            bootstrap: crate::config::BootstrapConfig {
+                genesis_dkg_session_dir: Some(bootstrap_result.session_dir),
+                genesis_dkg_dealer_pubkey: Some(bootstrap_result.dealer_public_key),
+                ..Default::default()
+            },
+            ..NodeConfig::default()
+        };
+        let err = match load_bls_material_for_signer(&config, &local, &participants) {
+            Ok(_) => panic!("invalid manifest hash must fail"),
+            Err(err) => err,
+        };
+        assert!(err
+            .to_string()
+            .contains("failed to load BLS bundle material"));
+    }
+
+    #[test]
+    fn bls_material_load_rejects_foreign_bundle() {
+        let participants = vec![
+            ed25519::PrivateKey::from_seed(61).public_key(),
+            ed25519::PrivateKey::from_seed(62).public_key(),
+        ];
+        let local = participants[0].clone();
+        let other = participants[1].clone();
+        let session_root = temp_dir("foreign-bundle");
+        let bootstrap_result = run_trusted_dealer_bootstrap(TrustedDealerBootstrapConfig {
+            session_id: 102,
+            output_dir: session_root,
+            participants: participants.clone(),
+        })
+        .expect("bootstrap");
+        let bundles_dir = bootstrap_result.session_dir.join("bundles");
+        let local_path =
+            bundles_dir.join(format!("{}.bundle", commonware_utils::hex(local.as_ref())));
+        let other_path =
+            bundles_dir.join(format!("{}.bundle", commonware_utils::hex(other.as_ref())));
+        fs::copy(&other_path, &local_path).expect("overwrite local bundle with foreign bundle");
+
+        let config = NodeConfig {
+            bootstrap: crate::config::BootstrapConfig {
+                genesis_dkg_session_dir: Some(bootstrap_result.session_dir),
+                genesis_dkg_dealer_pubkey: Some(bootstrap_result.dealer_public_key),
+                ..Default::default()
+            },
+            ..NodeConfig::default()
+        };
+        let err = match load_bls_material_for_signer(&config, &local, &participants) {
+            Ok(_) => panic!("foreign bundle must fail"),
+            Err(err) => err,
+        };
+        assert!(err
+            .to_string()
+            .contains("failed to load BLS bundle material"));
+    }
+
+    #[test]
+    fn bls_material_load_rejects_stale_bundle_session_id() {
+        let participants = vec![
+            ed25519::PrivateKey::from_seed(71).public_key(),
+            ed25519::PrivateKey::from_seed(72).public_key(),
+        ];
+        let local = participants[0].clone();
+        let session_root = temp_dir("stale-bundle");
+        let session_a = run_trusted_dealer_bootstrap(TrustedDealerBootstrapConfig {
+            session_id: 103,
+            output_dir: session_root.clone(),
+            participants: participants.clone(),
+        })
+        .expect("bootstrap session A");
+        let session_b = run_trusted_dealer_bootstrap(TrustedDealerBootstrapConfig {
+            session_id: 104,
+            output_dir: session_root,
+            participants: participants.clone(),
+        })
+        .expect("bootstrap session B");
+
+        let local_file = format!("{}.bundle", commonware_utils::hex(local.as_ref()));
+        fs::copy(
+            session_b.session_dir.join("bundles").join(&local_file),
+            session_a.session_dir.join("bundles").join(&local_file),
+        )
+        .expect("inject stale bundle from another session");
+
+        let config = NodeConfig {
+            bootstrap: crate::config::BootstrapConfig {
+                genesis_dkg_session_dir: Some(session_a.session_dir),
+                genesis_dkg_dealer_pubkey: Some(session_a.dealer_public_key),
+                ..Default::default()
+            },
+            ..NodeConfig::default()
+        };
+        let err = match load_bls_material_for_signer(&config, &local, &participants) {
+            Ok(_) => panic!("stale session bundle must fail"),
+            Err(err) => err,
+        };
+        assert!(err
+            .to_string()
+            .contains("failed to load BLS bundle material"));
     }
 }

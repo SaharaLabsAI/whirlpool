@@ -263,6 +263,7 @@ fn start_benchmark_node(
             block_interval,
         },
         bootstrap_validators: Some(vec![validator_public_key]),
+        bootstrap: Default::default(),
     };
 
     let handle = start_node_with_chain_spec(config, Some(Arc::new(chain_spec)))?;

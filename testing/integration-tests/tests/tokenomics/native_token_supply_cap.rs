@@ -138,6 +138,7 @@ fn start_node_for_chain_spec(
             block_interval: Duration::from_secs(1),
         },
         bootstrap_validators: Some(vec![public_key]),
+        bootstrap: Default::default(),
     };
 
     start_node_with_chain_spec(config, Some(Arc::new(chain_spec)))
