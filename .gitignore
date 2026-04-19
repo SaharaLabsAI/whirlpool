@@ -2,8 +2,5 @@ target/
 data/
 devtools/demo/personality/.run/
 
-.taskbox/
 .omx/
-.sisyphus/
-.whiteboard/
 .cargo-home/
