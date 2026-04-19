@@ -218,6 +218,7 @@ fn start_funded_node(seed: u64, funded_address: Address, balance: U256) -> (Node
         consensus: ConsensusStartupConfig {
             namespace: format!("tx-test-{seed}").into_bytes(),
             block_interval: Duration::from_secs(1),
+            full_dkg_strict_height: 0,
         },
         bootstrap_validators: Some(vec![public_key.clone()]),
         bootstrap: Default::default(),

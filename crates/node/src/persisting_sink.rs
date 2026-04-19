@@ -164,6 +164,7 @@ mod tests {
             receipts_root: [3u8; 32],
             proposer_public_key: [0u8; 32],
             proposer_fee_recipient: [0u8; 20],
+            extra_data: vec![0u8; 32],
             gas_used: 0,
             base_fee_per_gas: 1,
             timestamp: height,

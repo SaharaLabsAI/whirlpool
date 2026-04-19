@@ -6,8 +6,9 @@ use alloy_eips::eip2718::{Decodable2718, Encodable2718};
 use alloy_primitives::{bytes::BufMut, Address, Bytes, B256, U256};
 use alloy_trie::{root::ordered_trie_root_with_encoder, EMPTY_ROOT_HASH};
 use app::{
+    decode_extra_data, encode_canonical_extra_data, legacy_proposer_extra_data_bytes,
     traits::{Application, TxSource},
-    EvmBlock, ExecutionResult, Receipt,
+    CanonicalExtraDataV1, EvmBlock, ExecutionResult, ExtraDataDecodeMode, FullDkgV1, Receipt,
 };
 use evm_precompiles::{
     claimable_balance_slot, community_pool_last_processed_epoch_slot,
@@ -47,6 +48,7 @@ pub struct ProposedEvmPayload {
     pub base_fee_per_gas: u64,
     pub proposer_public_key: [u8; 32],
     pub proposer_fee_recipient: Address,
+    pub extra_data: Vec<u8>,
     pub receipts: Vec<Receipt>,
 }
 
@@ -64,7 +66,7 @@ pub fn build_header_from_evm_block(block: &EvmBlock) -> Header {
         base_fee_per_gas: Some(block.base_fee_per_gas),
         timestamp: block.timestamp,
         difficulty: U256::ZERO,
-        extra_data: Bytes::copy_from_slice(&block.proposer_public_key),
+        extra_data: Bytes::copy_from_slice(&block.extra_data),
         excess_blob_gas: Some(0),
         blob_gas_used: Some(0),
         ..Header::default()
@@ -490,6 +492,122 @@ fn validate_or_recover_fee_recipient(
     }
 }
 
+fn extra_data_decode_mode_for_height(
+    evm_config: &WhirlpoolEvmConfig,
+    block_height: u64,
+) -> ExtraDataDecodeMode {
+    if block_height >= evm_config.full_dkg_strict_height() {
+        ExtraDataDecodeMode::Strict
+    } else {
+        ExtraDataDecodeMode::Legacy
+    }
+}
+
+fn proposer_public_key_from_raw_eth_section(
+    decoded: &CanonicalExtraDataV1,
+) -> Result<[u8; 32], EvmAppError> {
+    let Some(raw_eth) = decoded.raw_eth.as_ref() else {
+        return Err(EvmAppError::InvalidBlock(
+            "missing raw_eth section in block extra_data".into(),
+        ));
+    };
+    if raw_eth.len() != 32 {
+        return Err(EvmAppError::InvalidBlock(format!(
+            "raw_eth proposer key must be 32 bytes, found {}",
+            raw_eth.len()
+        )));
+    }
+
+    let mut proposer_public_key = [0u8; 32];
+    proposer_public_key.copy_from_slice(raw_eth);
+    Ok(proposer_public_key)
+}
+
+fn full_dkg_should_be_included(
+    evm_config: &WhirlpoolEvmConfig,
+    previous_full_dkg: Option<&FullDkgV1>,
+    candidate: &FullDkgV1,
+) -> bool {
+    let expected_players = evm_config.simplex_consensus_public_keys();
+    let (previous_dealers, previous_players, previous_polynomial) = match previous_full_dkg {
+        Some(previous) => (
+            previous.output.dealers.clone(),
+            previous.output.players.clone(),
+            previous.output.public_polynomial.clone(),
+        ),
+        None => (expected_players.clone(), expected_players, Vec::new()),
+    };
+
+    candidate.output.dealers != previous_dealers
+        || candidate.output.players != previous_players
+        || candidate.output.public_polynomial != previous_polynomial
+}
+
+fn latest_committed_full_dkg<Storage>(
+    storage: &Storage,
+    start_height: u64,
+) -> Result<Option<FullDkgV1>, EvmAppError>
+where
+    Storage: BlockStorage,
+{
+    let mut height = start_height;
+    loop {
+        let maybe_block = storage
+            .get_block_by_number(height)
+            .map_err(|err| EvmAppError::State(err.to_string()))?;
+        if let Some(block) = maybe_block {
+            let decoded = decode_extra_data(&block.extra_data, ExtraDataDecodeMode::Legacy)
+                .map_err(|err| {
+                    EvmAppError::InvalidBlock(format!(
+                        "failed to decode historical block {height} extra_data: {err}"
+                    ))
+                })?;
+            if let Some(full_dkg) = decoded.full_dkg {
+                return Ok(Some(full_dkg));
+            }
+        }
+
+        if height == 0 {
+            break;
+        }
+        height -= 1;
+    }
+
+    Ok(None)
+}
+
+fn build_canonical_extra_data(
+    evm_config: &WhirlpoolEvmConfig,
+    previous_full_dkg: Option<&FullDkgV1>,
+    proposer_public_key: [u8; 32],
+    epoch: u64,
+) -> Result<Vec<u8>, EvmAppError> {
+    let raw_eth = legacy_proposer_extra_data_bytes(proposer_public_key);
+
+    if !evm_config.full_dkg_feature_enabled() {
+        return Ok(raw_eth);
+    }
+
+    let candidate_full_dkg = evm_config.current_full_dkg_payload(epoch);
+    if let Some(candidate) = candidate_full_dkg.as_ref() {
+        let expected_players = evm_config.simplex_consensus_public_keys();
+        if candidate.output.players != expected_players {
+            return Err(EvmAppError::InvalidBlock(
+                "full_dkg output.players does not match epoch simplex validator set".into(),
+            ));
+        }
+    }
+
+    let full_dkg = candidate_full_dkg
+        .filter(|candidate| full_dkg_should_be_included(evm_config, previous_full_dkg, candidate));
+
+    encode_canonical_extra_data(&CanonicalExtraDataV1 {
+        raw_eth: Some(raw_eth),
+        full_dkg,
+    })
+    .map_err(|err| EvmAppError::InvalidBlock(format!("invalid canonical extra_data: {err}")))
+}
+
 #[derive(Clone)]
 pub struct EvmApplication<DB> {
     evm_config: WhirlpoolEvmConfig,
@@ -547,7 +665,7 @@ where
         block_height: u64,
     ) -> Result<ProposedEvmPayload, EvmAppError>
     where
-        DB: StateProvider + Clone + revm::Database,
+        DB: StateProvider + BlockStorage + Clone + revm::Database,
         <DB as StateProvider>::Error: Into<EvmAppError>,
     {
         let parent_header = build_sealed_header(parent);
@@ -648,7 +766,7 @@ where
             aggregate_priority_fees(&executed_decoded_txs, &gas_deltas, base_fee_per_gas)?;
         let claim_recipient = self.evm_config.fee_recipient();
 
-        let state_root = {
+        let (state_root, current_epoch) = {
             let mut canonical_db = self.state_db.write().unwrap();
             canonical_db.commit(&bundle).map_err(Into::into)?;
             if let Some(ref boundary_state_changes) = boundary_state_changes {
@@ -659,9 +777,18 @@ where
                 boundary_required,
                 self.evm_config.simplex_validators(),
             )?;
+            let current_epoch = load_u64_storage_value(
+                &*canonical_db,
+                EPOCH_PRECOMPILE_ADDRESS,
+                current_epoch_slot(),
+                "epoch currentEpoch",
+            )?;
             credit_burned_fees(&mut *canonical_db, gas_used, base_fee_per_gas)?;
             credit_fee_pool_claim(&mut *canonical_db, claim_recipient, priority_fees)?;
-            canonical_db.state_root().map_err(Into::into)?
+            (
+                canonical_db.state_root().map_err(Into::into)?,
+                current_epoch,
+            )
         };
 
         let receipts_root = ordered_trie_root_with_encoder(
@@ -670,6 +797,17 @@ where
                 receipt.with_bloom_ref().encode_2718(out);
             },
         );
+
+        let latest_committed_full_dkg = {
+            let db = self.state_db.read().unwrap();
+            latest_committed_full_dkg(&*db, parent.height)?
+        };
+        let extra_data = build_canonical_extra_data(
+            &self.evm_config,
+            latest_committed_full_dkg.as_ref(),
+            self.evm_config.local_proposer_public_key(),
+            current_epoch,
+        )?;
 
         Ok(ProposedEvmPayload {
             included_user_transactions,
@@ -683,6 +821,7 @@ where
             base_fee_per_gas,
             proposer_public_key: self.evm_config.local_proposer_public_key(),
             proposer_fee_recipient: self.evm_config.fee_recipient(),
+            extra_data,
             receipts,
         })
     }
@@ -694,7 +833,7 @@ where
         raw_txs: &[Vec<u8>],
     ) -> Result<ExecutionResult, EvmAppError>
     where
-        DB: StateProvider + Clone + revm::Database,
+        DB: StateProvider + BlockStorage + Clone + revm::Database,
         <DB as StateProvider>::Error: Into<EvmAppError>,
     {
         let decoded_txs = decode_evm_transactions(raw_txs)?;
@@ -707,9 +846,24 @@ where
         let boundary_required = boundary_required_for_height(boundary_state, block.height);
 
         let parent_header = build_sealed_header(parent);
+        let decoded_extra_data = decode_extra_data(
+            &block.extra_data,
+            extra_data_decode_mode_for_height(&self.evm_config, block.height),
+        )
+        .map_err(|err| {
+            EvmAppError::InvalidBlock(format!("failed to decode block extra_data: {err}"))
+        })?;
+        let decoded_proposer_public_key =
+            proposer_public_key_from_raw_eth_section(&decoded_extra_data)?;
+        if decoded_proposer_public_key != block.proposer_public_key {
+            return Err(EvmAppError::InvalidBlock(format!(
+                "block proposer key mismatch between block field and extra_data: field={:?}, extra_data={:?}",
+                block.proposer_public_key, decoded_proposer_public_key
+            )));
+        }
         let claim_recipient = validate_or_recover_fee_recipient(
             &self.evm_config,
-            block.proposer_public_key,
+            decoded_proposer_public_key,
             block.proposer_fee_recipient,
         )?;
 
@@ -777,6 +931,12 @@ where
             boundary_required,
             self.evm_config.simplex_validators(),
         )?;
+        let current_epoch = load_u64_storage_value(
+            &exec_state,
+            EPOCH_PRECOMPILE_ADDRESS,
+            current_epoch_slot(),
+            "epoch currentEpoch",
+        )?;
         credit_burned_fees(&mut exec_state, computed_gas_used, block.base_fee_per_gas)?;
         credit_fee_pool_claim(&mut exec_state, claim_recipient, priority_fees)?;
 
@@ -809,6 +969,66 @@ where
             )));
         }
 
+        let expected_players = self.evm_config.simplex_consensus_public_keys();
+        if let Some(full_dkg) = decoded_extra_data.full_dkg.as_ref() {
+            if full_dkg.epoch != current_epoch {
+                return Err(EvmAppError::InvalidBlock(format!(
+                    "full_dkg epoch mismatch: expected {current_epoch}, found {}",
+                    full_dkg.epoch
+                )));
+            }
+            if full_dkg.output.players != expected_players {
+                return Err(EvmAppError::InvalidBlock(
+                    "full_dkg output.players does not match epoch simplex validator set".into(),
+                ));
+            }
+        }
+
+        if self.evm_config.full_dkg_feature_enabled() {
+            let candidate_full_dkg = self.evm_config.current_full_dkg_payload(current_epoch);
+            let latest_committed_full_dkg = {
+                let db = self.state_db.read().unwrap();
+                latest_committed_full_dkg(&*db, parent.height)?
+            };
+            match candidate_full_dkg {
+                Some(candidate_full_dkg) => {
+                    let should_include = full_dkg_should_be_included(
+                        &self.evm_config,
+                        latest_committed_full_dkg.as_ref(),
+                        &candidate_full_dkg,
+                    );
+                    match (should_include, decoded_extra_data.full_dkg.as_ref()) {
+                        (true, Some(observed)) => {
+                            if observed != &candidate_full_dkg {
+                                return Err(EvmAppError::InvalidBlock(
+                                    "full_dkg payload mismatch with configured candidate".into(),
+                                ));
+                            }
+                        }
+                        (true, None) => {
+                            return Err(EvmAppError::InvalidBlock(
+                                "full_dkg section must be present for this block".into(),
+                            ))
+                        }
+                        (false, Some(_)) => {
+                            return Err(EvmAppError::InvalidBlock(
+                                "full_dkg section must be omitted for this block".into(),
+                            ))
+                        }
+                        (false, None) => {}
+                    }
+                }
+                None => {
+                    if decoded_extra_data.full_dkg.is_some() {
+                        return Err(EvmAppError::InvalidBlock(
+                            "full_dkg section must be omitted when no full_dkg candidate is configured"
+                                .into(),
+                        ));
+                    }
+                }
+            }
+        }
+
         let receipts: Vec<Receipt> = execution_result
             .receipts
             .iter()
@@ -836,7 +1056,14 @@ where
 #[allow(clippy::manual_async_fn)]
 impl<DB> Application for EvmApplication<DB>
 where
-    DB: StateProvider + Clone + Send + Sync + 'static + revm::Database + std::fmt::Debug,
+    DB: StateProvider
+        + BlockStorage
+        + Clone
+        + Send
+        + Sync
+        + 'static
+        + revm::Database
+        + std::fmt::Debug,
     <DB as StateProvider>::Error: Into<EvmAppError>,
 {
     type Block = EvmBlock;
@@ -851,6 +1078,15 @@ where
                     .map_err(Into::into)
                     .expect("genesis state root should not fail")
             };
+            let genesis_extra_data = build_canonical_extra_data(
+                &self.evm_config,
+                None,
+                self.evm_config.local_proposer_public_key(),
+                0,
+            )
+            .unwrap_or_else(|_| {
+                legacy_proposer_extra_data_bytes(self.evm_config.local_proposer_public_key())
+            });
 
             EvmBlock {
                 height: 0,
@@ -860,6 +1096,7 @@ where
                 receipts_root: EMPTY_ROOT_HASH.0,
                 proposer_public_key: self.evm_config.local_proposer_public_key(),
                 proposer_fee_recipient: self.evm_config.fee_recipient().into_array(),
+                extra_data: genesis_extra_data,
                 gas_used: 0,
                 base_fee_per_gas: 1_000_000_000,
                 timestamp: 0,
@@ -905,6 +1142,7 @@ where
                 receipts_root: payload.result.receipts_root,
                 proposer_public_key: payload.proposer_public_key,
                 proposer_fee_recipient: payload.proposer_fee_recipient.into_array(),
+                extra_data: payload.extra_data,
                 gas_used: payload.result.gas_used,
                 base_fee_per_gas: payload.base_fee_per_gas,
                 timestamp,
@@ -1441,6 +1679,63 @@ mod tests {
         let verifier_app = EvmApplication::new(config, pre_db, source);
 
         assert!(verifier_app.verify(&parent, &block).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn verify_accepts_legacy_extra_data_before_strict_height() {
+        let strict_height = 2;
+        let chain_spec = Arc::new(build_sahara_chain_spec());
+        let proposer_config = WhirlpoolEvmConfig::new(chain_spec.clone())
+            .with_local_proposer_public_key([0x77; 32])
+            .with_full_dkg_strict_height(strict_height);
+        let (app, db) = setup_app_with_config(vec![], proposer_config.clone()).await;
+        let pre_state = db.read().unwrap().clone();
+
+        let parent = app.genesis().await;
+        let (mut block, _) = app.propose(&parent, 1).await.unwrap();
+        block.extra_data = legacy_proposer_extra_data_bytes(block.proposer_public_key);
+
+        let verifier = EvmApplication::new(
+            proposer_config,
+            Arc::new(RwLock::new(pre_state)),
+            Arc::new(MockTxSource { txs: vec![] }),
+        );
+
+        assert!(
+            verifier.verify(&parent, &block).await.is_ok(),
+            "legacy extra_data must remain accepted before strict-height boundary"
+        );
+    }
+
+    #[tokio::test]
+    async fn verify_rejects_legacy_extra_data_at_or_after_strict_height() {
+        let strict_height = 2;
+        let chain_spec = Arc::new(build_sahara_chain_spec());
+        let proposer_config = WhirlpoolEvmConfig::new(chain_spec.clone())
+            .with_local_proposer_public_key([0x77; 32])
+            .with_full_dkg_strict_height(strict_height);
+        let (app, db) = setup_app_with_config(vec![], proposer_config.clone()).await;
+
+        let genesis = app.genesis().await;
+        let (parent, _) = app.propose(&genesis, 1).await.unwrap();
+        let pre_state = db.read().unwrap().clone();
+        let (mut block, _) = app.propose(&parent, strict_height).await.unwrap();
+        block.extra_data = legacy_proposer_extra_data_bytes(block.proposer_public_key);
+
+        let verifier = EvmApplication::new(
+            proposer_config,
+            Arc::new(RwLock::new(pre_state)),
+            Arc::new(MockTxSource { txs: vec![] }),
+        );
+        let err = verifier
+            .verify(&parent, &block)
+            .await
+            .expect_err("legacy extra_data must be rejected at/after strict height");
+
+        assert!(
+            matches!(err, EvmAppError::InvalidBlock(ref msg) if msg.contains("failed to decode block extra_data")),
+            "unexpected error: {err:?}"
+        );
     }
 
     #[tokio::test]
@@ -2213,6 +2508,7 @@ mod tests {
             receipts_root: EMPTY_ROOT_HASH.0,
             proposer_public_key: parent.proposer_public_key,
             proposer_fee_recipient: parent.proposer_fee_recipient,
+            extra_data: parent.extra_data.clone(),
             gas_used: 0,
             base_fee_per_gas: parent.base_fee_per_gas,
             timestamp: parent.timestamp + 12,
@@ -2300,6 +2596,7 @@ mod tests {
             receipts_root: EMPTY_ROOT_HASH.0,
             proposer_public_key: parent.proposer_public_key,
             proposer_fee_recipient: parent.proposer_fee_recipient,
+            extra_data: parent.extra_data.clone(),
             gas_used: 0,
             base_fee_per_gas: parent.base_fee_per_gas,
             timestamp: parent.timestamp + 12,
@@ -2382,5 +2679,254 @@ mod tests {
         assert_eq!(stored.len(), 1);
         assert_eq!(stored[0].0.height, 1);
         assert_eq!(stored[0].1.len(), 1);
+    }
+
+    #[test]
+    fn latest_committed_full_dkg_scans_backwards_past_raw_eth_only_blocks() {
+        use state::BlockStorageError;
+
+        #[derive(Default)]
+        struct MockStorage {
+            blocks: BTreeMap<u64, EvmBlock>,
+        }
+
+        impl BlockStorage for MockStorage {
+            fn store_block(
+                &self,
+                _block: &EvmBlock,
+                _receipts: &[Receipt],
+            ) -> Result<(), BlockStorageError> {
+                Ok(())
+            }
+
+            fn get_block_by_number(
+                &self,
+                number: u64,
+            ) -> Result<Option<EvmBlock>, BlockStorageError> {
+                Ok(self.blocks.get(&number).cloned())
+            }
+
+            fn get_block_by_hash(
+                &self,
+                _hash: B256,
+            ) -> Result<Option<EvmBlock>, BlockStorageError> {
+                Ok(None)
+            }
+
+            fn get_receipts_by_block(
+                &self,
+                _number: u64,
+            ) -> Result<Option<Vec<Receipt>>, BlockStorageError> {
+                Ok(None)
+            }
+
+            fn get_latest_block_number(&self) -> Result<Option<u64>, BlockStorageError> {
+                Ok(self.blocks.keys().next_back().cloned())
+            }
+        }
+
+        fn block_with_extra_data(height: u64, extra_data: Vec<u8>) -> EvmBlock {
+            EvmBlock {
+                height,
+                parent_id: [0u8; 32],
+                state_root: [0u8; 32],
+                transactions_root: [0u8; 32],
+                receipts_root: [0u8; 32],
+                proposer_public_key: [0x11; 32],
+                proposer_fee_recipient: [0x22; 20],
+                extra_data,
+                gas_used: 0,
+                base_fee_per_gas: 1_000_000_000,
+                timestamp: height * 12,
+                transactions: vec![],
+            }
+        }
+
+        let chain_spec = Arc::new(build_sahara_chain_spec());
+        let config = WhirlpoolEvmConfig::new(chain_spec);
+        let players = config.simplex_consensus_public_keys();
+        let full_dkg = FullDkgV1 {
+            epoch: 1,
+            output: app::FullDkgOutputV1 {
+                dealers: players.clone(),
+                players: players.clone(),
+                public_polynomial: vec![1, 2, 3, 4],
+            },
+        };
+
+        let extra_with_full_dkg = encode_canonical_extra_data(&CanonicalExtraDataV1 {
+            raw_eth: Some(vec![0x11; 32]),
+            full_dkg: Some(full_dkg.clone()),
+        })
+        .expect("encode full_dkg");
+        let extra_raw_only = encode_canonical_extra_data(&CanonicalExtraDataV1 {
+            raw_eth: Some(vec![0x11; 32]),
+            full_dkg: None,
+        })
+        .expect("encode raw only");
+
+        let mut storage = MockStorage::default();
+        storage
+            .blocks
+            .insert(0, block_with_extra_data(0, extra_with_full_dkg));
+        storage
+            .blocks
+            .insert(1, block_with_extra_data(1, extra_raw_only.clone()));
+        storage
+            .blocks
+            .insert(2, block_with_extra_data(2, extra_raw_only));
+
+        let resolved = latest_committed_full_dkg(&storage, 2)
+            .expect("scan should succeed")
+            .expect("full_dkg should resolve from earlier block");
+        assert_eq!(resolved, full_dkg);
+
+        assert!(
+            !full_dkg_should_be_included(&config, Some(&resolved), &full_dkg),
+            "unchanged baseline must not force redundant FullDkg inclusion"
+        );
+    }
+
+    #[test]
+    fn full_dkg_trigger_includes_when_only_dealers_change() {
+        let chain_spec = Arc::new(build_sahara_chain_spec());
+        let config = WhirlpoolEvmConfig::new(chain_spec);
+        let players = config.simplex_consensus_public_keys();
+
+        let previous = FullDkgV1 {
+            epoch: 3,
+            output: app::FullDkgOutputV1 {
+                dealers: vec![[0x11; 32]],
+                players: players.clone(),
+                public_polynomial: vec![0xaa, 0xbb],
+            },
+        };
+        let candidate = FullDkgV1 {
+            epoch: 3,
+            output: app::FullDkgOutputV1 {
+                dealers: vec![[0x22; 32]],
+                players,
+                public_polynomial: vec![0xaa, 0xbb],
+            },
+        };
+
+        assert!(
+            full_dkg_should_be_included(&config, Some(&previous), &candidate),
+            "dealer-only changes must trigger FullDkg inclusion"
+        );
+    }
+
+    #[tokio::test]
+    async fn verify_rejects_full_dkg_payload_mismatch_against_candidate() {
+        let (tx, recovered) = sample_evm_tx();
+        let chain_spec = Arc::new(build_sahara_chain_spec());
+        let base_config = WhirlpoolEvmConfig::new(chain_spec.clone());
+        let players = base_config.simplex_consensus_public_keys();
+        let candidate_output = app::FullDkgOutputV1 {
+            dealers: players.clone(),
+            players: players.clone(),
+            public_polynomial: vec![0xaa, 0xbb, 0xcc],
+        };
+        let proposer_config = base_config
+            .with_local_proposer_public_key([0x77; 32])
+            .with_full_dkg_strict_height(0)
+            .with_current_full_dkg_output(candidate_output.clone());
+        let (app, db) = setup_app_with_config(vec![tx], proposer_config.clone()).await;
+
+        {
+            let mut db = db.write().unwrap();
+            db.insert_account(
+                recovered,
+                revm::state::AccountInfo {
+                    balance: U256::from(1_000_000_000_000_000_000u64),
+                    nonce: 0,
+                    ..Default::default()
+                },
+            );
+        }
+
+        let pre_state = db.read().unwrap().clone();
+        let parent = app.genesis().await;
+        let (mut block, _) = app.propose(&parent, 1).await.unwrap();
+
+        let mut decoded = decode_extra_data(&block.extra_data, ExtraDataDecodeMode::Strict)
+            .expect("canonical extra_data must decode");
+        decoded
+            .full_dkg
+            .as_mut()
+            .expect("proposed block should include full_dkg")
+            .output
+            .public_polynomial
+            .push(0xff);
+        block.extra_data =
+            encode_canonical_extra_data(&decoded).expect("mutated canonical extra_data encodes");
+
+        let verifier = EvmApplication::new(
+            proposer_config,
+            Arc::new(RwLock::new(pre_state)),
+            Arc::new(MockTxSource { txs: vec![] }),
+        );
+        let err = verifier
+            .verify(&parent, &block)
+            .await
+            .expect_err("mismatched full_dkg payload must be rejected");
+        assert!(
+            matches!(err, EvmAppError::InvalidBlock(ref msg) if msg.contains("full_dkg payload mismatch")),
+            "unexpected error: {err:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn verify_rejects_full_dkg_when_candidate_is_not_configured() {
+        let (tx, recovered) = sample_evm_tx();
+        let chain_spec = Arc::new(build_sahara_chain_spec());
+        let config = WhirlpoolEvmConfig::new(chain_spec.clone())
+            .with_local_proposer_public_key([0x77; 32])
+            .with_full_dkg_strict_height(0);
+        let (app, db) = setup_app_with_config(vec![tx], config.clone()).await;
+
+        {
+            let mut db = db.write().unwrap();
+            db.insert_account(
+                recovered,
+                revm::state::AccountInfo {
+                    balance: U256::from(1_000_000_000_000_000_000u64),
+                    nonce: 0,
+                    ..Default::default()
+                },
+            );
+        }
+
+        let pre_state = db.read().unwrap().clone();
+        let parent = app.genesis().await;
+        let (mut block, _) = app.propose(&parent, 1).await.unwrap();
+
+        let players = config.simplex_consensus_public_keys();
+        block.extra_data = encode_canonical_extra_data(&CanonicalExtraDataV1 {
+            raw_eth: Some(block.proposer_public_key.to_vec()),
+            full_dkg: Some(FullDkgV1 {
+                epoch: 0,
+                output: app::FullDkgOutputV1 {
+                    dealers: players.clone(),
+                    players,
+                    public_polynomial: vec![0x01],
+                },
+            }),
+        })
+        .expect("canonical extra_data with full_dkg");
+
+        let verifier = EvmApplication::new(
+            config,
+            Arc::new(RwLock::new(pre_state)),
+            Arc::new(MockTxSource { txs: vec![] }),
+        );
+        let err = verifier
+            .verify(&parent, &block)
+            .await
+            .expect_err("unexpected full_dkg without configured candidate must be rejected");
+        assert!(
+            matches!(err, EvmAppError::InvalidBlock(ref msg) if msg.contains("must be omitted when no full_dkg candidate is configured")),
+            "unexpected error: {err:?}"
+        );
     }
 }

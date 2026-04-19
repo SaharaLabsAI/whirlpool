@@ -13,6 +13,7 @@ Location: `crates/consensus/manager/`
   - Loads manifest + local bundle.
   - Validates session completeness by checking and verifying all participant bundles.
   - Validates local recipient/session/share binding before returning polynomial + share.
+  - Returned `LocalBundleMaterial` now includes both `dealers` and `participants` (ed25519 keys), plus `polynomial` + local `share`.
 
 ## Artifact Contracts
 - Manifest stores `session_id` and DKG public output.

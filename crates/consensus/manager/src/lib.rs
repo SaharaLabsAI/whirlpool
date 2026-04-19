@@ -1,4 +1,5 @@
 //! Trusted-dealer bootstrap manager for consensus key material.
+#![allow(clippy::result_large_err)]
 
 use bytes::{Buf, BufMut};
 use commonware_codec::{Encode, EncodeSize, Error as CodecError, Read, ReadExt, Write};
@@ -183,6 +184,7 @@ pub struct LoadLocalBundleConfig {
 #[derive(Clone)]
 pub struct LocalBundleMaterial {
     pub session_id: u64,
+    pub dealers: Vec<ed25519::PublicKey>,
     pub participants: Vec<ed25519::PublicKey>,
     pub polynomial: commonware_cryptography::bls12381::primitives::sharing::Sharing<MinSig>,
     pub share: Share,
@@ -339,6 +341,7 @@ pub fn load_local_bundle(config: LoadLocalBundleConfig) -> Result<LocalBundleMat
 
     Ok(LocalBundleMaterial {
         session_id: manifest.session_id,
+        dealers: manifest.output.dealers().iter().cloned().collect(),
         participants: manifest.output.players().iter().cloned().collect(),
         polynomial: manifest.output.public().clone(),
         share: bundle.share,

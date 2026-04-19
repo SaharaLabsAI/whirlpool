@@ -1,4 +1,5 @@
 use alloy_primitives::{Address, B256};
+use app::{FullDkgOutputV1, FullDkgV1};
 use core::convert::Infallible;
 use evm_precompiles::{whirlpool_precompiles_with_validators, WhirlpoolEvmFactory};
 use reth_chainspec::ChainSpec;
@@ -32,6 +33,9 @@ pub struct WhirlpoolEvmConfig {
     local_proposer_public_key: [u8; 32],
     validator_fee_recipients: BTreeMap<[u8; 32], Address>,
     simplex_validators: Vec<ValidatorEntry>,
+    full_dkg_feature_enabled: bool,
+    full_dkg_strict_height: u64,
+    current_full_dkg_output: Option<FullDkgOutputV1>,
 }
 
 impl WhirlpoolEvmConfig {
@@ -47,6 +51,9 @@ impl WhirlpoolEvmConfig {
             local_proposer_public_key: [0u8; 32],
             validator_fee_recipients,
             simplex_validators,
+            full_dkg_feature_enabled: true,
+            full_dkg_strict_height: 0,
+            current_full_dkg_output: None,
         }
     }
 
@@ -76,6 +83,41 @@ impl WhirlpoolEvmConfig {
 
     pub fn simplex_validators(&self) -> &[ValidatorEntry] {
         &self.simplex_validators
+    }
+
+    pub fn simplex_consensus_public_keys(&self) -> Vec<[u8; 32]> {
+        self.simplex_validators
+            .iter()
+            .map(|validator| validator.consensus_pubkey)
+            .collect()
+    }
+
+    pub fn with_full_dkg_feature_enabled(mut self, enabled: bool) -> Self {
+        self.full_dkg_feature_enabled = enabled;
+        self
+    }
+
+    pub fn full_dkg_feature_enabled(&self) -> bool {
+        self.full_dkg_feature_enabled
+    }
+
+    pub fn with_full_dkg_strict_height(mut self, height: u64) -> Self {
+        self.full_dkg_strict_height = height;
+        self
+    }
+
+    pub fn full_dkg_strict_height(&self) -> u64 {
+        self.full_dkg_strict_height
+    }
+
+    pub fn with_current_full_dkg_output(mut self, output: FullDkgOutputV1) -> Self {
+        self.current_full_dkg_output = Some(output);
+        self
+    }
+
+    pub fn current_full_dkg_payload(&self, epoch: u64) -> Option<FullDkgV1> {
+        let output = self.current_full_dkg_output.clone()?;
+        Some(FullDkgV1 { epoch, output })
     }
 }
 
@@ -272,5 +314,11 @@ mod tests {
             .genesis
             .alloc
             .contains_key(&VALIDATOR_FEE_RECIPIENTS_REGISTRY));
+    }
+
+    #[test]
+    fn test_full_dkg_strict_height_defaults_to_zero() {
+        let config = WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec()));
+        assert_eq!(config.full_dkg_strict_height(), 0);
     }
 }

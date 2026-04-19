@@ -60,7 +60,14 @@ where
 #[allow(clippy::manual_async_fn)]
 impl<DB> Application for CompositeApplication<DB>
 where
-    DB: StateProvider + Clone + Send + Sync + 'static + revm::Database + std::fmt::Debug,
+    DB: StateProvider
+        + BlockStorage
+        + Clone
+        + Send
+        + Sync
+        + 'static
+        + revm::Database
+        + std::fmt::Debug,
     <DB as StateProvider>::Error: Into<EvmAppError>,
 {
     type Block = EvmBlock;
@@ -139,6 +146,7 @@ where
                 receipts_root: evm_payload.result.receipts_root,
                 proposer_public_key: evm_payload.proposer_public_key,
                 proposer_fee_recipient: evm_payload.proposer_fee_recipient.into_array(),
+                extra_data: evm_payload.extra_data,
                 gas_used: evm_payload.result.gas_used,
                 base_fee_per_gas: evm_payload.base_fee_per_gas,
                 timestamp,

@@ -11,6 +11,7 @@ use commonware_cryptography::{
 };
 
 #[derive(Clone)]
+#[allow(clippy::large_enum_variant)]
 pub enum SigningSchemeConfig {
     /// Use the legacy ed25519 simplex signing scheme.
     Ed25519 {

@@ -19,6 +19,7 @@ pub type BootstrapPeer = (ed25519::PublicKey, Ingress);
 pub const APPLICATION_NAMESPACE: &[u8] = b"whirlpool-dev";
 pub const NAMESPACE: &[u8] = b"sahara-chain-v0";
 pub const BLOCK_INTERVAL: Duration = Duration::from_secs(5);
+pub const FULL_DKG_STRICT_HEIGHT: u64 = 0;
 pub const BIND_ADDR: &str = "127.0.0.1:0";
 pub const VALIDATOR_SEED: u64 = 0;
 pub const RPC_BIND_ADDR: &str = "127.0.0.1:8545";
@@ -59,6 +60,8 @@ pub struct NodeArgs {
     pub consensus_namespace: Option<String>,
     #[arg(long)]
     pub block_interval_ms: Option<u64>,
+    #[arg(long)]
+    pub full_dkg_strict_height: Option<u64>,
     #[arg(long, default_value_t = false)]
     pub genesis_bootstrap_dkg: bool,
     #[arg(long)]
@@ -125,6 +128,7 @@ pub struct StorageConfig {
 pub struct ConsensusStartupConfig {
     pub namespace: Vec<u8>,
     pub block_interval: Duration,
+    pub full_dkg_strict_height: u64,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
@@ -140,6 +144,7 @@ pub struct TomlConfig {
     pub network_namespace: Option<String>,
     pub consensus_namespace: Option<String>,
     pub block_interval_ms: Option<u64>,
+    pub full_dkg_strict_height: Option<u64>,
     #[serde(alias = "validators")]
     pub bootstrap_validators: Option<Vec<String>>,
     pub genesis_bootstrap_dkg: Option<bool>,
@@ -304,6 +309,7 @@ impl Default for ConsensusStartupConfig {
         Self {
             namespace: NAMESPACE.to_vec(),
             block_interval: BLOCK_INTERVAL,
+            full_dkg_strict_height: FULL_DKG_STRICT_HEIGHT,
         }
     }
 }
@@ -381,6 +387,14 @@ pub fn load_config(args: NodeArgs) -> Result<NodeConfig, ConfigError> {
         .or_else(|| file_config.as_ref().and_then(|cfg| cfg.block_interval_ms))
         .map(Duration::from_millis)
         .unwrap_or(defaults.consensus.block_interval);
+    let full_dkg_strict_height = args
+        .full_dkg_strict_height
+        .or_else(|| {
+            file_config
+                .as_ref()
+                .and_then(|cfg| cfg.full_dkg_strict_height)
+        })
+        .unwrap_or(defaults.consensus.full_dkg_strict_height);
 
     let bootstrap_peer_strings = if !args.bootstrap_peer.is_empty() || !args.dial_peer.is_empty() {
         args.bootstrap_peer
@@ -466,6 +480,7 @@ pub fn load_config(args: NodeArgs) -> Result<NodeConfig, ConfigError> {
                 .map(String::into_bytes)
                 .unwrap_or(defaults.consensus.namespace),
             block_interval,
+            full_dkg_strict_height,
         },
         bootstrap_validators,
         bootstrap: BootstrapConfig {
@@ -535,6 +550,9 @@ impl From<NodeArgs> for NodeConfig {
                     .block_interval_ms
                     .map(Duration::from_millis)
                     .unwrap_or(defaults.consensus.block_interval),
+                full_dkg_strict_height: args
+                    .full_dkg_strict_height
+                    .unwrap_or(defaults.consensus.full_dkg_strict_height),
             },
             bootstrap_validators,
             bootstrap: BootstrapConfig {

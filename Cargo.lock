@@ -9331,6 +9331,7 @@ name = "state-memory"
 version = "0.1.0"
 dependencies = [
  "alloy-genesis",
+ "app",
  "revm",
  "sha2 0.10.9",
  "state",

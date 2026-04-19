@@ -1,6 +1,6 @@
 use alloy_eips::eip2718::{Decodable2718, Eip2718Error};
 use alloy_primitives::{Address, B256};
-use app::types::EvmBlock;
+use app::{project_raw_eth_extra_data, types::EvmBlock};
 use reth_ethereum_primitives::{Block, BlockBody, TransactionSigned};
 use reth_primitives_traits::Header;
 
@@ -11,6 +11,7 @@ pub fn decode_transaction(bytes: &[u8]) -> Result<TransactionSigned, Eip2718Erro
 
 /// Convert an EvmBlock into a reth header.
 pub fn evmblock_to_header(block: &EvmBlock) -> Header {
+    let projected_extra_data = project_raw_eth_extra_data(&block.extra_data);
     Header {
         number: block.height,
         parent_hash: B256::from_slice(&block.parent_id),
@@ -20,7 +21,7 @@ pub fn evmblock_to_header(block: &EvmBlock) -> Header {
         receipts_root: B256::from_slice(&block.receipts_root),
         gas_used: block.gas_used,
         base_fee_per_gas: Some(block.base_fee_per_gas),
-        extra_data: block.proposer_public_key.to_vec().into(),
+        extra_data: projected_extra_data.into(),
         timestamp: block.timestamp,
         ..Default::default()
     }

@@ -1,12 +1,12 @@
 use alloy_primitives::Address;
 use app::traits::TxSource;
-use app::ApplicationAdapter;
+use app::{ApplicationAdapter, FullDkgOutputV1};
 use app_evm::{EvmApplication, WhirlpoolEvmConfig};
 use chainspec::{
     build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators,
     try_simplex_validators_from_chain_spec, validate_genesis_alloc,
 };
-use commonware_codec::Read;
+use commonware_codec::{Encode, Read};
 use commonware_cryptography::ed25519;
 use commonware_cryptography::Signer;
 use commonware_runtime::{tokio, Metrics, Runner};
@@ -125,6 +125,12 @@ fn decode_consensus_pubkey(bytes: [u8; 32]) -> NodeResult<ed25519::PublicKey> {
         )));
     }
     Ok(public_key)
+}
+
+fn consensus_pubkey_to_bytes(key: &ed25519::PublicKey) -> [u8; 32] {
+    key.as_ref()
+        .try_into()
+        .expect("ed25519 public key length should be 32 bytes")
 }
 
 fn simplex_validators_from_chain_spec(
@@ -305,6 +311,19 @@ pub fn start_node_with_chain_spec(
                     return;
                 }
             };
+            let full_dkg_output = bls_material.as_ref().map(|material| FullDkgOutputV1 {
+                dealers: material
+                    .dealers
+                    .iter()
+                    .map(consensus_pubkey_to_bytes)
+                    .collect(),
+                players: material
+                    .participants
+                    .iter()
+                    .map(consensus_pubkey_to_bytes)
+                    .collect(),
+                public_polynomial: material.polynomial.encode().to_vec(),
+            });
 
             let listen_addr = config.network.listen_addr;
             let dialable_addr = config.network.dialable_addr;
@@ -368,11 +387,11 @@ pub fn start_node_with_chain_spec(
                 height: Arc::clone(&height),
                 fetch_timeout: Duration::from_secs(5),
                 fetch_concurrent: 4,
-                signing_scheme: match bls_material {
+                signing_scheme: match bls_material.as_ref() {
                     Some(material) => SigningSchemeConfig::BlsThresholdVrf {
-                        participants: material.participants,
-                        polynomial: material.polynomial,
-                        share: material.share,
+                        participants: material.participants.clone(),
+                        polynomial: material.polynomial.clone(),
+                        share: material.share.clone(),
                     },
                     None => SigningSchemeConfig::Ed25519 {
                         signer,
@@ -383,8 +402,12 @@ pub fn start_node_with_chain_spec(
 
             let mut proposer_public_key = [0u8; 32];
             proposer_public_key.copy_from_slice(public_key.as_ref());
-            let evm_config = WhirlpoolEvmConfig::new(chain_spec.clone())
-                .with_local_proposer_public_key(proposer_public_key);
+            let mut evm_config = WhirlpoolEvmConfig::new(chain_spec.clone())
+                .with_local_proposer_public_key(proposer_public_key)
+                .with_full_dkg_strict_height(config.consensus.full_dkg_strict_height);
+            if let Some(full_dkg_output) = full_dkg_output {
+                evm_config = evm_config.with_current_full_dkg_output(full_dkg_output);
+            }
             let mempool_path = config.storage.mempool_dir();
             info!(?mempool_path, "Opening persistent mempool database");
             let tx_pool: Arc<dyn TxSource> = Arc::new(

@@ -1,7 +1,7 @@
 use alloy_consensus::{Header, TxType, Typed2718};
 use alloy_eips::eip2718::{Decodable2718, Encodable2718};
 use alloy_primitives::Address;
-use app::{EvmBlock, Receipt as AppReceipt};
+use app::{proposer_public_key_from_extra_data, EvmBlock, Receipt as AppReceipt};
 use reth_db::Database;
 use reth_db_api::cursor::DbCursorRO;
 use reth_db_api::transaction::{DbTx, DbTxMut};
@@ -66,7 +66,7 @@ impl BlockStorage for RethStateDb {
             receipts_root: B256::from(block.receipts_root),
             gas_used: block.gas_used,
             base_fee_per_gas: Some(block.base_fee_per_gas),
-            extra_data: block.proposer_public_key.to_vec().into(),
+            extra_data: block.extra_data.clone().into(),
             timestamp: block.timestamp,
             number: block.height,
             // Post-Cancun fields required by the EVM environment.
@@ -164,14 +164,17 @@ impl BlockStorage for RethStateDb {
             transactions.push(raw);
         }
 
+        let extra_data: Vec<u8> = header.extra_data.to_vec();
         Ok(Some(EvmBlock {
             height: number,
             parent_id: header.parent_hash.into(),
             state_root: header.state_root.into(),
             transactions_root: header.transactions_root.into(),
             receipts_root: header.receipts_root.into(),
-            proposer_public_key: header.extra_data.as_ref().try_into().unwrap_or([0u8; 32]),
+            proposer_public_key: proposer_public_key_from_extra_data(&extra_data)
+                .unwrap_or([0u8; 32]),
             proposer_fee_recipient: header.beneficiary.into_array(),
+            extra_data,
             gas_used: header.gas_used,
             base_fee_per_gas: header.base_fee_per_gas.unwrap_or(0),
             timestamp: header.timestamp,
@@ -301,6 +304,7 @@ mod tests {
             receipts_root: [4u8.wrapping_add(height as u8); 32],
             proposer_public_key: [height as u8; 32],
             proposer_fee_recipient: [height as u8; 20],
+            extra_data: vec![height as u8; 32],
             gas_used: 21_000 * tx_count as u64,
             base_fee_per_gas: 1_000_000_000,
             timestamp: 1_700_000_000 + height,

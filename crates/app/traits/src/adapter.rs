@@ -17,6 +17,7 @@ impl<A: Application<Block = EvmBlock>> ApplicationAdapter<A> {
     }
 }
 
+#[allow(clippy::manual_async_fn)]
 impl<A> ConsensusApp for ApplicationAdapter<A>
 where
     A: Application<Block = EvmBlock>,
@@ -151,6 +152,7 @@ mod tests {
             receipts_root: [3u8; 32],
             proposer_public_key: [0u8; 32],
             proposer_fee_recipient: [0u8; 20],
+            extra_data: vec![0u8; 32],
             gas_used: 0,
             base_fee_per_gas: 1_000_000_000,
             timestamp: 0,

@@ -57,7 +57,7 @@ RpcModuleBuilder::default()
 
 ### Conversion Helpers (`convert.rs`)
 - `decode_transaction(bytes) -> TransactionSigned`: RLP decode raw transaction bytes.
-- `evmblock_to_header(EvmBlock) -> Header`: Maps internal `EvmBlock` fields to reth `Header`.
+- `evmblock_to_header(EvmBlock) -> Header`: Maps internal `EvmBlock` fields to reth `Header`; projects canonical app `extra_data` back to RawEth bytes via `app::project_raw_eth_extra_data`.
 - `evmblock_to_block(EvmBlock) -> SealedBlock`: Full block conversion with decoded transactions.
 
 ## Public API

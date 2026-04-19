@@ -15,7 +15,7 @@ In-memory state database implementation for EVM execution.
 - `crates/app/execute/mem/state/src/personality.rs` — `InMemoryPersonalityStorage` and in-memory finalized personality indexes
 
 ## Key Types
-- `InMemoryStateDb`: HashMap-backed state DB implementing `StateDb`, `Database`, and `DatabaseRef`.
+- `InMemoryStateDb`: HashMap-backed state DB implementing `StateDb`, `Database`, `DatabaseRef`, and in-memory `BlockStorage`.
 - `DbAccount`: account info + storage container.
 - `InMemoryPersonalityStorage`: in-memory `PersonalityStorage` implementation used outside `whirlpool-node`.
 
@@ -23,6 +23,7 @@ In-memory state database implementation for EVM execution.
 - `state::traits::StateDb`: `type Error = Infallible`. All trait methods return `Result<_, Infallible>`.
 - `revm::Database`: mutable EVM database access.
 - `revm::DatabaseRef`: read-only EVM database access.
+- `state::BlockStorage`: finalized block + receipt persistence via internal in-memory maps (`blocks_by_number`, `receipts_by_block`).
 - `state::PersonalityStorage`: finalized personality lookups keyed by personality ID, tx hash, and signer/nonce.
 
 ## Canonical Imports

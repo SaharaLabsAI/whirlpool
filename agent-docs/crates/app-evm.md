@@ -28,7 +28,15 @@ Those live in `chainspec`.
 
 ## Key Runtime Notes
 - `WhirlpoolEvmConfig` still derives proposer fee recipients from genesis storage at `VALIDATOR_FEE_RECIPIENTS_REGISTRY`.
+- `WhirlpoolEvmConfig` now carries FullDkg envelope knobs:
+  - `full_dkg_feature_enabled`
+  - `full_dkg_strict_height`
+  - optional `current_full_dkg_output` (`dealers`, `players`, `public_polynomial`)
 - Precompile injection remains in `WhirlpoolEvmConfig::evm_with_env(...)` via `evm_precompiles::whirlpool_precompiles_with_validators(...)`.
+- Block header `extra_data` now uses app-shared canonical envelope bytes (`RawEth` + optional `FullDkgV1`) instead of raw proposer key bytes.
+- Verify path decodes `extra_data` with a height gate (`Legacy` before strict height, `Strict` at/after strict height), enforces proposer-key parity against `RawEth`, and enforces FullDkg players/epoch invariants.
+- `full_dkg_strict_height` defaults to `0` (strict from genesis) and can be explicitly overridden via config builders for migration/testing scenarios.
+- FullDkg inclusion trigger compares candidate output against the **latest committed FullDkg in block storage** (backward scan) so raw-only intermediate blocks do not cause include/omit oscillation.
 - Epoch-boundary deterministic system-call handling now lives in `epoch_boundary.rs` and is shared between propose/verify paths.
 - Boundary unlock flow:
   - after a successful boundary `advanceEpoch()` call, runtime may unlock community-pool funds

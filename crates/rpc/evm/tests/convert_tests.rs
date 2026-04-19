@@ -1,7 +1,9 @@
 use alloy_consensus::TxEip1559;
 use alloy_eips::eip2718::Encodable2718;
 use alloy_primitives::{Address, Signature, TxKind, B256, U256};
-use app::types::EvmBlock;
+use app::{
+    encode_canonical_extra_data, types::EvmBlock, CanonicalExtraDataV1, FullDkgOutputV1, FullDkgV1,
+};
 use reth_ethereum_primitives::{Transaction, TransactionSigned};
 use rpc_eth::convert::{decode_transaction, evmblock_to_block, evmblock_to_header};
 
@@ -31,6 +33,7 @@ fn sample_block(transactions: Vec<Vec<u8>>) -> EvmBlock {
         receipts_root: [0x44; 32],
         proposer_public_key: [0x55; 32],
         proposer_fee_recipient: Address::repeat_byte(0x55).into_array(),
+        extra_data: vec![0x55; 32],
         gas_used: 55_555,
         base_fee_per_gas: 1_000_000_000,
         timestamp: 1_700_000_123,
@@ -107,4 +110,27 @@ fn evmblock_to_block_supports_empty_transactions() {
     assert!(reth_block.body.transactions.is_empty());
     assert!(reth_block.body.ommers.is_empty());
     assert!(reth_block.body.withdrawals.is_none());
+}
+
+#[test]
+fn evmblock_to_header_projects_raw_eth_from_canonical_extra_data() {
+    let canonical = encode_canonical_extra_data(&CanonicalExtraDataV1 {
+        raw_eth: Some(vec![0x99; 32]),
+        full_dkg: Some(FullDkgV1 {
+            epoch: 3,
+            output: FullDkgOutputV1 {
+                dealers: vec![[0x11; 32]],
+                players: vec![[0x22; 32]],
+                public_polynomial: vec![0xaa, 0xbb, 0xcc],
+            },
+        }),
+    })
+    .expect("canonical extra_data should encode");
+
+    let mut block = sample_block(vec![]);
+    block.extra_data = canonical.clone();
+
+    let header = evmblock_to_header(&block);
+    assert_eq!(header.extra_data.to_vec(), vec![0x99; 32]);
+    assert_ne!(header.extra_data.to_vec(), canonical);
 }

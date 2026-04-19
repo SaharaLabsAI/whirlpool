@@ -106,7 +106,7 @@ mod tests {
     #[tokio::test]
     async fn test_mock_peer_id_implements_peer_id() {
         let peer = MockPeerId(42);
-        let peer_clone = peer.clone();
+        let peer_clone = peer;
         assert_eq!(peer, peer_clone);
     }
 

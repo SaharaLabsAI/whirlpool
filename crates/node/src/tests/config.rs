@@ -37,6 +37,10 @@ fn test_node_config_default_matches_hardcoded() {
     assert_eq!(config.storage.data_dir, PathBuf::from("data"));
     assert_eq!(config.consensus.namespace, b"sahara-chain-v0");
     assert_eq!(config.consensus.block_interval, Duration::from_secs(5));
+    assert_eq!(
+        config.consensus.full_dkg_strict_height,
+        FULL_DKG_STRICT_HEIGHT
+    );
     assert_eq!(config.bootstrap_validators, None);
     assert!(!config.bootstrap.genesis_bootstrap_dkg);
     assert_eq!(config.bootstrap.genesis_bootstrap_validator_count, None);
@@ -108,6 +112,7 @@ fn test_node_args_to_node_config_full_custom() {
         network_namespace: Some("custom-net".to_string()),
         consensus_namespace: Some("custom-cons".to_string()),
         block_interval_ms: Some(2000),
+        full_dkg_strict_height: Some(77),
         genesis_bootstrap_dkg: false,
         genesis_bootstrap_validator_count: None,
         genesis_dkg_session_dir: None,
@@ -132,6 +137,7 @@ fn test_node_args_to_node_config_full_custom() {
     assert_eq!(config.storage.data_dir, PathBuf::from("/tmp/whirlpool"));
     assert_eq!(config.consensus.namespace, b"custom-cons");
     assert_eq!(config.consensus.block_interval, Duration::from_millis(2000));
+    assert_eq!(config.consensus.full_dkg_strict_height, 77);
     assert_eq!(config.bootstrap_validators.unwrap().len(), validators.len());
 }
 
@@ -177,7 +183,7 @@ fn tst_01_toml_file_loading() {
     let bootstrap_key = ed25519::PrivateKey::from_seed(45).public_key();
     let bootstrap_peer = format!("{}@127.0.0.1:4010", hex(bootstrap_key.as_ref()));
     let path = write_config_file(&format!(
-        "listen_addr = \"127.0.0.1:4011\"\ndialable_addr = \"10.0.0.1:4011\"\nbootstrap_peers = [\"{bootstrap_peer}\"]\nvalidator_seed = 99\nrpc_addr = \"127.0.0.1:9555\"\nmem_rpc_addr = \"127.0.0.1:9655\"\ndata_dir = \"custom-data\"\nmax_message_size = 2097152\nnetwork_namespace = \"toml-net\"\nconsensus_namespace = \"toml-consensus\"\nblock_interval_ms = 1234\nbootstrap_validators = [\"{validator}\"]\n"
+        "listen_addr = \"127.0.0.1:4011\"\ndialable_addr = \"10.0.0.1:4011\"\nbootstrap_peers = [\"{bootstrap_peer}\"]\nvalidator_seed = 99\nrpc_addr = \"127.0.0.1:9555\"\nmem_rpc_addr = \"127.0.0.1:9655\"\ndata_dir = \"custom-data\"\nmax_message_size = 2097152\nnetwork_namespace = \"toml-net\"\nconsensus_namespace = \"toml-consensus\"\nblock_interval_ms = 1234\nfull_dkg_strict_height = 321\nbootstrap_validators = [\"{validator}\"]\n"
     ));
 
     let config = load_config(NodeArgs {
@@ -195,6 +201,7 @@ fn tst_01_toml_file_loading() {
         network_namespace: None,
         consensus_namespace: None,
         block_interval_ms: None,
+        full_dkg_strict_height: None,
         genesis_bootstrap_dkg: false,
         genesis_bootstrap_validator_count: None,
         genesis_dkg_session_dir: None,
@@ -219,13 +226,14 @@ fn tst_01_toml_file_loading() {
     assert_eq!(config.network.namespace, b"toml-net");
     assert_eq!(config.consensus.namespace, b"toml-consensus");
     assert_eq!(config.consensus.block_interval, Duration::from_millis(1234));
+    assert_eq!(config.consensus.full_dkg_strict_height, 321);
     assert_eq!(config.bootstrap_validators.unwrap().len(), 1);
 }
 
 #[test]
 fn tst_02_cli_overrides_toml() {
     let path = write_config_file(
-        "listen_addr = \"127.0.0.1:4011\"\nrpc_addr = \"127.0.0.1:9555\"\nmem_rpc_addr = \"127.0.0.1:9655\"\nvalidator_seed = 7\nmax_message_size = 1000\nnetwork_namespace = \"toml-net\"\nbootstrap_validators = [\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"]\n",
+        "listen_addr = \"127.0.0.1:4011\"\nrpc_addr = \"127.0.0.1:9555\"\nmem_rpc_addr = \"127.0.0.1:9655\"\nvalidator_seed = 7\nmax_message_size = 1000\nnetwork_namespace = \"toml-net\"\nfull_dkg_strict_height = 5\nbootstrap_validators = [\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"]\n",
     );
     let cli_validators = validator_hexes(&[2, 3]);
 
@@ -244,6 +252,7 @@ fn tst_02_cli_overrides_toml() {
         network_namespace: Some("cli-net".into()),
         consensus_namespace: None,
         block_interval_ms: None,
+        full_dkg_strict_height: Some(9),
         genesis_bootstrap_dkg: false,
         genesis_bootstrap_validator_count: None,
         genesis_dkg_session_dir: None,
@@ -257,6 +266,7 @@ fn tst_02_cli_overrides_toml() {
     assert_eq!(config.identity.seed, 42);
     assert_eq!(config.network.max_message_size, 2048);
     assert_eq!(config.network.namespace, b"cli-net");
+    assert_eq!(config.consensus.full_dkg_strict_height, 9);
     assert_eq!(
         config.bootstrap_validators.unwrap().len(),
         cli_validators.len()
@@ -281,6 +291,7 @@ fn tst_03_no_config_backward_compat() {
         network_namespace: Some("compat-net".into()),
         consensus_namespace: Some("compat-cons".into()),
         block_interval_ms: Some(555),
+        full_dkg_strict_height: None,
         genesis_bootstrap_dkg: false,
         genesis_bootstrap_validator_count: None,
         genesis_dkg_session_dir: None,
@@ -318,6 +329,7 @@ fn tst_04_multi_validator_from_toml() {
         network_namespace: None,
         consensus_namespace: None,
         block_interval_ms: None,
+        full_dkg_strict_height: None,
         genesis_bootstrap_dkg: false,
         genesis_bootstrap_validator_count: None,
         genesis_dkg_session_dir: None,
@@ -357,6 +369,7 @@ fn tst_08_missing_config_file_error() {
         network_namespace: None,
         consensus_namespace: None,
         block_interval_ms: None,
+        full_dkg_strict_height: None,
         genesis_bootstrap_dkg: false,
         genesis_bootstrap_validator_count: None,
         genesis_dkg_session_dir: None,
@@ -386,6 +399,7 @@ fn tst_09_invalid_toml_error() {
         network_namespace: None,
         consensus_namespace: None,
         block_interval_ms: None,
+        full_dkg_strict_height: None,
         genesis_bootstrap_dkg: false,
         genesis_bootstrap_validator_count: None,
         genesis_dkg_session_dir: None,
@@ -418,6 +432,7 @@ fn tst_10_partial_toml_cli_merge() {
         network_namespace: Some("cli-net".into()),
         consensus_namespace: None,
         block_interval_ms: Some(2500),
+        full_dkg_strict_height: None,
         genesis_bootstrap_dkg: false,
         genesis_bootstrap_validator_count: None,
         genesis_dkg_session_dir: None,
@@ -455,6 +470,7 @@ fn tst_11_empty_bootstrap_validators_rejection() {
         network_namespace: None,
         consensus_namespace: None,
         block_interval_ms: None,
+        full_dkg_strict_height: None,
         genesis_bootstrap_dkg: false,
         genesis_bootstrap_validator_count: None,
         genesis_dkg_session_dir: None,
@@ -485,6 +501,7 @@ fn tst_12_legacy_validators_alias_maps_to_bootstrap_validators() {
         network_namespace: None,
         consensus_namespace: None,
         block_interval_ms: None,
+        full_dkg_strict_height: None,
         genesis_bootstrap_dkg: false,
         genesis_bootstrap_validator_count: None,
         genesis_dkg_session_dir: None,
@@ -539,6 +556,7 @@ fn tst_14_genesis_bootstrap_rejects_zero_count() {
         network_namespace: None,
         consensus_namespace: None,
         block_interval_ms: None,
+        full_dkg_strict_height: None,
         genesis_bootstrap_dkg: true,
         genesis_bootstrap_validator_count: Some(0),
         genesis_dkg_session_dir: None,
@@ -575,6 +593,7 @@ fn tst_15_genesis_dkg_dealer_pubkey_roundtrip_and_invalid_parse() {
         network_namespace: None,
         consensus_namespace: None,
         block_interval_ms: None,
+        full_dkg_strict_height: None,
         genesis_bootstrap_dkg: false,
         genesis_bootstrap_validator_count: None,
         genesis_dkg_session_dir: None,
@@ -585,4 +604,11 @@ fn tst_15_genesis_dkg_dealer_pubkey_roundtrip_and_invalid_parse() {
         err,
         ConfigError::InvalidGenesisDkgDealerPubkey { .. }
     ));
+}
+
+#[test]
+fn tst_16_full_dkg_strict_height_cli_flag_roundtrip() {
+    let args = NodeArgs::parse_from(["whirlpool-node", "--full-dkg-strict-height", "42"]);
+    let config = NodeConfig::from(args);
+    assert_eq!(config.consensus.full_dkg_strict_height, 42);
 }

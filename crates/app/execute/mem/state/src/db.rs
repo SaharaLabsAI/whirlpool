@@ -1,13 +1,17 @@
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 use alloy_genesis::GenesisAccount;
+use app::{EvmBlock, Receipt};
 use revm::database::BundleState;
 use revm::primitives::{keccak256, Address, B256, KECCAK_EMPTY, U256};
 use revm::state::{AccountInfo, Bytecode};
 use revm::{Database, DatabaseRef};
 
+use state::block_storage::BlockStorageError;
 use state::error::StateError;
 use state::traits::StateDb;
+use state::BlockStorage;
 
 #[derive(Clone, Debug, Default)]
 pub struct DbAccount {
@@ -20,6 +24,8 @@ pub struct InMemoryStateDb {
     accounts: HashMap<Address, DbAccount>,
     bytecodes: HashMap<B256, Bytecode>,
     block_hashes: HashMap<u64, B256>,
+    blocks_by_number: Arc<Mutex<HashMap<u64, EvmBlock>>>,
+    receipts_by_block: Arc<Mutex<HashMap<u64, Vec<Receipt>>>>,
 }
 
 impl Default for InMemoryStateDb {
@@ -36,6 +42,8 @@ impl StateDb for InMemoryStateDb {
             accounts: HashMap::new(),
             bytecodes: HashMap::new(),
             block_hashes: HashMap::new(),
+            blocks_by_number: Arc::new(Mutex::new(HashMap::new())),
+            receipts_by_block: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -286,6 +294,62 @@ impl Database for InMemoryStateDb {
 
     fn block_hash(&mut self, number: u64) -> Result<B256, Self::Error> {
         self.block_hash_ref(number)
+    }
+}
+
+impl BlockStorage for InMemoryStateDb {
+    fn store_block(&self, block: &EvmBlock, receipts: &[Receipt]) -> Result<(), BlockStorageError> {
+        let mut blocks = self
+            .blocks_by_number
+            .lock()
+            .map_err(|err| BlockStorageError::Database(err.to_string()))?;
+        blocks.insert(block.height, block.clone());
+        drop(blocks);
+
+        let mut receipts_by_block = self
+            .receipts_by_block
+            .lock()
+            .map_err(|err| BlockStorageError::Database(err.to_string()))?;
+        receipts_by_block.insert(block.height, receipts.to_vec());
+        Ok(())
+    }
+
+    fn get_block_by_number(&self, number: u64) -> Result<Option<EvmBlock>, BlockStorageError> {
+        let blocks = self
+            .blocks_by_number
+            .lock()
+            .map_err(|err| BlockStorageError::Database(err.to_string()))?;
+        Ok(blocks.get(&number).cloned())
+    }
+
+    fn get_block_by_hash(&self, hash: B256) -> Result<Option<EvmBlock>, BlockStorageError> {
+        let blocks = self
+            .blocks_by_number
+            .lock()
+            .map_err(|err| BlockStorageError::Database(err.to_string()))?;
+        Ok(blocks
+            .values()
+            .find(|block| B256::from(block.compute_id()) == hash)
+            .cloned())
+    }
+
+    fn get_receipts_by_block(
+        &self,
+        number: u64,
+    ) -> Result<Option<Vec<Receipt>>, BlockStorageError> {
+        let receipts = self
+            .receipts_by_block
+            .lock()
+            .map_err(|err| BlockStorageError::Database(err.to_string()))?;
+        Ok(receipts.get(&number).cloned())
+    }
+
+    fn get_latest_block_number(&self) -> Result<Option<u64>, BlockStorageError> {
+        let blocks = self
+            .blocks_by_number
+            .lock()
+            .map_err(|err| BlockStorageError::Database(err.to_string()))?;
+        Ok(blocks.keys().max().copied())
     }
 }
 
