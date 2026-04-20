@@ -48,13 +48,13 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
 - `src/community_pool/mod.rs`: canonical community-pool address constant + read-only balance query precompile and ABI helpers.
 - `src/fee_pool/mod.rs`: fee-pool precompile surface, ABI helpers, revert helpers, and tests.
 - `src/fee_pool/dispatch.rs`: alloy `sol!` selectors for `feePoolBalance()`, `claimableBalance(address)`, and `withdraw()`.
-- `src/fee_pool/impl.rs`: stateful fee-pool logic (balance query, claim query, withdraw transfer, claim reset).
+- `src/fee_pool/impl.rs`: stateful fee-pool logic (balance query, claim query, withdraw transfer, claim reset) with `execute` kept as plain `pub` inside a private module boundary.
 - `src/fee_pool/storage.rs`: deterministic slot derivation for `mapping(address => uint256) claimable`.
 - `src/fee_pool/gas.rs`: fee-pool gas schedule.
 - `src/validators/mod.rs`: ordered simplex-validator precompile ABI, output encoder/decoder, and tests.
 - `src/epoch/mod.rs`: epoch constants, sender derivation, ABI helper exports, and epoch tests.
 - `src/epoch/dispatch.rs`: alloy `sol!` selectors for epoch read/write ABI.
-- `src/epoch/impl.rs`: stateful epoch logic with restricted `advanceEpoch()`.
+- `src/epoch/impl.rs`: stateful epoch logic with restricted `advanceEpoch()` and `execute` kept as plain `pub` inside a private module boundary.
 - `src/epoch/storage.rs`: scalar slots + append-only epoch-start mapping slot derivation.
 - `src/epoch/gas.rs`: epoch precompile gas schedule.
 

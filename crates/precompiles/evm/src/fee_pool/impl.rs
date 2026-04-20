@@ -8,7 +8,7 @@ use super::{
     FEE_POOL_PRECOMPILE_ADDRESS,
 };
 
-pub(crate) fn execute(mut input: PrecompileInput<'_>) -> PrecompileResult {
+pub fn execute(mut input: PrecompileInput<'_>) -> PrecompileResult {
     let gas_limit = input.gas();
     let dispatch = match decode_call(input.data()) {
         Ok(call) => call,
