@@ -6,10 +6,9 @@ use alloy_eips::eip2718::{Decodable2718, Encodable2718};
 use alloy_primitives::{bytes::BufMut, Address, Bytes, B256, U256};
 use alloy_trie::{root::ordered_trie_root_with_encoder, EMPTY_ROOT_HASH};
 use app::{
-    decode_extra_data, encode_canonical_extra_data, legacy_proposer_extra_data_bytes,
+    decode_extra_data, legacy_proposer_extra_data_bytes,
     traits::{Application, TxSource},
     CanonicalExtraDataV1, EvmBlock, ExecutionResult, ExtraDataDecodeMode, FullDkgV1, Receipt,
-    ReshareV1,
 };
 use evm_precompiles::{
     claimable_balance_slot, community_pool_last_processed_epoch_slot,
@@ -29,6 +28,10 @@ use revm::database::State;
 use state::BlockStorage;
 use validators::ValidatorEntry;
 
+use crate::canonical_extra_data::{
+    build_canonical_extra_data, ensure_full_dkg_players_match_activation,
+    full_dkg_should_be_included,
+};
 use crate::config::WhirlpoolEvmConfig;
 use crate::epoch_boundary::{
     apply_boundary_state_to_provider, boundary_required_for_height,
@@ -525,40 +528,6 @@ fn proposer_public_key_from_raw_eth_section(
     Ok(proposer_public_key)
 }
 
-fn full_dkg_should_be_included(
-    evm_config: &WhirlpoolEvmConfig,
-    previous_full_dkg: Option<&FullDkgV1>,
-    candidate: &FullDkgV1,
-) -> bool {
-    let expected_players = evm_config.simplex_consensus_public_keys();
-    let (previous_dealers, previous_players, previous_polynomial) = match previous_full_dkg {
-        Some(previous) => (
-            previous.output.dealers.clone(),
-            previous.output.players.clone(),
-            previous.output.public_polynomial.clone(),
-        ),
-        None => (expected_players.clone(), expected_players, Vec::new()),
-    };
-
-    candidate.output.dealers != previous_dealers
-        || candidate.output.players != previous_players
-        || candidate.output.public_polynomial != previous_polynomial
-}
-
-fn ensure_full_dkg_players_match_activation(
-    activation_resolver: &ActivationSourceResolver<'_>,
-    full_dkg: &FullDkgV1,
-) -> Result<(), EvmAppError> {
-    let expected_players = activation_resolver.resolve_players_for_epoch(full_dkg.epoch)?;
-    if full_dkg.output.players != expected_players {
-        return Err(EvmAppError::InvalidBlock(
-            "full_dkg output.players does not match activation-resolved player set".into(),
-        ));
-    }
-
-    Ok(())
-}
-
 fn latest_committed_full_dkg<Storage>(
     storage: &Storage,
     start_height: u64,
@@ -590,61 +559,6 @@ where
     }
 
     Ok(None)
-}
-
-fn build_canonical_extra_data(
-    evm_config: &WhirlpoolEvmConfig,
-    previous_full_dkg: Option<&FullDkgV1>,
-    proposer_public_key: [u8; 32],
-    boundary_required: bool,
-    epoch: u64,
-) -> Result<Vec<u8>, EvmAppError> {
-    let raw_eth = legacy_proposer_extra_data_bytes(proposer_public_key);
-
-    if !evm_config.full_dkg_feature_enabled() {
-        return Ok(raw_eth);
-    }
-
-    let activation_resolver = ActivationSourceResolver::new(evm_config);
-    let boundary_context = if boundary_required {
-        Some(BoundaryEpochContext::from_post_advance_epoch(epoch)?)
-    } else {
-        None
-    };
-    let candidate_epoch = boundary_context
-        .map(|ctx| ctx.full_dkg_epoch)
-        .unwrap_or(epoch);
-
-    let candidate_full_dkg = evm_config.current_full_dkg_payload(candidate_epoch);
-    if let Some(candidate) = candidate_full_dkg.as_ref() {
-        ensure_full_dkg_players_match_activation(&activation_resolver, candidate)?;
-    }
-
-    let (full_dkg, reshare) = if let Some(boundary_context) = boundary_context {
-        if let Some(full_dkg) = candidate_full_dkg {
-            let reshare_players = activation_resolver
-                .resolve_players_for_epoch(boundary_context.reshare_target_epoch)?;
-            let reshare = ReshareV1 {
-                target_epoch: boundary_context.reshare_target_epoch,
-                players: reshare_players,
-            };
-            (Some(full_dkg), Some(reshare))
-        } else {
-            (None, None)
-        }
-    } else {
-        let full_dkg = candidate_full_dkg.filter(|candidate| {
-            full_dkg_should_be_included(evm_config, previous_full_dkg, candidate)
-        });
-        (full_dkg, None)
-    };
-
-    encode_canonical_extra_data(&CanonicalExtraDataV1 {
-        raw_eth: Some(raw_eth),
-        full_dkg,
-        reshare,
-    })
-    .map_err(|err| EvmAppError::InvalidBlock(format!("invalid canonical extra_data: {err}")))
 }
 
 #[derive(Clone)]
@@ -1299,6 +1213,7 @@ mod tests {
     use alloy_consensus::{SignableTransaction, TxLegacy};
     use alloy_eips::eip2718::Encodable2718;
     use alloy_primitives::{Address, Signature, TxKind};
+    use app::encode_canonical_extra_data;
     use chainspec::{
         build_sahara_chain_spec, build_sahara_chain_spec_with_alloc_and_fee_recipients,
         build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators_and_community_pool_unlock_config,
