@@ -124,6 +124,7 @@ fn evmblock_to_header_projects_raw_eth_from_canonical_extra_data() {
                 public_polynomial: vec![0xaa, 0xbb, 0xcc],
             },
         }),
+        reshare: None,
     })
     .expect("canonical extra_data should encode");
 

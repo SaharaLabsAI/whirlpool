@@ -14,9 +14,11 @@ const EXTRA_DATA_MAGIC: &[u8; 4] = b"WDX1";
 const EXTRA_DATA_VERSION: u8 = 1;
 const EXTRA_DATA_SECTION_RAW_ETH: u8 = 1;
 const EXTRA_DATA_SECTION_FULL_DKG_V1: u8 = 2;
+const EXTRA_DATA_SECTION_RESHARE_V1: u8 = 3;
 const MAX_TOTAL_EXTRA_DATA_BYTES: usize = 256 * 1024;
 const MAX_RAW_ETH_EXTRA_DATA_BYTES: usize = 1024;
 const MAX_FULL_DKG_KEYS: usize = 1024;
+const MAX_RESHARE_KEYS: usize = 1024;
 const MAX_FULL_DKG_POLYNOMIAL_BYTES: usize = 128 * 1024;
 pub const LEGACY_PROPOSER_EXTRA_DATA_LEN: usize = 32;
 
@@ -41,10 +43,17 @@ pub struct FullDkgV1 {
     pub output: FullDkgOutputV1,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReshareV1 {
+    pub target_epoch: u64,
+    pub players: Vec<[u8; 32]>,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct CanonicalExtraDataV1 {
     pub raw_eth: Option<Vec<u8>>,
     pub full_dkg: Option<FullDkgV1>,
+    pub reshare: Option<ReshareV1>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -87,6 +96,10 @@ pub enum ExtraDataError {
         max: usize,
     },
     TooManyPlayers {
+        found: usize,
+        max: usize,
+    },
+    TooManyResharePlayers {
         found: usize,
         max: usize,
     },
@@ -140,6 +153,9 @@ impl fmt::Display for ExtraDataError {
             }
             Self::TooManyPlayers { found, max } => {
                 write!(f, "too many full_dkg players: found {found}, max {max}")
+            }
+            Self::TooManyResharePlayers { found, max } => {
+                write!(f, "too many reshare players: found {found}, max {max}")
             }
             Self::FullDkgPolynomialTooLarge { found, max } => {
                 write!(f, "full_dkg public_polynomial too large: found {found}, max {max}")
@@ -261,6 +277,16 @@ pub fn encode_canonical_extra_data(data: &CanonicalExtraDataV1) -> Result<Vec<u8
         sections.push((EXTRA_DATA_SECTION_FULL_DKG_V1, full_dkg_payload));
     }
 
+    if let Some(reshare) = &data.reshare {
+        if data.full_dkg.is_none() {
+            return Err(ExtraDataError::InvalidSectionOrder {
+                section: EXTRA_DATA_SECTION_RESHARE_V1,
+            });
+        }
+        let reshare_payload = encode_reshare_v1(reshare)?;
+        sections.push((EXTRA_DATA_SECTION_RESHARE_V1, reshare_payload));
+    }
+
     if sections.is_empty() {
         return Err(ExtraDataError::EmptySections);
     }
@@ -303,6 +329,7 @@ pub fn decode_extra_data(
             Ok(CanonicalExtraDataV1 {
                 raw_eth: Some(bytes.to_vec()),
                 full_dkg: None,
+                reshare: None,
             })
         }
     }
@@ -330,6 +357,7 @@ fn decode_enveloped_extra_data(bytes: &[u8]) -> Result<CanonicalExtraDataV1, Ext
     let section_count = take_u8(&mut cursor, "section_count")? as usize;
     let mut raw_eth = None;
     let mut full_dkg = None;
+    let mut reshare = None;
 
     for _ in 0..section_count {
         let section = take_u8(&mut cursor, "section id")?;
@@ -365,7 +393,19 @@ fn decode_enveloped_extra_data(bytes: &[u8]) -> Result<CanonicalExtraDataV1, Ext
                 if full_dkg.is_some() {
                     return Err(ExtraDataError::DuplicateSection { section });
                 }
+                if reshare.is_some() {
+                    return Err(ExtraDataError::InvalidSectionOrder { section });
+                }
                 full_dkg = Some(decode_full_dkg_v1(payload)?);
+            }
+            EXTRA_DATA_SECTION_RESHARE_V1 => {
+                if reshare.is_some() {
+                    return Err(ExtraDataError::DuplicateSection { section });
+                }
+                if full_dkg.is_none() {
+                    return Err(ExtraDataError::InvalidSectionOrder { section });
+                }
+                reshare = Some(decode_reshare_v1(payload)?);
             }
             _ => return Err(ExtraDataError::UnknownSection { section }),
         }
@@ -375,11 +415,15 @@ fn decode_enveloped_extra_data(bytes: &[u8]) -> Result<CanonicalExtraDataV1, Ext
         return Err(ExtraDataError::UnexpectedTrailingBytes);
     }
 
-    if raw_eth.is_none() && full_dkg.is_none() {
+    if raw_eth.is_none() && full_dkg.is_none() && reshare.is_none() {
         return Err(ExtraDataError::EmptySections);
     }
 
-    Ok(CanonicalExtraDataV1 { raw_eth, full_dkg })
+    Ok(CanonicalExtraDataV1 {
+        raw_eth,
+        full_dkg,
+        reshare,
+    })
 }
 
 fn encode_full_dkg_v1(full_dkg: &FullDkgV1) -> Result<Vec<u8>, ExtraDataError> {
@@ -474,6 +518,53 @@ fn decode_full_dkg_v1(bytes: &[u8]) -> Result<FullDkgV1, ExtraDataError> {
             players,
             public_polynomial,
         },
+    })
+}
+
+fn encode_reshare_v1(reshare: &ReshareV1) -> Result<Vec<u8>, ExtraDataError> {
+    if reshare.players.len() > MAX_RESHARE_KEYS {
+        return Err(ExtraDataError::TooManyResharePlayers {
+            found: reshare.players.len(),
+            max: MAX_RESHARE_KEYS,
+        });
+    }
+
+    let mut out = Vec::new();
+    out.extend_from_slice(&reshare.target_epoch.to_le_bytes());
+    out.extend_from_slice(&(reshare.players.len() as u32).to_le_bytes());
+    for player in &reshare.players {
+        out.extend_from_slice(player);
+    }
+    Ok(out)
+}
+
+fn decode_reshare_v1(bytes: &[u8]) -> Result<ReshareV1, ExtraDataError> {
+    let mut cursor = bytes;
+    let target_epoch = take_u64(&mut cursor, "reshare.target_epoch")?;
+
+    let players_len = take_u32(&mut cursor, "reshare.players_len")? as usize;
+    if players_len > MAX_RESHARE_KEYS {
+        return Err(ExtraDataError::TooManyResharePlayers {
+            found: players_len,
+            max: MAX_RESHARE_KEYS,
+        });
+    }
+
+    let mut players = Vec::with_capacity(players_len);
+    for _ in 0..players_len {
+        let player = take_slice(&mut cursor, 32, "reshare.player")?;
+        let mut player_key = [0u8; 32];
+        player_key.copy_from_slice(player);
+        players.push(player_key);
+    }
+
+    if !cursor.is_empty() {
+        return Err(ExtraDataError::UnexpectedTrailingBytes);
+    }
+
+    Ok(ReshareV1 {
+        target_epoch,
+        players,
     })
 }
 
@@ -688,7 +779,7 @@ mod tests {
     use super::{
         decode_extra_data, encode_canonical_extra_data, legacy_proposer_extra_data_bytes,
         project_raw_eth_extra_data, CanonicalExtraDataV1, EvmBlock, ExecutionResult,
-        ExtraDataDecodeMode, ExtraDataError, FullDkgOutputV1, FullDkgV1,
+        ExtraDataDecodeMode, ExtraDataError, FullDkgOutputV1, FullDkgV1, ReshareV1,
     };
     use consensus::traits::Block as CoreBlock;
 
@@ -767,6 +858,10 @@ mod tests {
                     public_polynomial: vec![0xaa, 0xbb, 0xcc],
                 },
             }),
+            reshare: Some(ReshareV1 {
+                target_epoch: 9,
+                players: vec![[0x41; 32], [0x42; 32]],
+            }),
         };
 
         let encoded = encode_canonical_extra_data(&original).expect("encode");
@@ -817,6 +912,7 @@ mod tests {
                     public_polynomial: vec![0xaa, 0xbb],
                 },
             }),
+            reshare: None,
         })
         .expect("canonical envelope should encode");
 
@@ -853,6 +949,65 @@ mod tests {
         assert!(matches!(
             err,
             ExtraDataError::InvalidSectionOrder { section } if section == 1
+        ));
+    }
+
+    #[test]
+    fn test_section_order_rejected_when_reshare_before_full_dkg() {
+        let canonical = encode_canonical_extra_data(&CanonicalExtraDataV1 {
+            raw_eth: Some(vec![0x11; 32]),
+            full_dkg: Some(FullDkgV1 {
+                epoch: 2,
+                output: FullDkgOutputV1 {
+                    dealers: vec![[0x21; 32]],
+                    players: vec![[0x31; 32]],
+                    public_polynomial: vec![0xaa, 0xbb],
+                },
+            }),
+            reshare: Some(ReshareV1 {
+                target_epoch: 3,
+                players: vec![[0x41; 32]],
+            }),
+        })
+        .expect("canonical envelope should encode");
+
+        let mut cursor = &canonical[6..];
+        let raw_id = cursor[0];
+        let raw_len = u32::from_le_bytes(cursor[1..5].try_into().expect("len bytes")) as usize;
+        let raw_payload = cursor[5..5 + raw_len].to_vec();
+        cursor = &cursor[5 + raw_len..];
+
+        let full_dkg_id = cursor[0];
+        let full_dkg_len = u32::from_le_bytes(cursor[1..5].try_into().expect("len bytes")) as usize;
+        let full_dkg_payload = cursor[5..5 + full_dkg_len].to_vec();
+        cursor = &cursor[5 + full_dkg_len..];
+
+        let reshare_id = cursor[0];
+        let reshare_len = u32::from_le_bytes(cursor[1..5].try_into().expect("len bytes")) as usize;
+        let reshare_payload = cursor[5..5 + reshare_len].to_vec();
+
+        let mut reordered = Vec::new();
+        reordered.extend_from_slice(b"WDX1");
+        reordered.push(1);
+        reordered.push(3);
+
+        reordered.push(raw_id);
+        reordered.extend_from_slice(&(raw_payload.len() as u32).to_le_bytes());
+        reordered.extend_from_slice(&raw_payload);
+
+        reordered.push(reshare_id);
+        reordered.extend_from_slice(&(reshare_payload.len() as u32).to_le_bytes());
+        reordered.extend_from_slice(&reshare_payload);
+
+        reordered.push(full_dkg_id);
+        reordered.extend_from_slice(&(full_dkg_payload.len() as u32).to_le_bytes());
+        reordered.extend_from_slice(&full_dkg_payload);
+
+        let err = decode_extra_data(&reordered, ExtraDataDecodeMode::Strict)
+            .expect_err("reshare before full_dkg must be rejected");
+        assert!(matches!(
+            err,
+            ExtraDataError::InvalidSectionOrder { section } if section == 3
         ));
     }
 }

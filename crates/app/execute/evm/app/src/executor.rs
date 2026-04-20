@@ -9,6 +9,7 @@ use app::{
     decode_extra_data, encode_canonical_extra_data, legacy_proposer_extra_data_bytes,
     traits::{Application, TxSource},
     CanonicalExtraDataV1, EvmBlock, ExecutionResult, ExtraDataDecodeMode, FullDkgV1, Receipt,
+    ReshareV1,
 };
 use evm_precompiles::{
     claimable_balance_slot, community_pool_last_processed_epoch_slot,
@@ -36,6 +37,7 @@ use crate::epoch_boundary::{
 };
 use crate::error::EvmAppError;
 pub use crate::traits::StateProvider;
+use crate::validator_activation::{ActivationSourceResolver, BoundaryEpochContext};
 
 pub type RecoveredTx = Recovered<TransactionSigned>;
 type ProposedCacheEntry = (u64, EvmBlock, ExecutionResult, Vec<Receipt>);
@@ -580,6 +582,7 @@ fn build_canonical_extra_data(
     evm_config: &WhirlpoolEvmConfig,
     previous_full_dkg: Option<&FullDkgV1>,
     proposer_public_key: [u8; 32],
+    boundary_required: bool,
     epoch: u64,
 ) -> Result<Vec<u8>, EvmAppError> {
     let raw_eth = legacy_proposer_extra_data_bytes(proposer_public_key);
@@ -588,22 +591,49 @@ fn build_canonical_extra_data(
         return Ok(raw_eth);
     }
 
-    let candidate_full_dkg = evm_config.current_full_dkg_payload(epoch);
+    let activation_resolver = ActivationSourceResolver::new(evm_config);
+    let boundary_context = if boundary_required {
+        Some(BoundaryEpochContext::from_post_advance_epoch(epoch)?)
+    } else {
+        None
+    };
+    let candidate_epoch = boundary_context
+        .map(|ctx| ctx.full_dkg_epoch)
+        .unwrap_or(epoch);
+
+    let candidate_full_dkg = evm_config.current_full_dkg_payload(candidate_epoch);
     if let Some(candidate) = candidate_full_dkg.as_ref() {
-        let expected_players = evm_config.simplex_consensus_public_keys();
+        let expected_players = activation_resolver.resolve_players_for_epoch(candidate.epoch)?;
         if candidate.output.players != expected_players {
             return Err(EvmAppError::InvalidBlock(
-                "full_dkg output.players does not match epoch simplex validator set".into(),
+                "full_dkg output.players does not match activation-resolved player set".into(),
             ));
         }
     }
 
-    let full_dkg = candidate_full_dkg
-        .filter(|candidate| full_dkg_should_be_included(evm_config, previous_full_dkg, candidate));
+    let (full_dkg, reshare) = if let Some(boundary_context) = boundary_context {
+        if let Some(full_dkg) = candidate_full_dkg {
+            let reshare_players = activation_resolver
+                .resolve_players_for_epoch(boundary_context.reshare_target_epoch)?;
+            let reshare = ReshareV1 {
+                target_epoch: boundary_context.reshare_target_epoch,
+                players: reshare_players,
+            };
+            (Some(full_dkg), Some(reshare))
+        } else {
+            (None, None)
+        }
+    } else {
+        let full_dkg = candidate_full_dkg.filter(|candidate| {
+            full_dkg_should_be_included(evm_config, previous_full_dkg, candidate)
+        });
+        (full_dkg, None)
+    };
 
     encode_canonical_extra_data(&CanonicalExtraDataV1 {
         raw_eth: Some(raw_eth),
         full_dkg,
+        reshare,
     })
     .map_err(|err| EvmAppError::InvalidBlock(format!("invalid canonical extra_data: {err}")))
 }
@@ -806,6 +836,7 @@ where
             &self.evm_config,
             latest_committed_full_dkg.as_ref(),
             self.evm_config.local_proposer_public_key(),
+            boundary_required,
             current_epoch,
         )?;
 
@@ -969,53 +1000,114 @@ where
             )));
         }
 
-        let expected_players = self.evm_config.simplex_consensus_public_keys();
-        if let Some(full_dkg) = decoded_extra_data.full_dkg.as_ref() {
-            if full_dkg.epoch != current_epoch {
-                return Err(EvmAppError::InvalidBlock(format!(
-                    "full_dkg epoch mismatch: expected {current_epoch}, found {}",
-                    full_dkg.epoch
-                )));
-            }
-            if full_dkg.output.players != expected_players {
-                return Err(EvmAppError::InvalidBlock(
-                    "full_dkg output.players does not match epoch simplex validator set".into(),
-                ));
-            }
+        let boundary_epoch_context = if boundary_required {
+            Some(BoundaryEpochContext::from_post_advance_epoch(
+                current_epoch,
+            )?)
+        } else {
+            None
+        };
+        let activation_resolver = ActivationSourceResolver::new(&self.evm_config);
+
+        if !boundary_required && decoded_extra_data.reshare.is_some() {
+            return Err(EvmAppError::InvalidBlock(
+                "reshare section is forbidden on non-boundary blocks".into(),
+            ));
         }
 
         if self.evm_config.full_dkg_feature_enabled() {
-            let candidate_full_dkg = self.evm_config.current_full_dkg_payload(current_epoch);
+            let candidate_epoch = boundary_epoch_context
+                .map(|ctx| ctx.full_dkg_epoch)
+                .unwrap_or(current_epoch);
+            let candidate_full_dkg = self.evm_config.current_full_dkg_payload(candidate_epoch);
             let latest_committed_full_dkg = {
                 let db = self.state_db.read().unwrap();
                 latest_committed_full_dkg(&*db, parent.height)?
             };
+
             match candidate_full_dkg {
                 Some(candidate_full_dkg) => {
-                    let should_include = full_dkg_should_be_included(
-                        &self.evm_config,
-                        latest_committed_full_dkg.as_ref(),
-                        &candidate_full_dkg,
-                    );
-                    match (should_include, decoded_extra_data.full_dkg.as_ref()) {
-                        (true, Some(observed)) => {
-                            if observed != &candidate_full_dkg {
-                                return Err(EvmAppError::InvalidBlock(
-                                    "full_dkg payload mismatch with configured candidate".into(),
-                                ));
+                    if boundary_required {
+                        let boundary_epoch_context =
+                            boundary_epoch_context.expect("context exists for boundary");
+                        let observed_full_dkg =
+                            decoded_extra_data.full_dkg.as_ref().ok_or_else(|| {
+                                EvmAppError::InvalidBlock(
+                                    "full_dkg section must be present for boundary block".into(),
+                                )
+                            })?;
+                        if observed_full_dkg.epoch != boundary_epoch_context.full_dkg_epoch {
+                            return Err(EvmAppError::InvalidBlock(format!(
+                                "full_dkg epoch mismatch on boundary: expected {}, found {}",
+                                boundary_epoch_context.full_dkg_epoch, observed_full_dkg.epoch
+                            )));
+                        }
+                        let expected_players = activation_resolver
+                            .resolve_players_for_epoch(boundary_epoch_context.full_dkg_epoch)?;
+                        if observed_full_dkg.output.players != expected_players {
+                            return Err(EvmAppError::InvalidBlock(
+                                "full_dkg output.players does not match activation-resolved player set"
+                                    .into(),
+                            ));
+                        }
+                        if observed_full_dkg != &candidate_full_dkg {
+                            return Err(EvmAppError::InvalidBlock(
+                                "full_dkg payload mismatch with configured candidate".into(),
+                            ));
+                        }
+
+                        let observed_reshare =
+                            decoded_extra_data.reshare.as_ref().ok_or_else(|| {
+                                EvmAppError::InvalidBlock(
+                                    "reshare section must be present for boundary block".into(),
+                                )
+                            })?;
+                        if observed_reshare.target_epoch
+                            != boundary_epoch_context.reshare_target_epoch
+                        {
+                            return Err(EvmAppError::InvalidBlock(format!(
+                                "reshare target epoch mismatch on boundary: expected {}, found {}",
+                                boundary_epoch_context.reshare_target_epoch,
+                                observed_reshare.target_epoch
+                            )));
+                        }
+                        let expected_reshare_players = activation_resolver
+                            .resolve_players_for_epoch(
+                                boundary_epoch_context.reshare_target_epoch,
+                            )?;
+                        if observed_reshare.players != expected_reshare_players {
+                            return Err(EvmAppError::InvalidBlock(
+                                "reshare players do not match activation-resolved player set"
+                                    .into(),
+                            ));
+                        }
+                    } else {
+                        let should_include = full_dkg_should_be_included(
+                            &self.evm_config,
+                            latest_committed_full_dkg.as_ref(),
+                            &candidate_full_dkg,
+                        );
+                        match (should_include, decoded_extra_data.full_dkg.as_ref()) {
+                            (true, Some(observed)) => {
+                                if observed != &candidate_full_dkg {
+                                    return Err(EvmAppError::InvalidBlock(
+                                        "full_dkg payload mismatch with configured candidate"
+                                            .into(),
+                                    ));
+                                }
                             }
+                            (true, None) => {
+                                return Err(EvmAppError::InvalidBlock(
+                                    "full_dkg section must be present for this block".into(),
+                                ))
+                            }
+                            (false, Some(_)) => {
+                                return Err(EvmAppError::InvalidBlock(
+                                    "full_dkg section must be omitted for this block".into(),
+                                ))
+                            }
+                            (false, None) => {}
                         }
-                        (true, None) => {
-                            return Err(EvmAppError::InvalidBlock(
-                                "full_dkg section must be present for this block".into(),
-                            ))
-                        }
-                        (false, Some(_)) => {
-                            return Err(EvmAppError::InvalidBlock(
-                                "full_dkg section must be omitted for this block".into(),
-                            ))
-                        }
-                        (false, None) => {}
                     }
                 }
                 None => {
@@ -1025,8 +1117,18 @@ where
                                 .into(),
                         ));
                     }
+                    if decoded_extra_data.reshare.is_some() {
+                        return Err(EvmAppError::InvalidBlock(
+                            "reshare section must be omitted when no full_dkg candidate is configured"
+                                .into(),
+                        ));
+                    }
                 }
             }
+        } else if decoded_extra_data.reshare.is_some() {
+            return Err(EvmAppError::InvalidBlock(
+                "reshare section must be omitted when full_dkg feature is disabled".into(),
+            ));
         }
 
         let receipts: Vec<Receipt> = execution_result
@@ -1082,6 +1184,7 @@ where
                 &self.evm_config,
                 None,
                 self.evm_config.local_proposer_public_key(),
+                false,
                 0,
             )
             .unwrap_or_else(|_| {
@@ -2757,11 +2860,13 @@ mod tests {
         let extra_with_full_dkg = encode_canonical_extra_data(&CanonicalExtraDataV1 {
             raw_eth: Some(vec![0x11; 32]),
             full_dkg: Some(full_dkg.clone()),
+            reshare: None,
         })
         .expect("encode full_dkg");
         let extra_raw_only = encode_canonical_extra_data(&CanonicalExtraDataV1 {
             raw_eth: Some(vec![0x11; 32]),
             full_dkg: None,
+            reshare: None,
         })
         .expect("encode raw only");
 
@@ -2912,6 +3017,7 @@ mod tests {
                     public_polynomial: vec![0x01],
                 },
             }),
+            reshare: None,
         })
         .expect("canonical extra_data with full_dkg");
 
@@ -2926,6 +3032,144 @@ mod tests {
             .expect_err("unexpected full_dkg without configured candidate must be rejected");
         assert!(
             matches!(err, EvmAppError::InvalidBlock(ref msg) if msg.contains("must be omitted when no full_dkg candidate is configured")),
+            "unexpected error: {err:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn propose_boundary_block_emits_forward_full_dkg_and_reshare_sections_when_candidate_configured(
+    ) {
+        let chain_spec = Arc::new(build_sahara_chain_spec());
+        let base_config = WhirlpoolEvmConfig::new(chain_spec.clone())
+            .with_local_proposer_public_key([0x77; 32])
+            .with_full_dkg_strict_height(0);
+        let players = base_config.simplex_consensus_public_keys();
+        let proposer_config = base_config.with_current_full_dkg_output(app::FullDkgOutputV1 {
+            dealers: players.clone(),
+            players: players.clone(),
+            public_polynomial: vec![0xaa, 0xbb, 0xcc],
+        });
+        let (app, db) = setup_app_with_config(vec![], proposer_config).await;
+
+        {
+            let mut db = db.write().unwrap();
+            seed_epoch_boundary_state(&mut db, 1, EPOCH_BLOCKS_DEFAULT);
+        }
+
+        let parent = app.genesis().await;
+        let (block, _) = app
+            .propose(&parent, 1)
+            .await
+            .expect("boundary block should propose");
+        let decoded = decode_extra_data(&block.extra_data, ExtraDataDecodeMode::Strict)
+            .expect("canonical extra_data should decode");
+
+        let full_dkg = decoded
+            .full_dkg
+            .as_ref()
+            .expect("boundary block should include full_dkg");
+        assert_eq!(full_dkg.epoch, 2, "boundary full_dkg must target epoch E+1");
+        assert_eq!(full_dkg.output.players, players);
+
+        let reshare = decoded
+            .reshare
+            .as_ref()
+            .expect("boundary block should include reshare");
+        assert_eq!(
+            reshare.target_epoch, 3,
+            "boundary reshare must target epoch E+2"
+        );
+        assert_eq!(reshare.players, full_dkg.output.players);
+    }
+
+    #[tokio::test]
+    async fn verify_rejects_missing_reshare_section_on_boundary_when_candidate_configured() {
+        let chain_spec = Arc::new(build_sahara_chain_spec());
+        let base_config = WhirlpoolEvmConfig::new(chain_spec.clone())
+            .with_local_proposer_public_key([0x77; 32])
+            .with_full_dkg_strict_height(0);
+        let players = base_config.simplex_consensus_public_keys();
+        let proposer_config = base_config.with_current_full_dkg_output(app::FullDkgOutputV1 {
+            dealers: players.clone(),
+            players: players.clone(),
+            public_polynomial: vec![0xaa, 0xbb, 0xcc],
+        });
+        let (app, db) = setup_app_with_config(vec![], proposer_config.clone()).await;
+
+        {
+            let mut db = db.write().unwrap();
+            seed_epoch_boundary_state(&mut db, 1, EPOCH_BLOCKS_DEFAULT);
+        }
+
+        let pre_state = db.read().unwrap().clone();
+        let parent = app.genesis().await;
+        let (mut block, _) = app
+            .propose(&parent, 1)
+            .await
+            .expect("boundary block should propose");
+
+        let mut decoded = decode_extra_data(&block.extra_data, ExtraDataDecodeMode::Strict)
+            .expect("canonical extra_data must decode");
+        decoded.reshare = None;
+        block.extra_data =
+            encode_canonical_extra_data(&decoded).expect("mutated canonical extra_data encodes");
+
+        let verifier = EvmApplication::new(
+            proposer_config,
+            Arc::new(RwLock::new(pre_state)),
+            Arc::new(MockTxSource { txs: vec![] }),
+        );
+        let err = verifier
+            .verify(&parent, &block)
+            .await
+            .expect_err("missing boundary reshare must be rejected");
+        assert!(
+            matches!(err, EvmAppError::InvalidBlock(ref msg) if msg.contains("reshare section must be present for boundary block")),
+            "unexpected error: {err:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn verify_rejects_reshare_section_on_non_boundary_block() {
+        let chain_spec = Arc::new(build_sahara_chain_spec());
+        let base_config = WhirlpoolEvmConfig::new(chain_spec.clone())
+            .with_local_proposer_public_key([0x77; 32])
+            .with_full_dkg_strict_height(0);
+        let players = base_config.simplex_consensus_public_keys();
+        let proposer_config = base_config.with_current_full_dkg_output(app::FullDkgOutputV1 {
+            dealers: players.clone(),
+            players: players.clone(),
+            public_polynomial: vec![0xaa, 0xbb, 0xcc],
+        });
+        let (app, db) = setup_app_with_config(vec![], proposer_config.clone()).await;
+
+        let pre_state = db.read().unwrap().clone();
+        let parent = app.genesis().await;
+        let (mut block, _) = app
+            .propose(&parent, 1)
+            .await
+            .expect("non-boundary block should propose");
+
+        let mut decoded = decode_extra_data(&block.extra_data, ExtraDataDecodeMode::Strict)
+            .expect("canonical extra_data must decode");
+        decoded.reshare = Some(app::ReshareV1 {
+            target_epoch: 1,
+            players: players.clone(),
+        });
+        block.extra_data =
+            encode_canonical_extra_data(&decoded).expect("mutated canonical extra_data encodes");
+
+        let verifier = EvmApplication::new(
+            proposer_config,
+            Arc::new(RwLock::new(pre_state)),
+            Arc::new(MockTxSource { txs: vec![] }),
+        );
+        let err = verifier
+            .verify(&parent, &block)
+            .await
+            .expect_err("reshare on non-boundary block must be rejected");
+        assert!(
+            matches!(err, EvmAppError::InvalidBlock(ref msg) if msg.contains("reshare section is forbidden on non-boundary blocks")),
             "unexpected error: {err:?}"
         );
     }

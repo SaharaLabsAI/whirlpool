@@ -3,6 +3,7 @@ mod epoch_boundary;
 pub mod error;
 pub mod executor;
 pub mod traits;
+mod validator_activation;
 
 pub use config::{
     WhirlpoolEvmConfig, DEFAULT_PROPOSER_FEE_RECIPIENT, VALIDATOR_FEE_RECIPIENTS_REGISTRY,
