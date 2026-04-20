@@ -9,6 +9,8 @@
 
 use std::collections::HashMap;
 use std::path::Path;
+#[cfg(test)]
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
 use alloy_genesis::GenesisAccount;
@@ -34,6 +36,40 @@ use crate::trie::compute_state_root;
 
 // Shared temp directories kept alive for DBs created via `StateDb::new`.
 static TEST_DB_TEMP_DIRS: OnceLock<Mutex<Vec<Arc<tempfile::TempDir>>>> = OnceLock::new();
+#[cfg(test)]
+static FAIL_NEXT_COMMIT_DELETE: AtomicBool = AtomicBool::new(false);
+#[cfg(test)]
+static FAIL_NEXT_INSERT_STORAGE_DELETE: AtomicBool = AtomicBool::new(false);
+
+#[cfg(test)]
+pub(crate) fn inject_next_commit_delete_failure() {
+    FAIL_NEXT_COMMIT_DELETE.store(true, Ordering::SeqCst);
+}
+
+#[cfg(test)]
+pub(crate) fn inject_next_insert_storage_delete_failure() {
+    FAIL_NEXT_INSERT_STORAGE_DELETE.store(true, Ordering::SeqCst);
+}
+
+fn maybe_inject_commit_delete_failure() -> Result<(), RethStateError> {
+    #[cfg(test)]
+    if FAIL_NEXT_COMMIT_DELETE.swap(false, Ordering::SeqCst) {
+        return Err(RethStateError::Database(reth_db::DatabaseError::Other(
+            "injected commit delete failure".to_string(),
+        )));
+    }
+    Ok(())
+}
+
+fn maybe_inject_insert_storage_delete_failure() -> Result<(), RethStateError> {
+    #[cfg(test)]
+    if FAIL_NEXT_INSERT_STORAGE_DELETE.swap(false, Ordering::SeqCst) {
+        return Err(RethStateError::Database(reth_db::DatabaseError::Other(
+            "injected insert_storage delete failure".to_string(),
+        )));
+    }
+    Ok(())
+}
 
 #[derive(Debug, Clone)]
 pub struct RethStateDb {
@@ -225,20 +261,36 @@ impl StateDb for RethStateDb {
 
             if bundle_account.was_destroyed() {
                 // Delete account from plain + hashed tables.
-                let _ = tx.delete::<PlainAccountState>(*address, None);
-                let _ = tx.delete::<HashedAccounts>(hashed_addr, None);
+                maybe_inject_commit_delete_failure()?;
+                tx.delete::<PlainAccountState>(*address, None)
+                    .map_err(RethStateError::Database)?;
+                maybe_inject_commit_delete_failure()?;
+                tx.delete::<HashedAccounts>(hashed_addr, None)
+                    .map_err(RethStateError::Database)?;
                 // Delete all storage for this account.
-                let _ = tx.delete::<PlainStorageState>(*address, None);
-                let _ = tx.delete::<HashedStorages>(hashed_addr, None);
+                maybe_inject_commit_delete_failure()?;
+                tx.delete::<PlainStorageState>(*address, None)
+                    .map_err(RethStateError::Database)?;
+                maybe_inject_commit_delete_failure()?;
+                tx.delete::<HashedStorages>(hashed_addr, None)
+                    .map_err(RethStateError::Database)?;
                 continue;
             }
 
             let Some(info) = bundle_account.account_info() else {
                 // Account no longer exists — remove.
-                let _ = tx.delete::<PlainAccountState>(*address, None);
-                let _ = tx.delete::<HashedAccounts>(hashed_addr, None);
-                let _ = tx.delete::<PlainStorageState>(*address, None);
-                let _ = tx.delete::<HashedStorages>(hashed_addr, None);
+                maybe_inject_commit_delete_failure()?;
+                tx.delete::<PlainAccountState>(*address, None)
+                    .map_err(RethStateError::Database)?;
+                maybe_inject_commit_delete_failure()?;
+                tx.delete::<HashedAccounts>(hashed_addr, None)
+                    .map_err(RethStateError::Database)?;
+                maybe_inject_commit_delete_failure()?;
+                tx.delete::<PlainStorageState>(*address, None)
+                    .map_err(RethStateError::Database)?;
+                maybe_inject_commit_delete_failure()?;
+                tx.delete::<HashedStorages>(hashed_addr, None)
+                    .map_err(RethStateError::Database)?;
                 continue;
             };
 
@@ -252,8 +304,12 @@ impl StateDb for RethStateDb {
             // Handle storage changes.
             if bundle_account.status.is_storage_known() {
                 // Wipe existing storage.
-                let _ = tx.delete::<PlainStorageState>(*address, None);
-                let _ = tx.delete::<HashedStorages>(hashed_addr, None);
+                maybe_inject_commit_delete_failure()?;
+                tx.delete::<PlainStorageState>(*address, None)
+                    .map_err(RethStateError::Database)?;
+                maybe_inject_commit_delete_failure()?;
+                tx.delete::<HashedStorages>(hashed_addr, None)
+                    .map_err(RethStateError::Database)?;
             }
 
             for (key, slot) in &bundle_account.storage {
@@ -264,9 +320,13 @@ impl StateDb for RethStateDb {
                 if value.is_zero() {
                     // Delete this specific storage slot.
                     let entry = StorageEntry::new(key_b256, U256::ZERO);
-                    let _ = tx.delete::<PlainStorageState>(*address, Some(entry));
+                    maybe_inject_commit_delete_failure()?;
+                    tx.delete::<PlainStorageState>(*address, Some(entry))
+                        .map_err(RethStateError::Database)?;
                     let hashed_entry = StorageEntry::new(hashed_slot, U256::ZERO);
-                    let _ = tx.delete::<HashedStorages>(hashed_addr, Some(hashed_entry));
+                    maybe_inject_commit_delete_failure()?;
+                    tx.delete::<HashedStorages>(hashed_addr, Some(hashed_entry))
+                        .map_err(RethStateError::Database)?;
                 } else {
                     // Upsert storage slot.
                     let entry = StorageEntry::new(key_b256, value);
@@ -412,10 +472,14 @@ impl StateDb for RethStateDb {
 
         if value.is_zero() {
             let plain_entry = StorageEntry::new(key, U256::ZERO);
-            let _ = tx.delete::<PlainStorageState>(address, Some(plain_entry));
+            maybe_inject_insert_storage_delete_failure()?;
+            tx.delete::<PlainStorageState>(address, Some(plain_entry))
+                .map_err(RethStateError::Database)?;
 
             let hashed_entry = StorageEntry::new(hashed_slot, U256::ZERO);
-            let _ = tx.delete::<HashedStorages>(hashed_addr, Some(hashed_entry));
+            maybe_inject_insert_storage_delete_failure()?;
+            tx.delete::<HashedStorages>(hashed_addr, Some(hashed_entry))
+                .map_err(RethStateError::Database)?;
         } else {
             let plain_entry = StorageEntry::new(key, value);
             let mut cursor = tx

@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, RwLock};
 
 use alloy_consensus::{Transaction, TxReceipt};
@@ -43,7 +44,16 @@ pub use crate::traits::StateProvider;
 use crate::validator_activation::{ActivationSourceResolver, BoundaryEpochContext};
 
 pub type RecoveredTx = Recovered<TransactionSigned>;
-type ProposedCacheEntry = (u64, EvmBlock, ExecutionResult, Vec<Receipt>);
+type ProposedCacheKey = (u64, [u8; 32]);
+type ProposedCacheEntry = (ProposedCacheKey, EvmBlock, ExecutionResult, Vec<Receipt>);
+
+#[derive(Clone, Debug)]
+struct StagedReceipts {
+    height: u64,
+    parent_id: [u8; 32],
+    block_id: [u8; 32],
+    receipts: Vec<Receipt>,
+}
 
 #[derive(Clone, Debug)]
 pub struct ProposedEvmPayload {
@@ -567,6 +577,7 @@ pub struct EvmApplication<DB> {
     state_db: Arc<RwLock<DB>>,
     tx_source: Arc<dyn TxSource + Send + Sync>,
     pending_receipts: Arc<Mutex<Option<Vec<Receipt>>>>,
+    staged_receipts: Arc<Mutex<BTreeMap<[u8; 32], StagedReceipts>>>,
     last_proposed: Arc<Mutex<Option<ProposedCacheEntry>>>,
 }
 
@@ -584,8 +595,25 @@ where
             state_db,
             tx_source,
             pending_receipts: Arc::new(Mutex::new(None)),
+            staged_receipts: Arc::new(Mutex::new(BTreeMap::new())),
             last_proposed: Arc::new(Mutex::new(None)),
         }
+    }
+
+    fn stage_receipts_for_block(&self, block: &EvmBlock, receipts: Vec<Receipt>) {
+        {
+            let mut guard = self.pending_receipts.lock().unwrap();
+            *guard = Some(receipts.clone());
+        }
+
+        let staged = StagedReceipts {
+            height: block.height,
+            parent_id: block.parent_id,
+            block_id: block.compute_id(),
+            receipts,
+        };
+        let mut guard = self.staged_receipts.lock().unwrap();
+        guard.insert(staged.block_id, staged);
     }
 
     pub fn store_finalized_block(
@@ -593,13 +621,57 @@ where
         block: &EvmBlock,
         storage: &dyn BlockStorage,
     ) -> Result<(), EvmAppError> {
-        let receipts = {
-            let mut guard = self.pending_receipts.lock().unwrap();
-            guard.take().unwrap_or_default()
+        let block_id = block.compute_id();
+        let staged = {
+            let guard = self.staged_receipts.lock().unwrap();
+            guard.get(&block_id).cloned()
         };
+        let Some(staged) = staged else {
+            if block.transactions.is_empty() {
+                storage
+                    .store_block(block, &[])
+                    .map_err(|e| EvmAppError::State(e.to_string()))?;
+                return Ok(());
+            }
+            return Err(EvmAppError::InvalidBlock(format!(
+                "missing staged receipts for finalized block {} ({:?})",
+                block.height, block_id
+            )));
+        };
+
+        if staged.height != block.height || staged.parent_id != block.parent_id {
+            return Err(EvmAppError::InvalidBlock(format!(
+                "staged receipts do not match finalized block identity: staged(height={}, parent={:?}, id={:?}), block(height={}, parent={:?}, id={:?})",
+                staged.height, staged.parent_id, staged.block_id, block.height, block.parent_id, block_id
+            )));
+        }
+
         storage
-            .store_block(block, &receipts)
-            .map_err(|e| EvmAppError::State(e.to_string()))
+            .store_block(block, &staged.receipts)
+            .map_err(|e| EvmAppError::State(e.to_string()))?;
+
+        {
+            let mut guard = self.staged_receipts.lock().unwrap();
+            if let Some(current) = guard.get(&block_id) {
+                if current.height == block.height
+                    && current.parent_id == block.parent_id
+                    && current.block_id == block_id
+                {
+                    guard.remove(&block_id);
+                }
+            }
+        }
+        {
+            let mut guard = self.pending_receipts.lock().unwrap();
+            if guard
+                .as_ref()
+                .map(|receipts| receipts == &staged.receipts)
+                .unwrap_or(false)
+            {
+                guard.take();
+            }
+        };
+        Ok(())
     }
 
     pub fn pending_receipts(&self) -> Vec<Receipt> {
@@ -708,11 +780,6 @@ where
                 logs: r.logs().to_vec(),
             })
             .collect();
-
-        {
-            let mut guard = self.pending_receipts.lock().unwrap();
-            *guard = Some(receipts.clone());
-        }
 
         let (gas_deltas, gas_used) = gas_deltas_and_used(&execution_result.receipts)?;
         let priority_fees =
@@ -1061,10 +1128,7 @@ where
             })
             .collect();
 
-        {
-            let mut guard = self.pending_receipts.lock().unwrap();
-            *guard = Some(receipts);
-        }
+        self.stage_receipts_for_block(block, receipts);
 
         Ok(ExecutionResult {
             state_root: block.state_root,
@@ -1135,12 +1199,13 @@ where
     ) -> impl std::future::Future<Output = Result<(Self::Block, Self::Result), Self::Error>> + Send
     {
         async move {
+            let parent_id = parent.compute_id();
+            let cache_key = (height, parent_id);
             {
                 let cache = self.last_proposed.lock().unwrap();
-                if let Some((cached_height, ref block, ref result, ref receipts)) = *cache {
-                    if cached_height == height {
-                        let mut guard = self.pending_receipts.lock().unwrap();
-                        *guard = Some(receipts.clone());
+                if let Some((cached_key, ref block, ref result, ref receipts)) = *cache {
+                    if cached_key == cache_key {
+                        self.stage_receipts_for_block(block, receipts.clone());
                         return Ok((block.clone(), result.clone()));
                     }
                 }
@@ -1159,7 +1224,7 @@ where
 
             let block = EvmBlock {
                 height,
-                parent_id: parent.compute_id(),
+                parent_id,
                 state_root: payload.result.state_root,
                 transactions_root: transactions_root.0,
                 receipts_root: payload.result.receipts_root,
@@ -1171,15 +1236,12 @@ where
                 timestamp,
                 transactions: block_transactions,
             };
+            let receipts = payload.receipts;
+            self.stage_receipts_for_block(&block, receipts.clone());
 
             {
                 let mut cache = self.last_proposed.lock().unwrap();
-                *cache = Some((
-                    height,
-                    block.clone(),
-                    payload.result.clone(),
-                    payload.receipts,
-                ));
+                *cache = Some((cache_key, block.clone(), payload.result.clone(), receipts));
             }
 
             Ok((block, payload.result))
@@ -1192,6 +1254,14 @@ where
         block: &Self::Block,
     ) -> impl std::future::Future<Output = Result<Self::Result, Self::Error>> + Send {
         async move {
+            let expected_parent_id = parent.compute_id();
+            if block.parent_id != expected_parent_id {
+                return Err(EvmAppError::InvalidBlock(format!(
+                    "Parent id mismatch: expected {:?}, found {:?}",
+                    expected_parent_id, block.parent_id
+                )));
+            }
+
             let computed_tx_root =
                 ordered_trie_root_with_encoder(&block.transactions, |tx, out| out.put_slice(tx));
             if computed_tx_root.0 != block.transactions_root {
@@ -2635,6 +2705,195 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn propose_cache_isolated_for_same_height_different_parent() {
+        let (app, _db) = setup_app(vec![]).await;
+        let parent = app.genesis().await;
+        let (first_block, _) = app.propose(&parent, 1).await.expect("first propose");
+
+        let mut alternate_parent = parent.clone();
+        alternate_parent.state_root[0] ^= 0x01;
+        let (second_block, _) = app
+            .propose(&alternate_parent, 1)
+            .await
+            .expect("second propose with alternate parent");
+
+        assert_eq!(first_block.parent_id, parent.compute_id());
+        assert_eq!(second_block.parent_id, alternate_parent.compute_id());
+        assert_ne!(first_block.parent_id, second_block.parent_id);
+    }
+
+    #[tokio::test]
+    async fn verify_rejects_parent_id_mismatch() {
+        let (tx, recovered) = sample_evm_tx();
+        let (app, db) = setup_app(vec![tx]).await;
+
+        {
+            let mut db = db.write().unwrap();
+            let info = revm::state::AccountInfo {
+                balance: U256::from(1_000_000_000_000_000_000u64),
+                nonce: 0,
+                ..Default::default()
+            };
+            db.insert_account(recovered, info);
+        }
+
+        let parent = app.genesis().await;
+        let (block, _) = app.propose(&parent, 1).await.expect("propose block");
+        let mut wrong_parent = parent.clone();
+        wrong_parent.state_root[0] ^= 0x01;
+
+        let err = app
+            .verify(&wrong_parent, &block)
+            .await
+            .expect_err("verify must reject mismatched parent id");
+        assert!(matches!(err, EvmAppError::InvalidBlock(_)));
+    }
+
+    #[tokio::test]
+    async fn store_finalized_block_retains_receipts_when_store_fails() {
+        let (tx, recovered) = sample_evm_tx();
+        let (app, db) = setup_app(vec![tx]).await;
+
+        {
+            let mut db = db.write().unwrap();
+            let info = revm::state::AccountInfo {
+                balance: U256::from(1_000_000_000_000_000_000u64),
+                nonce: 0,
+                ..Default::default()
+            };
+            db.insert_account(recovered, info);
+        }
+
+        let parent = app.genesis().await;
+        let (block, _) = app.propose(&parent, 1).await.expect("propose block");
+
+        struct FailingBlockStorage;
+        impl BlockStorage for FailingBlockStorage {
+            fn store_block(
+                &self,
+                _block: &EvmBlock,
+                _receipts: &[Receipt],
+            ) -> Result<(), state::BlockStorageError> {
+                Err(state::BlockStorageError::Database(
+                    "injected persistence failure".into(),
+                ))
+            }
+
+            fn get_block_by_number(
+                &self,
+                _number: u64,
+            ) -> Result<Option<EvmBlock>, state::BlockStorageError> {
+                Ok(None)
+            }
+
+            fn get_block_by_hash(
+                &self,
+                _hash: B256,
+            ) -> Result<Option<EvmBlock>, state::BlockStorageError> {
+                Ok(None)
+            }
+
+            fn get_receipts_by_block(
+                &self,
+                _number: u64,
+            ) -> Result<Option<Vec<Receipt>>, state::BlockStorageError> {
+                Ok(None)
+            }
+
+            fn get_latest_block_number(&self) -> Result<Option<u64>, state::BlockStorageError> {
+                Ok(None)
+            }
+        }
+
+        let err = app
+            .store_finalized_block(&block, &FailingBlockStorage)
+            .expect_err("finalize persistence failure should return error");
+        assert!(matches!(err, EvmAppError::State(_)));
+        assert_eq!(app.pending_receipts().len(), 1);
+        assert!(app
+            .staged_receipts
+            .lock()
+            .unwrap()
+            .contains_key(&block.compute_id()));
+    }
+
+    #[tokio::test]
+    async fn store_finalized_block_rejects_receipts_for_mismatched_cached_block() {
+        let (tx, recovered) = sample_evm_tx();
+        let (app, db) = setup_app(vec![tx]).await;
+
+        {
+            let mut db = db.write().unwrap();
+            let info = revm::state::AccountInfo {
+                balance: U256::from(1_000_000_000_000_000_000u64),
+                nonce: 0,
+                ..Default::default()
+            };
+            db.insert_account(recovered, info);
+        }
+
+        let parent = app.genesis().await;
+        let (block, _) = app.propose(&parent, 1).await.expect("propose block");
+        let staged_block_id = block.compute_id();
+        let mut mismatched_block = block.clone();
+        mismatched_block.parent_id[0] ^= 0x01;
+
+        #[derive(Default)]
+        struct CountingStorage {
+            calls: Mutex<usize>,
+        }
+
+        impl BlockStorage for CountingStorage {
+            fn store_block(
+                &self,
+                _block: &EvmBlock,
+                _receipts: &[Receipt],
+            ) -> Result<(), state::BlockStorageError> {
+                let mut calls = self.calls.lock().unwrap();
+                *calls += 1;
+                Ok(())
+            }
+
+            fn get_block_by_number(
+                &self,
+                _number: u64,
+            ) -> Result<Option<EvmBlock>, state::BlockStorageError> {
+                Ok(None)
+            }
+
+            fn get_block_by_hash(
+                &self,
+                _hash: B256,
+            ) -> Result<Option<EvmBlock>, state::BlockStorageError> {
+                Ok(None)
+            }
+
+            fn get_receipts_by_block(
+                &self,
+                _number: u64,
+            ) -> Result<Option<Vec<Receipt>>, state::BlockStorageError> {
+                Ok(None)
+            }
+
+            fn get_latest_block_number(&self) -> Result<Option<u64>, state::BlockStorageError> {
+                Ok(None)
+            }
+        }
+
+        let storage = CountingStorage::default();
+        let err = app
+            .store_finalized_block(&mismatched_block, &storage)
+            .expect_err("mismatched staged receipts must be rejected");
+        assert!(matches!(err, EvmAppError::InvalidBlock(_)));
+        assert_eq!(*storage.calls.lock().unwrap(), 0);
+        assert!(app
+            .staged_receipts
+            .lock()
+            .unwrap()
+            .contains_key(&staged_block_id));
+    }
+
+    #[tokio::test]
     async fn store_finalized_block_stores_and_clears_receipts() {
         let (tx, recovered) = sample_evm_tx();
         let (app, db) = setup_app(vec![tx]).await;
@@ -2703,6 +2962,8 @@ mod tests {
         assert_eq!(stored.len(), 1);
         assert_eq!(stored[0].0.height, 1);
         assert_eq!(stored[0].1.len(), 1);
+        assert!(app.pending_receipts().is_empty());
+        assert!(app.staged_receipts.lock().unwrap().is_empty());
     }
 
     #[test]

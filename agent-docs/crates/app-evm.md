@@ -68,6 +68,9 @@ Those live in `chainspec`.
 - On boundary heights, propose executes `advanceEpoch` as an internal system call before user tx execution; no synthetic boundary tx bytes are added to `block.transactions`.
 - Reserved epoch namespace tx bytes in the user payload are treated as invalid protocol artifacts: propose excludes them and verify rejects blocks that contain them.
 - `verify()` computes against a cloned state snapshot and validates roots; it does not persist the computed post-state back into `state_db`.
+- Proposal cache reuse is now keyed by `(height, parent_id)` (not height alone), and `verify()` fail-closes when `block.parent_id != parent.compute_id()`.
+- Finalization receipts are identity-bound to blocks (`height`, `parent_id`, `block_id`) and are cleared only after successful `store_block`; failed persistence retains staged receipts for retry/inspection.
+- Finalization allows an explicit no-staged-receipts fallback only for empty-transaction finalized blocks (persists with empty receipts).
 - Reth v2 / REVM 36 alignment:
   - execution state uses `revm::database::State` builder with `with_bundle_update()` (no legacy `without_state_clear()` hook),
   - receipt handling/Trie-root encoding is explicitly typed against `reth_ethereum_primitives::Receipt` in propose/verify flows.

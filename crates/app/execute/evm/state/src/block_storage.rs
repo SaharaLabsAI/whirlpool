@@ -165,14 +165,19 @@ impl BlockStorage for RethStateDb {
         }
 
         let extra_data: Vec<u8> = header.extra_data.to_vec();
+        let proposer_public_key =
+            proposer_public_key_from_extra_data(&extra_data).ok_or_else(|| {
+                BlockStorageError::Codec(format!(
+                    "failed to decode proposer public key from block {number} extra_data"
+                ))
+            })?;
         Ok(Some(EvmBlock {
             height: number,
             parent_id: header.parent_hash.into(),
             state_root: header.state_root.into(),
             transactions_root: header.transactions_root.into(),
             receipts_root: header.receipts_root.into(),
-            proposer_public_key: proposer_public_key_from_extra_data(&extra_data)
-                .unwrap_or([0u8; 32]),
+            proposer_public_key,
             proposer_fee_recipient: header.beneficiary.into_array(),
             extra_data,
             gas_used: header.gas_used,
@@ -375,6 +380,22 @@ mod tests {
         assert_eq!(loaded.gas_used, block.gas_used);
         assert_eq!(loaded.timestamp, block.timestamp);
         assert_eq!(loaded.transactions, block.transactions);
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn get_block_by_number_errors_on_malformed_extra_data() {
+        let dir = tempfile::tempdir().expect("create temp dir");
+        let db = open_state_db(dir.path()).expect("open db");
+        let mut block = make_block(12, 1);
+        block.extra_data = vec![0x01, 0x02];
+        let receipts = make_receipts(1);
+
+        db.store_block(&block, &receipts).expect("store block");
+        let err = db
+            .get_block_by_number(12)
+            .expect_err("malformed extra_data should fail block reconstruction");
+        assert!(matches!(err, BlockStorageError::Codec(_)));
     }
 
     // TC-SR-04

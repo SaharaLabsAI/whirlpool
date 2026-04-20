@@ -33,7 +33,9 @@ Persistent state storage implementation backed by reth-db (MDBX/libmdbx).
 - **Dual-Writes**: state is written to both Plain and Hashed tables to support both direct lookups and Merkle trie generation.
 - **Storage writer seam**: `insert_storage` writes/deletes storage slots in both Plain and Hashed tables, creating an empty account row when needed so slot ownership is canonical.
 - **Block Storage**: `store_block` validates tx/receipt length before opening a write tx, decodes 2718 txs once, writes canonical header/body/tx/receipt records atomically, and treats identical `(number, hash)` re-inserts as idempotent no-ops. Stored headers include `base_fee_per_gas`, proposer fee recipient in `beneficiary`, proposer public key in `extra_data`, and post-Cancun blob gas fields (`excess_blob_gas: Some(0)`, `blob_gas_used: Some(0)`). `get_latest_block_number` uses `cursor_read::<CanonicalHeaders>().last()` for O(log N) tip recovery.
+- **Block reconstruction strictness**: `get_block_by_number` now fails with `BlockStorageError::Codec` when proposer pubkey cannot be decoded from persisted `extra_data` (no silent zero-key fallback).
 - **Trie**: state root computation uses explicit `LegacyKeyAdapter` wiring for `StateRoot::from_tx(...)` compatibility with reth v2 trie-db generics.
+- **Delete error propagation**: commit and `insert_storage` delete paths now propagate MDBX delete errors instead of ignoring them; regression coverage includes injected delete-failure tests for commit and `insert_storage`.
 - **Concurrency**: `Arc<DatabaseEnv>` enables `Clone + Send + Sync`.
 
 ## Tables Used
@@ -66,7 +68,7 @@ Persistent state storage implementation backed by reth-db (MDBX/libmdbx).
 - `thiserror`: error derivation
 
 ## Test Coverage
-- 30 total tests (23 unit + 7 integration).
+- 33 total tests (26 unit + 7 integration).
 - Block storage unit tests: TC-SR-01..10 in `crates/app/execute/evm/state/src/block_storage.rs`.
 - Coverage: persistence, recovery (TC-SR-09/10), concurrency, genesis allocation, deterministic state root, revm trait compatibility, block/receipt persistence round-trips.
 
