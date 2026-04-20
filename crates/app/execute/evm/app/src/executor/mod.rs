@@ -42,6 +42,19 @@ use crate::epoch_boundary::{
 use crate::error::EvmAppError;
 pub use crate::traits::StateProvider;
 use crate::validator_activation::{ActivationSourceResolver, BoundaryEpochContext};
+use header_and_decode::build_sealed_header;
+pub use header_and_decode::{
+    build_header_from_evm_block, decode_evm_transaction, decode_evm_transactions,
+};
+use state_helpers::{
+    aggregate_priority_fees, credit_burned_fees, credit_fee_pool_claim,
+    extra_data_decode_mode_for_height, gas_deltas_and_used, latest_committed_full_dkg,
+    load_u64_storage_value, maybe_apply_community_pool_unlock,
+    proposer_public_key_from_raw_eth_section, validate_or_recover_fee_recipient,
+};
+
+mod header_and_decode;
+mod state_helpers;
 
 pub type RecoveredTx = Recovered<TransactionSigned>;
 type ProposedCacheKey = (u64, [u8; 32]);
@@ -66,10 +79,6 @@ pub struct ProposedEvmPayload {
     pub extra_data: Vec<u8>,
     pub receipts: Vec<Receipt>,
 }
-
-include!("header_and_decode.rs");
-
-include!("state_helpers.rs");
 
 #[derive(Clone)]
 pub struct EvmApplication<DB> {

@@ -39,6 +39,7 @@ Persistent state storage implementation backed by reth-db (MDBX/libmdbx).
 - **Block reconstruction strictness**: `get_block_by_number` now fails with `BlockStorageError::Codec` when proposer pubkey cannot be decoded from persisted `extra_data` (no silent zero-key fallback).
 - **Trie**: state root computation uses explicit `LegacyKeyAdapter` wiring for `StateRoot::from_tx(...)` compatibility with reth v2 trie-db generics.
 - **Delete error propagation**: commit and `insert_storage` delete paths now propagate MDBX delete errors instead of ignoring them; regression coverage includes injected delete-failure tests for commit and `insert_storage`.
+- db helper modules now use explicit imports instead of wildcard parent imports for clearer dependency boundaries.
 - **Concurrency**: `Arc<DatabaseEnv>` enables `Clone + Send + Sync`.
 
 ## Tables Used

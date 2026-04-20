@@ -1,4 +1,6 @@
-fn credit_account_balance<DB>(
+use super::*;
+
+pub(super) fn credit_account_balance<DB>(
     db: &mut DB,
     address: Address,
     amount: U256,
@@ -19,7 +21,7 @@ where
     insert_account_preserving_community_pool_unlock_storage(db, address, info)
 }
 
-fn insert_account_preserving_community_pool_unlock_storage<DB>(
+pub(super) fn insert_account_preserving_community_pool_unlock_storage<DB>(
     db: &mut DB,
     address: Address,
     info: revm::state::AccountInfo,
@@ -32,59 +34,52 @@ where
         return db.insert_account(address, info).map_err(Into::into);
     }
 
+    let unlock_every_epochs_slot = community_pool_unlock_every_epochs_slot();
+    let unlock_amount_per_cycle_slot = community_pool_unlock_amount_per_cycle_slot();
+    let locked_remaining_slot = community_pool_locked_remaining_slot();
+    let last_processed_epoch_slot = community_pool_last_processed_epoch_slot();
+
     let unlock_every_epochs = db
-        .get_storage(
-            COMMUNITY_POOL_ADDRESS,
-            community_pool_unlock_every_epochs_slot(),
-        )
+        .get_storage(COMMUNITY_POOL_ADDRESS, unlock_every_epochs_slot)
         .map_err(Into::into)?;
     let unlock_amount_per_cycle = db
-        .get_storage(
-            COMMUNITY_POOL_ADDRESS,
-            community_pool_unlock_amount_per_cycle_slot(),
-        )
+        .get_storage(COMMUNITY_POOL_ADDRESS, unlock_amount_per_cycle_slot)
         .map_err(Into::into)?;
     let locked_remaining = db
-        .get_storage(
-            COMMUNITY_POOL_ADDRESS,
-            community_pool_locked_remaining_slot(),
-        )
+        .get_storage(COMMUNITY_POOL_ADDRESS, locked_remaining_slot)
         .map_err(Into::into)?;
     let last_processed_epoch = db
-        .get_storage(
-            COMMUNITY_POOL_ADDRESS,
-            community_pool_last_processed_epoch_slot(),
-        )
+        .get_storage(COMMUNITY_POOL_ADDRESS, last_processed_epoch_slot)
         .map_err(Into::into)?;
 
     db.insert_account(address, info).map_err(Into::into)?;
     db.insert_storage(
         COMMUNITY_POOL_ADDRESS,
-        community_pool_unlock_every_epochs_slot(),
+        unlock_every_epochs_slot,
         unlock_every_epochs,
     )
     .map_err(Into::into)?;
     db.insert_storage(
         COMMUNITY_POOL_ADDRESS,
-        community_pool_unlock_amount_per_cycle_slot(),
+        unlock_amount_per_cycle_slot,
         unlock_amount_per_cycle,
     )
     .map_err(Into::into)?;
     db.insert_storage(
         COMMUNITY_POOL_ADDRESS,
-        community_pool_locked_remaining_slot(),
+        locked_remaining_slot,
         locked_remaining,
     )
     .map_err(Into::into)?;
     db.insert_storage(
         COMMUNITY_POOL_ADDRESS,
-        community_pool_last_processed_epoch_slot(),
+        last_processed_epoch_slot,
         last_processed_epoch,
     )
     .map_err(Into::into)
 }
 
-fn credit_burned_fees<DB>(
+pub(super) fn credit_burned_fees<DB>(
     db: &mut DB,
     gas_used: u64,
     base_fee_per_gas: u64,
@@ -97,7 +92,7 @@ where
     credit_account_balance(db, COMMUNITY_POOL_ADDRESS, burned_amount)
 }
 
-fn credit_fee_pool_claim<DB>(
+pub(super) fn credit_fee_pool_claim<DB>(
     db: &mut DB,
     recipient: Address,
     amount: U256,
@@ -122,7 +117,7 @@ where
         .map_err(Into::into)
 }
 
-fn transfer_account_balance<DB>(
+pub(super) fn transfer_account_balance<DB>(
     db: &mut DB,
     from: Address,
     to: Address,
@@ -157,7 +152,7 @@ where
     insert_account_preserving_community_pool_unlock_storage(db, to, to_info)
 }
 
-fn load_u64_storage_value<DB>(
+pub(super) fn load_u64_storage_value<DB>(
     db: &DB,
     address: Address,
     slot: U256,
@@ -173,7 +168,7 @@ where
     })
 }
 
-fn maybe_apply_community_pool_unlock<DB>(
+pub(super) fn maybe_apply_community_pool_unlock<DB>(
     db: &mut DB,
     boundary_required: bool,
     simplex_validators: &[ValidatorEntry],
@@ -186,17 +181,19 @@ where
         return Ok(());
     }
 
+    let unlock_every_epochs_slot = community_pool_unlock_every_epochs_slot();
+    let unlock_amount_per_cycle_slot = community_pool_unlock_amount_per_cycle_slot();
+    let locked_remaining_slot = community_pool_locked_remaining_slot();
+    let last_processed_epoch_slot = community_pool_last_processed_epoch_slot();
+
     let unlock_every_epochs = load_u64_storage_value(
         db,
         COMMUNITY_POOL_ADDRESS,
-        community_pool_unlock_every_epochs_slot(),
+        unlock_every_epochs_slot,
         "community-pool unlockEveryEpochs",
     )?;
     let unlock_amount_per_cycle = db
-        .get_storage(
-            COMMUNITY_POOL_ADDRESS,
-            community_pool_unlock_amount_per_cycle_slot(),
-        )
+        .get_storage(COMMUNITY_POOL_ADDRESS, unlock_amount_per_cycle_slot)
         .map_err(Into::into)?;
 
     let unlock_enabled = unlock_every_epochs > 0 && !unlock_amount_per_cycle.is_zero();
@@ -223,7 +220,7 @@ where
     let last_processed_epoch = load_u64_storage_value(
         db,
         COMMUNITY_POOL_ADDRESS,
-        community_pool_last_processed_epoch_slot(),
+        last_processed_epoch_slot,
         "community-pool lastProcessedEpoch",
     )?;
     if last_processed_epoch > current_epoch {
@@ -236,30 +233,23 @@ where
     }
 
     let locked_remaining = db
-        .get_storage(
-            COMMUNITY_POOL_ADDRESS,
-            community_pool_locked_remaining_slot(),
-        )
+        .get_storage(COMMUNITY_POOL_ADDRESS, locked_remaining_slot)
         .map_err(Into::into)?;
     if locked_remaining.is_zero() {
         db.insert_storage(
             COMMUNITY_POOL_ADDRESS,
-            community_pool_last_processed_epoch_slot(),
+            last_processed_epoch_slot,
             U256::from(current_epoch),
         )
         .map_err(Into::into)?;
         return Ok(());
     }
 
-    let unlock_tranche = if unlock_amount_per_cycle > locked_remaining {
-        locked_remaining
-    } else {
-        unlock_amount_per_cycle
-    };
+    let unlock_tranche = unlock_amount_per_cycle.min(locked_remaining);
     if unlock_tranche.is_zero() {
         db.insert_storage(
             COMMUNITY_POOL_ADDRESS,
-            community_pool_last_processed_epoch_slot(),
+            last_processed_epoch_slot,
             U256::from(current_epoch),
         )
         .map_err(Into::into)?;
@@ -312,19 +302,19 @@ where
         .ok_or_else(|| EvmAppError::Execution("community-pool remaining underflow".into()))?;
     db.insert_storage(
         COMMUNITY_POOL_ADDRESS,
-        community_pool_locked_remaining_slot(),
+        locked_remaining_slot,
         next_locked_remaining,
     )
     .map_err(Into::into)?;
     db.insert_storage(
         COMMUNITY_POOL_ADDRESS,
-        community_pool_last_processed_epoch_slot(),
+        last_processed_epoch_slot,
         U256::from(current_epoch),
     )
     .map_err(Into::into)
 }
 
-fn gas_deltas_and_used<R>(receipts: &[R]) -> Result<(Vec<u64>, u64), EvmAppError>
+pub(super) fn gas_deltas_and_used<R>(receipts: &[R]) -> Result<(Vec<u64>, u64), EvmAppError>
 where
     R: TxReceipt,
 {
@@ -345,7 +335,7 @@ where
     Ok((deltas, previous))
 }
 
-fn aggregate_priority_fees(
+pub(super) fn aggregate_priority_fees(
     txs: &[RecoveredTx],
     gas_deltas: &[u64],
     base_fee_per_gas: u64,
@@ -374,7 +364,7 @@ fn aggregate_priority_fees(
     Ok(total)
 }
 
-fn validate_or_recover_fee_recipient(
+pub(super) fn validate_or_recover_fee_recipient(
     evm_config: &WhirlpoolEvmConfig,
     proposer_public_key: [u8; 32],
     carried_fee_recipient: [u8; 20],
@@ -392,7 +382,7 @@ fn validate_or_recover_fee_recipient(
     }
 }
 
-fn extra_data_decode_mode_for_height(
+pub(super) fn extra_data_decode_mode_for_height(
     evm_config: &WhirlpoolEvmConfig,
     block_height: u64,
 ) -> ExtraDataDecodeMode {
@@ -403,7 +393,7 @@ fn extra_data_decode_mode_for_height(
     }
 }
 
-fn proposer_public_key_from_raw_eth_section(
+pub(super) fn proposer_public_key_from_raw_eth_section(
     decoded: &CanonicalExtraDataV1,
 ) -> Result<[u8; 32], EvmAppError> {
     let Some(raw_eth) = decoded.raw_eth.as_ref() else {
@@ -423,7 +413,7 @@ fn proposer_public_key_from_raw_eth_section(
     Ok(proposer_public_key)
 }
 
-fn latest_committed_full_dkg<Storage>(
+pub(super) fn latest_committed_full_dkg<Storage>(
     storage: &Storage,
     start_height: u64,
 ) -> Result<Option<FullDkgV1>, EvmAppError>
@@ -455,4 +445,3 @@ where
 
     Ok(None)
 }
-

@@ -1,26 +1,32 @@
-use super::*;
+use alloy_primitives::{B256, U256};
+use revm::primitives::Address;
+use revm::state::{AccountInfo, Bytecode};
 use revm::DatabaseRef;
+use state::StateDb;
+
+use super::RethStateDb;
+
+fn to_state_error(error: impl std::fmt::Display) -> state::StateError {
+    state::StateError::Internal(error.to_string())
+}
 
 impl revm::DatabaseRef for RethStateDb {
     type Error = state::StateError;
 
     fn basic_ref(&self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
-        StateDb::get_account(self, address).map_err(|e| state::StateError::Internal(e.to_string()))
+        StateDb::get_account(self, address).map_err(to_state_error)
     }
 
     fn code_by_hash_ref(&self, code_hash: B256) -> Result<Bytecode, Self::Error> {
-        StateDb::get_code_by_hash(self, code_hash)
-            .map_err(|e| state::StateError::Internal(e.to_string()))
+        StateDb::get_code_by_hash(self, code_hash).map_err(to_state_error)
     }
 
     fn storage_ref(&self, address: Address, index: U256) -> Result<U256, Self::Error> {
-        StateDb::get_storage(self, address, index)
-            .map_err(|e| state::StateError::Internal(e.to_string()))
+        StateDb::get_storage(self, address, index).map_err(to_state_error)
     }
 
     fn block_hash_ref(&self, number: u64) -> Result<B256, Self::Error> {
-        StateDb::get_block_hash(self, number)
-            .map_err(|e| state::StateError::Internal(e.to_string()))
+        StateDb::get_block_hash(self, number).map_err(to_state_error)
     }
 }
 
