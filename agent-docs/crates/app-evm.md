@@ -43,6 +43,7 @@ Those live in `chainspec`.
   - non-boundary blocks must not carry `ReshareV1`.
   - boundary verify is fail-closed for missing/mismatched required `ReshareV1` fields when FullDkg candidate data is configured.
 - `full_dkg_strict_height` defaults to `0` (strict from genesis) and can be explicitly overridden via config builders for migration/testing scenarios.
+- Non-boundary FullDkg candidate validation is fail-closed in both propose and verify paths: candidate `output.players` must match activation-resolved players for the candidate epoch before include/omit decisions.
 - FullDkg inclusion trigger compares candidate output against the **latest committed FullDkg in block storage** (backward scan) so raw-only intermediate blocks do not cause include/omit oscillation.
 - Epoch-boundary deterministic system-call handling now lives in `epoch_boundary.rs` and is shared between propose/verify paths.
 - Boundary epoch math and activation-derived player resolution are shared through `validator_activation.rs` (`BoundaryEpochContext`, `ActivationSourceResolver`) so propose/verify evaluate the same forward epoch targets.

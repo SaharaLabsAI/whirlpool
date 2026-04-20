@@ -545,6 +545,20 @@ fn full_dkg_should_be_included(
         || candidate.output.public_polynomial != previous_polynomial
 }
 
+fn ensure_full_dkg_players_match_activation(
+    activation_resolver: &ActivationSourceResolver<'_>,
+    full_dkg: &FullDkgV1,
+) -> Result<(), EvmAppError> {
+    let expected_players = activation_resolver.resolve_players_for_epoch(full_dkg.epoch)?;
+    if full_dkg.output.players != expected_players {
+        return Err(EvmAppError::InvalidBlock(
+            "full_dkg output.players does not match activation-resolved player set".into(),
+        ));
+    }
+
+    Ok(())
+}
+
 fn latest_committed_full_dkg<Storage>(
     storage: &Storage,
     start_height: u64,
@@ -603,12 +617,7 @@ fn build_canonical_extra_data(
 
     let candidate_full_dkg = evm_config.current_full_dkg_payload(candidate_epoch);
     if let Some(candidate) = candidate_full_dkg.as_ref() {
-        let expected_players = activation_resolver.resolve_players_for_epoch(candidate.epoch)?;
-        if candidate.output.players != expected_players {
-            return Err(EvmAppError::InvalidBlock(
-                "full_dkg output.players does not match activation-resolved player set".into(),
-            ));
-        }
+        ensure_full_dkg_players_match_activation(&activation_resolver, candidate)?;
     }
 
     let (full_dkg, reshare) = if let Some(boundary_context) = boundary_context {
@@ -1027,6 +1036,11 @@ where
 
             match candidate_full_dkg {
                 Some(candidate_full_dkg) => {
+                    ensure_full_dkg_players_match_activation(
+                        &activation_resolver,
+                        &candidate_full_dkg,
+                    )?;
+
                     if boundary_required {
                         let boundary_epoch_context =
                             boundary_epoch_context.expect("context exists for boundary");
@@ -1041,14 +1055,6 @@ where
                                 "full_dkg epoch mismatch on boundary: expected {}, found {}",
                                 boundary_epoch_context.full_dkg_epoch, observed_full_dkg.epoch
                             )));
-                        }
-                        let expected_players = activation_resolver
-                            .resolve_players_for_epoch(boundary_epoch_context.full_dkg_epoch)?;
-                        if observed_full_dkg.output.players != expected_players {
-                            return Err(EvmAppError::InvalidBlock(
-                                "full_dkg output.players does not match activation-resolved player set"
-                                    .into(),
-                            ));
                         }
                         if observed_full_dkg != &candidate_full_dkg {
                             return Err(EvmAppError::InvalidBlock(
@@ -3032,6 +3038,72 @@ mod tests {
             .expect_err("unexpected full_dkg without configured candidate must be rejected");
         assert!(
             matches!(err, EvmAppError::InvalidBlock(ref msg) if msg.contains("must be omitted when no full_dkg candidate is configured")),
+            "unexpected error: {err:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn propose_rejects_non_boundary_full_dkg_players_mismatch_with_activation_schedule() {
+        let chain_spec = Arc::new(build_sahara_chain_spec());
+        let base_config = WhirlpoolEvmConfig::new(chain_spec.clone())
+            .with_local_proposer_public_key([0x77; 32])
+            .with_full_dkg_strict_height(0);
+        let candidate_players = base_config.simplex_consensus_public_keys();
+        let proposer_config = base_config
+            .with_current_full_dkg_output(app::FullDkgOutputV1 {
+                dealers: candidate_players.clone(),
+                players: candidate_players,
+                public_polynomial: vec![0xaa, 0xbb, 0xcc],
+            })
+            .with_activation_players_for_epoch(0, vec![[0x41; 32], [0x42; 32]]);
+        let (app, _db) = setup_app_with_config(vec![], proposer_config).await;
+
+        let parent = app.genesis().await;
+        let err = app
+            .propose(&parent, 1)
+            .await
+            .expect_err("non-boundary propose must fail-closed when activation players mismatch");
+        assert!(
+            matches!(err, EvmAppError::InvalidBlock(ref msg) if msg.contains("full_dkg output.players does not match activation-resolved player set")),
+            "unexpected error: {err:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn verify_rejects_non_boundary_full_dkg_players_mismatch_with_activation_schedule() {
+        let chain_spec = Arc::new(build_sahara_chain_spec());
+        let base_config = WhirlpoolEvmConfig::new(chain_spec.clone())
+            .with_local_proposer_public_key([0x77; 32])
+            .with_full_dkg_strict_height(0);
+        let candidate_players = base_config.simplex_consensus_public_keys();
+        let candidate_output = app::FullDkgOutputV1 {
+            dealers: candidate_players.clone(),
+            players: candidate_players,
+            public_polynomial: vec![0xaa, 0xbb, 0xcc],
+        };
+        let proposer_config = base_config
+            .clone()
+            .with_current_full_dkg_output(candidate_output.clone());
+        let (app, db) = setup_app_with_config(vec![], proposer_config).await;
+
+        let pre_state = db.read().unwrap().clone();
+        let parent = app.genesis().await;
+        let (block, _) = app.propose(&parent, 1).await.expect("non-boundary propose");
+
+        let verifier_config = base_config
+            .with_current_full_dkg_output(candidate_output)
+            .with_activation_players_for_epoch(0, vec![[0x41; 32], [0x42; 32]]);
+        let verifier = EvmApplication::new(
+            verifier_config,
+            Arc::new(RwLock::new(pre_state)),
+            Arc::new(MockTxSource { txs: vec![] }),
+        );
+        let err = verifier
+            .verify(&parent, &block)
+            .await
+            .expect_err("non-boundary verify must fail-closed when activation players mismatch");
+        assert!(
+            matches!(err, EvmAppError::InvalidBlock(ref msg) if msg.contains("full_dkg output.players does not match activation-resolved player set")),
             "unexpected error: {err:?}"
         );
     }
