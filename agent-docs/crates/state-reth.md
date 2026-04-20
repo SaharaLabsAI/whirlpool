@@ -4,9 +4,12 @@
 Persistent state storage implementation backed by reth-db (MDBX/libmdbx).
 
 ## Modules
-- `crates/app/execute/evm/state/src/db.rs` — `RethStateDb` implementation, revm `Database`/`DatabaseRef` impls
+- `crates/app/execute/evm/state/src/db.rs` — `RethStateDb` core implementation + `StateDb` impl
+- `crates/app/execute/evm/state/src/db_revm_impls.rs` — `revm::Database` / `revm::DatabaseRef` adapter impls
+- `crates/app/execute/evm/state/src/db_failure_injection.rs` — deterministic delete-failure injection seam used by db tests
 - `crates/app/execute/evm/state/src/tests/db.rs` — file-separated `db.rs` unit tests (wired via `#[path = "tests/db.rs"] mod tests;`)
 - `crates/app/execute/evm/state/src/block_storage.rs` — `BlockStorage` persistence for finalized blocks + receipts
+- `crates/app/execute/evm/state/src/tests/block_storage.rs` — file-separated block-storage unit tests (wired via `#[path = "tests/block_storage.rs"] mod tests;`)
 - `crates/app/execute/evm/state/src/init.rs` — `open_state_db` helper
 - `crates/app/execute/evm/state/src/error.rs` — `RethStateError` enum
 - `crates/app/execute/evm/state/src/tables.rs` — reth-db table re-exports
@@ -69,7 +72,7 @@ Persistent state storage implementation backed by reth-db (MDBX/libmdbx).
 
 ## Test Coverage
 - 33 total tests (26 unit + 7 integration).
-- Block storage unit tests: TC-SR-01..10 in `crates/app/execute/evm/state/src/block_storage.rs`.
+- Block storage unit tests: TC-SR-01..10 in `crates/app/execute/evm/state/src/tests/block_storage.rs`.
 - Coverage: persistence, recovery (TC-SR-09/10), concurrency, genesis allocation, deterministic state root, revm trait compatibility, block/receipt persistence round-trips.
 
 ## Status

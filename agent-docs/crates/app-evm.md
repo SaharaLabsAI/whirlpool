@@ -42,7 +42,13 @@ Those live in `chainspec`.
   - when a FullDkg candidate is configured, boundary blocks emit `FullDkgV1` at `E+1` and `ReshareV1(target_epoch=E+2)` where `E` is post-`advanceEpoch` epoch.
   - non-boundary blocks must not carry `ReshareV1`.
   - boundary verify is fail-closed for missing/mismatched required `ReshareV1` fields when FullDkg candidate data is configured.
-- Canonical extra-data composition and include/omit predicates are centralized in `canonical_extra_data.rs` (`build_canonical_extra_data`, `full_dkg_should_be_included`, activation-parity guard) and reused by propose/verify paths through `executor.rs`.
+- Canonical extra-data composition and include/omit predicates are centralized in `canonical_extra_data.rs` (`build_canonical_extra_data`, `full_dkg_should_be_included`, activation-parity guard) and reused by propose/verify paths through `executor/mod.rs`.
+- Executor layout is now directory-backed under `app/src/executor/`:
+  - `mod.rs` — public façade + `Application` trait implementation wiring.
+  - `header_and_decode.rs` — header projection + tx decode helpers.
+  - `state_helpers.rs` — internal fee/community-pool/state helper logic.
+  - `impl_core_methods.rs` / `impl_propose.rs` / `impl_verify.rs` — split `EvmApplication` method lanes.
+  - `tests.rs` — extracted executor unit tests.
 - `full_dkg_strict_height` defaults to `0` (strict from genesis) and can be explicitly overridden via config builders for migration/testing scenarios.
 - Non-boundary FullDkg candidate validation is fail-closed in both propose and verify paths: candidate `output.players` must match activation-resolved players for the candidate epoch before include/omit decisions.
 - FullDkg inclusion trigger compares candidate output against the **latest committed FullDkg in block storage** (backward scan) so raw-only intermediate blocks do not cause include/omit oscillation.

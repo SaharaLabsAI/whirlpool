@@ -6,7 +6,7 @@ use revm::state::{AccountInfo, Bytecode};
 use revm::{Database, DatabaseRef};
 use state::StateDb;
 
-use crate::db::{
+use super::{
     inject_next_commit_delete_failure, inject_next_insert_storage_delete_failure, RethStateDb,
 };
 use crate::error::RethStateError;
