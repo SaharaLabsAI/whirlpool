@@ -34,6 +34,7 @@
 - When BLS material is loaded, node derives `FullDkgOutputV1` (`dealers`, `players`, encoded `public_polynomial`) and wires it into `WhirlpoolEvmConfig` via `with_current_full_dkg_output(...)`.
 - `full_dkg_strict_height` is wired from `NodeConfig.consensus.full_dkg_strict_height` into `WhirlpoolEvmConfig`, with CLI/TOML surface `--full-dkg-strict-height` / `full_dkg_strict_height`.
 - `EvmApplication` is wired through `ApplicationAdapter` + `PersistingFinalizationSink`.
+- Config parsing helpers in `src/config/parse.rs` use plain `pub` visibility inside the private `config::parse` module (no scoped `pub(super)` / `pub(crate)` modifiers), with parent-module imports controlling the crate-visible surface.
 
 ## RPC
 - `rpc-eth` is the only server wired by `whirlpool-node`.

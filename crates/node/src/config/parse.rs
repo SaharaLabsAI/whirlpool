@@ -22,7 +22,7 @@ pub fn parse_bootstrap_peer(s: &str) -> Result<BootstrapPeer, String> {
     Ok((public_key, addr))
 }
 
-pub(super) fn parse_socket_addr(
+pub fn parse_socket_addr(
     field: &'static str,
     value: String,
 ) -> Result<SocketAddr, ConfigError> {
@@ -35,7 +35,7 @@ pub(super) fn parse_socket_addr(
         })
 }
 
-pub(super) fn parse_validator_hex(value: &str) -> Result<ed25519::PublicKey, String> {
+pub fn parse_validator_hex(value: &str) -> Result<ed25519::PublicKey, String> {
     let bytes =
         from_hex(value).ok_or_else(|| format!("invalid validator public key hex: {value}"))?;
     let mut reader = bytes.as_slice();
@@ -47,7 +47,7 @@ pub(super) fn parse_validator_hex(value: &str) -> Result<ed25519::PublicKey, Str
     Ok(public_key)
 }
 
-pub(super) fn parse_validator_list(
+pub fn parse_validator_list(
     values: Vec<String>,
 ) -> Result<Vec<ed25519::PublicKey>, ConfigError> {
     if values.is_empty() {
@@ -63,7 +63,7 @@ pub(super) fn parse_validator_list(
         .collect()
 }
 
-pub(super) fn load_toml_config(path: &Path) -> Result<TomlConfig, ConfigError> {
+pub fn load_toml_config(path: &Path) -> Result<TomlConfig, ConfigError> {
     let contents = std::fs::read_to_string(path).map_err(|source| ConfigError::ReadConfig {
         path: path.to_path_buf(),
         source,
