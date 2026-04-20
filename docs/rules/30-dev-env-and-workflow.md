@@ -12,7 +12,7 @@ nix develop --command cargo test
 nix develop --command cargo nextest run
 ```
 
-Do **not** run bare `cargo` commands — they will fail with `command not found`.
+Do **not** run bare `cargo` commands — they will fail because `cargo` is unavailable on PATH.
 
 ## When in doubt
 
