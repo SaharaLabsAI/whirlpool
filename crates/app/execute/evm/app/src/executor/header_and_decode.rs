@@ -39,7 +39,7 @@ pub fn decode_evm_transactions(raw_txs: &[Vec<u8>]) -> Result<Vec<RecoveredTx>, 
         .collect()
 }
 
-pub(super) fn build_sealed_header(block: &EvmBlock) -> SealedHeader {
+pub fn build_sealed_header(block: &EvmBlock) -> SealedHeader {
     let header = build_header_from_evm_block(block);
     let hash = header.hash_slow();
     SealedHeader::new(header, hash)

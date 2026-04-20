@@ -1,6 +1,6 @@
 use super::*;
 
-pub(super) fn credit_account_balance<DB>(
+pub fn credit_account_balance<DB>(
     db: &mut DB,
     address: Address,
     amount: U256,
@@ -21,7 +21,7 @@ where
     insert_account_preserving_community_pool_unlock_storage(db, address, info)
 }
 
-pub(super) fn insert_account_preserving_community_pool_unlock_storage<DB>(
+pub fn insert_account_preserving_community_pool_unlock_storage<DB>(
     db: &mut DB,
     address: Address,
     info: revm::state::AccountInfo,
@@ -79,7 +79,7 @@ where
     .map_err(Into::into)
 }
 
-pub(super) fn credit_burned_fees<DB>(
+pub fn credit_burned_fees<DB>(
     db: &mut DB,
     gas_used: u64,
     base_fee_per_gas: u64,
@@ -92,7 +92,7 @@ where
     credit_account_balance(db, COMMUNITY_POOL_ADDRESS, burned_amount)
 }
 
-pub(super) fn credit_fee_pool_claim<DB>(
+pub fn credit_fee_pool_claim<DB>(
     db: &mut DB,
     recipient: Address,
     amount: U256,
@@ -117,7 +117,7 @@ where
         .map_err(Into::into)
 }
 
-pub(super) fn transfer_account_balance<DB>(
+pub fn transfer_account_balance<DB>(
     db: &mut DB,
     from: Address,
     to: Address,
@@ -152,7 +152,7 @@ where
     insert_account_preserving_community_pool_unlock_storage(db, to, to_info)
 }
 
-pub(super) fn load_u64_storage_value<DB>(
+pub fn load_u64_storage_value<DB>(
     db: &DB,
     address: Address,
     slot: U256,
@@ -168,7 +168,7 @@ where
     })
 }
 
-pub(super) fn maybe_apply_community_pool_unlock<DB>(
+pub fn maybe_apply_community_pool_unlock<DB>(
     db: &mut DB,
     boundary_required: bool,
     simplex_validators: &[ValidatorEntry],
@@ -314,7 +314,7 @@ where
     .map_err(Into::into)
 }
 
-pub(super) fn gas_deltas_and_used<R>(receipts: &[R]) -> Result<(Vec<u64>, u64), EvmAppError>
+pub fn gas_deltas_and_used<R>(receipts: &[R]) -> Result<(Vec<u64>, u64), EvmAppError>
 where
     R: TxReceipt,
 {
@@ -335,7 +335,7 @@ where
     Ok((deltas, previous))
 }
 
-pub(super) fn aggregate_priority_fees(
+pub fn aggregate_priority_fees(
     txs: &[RecoveredTx],
     gas_deltas: &[u64],
     base_fee_per_gas: u64,
@@ -364,7 +364,7 @@ pub(super) fn aggregate_priority_fees(
     Ok(total)
 }
 
-pub(super) fn validate_or_recover_fee_recipient(
+pub fn validate_or_recover_fee_recipient(
     evm_config: &WhirlpoolEvmConfig,
     proposer_public_key: [u8; 32],
     carried_fee_recipient: [u8; 20],
@@ -382,7 +382,7 @@ pub(super) fn validate_or_recover_fee_recipient(
     }
 }
 
-pub(super) fn extra_data_decode_mode_for_height(
+pub fn extra_data_decode_mode_for_height(
     evm_config: &WhirlpoolEvmConfig,
     block_height: u64,
 ) -> ExtraDataDecodeMode {
@@ -393,7 +393,7 @@ pub(super) fn extra_data_decode_mode_for_height(
     }
 }
 
-pub(super) fn proposer_public_key_from_raw_eth_section(
+pub fn proposer_public_key_from_raw_eth_section(
     decoded: &CanonicalExtraDataV1,
 ) -> Result<[u8; 32], EvmAppError> {
     let Some(raw_eth) = decoded.raw_eth.as_ref() else {
@@ -413,7 +413,7 @@ pub(super) fn proposer_public_key_from_raw_eth_section(
     Ok(proposer_public_key)
 }
 
-pub(super) fn latest_committed_full_dkg<Storage>(
+pub fn latest_committed_full_dkg<Storage>(
     storage: &Storage,
     start_height: u64,
 ) -> Result<Option<FullDkgV1>, EvmAppError>
