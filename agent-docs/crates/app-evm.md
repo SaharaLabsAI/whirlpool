@@ -32,6 +32,9 @@ Those live in `chainspec`.
   - `full_dkg_feature_enabled`
   - `full_dkg_strict_height`
   - optional `current_full_dkg_output` (`dealers`, `players`, `public_polynomial`)
+- `WhirlpoolEvmConfig` also supports epoch-scoped activation overrides via `with_activation_players_for_epoch(epoch, players)`:
+  - default behavior (no overrides configured): any queried epoch resolves to `simplex_consensus_public_keys()`
+  - when overrides are configured: lookups are strict, and missing target epochs resolve as `None`
 - Precompile injection remains in `WhirlpoolEvmConfig::evm_with_env(...)` via `evm_precompiles::whirlpool_precompiles_with_validators(...)`.
 - Block header `extra_data` now uses app-shared canonical envelope bytes (`RawEth` + optional `FullDkgV1`) instead of raw proposer key bytes.
 - Verify path decodes `extra_data` with a height gate (`Legacy` before strict height, `Strict` at/after strict height), enforces proposer-key parity against `RawEth`, and enforces boundary-aware FullDkg/Reshare invariants.
@@ -43,6 +46,7 @@ Those live in `chainspec`.
 - FullDkg inclusion trigger compares candidate output against the **latest committed FullDkg in block storage** (backward scan) so raw-only intermediate blocks do not cause include/omit oscillation.
 - Epoch-boundary deterministic system-call handling now lives in `epoch_boundary.rs` and is shared between propose/verify paths.
 - Boundary epoch math and activation-derived player resolution are shared through `validator_activation.rs` (`BoundaryEpochContext`, `ActivationSourceResolver`) so propose/verify evaluate the same forward epoch targets.
+- `ActivationSourceResolver` is fail-closed for boundary FullDkg/Reshare targeting: a missing configured player set for the required epoch returns `InvalidBlock("activation resolver missing player set for epoch <n>")`.
 - Boundary unlock flow:
   - after a successful boundary `advanceEpoch()` call, runtime may unlock community-pool funds
   - cadence is keyed to post-boundary `currentEpoch`

@@ -33,6 +33,7 @@ pub struct WhirlpoolEvmConfig {
     local_proposer_public_key: [u8; 32],
     validator_fee_recipients: BTreeMap<[u8; 32], Address>,
     simplex_validators: Vec<ValidatorEntry>,
+    activation_players_by_epoch: BTreeMap<u64, Vec<[u8; 32]>>,
     full_dkg_feature_enabled: bool,
     full_dkg_strict_height: u64,
     current_full_dkg_output: Option<FullDkgOutputV1>,
@@ -51,6 +52,7 @@ impl WhirlpoolEvmConfig {
             local_proposer_public_key: [0u8; 32],
             validator_fee_recipients,
             simplex_validators,
+            activation_players_by_epoch: BTreeMap::new(),
             full_dkg_feature_enabled: true,
             full_dkg_strict_height: 0,
             current_full_dkg_output: None,
@@ -90,6 +92,18 @@ impl WhirlpoolEvmConfig {
             .iter()
             .map(|validator| validator.consensus_pubkey)
             .collect()
+    }
+
+    pub fn with_activation_players_for_epoch(mut self, epoch: u64, players: Vec<[u8; 32]>) -> Self {
+        self.activation_players_by_epoch.insert(epoch, players);
+        self
+    }
+
+    pub fn activation_players_for_epoch(&self, epoch: u64) -> Option<Vec<[u8; 32]>> {
+        if self.activation_players_by_epoch.is_empty() {
+            return Some(self.simplex_consensus_public_keys());
+        }
+        self.activation_players_by_epoch.get(&epoch).cloned()
     }
 
     pub fn with_full_dkg_feature_enabled(mut self, enabled: bool) -> Self {
@@ -320,5 +334,28 @@ mod tests {
     fn test_full_dkg_strict_height_defaults_to_zero() {
         let config = WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec()));
         assert_eq!(config.full_dkg_strict_height(), 0);
+    }
+
+    #[test]
+    fn activation_players_default_to_simplex_registry() {
+        let config = WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec()));
+        let expected = config.simplex_consensus_public_keys();
+        let resolved = config
+            .activation_players_for_epoch(42)
+            .expect("default activation players should resolve");
+        assert_eq!(resolved, expected);
+    }
+
+    #[test]
+    fn activation_players_can_be_epoch_overridden() {
+        let players_epoch_7 = vec![[0x77; 32], [0x78; 32]];
+        let config = WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec()))
+            .with_activation_players_for_epoch(7, players_epoch_7.clone());
+
+        assert_eq!(
+            config.activation_players_for_epoch(7),
+            Some(players_epoch_7)
+        );
+        assert_eq!(config.activation_players_for_epoch(8), None);
     }
 }

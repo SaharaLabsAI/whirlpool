@@ -39,14 +39,27 @@ impl<'a> ActivationSourceResolver<'a> {
         &self,
         target_epoch: u64,
     ) -> Result<Vec<[u8; 32]>, EvmAppError> {
-        let _ = target_epoch;
-        Ok(self.evm_config.simplex_consensus_public_keys())
+        let players = self
+            .evm_config
+            .activation_players_for_epoch(target_epoch)
+            .ok_or_else(|| {
+                EvmAppError::InvalidBlock(format!(
+                    "activation resolver missing player set for epoch {target_epoch}"
+                ))
+            })?;
+        Ok(players)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::BoundaryEpochContext;
+    use super::{ActivationSourceResolver, BoundaryEpochContext};
+    use crate::config::WhirlpoolEvmConfig;
+    use alloy_primitives::Address;
+    use chainspec::build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators;
+    use std::collections::BTreeMap;
+    use std::sync::Arc;
+    use validators::ValidatorEntry;
 
     #[test]
     fn boundary_context_is_forward_looking() {
@@ -59,5 +72,48 @@ mod tests {
     #[test]
     fn boundary_context_rejects_overflow() {
         assert!(BoundaryEpochContext::from_post_advance_epoch(u64::MAX).is_err());
+    }
+
+    fn sample_config() -> WhirlpoolEvmConfig {
+        let validators = vec![ValidatorEntry {
+            consensus_pubkey: [0x11; 32],
+            ethereum_address: Address::repeat_byte(0x11),
+        }];
+        let chain_spec = Arc::new(
+            build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators(
+                BTreeMap::new(),
+                BTreeMap::new(),
+                validators,
+            ),
+        );
+        WhirlpoolEvmConfig::new(chain_spec)
+    }
+
+    #[test]
+    fn resolver_uses_epoch_override() {
+        let config = sample_config()
+            .with_activation_players_for_epoch(2, vec![[0x21; 32]])
+            .with_activation_players_for_epoch(3, vec![[0x31; 32], [0x32; 32]]);
+        let resolver = ActivationSourceResolver::new(&config);
+
+        assert_eq!(
+            resolver
+                .resolve_players_for_epoch(2)
+                .expect("epoch-2 players should resolve"),
+            vec![[0x21; 32]]
+        );
+        assert_eq!(
+            resolver
+                .resolve_players_for_epoch(3)
+                .expect("epoch-3 players should resolve"),
+            vec![[0x31; 32], [0x32; 32]]
+        );
+    }
+
+    #[test]
+    fn resolver_fails_closed_when_epoch_override_missing() {
+        let config = sample_config().with_activation_players_for_epoch(2, vec![[0x21; 32]]);
+        let resolver = ActivationSourceResolver::new(&config);
+        assert!(resolver.resolve_players_for_epoch(3).is_err());
     }
 }
