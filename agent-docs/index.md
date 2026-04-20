@@ -38,6 +38,7 @@ Structured reference docs optimized for fast LLM lookup. Each contains type sign
 | [crates/whirlpool-node.md](crates/whirlpool-node.md) | EVM binary entrypoint and node configuration | `whirlpool-node` (bin) |
 | [crates/chainspec.md](crates/chainspec.md) | Sahara chain-spec ownership crate (builders, chain-id, validator-registry reader seam) | `chainspec` |
 | [crates/app-composite.md](crates/app-composite.md) | Composite consensus application that classifies mixed tx streams and delegates execution to domain apps | `app-composite` |
+| [crates/app-mem.md](crates/app-mem.md) | Canonical mem-transaction codec/validation crate for personality-markdown payloads | `app-mem` |
 | [crates/evm-precompiles.md](crates/evm-precompiles.md) | Workspace-owned registry/factory crate for Whirlpool custom EVM precompiles, including canonical community-pool address + read-only balance ABI | `evm-precompiles` |
 | [crates/validators.md](crates/validators.md) | Ordered simplex validator-registry model and genesis-storage codec shared across node/app/precompile surfaces | `validators` |
 | [crates/tx-dispatch.md](crates/tx-dispatch.md) | Mem-scoped mixed transaction classification across EVM and mem tx families | `tx-dispatch` |
@@ -103,6 +104,7 @@ Step-by-step instructions for common tasks and workflows.
 | `app` | `crates/app/traits/src/` | `crates/app.md` | — |
 | `chainspec` | `crates/chainspec/src/` | `crates/chainspec.md` | — |
 | `app-evm` | `crates/app/execute/evm/app/src/` | `crates/app-evm.md` | — |
+| `app-mem` | `crates/app/execute/mem/app/src/` | `crates/app-mem.md` | — |
 | `evm-precompiles` | `crates/precompiles/evm/src/` | `crates/evm-precompiles.md` | — |
 | `app-composite` | `crates/app/execute/mem/composite/src/` | `crates/app-composite.md` | — |
 | `validators` | `crates/validators/src/` | `crates/validators.md` | — |
