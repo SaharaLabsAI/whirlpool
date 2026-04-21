@@ -21,6 +21,9 @@ Node-facing Sahara chain-spec ownership crate.
 - No runtime dependency from `app-evm` back to `chainspec` (only test/dev usage in `app-evm`).
 
 ## Notes
+- Root `chainspec` API is now a thin re-export surface in `src/lib.rs`; builder logic is split across focused modules (`spec_builders_base`, `spec_builders_alloc`, `spec_builders_try`, `spec_builders_core`) to keep per-file cohesion policy limits satisfied without changing public signatures.
+- Validator-registry readback is isolated in `src/simplex_validator_reader.rs` and re-exported as `try_simplex_validators_from_chain_spec`.
+- `CommunityPoolUnlockConfig` now lives in `src/community_pool_unlock.rs` and remains re-exported from crate root.
 - Genesis alloc hard-cap enforcement is implemented in `chainspec::native_token` and re-exported from `chainspec` root.
 - Ordered simplex-validator registry storage remains encoded/decoded through `validators`.
 - Genesis builder now seeds epoch precompile state:
