@@ -52,10 +52,12 @@ Those live in `chainspec`.
   - `mod.rs` now uses explicit module wiring/imports (no `include!` composition for helper files).
   - executor helper functions now avoid scoped visibility modifiers (`pub(super)`/`pub(crate)`), using `pub` inside private modules for parent-module access.
 - `full_dkg_strict_height` defaults to `0` (strict from genesis) and can be explicitly overridden via config builders for migration/testing scenarios.
+- `WhirlpoolEvmConfig` is now split across directory-backed `config/` submodules so builder/accessor APIs stay grouped by concern while preserving the same external type and behavior.
+- `executor/header_and_decode/` and `executor/state_helpers/` are directory-backed modules that split decode/header and state-helper surfaces into focused files with smaller public API sets.
 - Non-boundary FullDkg candidate validation is fail-closed in both propose and verify paths: candidate `output.players` must match activation-resolved players for the candidate epoch before include/omit decisions.
 - FullDkg inclusion trigger compares candidate output against the **latest committed FullDkg in block storage** (backward scan) so raw-only intermediate blocks do not cause include/omit oscillation.
-- Epoch-boundary deterministic system-call handling now lives in `epoch_boundary.rs` and is shared between propose/verify paths.
-- Boundary epoch math and activation-derived player resolution are shared through `validator_activation.rs` (`BoundaryEpochContext`, `ActivationSourceResolver`) so propose/verify evaluate the same forward epoch targets.
+- Epoch-boundary deterministic system-call handling now lives in directory-backed `epoch_boundary/` modules (`mod.rs`, `boundary_state.rs`, `boundary_rules.rs`, `boundary_execution.rs`) and is shared between propose/verify paths.
+- Boundary epoch math and activation-derived player resolution are shared through directory-backed `validator_activation/` modules (`BoundaryEpochContext`, `ActivationSourceResolver`) so propose/verify evaluate the same forward epoch targets.
 - `ActivationSourceResolver` is fail-closed for boundary FullDkg/Reshare targeting: a missing configured player set for the required epoch returns `InvalidBlock("activation resolver missing player set for epoch <n>")`.
 - Boundary unlock flow:
   - after a successful boundary `advanceEpoch()` call, runtime may unlock community-pool funds

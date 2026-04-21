@@ -2,8 +2,8 @@ use super::*;
 use crate::config::DEFAULT_PROPOSER_FEE_RECIPIENT;
 use alloy_consensus::{SignableTransaction, TxLegacy};
 use alloy_eips::eip2718::Encodable2718;
-use alloy_primitives::{Address, Signature, TxKind};
-use app::encode_canonical_extra_data;
+use alloy_primitives::{Address, Signature, TxKind, U256};
+use app::{encode_canonical_extra_data, CanonicalExtraDataV1, ExtraDataDecodeMode, FullDkgV1};
 use chainspec::{
     build_sahara_chain_spec, build_sahara_chain_spec_with_alloc_and_fee_recipients,
     build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators_and_community_pool_unlock_config,

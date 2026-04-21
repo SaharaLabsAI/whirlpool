@@ -1,33 +1,26 @@
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, RwLock};
 
-use alloy_consensus::{Transaction, TxReceipt};
+use alloy_consensus::TxReceipt;
 use alloy_eips::eip1559::{calc_next_block_base_fee, BaseFeeParams};
-use alloy_eips::eip2718::{Decodable2718, Encodable2718};
-use alloy_primitives::{bytes::BufMut, Address, Bytes, B256, U256};
+use alloy_eips::eip2718::Encodable2718;
+use alloy_primitives::{bytes::BufMut, Address, Bytes, B256};
 use alloy_trie::{root::ordered_trie_root_with_encoder, EMPTY_ROOT_HASH};
 use app::{
     decode_extra_data, legacy_proposer_extra_data_bytes,
     traits::{Application, TxSource},
-    CanonicalExtraDataV1, EvmBlock, ExecutionResult, ExtraDataDecodeMode, FullDkgV1, Receipt,
+    EvmBlock, ExecutionResult, Receipt,
 };
-use evm_precompiles::{
-    claimable_balance_slot, community_pool_last_processed_epoch_slot,
-    community_pool_locked_remaining_slot, community_pool_unlock_amount_per_cycle_slot,
-    community_pool_unlock_every_epochs_slot, current_epoch_slot, COMMUNITY_POOL_ADDRESS,
-    EPOCH_PRECOMPILE_ADDRESS, FEE_POOL_PRECOMPILE_ADDRESS,
-};
+use evm_precompiles::{current_epoch_slot, EPOCH_PRECOMPILE_ADDRESS, FEE_POOL_PRECOMPILE_ADDRESS};
 use reth_ethereum_primitives::TransactionSigned;
 use reth_evm::{
     execute::{BlockBuilder, BlockExecutor},
     ConfigureEvm, NextBlockEnvAttributes,
 };
-use reth_primitives_traits::{Header, SealedHeader};
-use reth_primitives_traits::{Recovered, SignedTransaction};
+use reth_primitives_traits::Recovered;
 use revm::database::states::bundle_state::BundleRetention;
 use revm::database::State;
 use state::BlockStorage;
-use validators::ValidatorEntry;
 
 use crate::canonical_extra_data::{
     build_canonical_extra_data, ensure_full_dkg_players_match_activation,
@@ -46,12 +39,18 @@ use header_and_decode::build_sealed_header;
 pub use header_and_decode::{
     build_header_from_evm_block, decode_evm_transaction, decode_evm_transactions,
 };
-use state_helpers::{
-    aggregate_priority_fees, credit_burned_fees, credit_fee_pool_claim,
-    extra_data_decode_mode_for_height, gas_deltas_and_used, latest_committed_full_dkg,
-    load_u64_storage_value, maybe_apply_community_pool_unlock,
-    proposer_public_key_from_raw_eth_section, validate_or_recover_fee_recipient,
+use state_helpers::block_extra_data::{
+    extra_data_decode_mode_for_height, proposer_public_key_from_raw_eth_section,
+    validate_or_recover_fee_recipient,
 };
+use state_helpers::community_pool_unlock::{
+    load_u64_storage_value, maybe_apply_community_pool_unlock,
+};
+use state_helpers::fee_accounting::{
+    aggregate_priority_fees, credit_burned_fees, credit_fee_pool_claim,
+};
+use state_helpers::full_dkg_history::latest_committed_full_dkg;
+use state_helpers::receipt_accounting::gas_deltas_and_used;
 
 mod header_and_decode;
 mod state_helpers;
