@@ -6,9 +6,7 @@ use revm::state::{AccountInfo, Bytecode};
 use revm::{Database, DatabaseRef};
 use state::StateDb;
 
-use super::{
-    inject_next_commit_delete_failure, inject_next_insert_storage_delete_failure, RethStateDb,
-};
+use super::{inject_next_delete_failure, DeleteFailureTarget, RethStateDb};
 use crate::error::RethStateError;
 
 fn account_info(balance: u64, nonce: u64) -> AccountInfo {
@@ -215,7 +213,7 @@ fn commit_propagates_delete_errors() {
         AccountStatus::Destroyed,
         &[],
     );
-    inject_next_commit_delete_failure();
+    inject_next_delete_failure(DeleteFailureTarget::Commit);
     let err = db
         .commit(&bundle)
         .expect_err("commit should fail when delete operation fails");
@@ -231,7 +229,7 @@ fn insert_storage_propagates_delete_errors() {
 
     db.insert_storage(addr, key, U256::from(1_u64))
         .expect("seed storage");
-    inject_next_insert_storage_delete_failure();
+    inject_next_delete_failure(DeleteFailureTarget::InsertStorage);
 
     let err = db
         .insert_storage(addr, key, U256::ZERO)

@@ -31,9 +31,7 @@ use crate::tables::{
 };
 use crate::trie::compute_state_root;
 #[cfg(test)]
-use db_failure_injection::{
-    inject_next_commit_delete_failure, inject_next_insert_storage_delete_failure,
-};
+use db_failure_injection::{inject_next_delete_failure, DeleteFailureTarget};
 use db_failure_injection::{
     maybe_inject_commit_delete_failure, maybe_inject_insert_storage_delete_failure,
 };
@@ -486,6 +484,6 @@ impl StateDb for RethStateDb {
     }
 }
 
-#[cfg(test)]
 #[path = "tests/db.rs"]
+#[cfg(test)]
 mod tests;

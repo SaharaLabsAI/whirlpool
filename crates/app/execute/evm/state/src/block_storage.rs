@@ -268,6 +268,6 @@ fn tx_type_from_signed(tx_signed: &TransactionSigned) -> TxType {
     }
 }
 
-#[cfg(test)]
 #[path = "tests/block_storage.rs"]
+#[cfg(test)]
 mod tests;
