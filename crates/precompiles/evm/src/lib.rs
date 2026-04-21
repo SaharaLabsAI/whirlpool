@@ -4,15 +4,20 @@ use alloy_sol_types::{sol, SolError};
 use reth_evm::revm::{
     context::{BlockEnv, TxEnv},
     inspector::{Inspector, NoOpInspector},
-    precompile::{PrecompileId, PrecompileOutput, PrecompileResult, PrecompileSpecId, Precompiles},
+    precompile::{PrecompileOutput, PrecompileResult, PrecompileSpecId, Precompiles},
     primitives::hardfork::SpecId,
 };
 use reth_evm::{
     eth::{EthEvm, EthEvmBuilder, EthEvmContext},
-    precompiles::{DynPrecompile, PrecompileInput, PrecompilesMap},
+    precompiles::{DynPrecompile, PrecompilesMap},
     EvmEnv, EvmFactory,
 };
 use std::collections::HashSet;
+
+mod factory_api;
+mod registered_precompile_api;
+mod registry_build;
+mod registry_runtime;
 
 pub mod community_pool;
 pub mod epoch;
@@ -42,6 +47,10 @@ pub use fee_pool::{
     decode_fee_pool_balance_output, decode_withdraw_output, fee_pool_balance_calldata,
     withdraw_calldata, FEE_POOL_PRECOMPILE_ADDRESS,
 };
+pub use registry_build::{
+    build_whirlpool_precompiles, build_whirlpool_precompiles_with_validators,
+};
+pub use registry_runtime::{whirlpool_precompiles, whirlpool_precompiles_with_validators};
 pub use validators::{
     decode_validators_output, validators_calldata, VALIDATORS_PRECOMPILE_ADDRESS,
 };
@@ -65,40 +74,6 @@ pub enum RegistryError {
 pub struct RegisteredPrecompile {
     address: Address,
     precompile: DynPrecompile,
-}
-
-impl RegisteredPrecompile {
-    /// Registers a Whirlpool-owned stateful precompile using the safe default path.
-    ///
-    /// Precompiles registered here are direct-call-only: the final hop into the
-    /// precompile must have `target_address == bytecode_address`, which allows
-    /// ordinary `CALL` and `STATICCALL` while rejecting delegate-style execution.
-    pub fn new_stateful<F>(name: &'static str, address: Address, handler: F) -> Self
-    where
-        F: Fn(PrecompileInput<'_>) -> PrecompileResult + Send + Sync + 'static,
-    {
-        Self {
-            address,
-            precompile: DynPrecompile::new_stateful(PrecompileId::custom(name), move |input| {
-                if !input.is_direct_call() {
-                    // This guard rejects delegate-style entry before the target precompile's
-                    // business logic begins. Returning a reverted output with `gas_used = 0`
-                    // keeps the precompile-local charge at zero because the handler never ran;
-                    // surrounding EVM call overhead is still accounted for by the caller frame.
-                    return non_direct_call_revert_result();
-                }
-                handler(input)
-            }),
-        }
-    }
-
-    pub fn address(&self) -> Address {
-        self.address
-    }
-
-    pub fn precompile(&self) -> DynPrecompile {
-        self.precompile.clone()
-    }
 }
 
 pub trait WhirlpoolStatefulPrecompile {
@@ -145,46 +120,9 @@ where
     Ok(precompiles)
 }
 
-pub fn build_whirlpool_precompiles(spec: SpecId) -> Result<PrecompilesMap, RegistryError> {
-    build_whirlpool_precompiles_with_validators(spec, Vec::new())
-}
-
-pub fn build_whirlpool_precompiles_with_validators(
-    spec: SpecId,
-    simplex_validators: Vec<RegistryValidatorEntry>,
-) -> Result<PrecompilesMap, RegistryError> {
-    build_precompiles(
-        spec,
-        [
-            community_pool::register(),
-            epoch::register(),
-            fee_pool::register(),
-            validators::register(simplex_validators),
-        ],
-    )
-}
-
-pub fn whirlpool_precompiles(spec: SpecId) -> PrecompilesMap {
-    whirlpool_precompiles_with_validators(spec, Vec::new())
-}
-
-pub fn whirlpool_precompiles_with_validators(
-    spec: SpecId,
-    simplex_validators: Vec<RegistryValidatorEntry>,
-) -> PrecompilesMap {
-    build_whirlpool_precompiles_with_validators(spec, simplex_validators)
-        .expect("Whirlpool custom precompile registry must be valid")
-}
-
 #[derive(Debug, Default, Clone)]
 pub struct WhirlpoolEvmFactory {
     simplex_validators: Vec<RegistryValidatorEntry>,
-}
-
-impl WhirlpoolEvmFactory {
-    pub fn with_validators(simplex_validators: Vec<RegistryValidatorEntry>) -> Self {
-        Self { simplex_validators }
-    }
 }
 
 impl EvmFactory for WhirlpoolEvmFactory {
@@ -239,7 +177,10 @@ mod tests {
     use alloy_primitives::{address, Bytes, U256};
     use reth_evm::revm::Context;
     use reth_evm::revm::{database::EmptyDB, precompile::PrecompileOutput as RevmPrecompileOutput};
-    use reth_evm::{precompiles::Precompile, traits::EvmInternals};
+    use reth_evm::{
+        precompiles::{Precompile, PrecompileInput},
+        traits::EvmInternals,
+    };
 
     #[allow(clippy::too_many_arguments)]
     fn call_registered_precompile_with_context(

@@ -3,11 +3,15 @@ use reth_evm::revm::precompile::PrecompileResult;
 
 use crate::RegisteredPrecompile;
 
+mod decode_outputs;
 mod dispatch;
 pub mod gas;
 mod r#impl;
 pub mod storage;
 
+pub use decode_outputs::{
+    decode_claimable_balance_output, decode_fee_pool_balance_output, decode_withdraw_output,
+};
 pub use dispatch::{claimable_balance_calldata, fee_pool_balance_calldata, withdraw_calldata};
 pub use storage::claimable_balance_slot;
 
@@ -38,28 +42,6 @@ pub fn register() -> RegisteredPrecompile {
         FEE_POOL_PRECOMPILE_ADDRESS,
         r#impl::execute,
     )
-}
-
-pub fn decode_fee_pool_balance_output(payload: &Bytes) -> Result<U256, FeePoolPrecompileError> {
-    decode_u256_output(payload)
-}
-
-pub fn decode_claimable_balance_output(payload: &Bytes) -> Result<U256, FeePoolPrecompileError> {
-    decode_u256_output(payload)
-}
-
-pub fn decode_withdraw_output(payload: &Bytes) -> Result<U256, FeePoolPrecompileError> {
-    decode_u256_output(payload)
-}
-
-fn decode_u256_output(payload: &Bytes) -> Result<U256, FeePoolPrecompileError> {
-    if payload.len() != 32 {
-        return Err(FeePoolPrecompileError::InvalidReturnPayload);
-    }
-
-    let mut word = [0u8; 32];
-    word.copy_from_slice(payload.as_ref());
-    Ok(U256::from_be_bytes(word))
 }
 
 fn encode_u256_word(value: U256) -> Bytes {

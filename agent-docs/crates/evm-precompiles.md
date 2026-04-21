@@ -46,17 +46,20 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
 ## Framework shape
 - `src/lib.rs`: registry, duplicate-address protection, safe-default stateful registration guard, factory wiring, crate-level tests.
 - `src/community_pool/mod.rs`: canonical community-pool address constant + read-only balance query precompile and ABI helpers.
+- `src/community_pool/slot_value_*.rs` + `slot_storage_*.rs`: slot getter/storage-word helper surface split into focused policy-sized files.
 - `src/fee_pool/mod.rs`: fee-pool precompile surface, ABI helpers, revert helpers, and tests.
-- `src/fee_pool/dispatch.rs`: alloy `sol!` selectors for `feePoolBalance()`, `claimableBalance(address)`, and `withdraw()`.
+- `src/fee_pool/dispatch/mod.rs` + `dispatch/calldata.rs`: fee-pool selector decode and calldata helper split.
 - `src/fee_pool/impl.rs`: stateful fee-pool logic (balance query, claim query, withdraw transfer, claim reset) with `execute` kept as plain `pub` inside a private module boundary.
 - `src/fee_pool/storage.rs`: deterministic slot derivation for `mapping(address => uint256) claimable`.
 - `src/fee_pool/gas.rs`: fee-pool gas schedule.
 - `src/validators/mod.rs`: ordered simplex-validator precompile ABI, output encoder/decoder, and tests.
+- `src/validators/gas.rs`: standalone validators gas scheduler helper module.
 - `src/epoch/mod.rs`: epoch constants, sender derivation, ABI helper exports, and epoch tests.
-- `src/epoch/dispatch.rs`: alloy `sol!` selectors for epoch read/write ABI.
+- `src/epoch/dispatch/mod.rs` + `dispatch/{read_calldata,write_calldata}.rs`: epoch selector decode and calldata helper split.
 - `src/epoch/impl.rs`: stateful epoch logic with restricted `advanceEpoch()` and `execute` kept as plain `pub` inside a private module boundary.
-- `src/epoch/storage.rs`: scalar slots + append-only epoch-start mapping slot derivation.
+- `src/epoch/storage/mod.rs` + storage submodules: scalar slots + append-only epoch-start mapping slot derivation, split by helper domain.
 - `src/epoch/gas.rs`: epoch precompile gas schedule.
+- `src/{registered_precompile_api,registry_build,registry_runtime,factory_api}.rs`: crate-root API split files that keep each production file within strict policy thresholds while preserving external exports.
 
 ## Design notes
 - Reth v2 alignment: this crate uses `reth_evm::revm::*` types everywhere (no direct `revm` crate import) to avoid mixed-REVM type graphs during factory wiring.

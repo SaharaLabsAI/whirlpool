@@ -6,6 +6,8 @@ use reth_evm::revm::precompile::{PrecompileError, PrecompileOutput, PrecompileRe
 use crate::RegisteredPrecompile;
 use ::validators::ValidatorEntry;
 
+pub mod gas;
+
 pub const VALIDATORS_PRECOMPILE_ADDRESS: Address =
     address!("0x0000000000000000000000000000000000000101");
 
@@ -100,15 +102,6 @@ fn encode_validators_output(simplex_validators: &[ValidatorEntry]) -> Bytes {
         .collect::<Vec<_>>();
 
     Bytes::from(validatorsCall::abi_encode_returns(&records))
-}
-
-pub mod gas {
-    pub const BASE_VALIDATORS_GAS: u64 = 3_000;
-    pub const PER_VALIDATOR_GAS: u64 = 350;
-
-    pub fn validators_gas(entries: usize) -> u64 {
-        BASE_VALIDATORS_GAS.saturating_add(PER_VALIDATOR_GAS.saturating_mul(entries as u64))
-    }
 }
 
 #[cfg(test)]

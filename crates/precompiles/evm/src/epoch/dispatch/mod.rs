@@ -1,7 +1,14 @@
-use alloy_primitives::Bytes;
 use alloy_sol_types::{sol, SolCall};
 
 use super::EpochPrecompileError;
+
+mod read_calldata;
+mod write_calldata;
+
+pub use read_calldata::{current_epoch_calldata, epoch_blocks_calldata, next_epoch_block_calldata};
+pub use write_calldata::{
+    advance_epoch_calldata, epoch_start_block_calldata, is_advance_epoch_calldata,
+};
 
 sol! {
     function currentEpoch() external view returns (uint64);
@@ -57,32 +64,4 @@ pub fn decode_call(data: &[u8]) -> Result<EpochCall, EpochPrecompileError> {
     }
 
     Err(EpochPrecompileError::UnsupportedSelector)
-}
-
-pub fn current_epoch_calldata() -> Bytes {
-    Bytes::from(currentEpochCall {}.abi_encode())
-}
-
-pub fn next_epoch_block_calldata() -> Bytes {
-    Bytes::from(nextEpochBlockCall {}.abi_encode())
-}
-
-pub fn epoch_blocks_calldata() -> Bytes {
-    Bytes::from(epochBlocksCall {}.abi_encode())
-}
-
-pub fn epoch_start_block_calldata(epoch: u64) -> Bytes {
-    Bytes::from(epochStartBlockCall { epoch }.abi_encode())
-}
-
-pub fn advance_epoch_calldata() -> Bytes {
-    Bytes::from(advanceEpochCall {}.abi_encode())
-}
-
-pub fn is_advance_epoch_calldata(data: &[u8]) -> bool {
-    if !data.starts_with(&ADVANCE_EPOCH_SELECTOR) {
-        return false;
-    }
-
-    advanceEpochCall::abi_decode_validate(data).is_ok()
 }

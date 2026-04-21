@@ -1,7 +1,11 @@
-use alloy_primitives::{Address, Bytes};
+use alloy_primitives::Address;
 use alloy_sol_types::{sol, SolCall};
 
 use super::FeePoolPrecompileError;
+
+mod calldata;
+
+pub use calldata::{claimable_balance_calldata, fee_pool_balance_calldata, withdraw_calldata};
 
 sol! {
     function feePoolBalance() external view returns (uint256);
@@ -41,16 +45,4 @@ pub fn decode_call(data: &[u8]) -> Result<FeePoolCall, FeePoolPrecompileError> {
     }
 
     Err(FeePoolPrecompileError::UnsupportedSelector)
-}
-
-pub fn fee_pool_balance_calldata() -> Bytes {
-    Bytes::from(feePoolBalanceCall {}.abi_encode())
-}
-
-pub fn claimable_balance_calldata(recipient: Address) -> Bytes {
-    Bytes::from(claimableBalanceCall { recipient }.abi_encode())
-}
-
-pub fn withdraw_calldata() -> Bytes {
-    Bytes::from(withdrawCall {}.abi_encode())
 }

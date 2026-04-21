@@ -1,19 +1,23 @@
 use alloy_primitives::{address, Address, Bytes, B256, U256};
 use reth_evm::revm::precompile::PrecompileResult;
-use reth_primitives_traits::crypto::secp256k1::{recover_signer, sign_message};
-use std::sync::OnceLock;
 
-use crate::RegisteredPrecompile;
-
+mod decode_primary;
+mod decode_tail;
 mod dispatch;
 pub mod gas;
 mod r#impl;
+mod registration;
 pub mod storage;
 
+pub use decode_primary::{
+    decode_current_epoch_output, decode_next_epoch_block_output, decode_u64_output,
+};
+pub use decode_tail::{decode_epoch_blocks_output, decode_epoch_start_block_output};
 pub use dispatch::{
     advance_epoch_calldata, current_epoch_calldata, epoch_blocks_calldata,
     epoch_start_block_calldata, is_advance_epoch_calldata, next_epoch_block_calldata,
 };
+pub use registration::{epoch_system_tx_sender, register};
 pub use storage::{
     current_epoch_slot, current_epoch_storage_slot, encode_epoch_start_block_storage_value,
     encode_u64_storage_value, epoch_blocks_slot, epoch_blocks_storage_slot, epoch_start_block_slot,
@@ -60,47 +64,6 @@ pub enum EpochPrecompileError {
     ArithmeticOverflow,
     #[error("invalid epoch return payload")]
     InvalidReturnPayload,
-}
-
-pub fn register() -> RegisteredPrecompile {
-    RegisteredPrecompile::new_stateful("whirlpool_epoch", EPOCH_PRECOMPILE_ADDRESS, r#impl::execute)
-}
-
-pub fn epoch_system_tx_sender() -> Address {
-    static SENDER: OnceLock<Address> = OnceLock::new();
-    *SENDER.get_or_init(|| {
-        let hash = B256::ZERO;
-        let sig = sign_message(EPOCH_SYSTEM_TX_PRIVATE_KEY, hash)
-            .expect("epoch system private key must be valid");
-        recover_signer(&sig, hash).expect("epoch system signature must recover")
-    })
-}
-
-pub fn decode_u64_output(payload: &Bytes) -> Result<u64, EpochPrecompileError> {
-    if payload.len() != 32 {
-        return Err(EpochPrecompileError::InvalidReturnPayload);
-    }
-
-    let mut word = [0u8; 32];
-    word.copy_from_slice(payload.as_ref());
-    let value = U256::from_be_bytes(word);
-    u64::try_from(value).map_err(|_| EpochPrecompileError::ValueOutOfRange)
-}
-
-pub fn decode_current_epoch_output(payload: &Bytes) -> Result<u64, EpochPrecompileError> {
-    decode_u64_output(payload)
-}
-
-pub fn decode_next_epoch_block_output(payload: &Bytes) -> Result<u64, EpochPrecompileError> {
-    decode_u64_output(payload)
-}
-
-pub fn decode_epoch_blocks_output(payload: &Bytes) -> Result<u64, EpochPrecompileError> {
-    decode_u64_output(payload)
-}
-
-pub fn decode_epoch_start_block_output(payload: &Bytes) -> Result<u64, EpochPrecompileError> {
-    decode_u64_output(payload)
 }
 
 fn encode_u64_word(value: u64) -> Bytes {
