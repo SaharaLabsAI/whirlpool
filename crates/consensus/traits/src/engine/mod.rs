@@ -3,6 +3,8 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::task::JoinHandle;
 
+mod shutdown;
+
 /// Snapshot of the consensus engine's current status.
 #[derive(Debug, Clone, Copy)]
 pub struct ConsensusStatus {
@@ -47,14 +49,6 @@ impl RunningEngine {
 
     /// Wait for the engine to terminate, returning its result.
     pub async fn wait(self) -> Result<(), ConsensusError> {
-        self.handle
-            .await
-            .map_err(|e| ConsensusError::Runtime(e.to_string()))?
-    }
-
-    /// Signal the engine to shut down, then wait for it to terminate.
-    pub async fn shutdown(self) -> Result<(), ConsensusError> {
-        (self._shutdown)();
         self.handle
             .await
             .map_err(|e| ConsensusError::Runtime(e.to_string()))?

@@ -40,4 +40,4 @@ The consensus crate provides the stable trait boundary used by adapter and node 
 - `crates/consensus/traits/src/block.rs`
 - `crates/consensus/traits/src/app.rs`
 - `crates/consensus/traits/src/event.rs`
-- `crates/consensus/traits/src/engine.rs`
+- `crates/consensus/traits/src/engine/mod.rs` + `crates/consensus/traits/src/engine/shutdown.rs`
