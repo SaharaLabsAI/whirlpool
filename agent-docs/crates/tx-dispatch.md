@@ -18,6 +18,10 @@ Mem-scoped transaction classification for mixed-ingress code.
 - `classify_transaction(raw_tx)`
 - `classify_transactions(raw_txs)`
 
+## Internal layout
+- `src/lib.rs`: single-transaction decode/classification primitives and error/types.
+- `src/batch.rs`: batch wrappers (`decode_evm_transactions`, `classify_transactions`) re-exported by `lib.rs`.
+
 ## Classification Rule
 1. Try the `app-evm` EVM decode/recovery path.
 2. If that fails, try mem/personality decode.

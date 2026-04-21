@@ -1,6 +1,9 @@
 use app_evm::{decode_evm_transaction as decode_app_evm_transaction, RecoveredTx};
 use app_mem::{decode_personality_tx, MemTxError};
 
+mod batch;
+pub use batch::{classify_transactions, decode_evm_transactions};
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ClassifiedTransaction {
     Evm(Vec<u8>),
@@ -20,13 +23,6 @@ pub fn decode_evm_transaction(raw_tx: &[u8]) -> Result<RecoveredTx, TxDispatchEr
         .map_err(|err| TxDispatchError::InvalidEvmTransaction(err.to_string()))
 }
 
-pub fn decode_evm_transactions(raw_txs: &[Vec<u8>]) -> Result<Vec<RecoveredTx>, TxDispatchError> {
-    raw_txs
-        .iter()
-        .map(|raw_tx| decode_evm_transaction(raw_tx))
-        .collect()
-}
-
 pub fn classify_transaction(raw_tx: &[u8]) -> Result<ClassifiedTransaction, TxDispatchError> {
     if decode_evm_transaction(raw_tx).is_ok() {
         return Ok(ClassifiedTransaction::Evm(raw_tx.to_vec()));
@@ -34,15 +30,6 @@ pub fn classify_transaction(raw_tx: &[u8]) -> Result<ClassifiedTransaction, TxDi
 
     decode_personality_tx(raw_tx)?;
     Ok(ClassifiedTransaction::Mem(raw_tx.to_vec()))
-}
-
-pub fn classify_transactions(
-    raw_txs: &[Vec<u8>],
-) -> Result<Vec<ClassifiedTransaction>, TxDispatchError> {
-    raw_txs
-        .iter()
-        .map(|raw_tx| classify_transaction(raw_tx))
-        .collect()
 }
 
 #[cfg(test)]
