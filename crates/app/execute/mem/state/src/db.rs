@@ -207,43 +207,6 @@ impl InMemoryStateDb {
     pub fn with_genesis(alloc: HashMap<Address, GenesisAccount>) -> Self {
         <Self as StateDb>::with_genesis(alloc)
     }
-
-    pub fn commit(&mut self, bundle: &BundleState) {
-        <Self as StateDb>::commit(self, bundle).unwrap_or_else(|e| match e {})
-    }
-
-    pub fn state_root(&self) -> B256 {
-        <Self as StateDb>::state_root(self).unwrap_or_else(|e| match e {})
-    }
-
-    pub fn insert_account(&mut self, address: Address, info: AccountInfo) {
-        <Self as StateDb>::insert_account(self, address, info).unwrap_or_else(|e| match e {})
-    }
-
-    pub fn insert_storage(&mut self, address: Address, index: U256, value: U256) {
-        <Self as StateDb>::insert_storage(self, address, index, value)
-            .unwrap_or_else(|e| match e {})
-    }
-
-    pub fn insert_block_hash(&mut self, number: u64, hash: B256) {
-        <Self as StateDb>::insert_block_hash(self, number, hash).unwrap_or_else(|e| match e {})
-    }
-
-    pub fn get_account(&self, address: Address) -> Option<AccountInfo> {
-        <Self as StateDb>::get_account(self, address).unwrap_or_else(|e| match e {})
-    }
-
-    pub fn get_code_by_hash(&self, code_hash: B256) -> Bytecode {
-        <Self as StateDb>::get_code_by_hash(self, code_hash).unwrap_or_else(|e| match e {})
-    }
-
-    pub fn get_storage(&self, address: Address, index: U256) -> U256 {
-        <Self as StateDb>::get_storage(self, address, index).unwrap_or_else(|e| match e {})
-    }
-
-    pub fn get_block_hash(&self, number: u64) -> B256 {
-        <Self as StateDb>::get_block_hash(self, number).unwrap_or_else(|e| match e {})
-    }
 }
 
 impl DatabaseRef for InMemoryStateDb {
@@ -353,6 +316,6 @@ impl BlockStorage for InMemoryStateDb {
     }
 }
 
-#[cfg(test)]
 #[path = "tests/db.rs"]
+#[cfg(test)]
 mod tests;

@@ -11,6 +11,9 @@ In-memory state database implementation for EVM execution.
 
 ## Modules
 - `crates/app/execute/mem/state/src/db.rs` — `InMemoryStateDb`, `DbAccount`, revm `Database`/`DatabaseRef` impls
+- `crates/app/execute/mem/state/src/db_api_write.rs` — infallible write wrappers (`commit`, `insert_account`, `insert_storage`)
+- `crates/app/execute/mem/state/src/db_api_account.rs` — infallible account/storage read wrappers (`get_account`, `get_code_by_hash`, `get_storage`)
+- `crates/app/execute/mem/state/src/db_api_state.rs` — infallible state/hash wrappers (`state_root`, `insert_block_hash`, `get_block_hash`)
 - `crates/app/execute/mem/state/src/tests/db.rs` — file-separated `db.rs` unit tests (wired via `#[path = "tests/db.rs"] mod tests;`)
 - `crates/app/execute/mem/state/src/personality.rs` — `InMemoryPersonalityStorage` and in-memory finalized personality indexes
 
