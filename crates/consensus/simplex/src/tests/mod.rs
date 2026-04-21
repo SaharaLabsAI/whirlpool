@@ -31,7 +31,7 @@ fn zero_digest() -> TestDigest {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct TestBlock {
+pub struct TestBlock {
     id: [u8; 32],
     parent: TestDigest,
     height: u64,
@@ -39,7 +39,7 @@ pub(crate) struct TestBlock {
 }
 
 impl TestBlock {
-    pub(crate) fn genesis() -> Self {
+    pub fn genesis() -> Self {
         Self {
             id: [0u8; 32],
             parent: zero_digest(),
@@ -48,11 +48,11 @@ impl TestBlock {
         }
     }
 
-    pub(crate) fn child(parent: &Self) -> Self {
+    pub fn child(parent: &Self) -> Self {
         Self::child_with_transactions(parent, Vec::new())
     }
 
-    pub(crate) fn child_with_transactions(parent: &Self, transactions: Vec<Vec<u8>>) -> Self {
+    pub fn child_with_transactions(parent: &Self, transactions: Vec<Vec<u8>>) -> Self {
         let mut id = [0u8; 32];
         id[0] = (parent.height + 1) as u8;
         Self {
@@ -246,7 +246,7 @@ impl EventSink for BlockCollectorSink {
 }
 
 #[derive(Clone)]
-pub(crate) struct MockApp;
+pub struct MockApp;
 
 impl consensus::app::ConsensusApp for MockApp {
     type Block = TestBlock;
@@ -274,7 +274,7 @@ impl consensus::app::ConsensusApp for MockApp {
 }
 
 #[derive(Clone)]
-pub(crate) struct MockTxApp {
+pub struct MockTxApp {
     tx_data: Vec<u8>,
 }
 

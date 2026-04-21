@@ -7,8 +7,10 @@ The adapter crate translates Commonware Simplex APIs into Whirlpool consensus tr
   - `CommonwareBlock`
 - Implementation modules:
   - `crates/consensus/simplex/src/adapter.rs`
-  - `crates/consensus/simplex/src/engine.rs`
-  - `crates/consensus/simplex/src/mailbox.rs`
+  - `crates/consensus/simplex/src/engine/mod.rs`
+  - `crates/consensus/simplex/src/mailbox/mod.rs`
+  - `crates/consensus/simplex/src/mailbox/actor.rs`
+  - `crates/consensus/simplex/src/mailbox/payload.rs`
   - `crates/consensus/simplex/src/receiver.rs`
   - `crates/consensus/simplex/src/sink.rs`
   - `crates/consensus/simplex/src/config.rs`

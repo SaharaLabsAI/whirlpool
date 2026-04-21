@@ -21,8 +21,8 @@ Bridges `ConsensusApp` and `EventSink` to vendor traits.
 
 ### CommonwareEngine
 The primary entry point for starting the consensus engine.
-- Uses the caller-provided `EventSink` passed to `AppAdapter` for finalization events (crates/consensus/simplex/src/engine.rs).
-- Shared `height` Arc is passed to `MailboxActor` to track the current chain tip (crates/consensus/simplex/src/engine.rs).
+- Uses the caller-provided `EventSink` passed to `AppAdapter` for finalization events (crates/consensus/simplex/src/engine/mod.rs).
+- Shared `height` Arc is passed to `MailboxActor` to track the current chain tip (crates/consensus/simplex/src/engine/mod.rs).
 - `start()` wires the payload relay: creates an mpsc channel, constructs `Mailbox::with_relay()`, spawns an outbound forwarder task (reads from channel, sends via `NetworkSender::send(Recipients::All, ...)`), and spawns an inbound `payload_receive_loop` task.
 - Trait bounds on block type: `CommonwareBlock + Encode + Decode<Cfg = ()>`.
 - `start()` now branches on `SigningSchemeConfig` and instantiates either:
@@ -31,13 +31,13 @@ The primary entry point for starting the consensus engine.
 - Clippy hygiene: actor task exits without explicit unit-expression tails; digest validation compares directly against the all-`0xff` array.
 
 ### Mailbox
-Manages block proposals and relay broadcasting (crates/consensus/simplex/src/mailbox.rs).
+Manages block proposals and relay broadcasting (crates/consensus/simplex/src/mailbox/mod.rs).
 - `Mailbox::new(block_store)`: No relay — `broadcast()` is a no-op.
 - `Mailbox::with_relay(block_store_for_relay, block_store_for_actor, payload_tx)`: Active relay — `broadcast(digest)` looks up the block by digest in `BlockStore`, encodes it via `Codec::encode()`, wraps in `PayloadRelayMessage`, and sends through the mpsc channel.
 - `Mailbox` is `Clone`-safe: uses `Option<BlockStore<B>>` (Arc-based) and `Option<mpsc::UnboundedSender<Bytes>>`.
 
 ### PayloadRelayMessage
-Wire format for relayed block payloads (crates/consensus/simplex/src/mailbox.rs).
+Wire format for relayed block payloads (crates/consensus/simplex/src/mailbox/payload.rs).
 - Format: `[32-byte SHA-256 digest][encoded block bytes]`
 - `encode_wire(digest, block_bytes) -> Bytes`
 - `decode_wire(buf) -> Result<(Digest, Bytes)>`
@@ -58,8 +58,12 @@ Inbound payload receiver (crates/consensus/simplex/src/receiver.rs).
 ## Module Layout
 - `adapter.rs` — `AppAdapter` vendor trait bridge
 - `config.rs` — `CommonwareConfig`
-- `engine.rs` — `CommonwareEngine` with relay wiring
-- `mailbox.rs` — `Mailbox`, `PayloadRelayMessage`, `BlockStore`
+- `engine/mod.rs` + `engine/tests/mod.rs` — `CommonwareEngine` with relay wiring and crate-local engine tests
+- `mailbox/mod.rs` — `Mailbox` trait bridge + shared digest helpers
+- `mailbox/actor.rs` — `MailboxActor`
+- `mailbox/payload.rs` — `PayloadRelayMessage` wire envelope
+- `mailbox/tests/mod.rs` — mailbox-focused tests
+- `tests/mod.rs` — shared test fixtures (`TestBlock`, `MockApp`, `MockTxApp`) and crate-level tests
 - `receiver.rs` — `payload_receive_loop` inbound handler
 - `sink.rs` — Event sink utilities
 - `traits.rs` — `CommonwareBlock` trait
