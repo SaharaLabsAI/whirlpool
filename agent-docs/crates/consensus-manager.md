@@ -4,6 +4,10 @@
 `consensus-manager` owns the v1 trusted-dealer bootstrap artifact format used to load BLS threshold material for simplex startup.
 
 Location: `crates/consensus/manager/`
+Source layout:
+- `src/lib.rs` — bootstrap/load orchestration and artifact validation flow
+- `src/types.rs` — public config/result structs and `Error` surface
+- `src/tests.rs` — crate-local unit tests for bootstrap/load failure modes
 
 ## Public API
 - `run_trusted_dealer_bootstrap(TrustedDealerBootstrapConfig) -> TrustedDealerBootstrapResult`
