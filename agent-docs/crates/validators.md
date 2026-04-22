@@ -13,6 +13,12 @@ Canonical ordered simplex validator registry model and genesis-storage codec sha
 - `decode_validator_registry_storage(storage)`
 - `decode_validator_registry_storage_opt(storage)`
 - `ordered_consensus_pubkeys(entries)`
+- `encode_ethereum_address_storage_value(address)`
+
+## Internal structure
+- `src/lib.rs`: public entrypoint, shared types/errors/constants, optional decode helper.
+- `src/registry_codec.rs`: registry slot codec + strict decode validation.
+- `src/address_storage.rs`: address-to-storage encoder helper.
 
 ## Storage layout
 - Slot `0`: validator count.
