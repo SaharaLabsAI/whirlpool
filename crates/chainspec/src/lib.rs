@@ -1,4 +1,5 @@
 mod community_pool_unlock;
+mod epoch_hook;
 mod native_token;
 mod simplex_validator_reader;
 mod spec_builders_alloc;
@@ -7,6 +8,7 @@ mod spec_builders_core;
 mod spec_builders_try;
 
 pub use community_pool_unlock::CommunityPoolUnlockConfig;
+pub use epoch_hook::declared_epoch_boundary_hook;
 pub use native_token::{
     sahara_hard_cap_base_units, total_allocated_supply, validate_genesis_alloc, NativeTokenError,
     SAHARA_DECIMALS, SAHARA_HARD_CAP_BASE_UNITS_U128, SAHARA_HARD_CAP_TOKENS,

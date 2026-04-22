@@ -20,8 +20,10 @@ where
             let db = self.state_db.read().unwrap();
             db.clone()
         };
-        let boundary_state = load_epoch_boundary_state(&exec_state)?;
-        let boundary_required = boundary_required_for_height(boundary_state, block.height);
+        let boundary_hook = self.evm_config.epoch_boundary_hook();
+        let boundary_state = boundary_hook.load_boundary_state(&exec_state)?;
+        let boundary_required =
+            boundary_hook.boundary_required_for_height(boundary_state, block.height);
 
         let parent_header = build_sealed_header(parent);
         let decoded_extra_data = decode_extra_data(
@@ -69,14 +71,14 @@ where
             .apply_pre_execution_changes()
             .map_err(|err| EvmAppError::Execution(err.to_string()))?;
 
-        let boundary_state_changes = execute_epoch_boundary_system_call_if_required(
+        let boundary_state_changes = boundary_hook.execute_system_call_if_required(
             builder.evm_mut(),
             boundary_required,
             BoundaryCallFailureMode::Verify,
         )?;
 
         for (index, tx) in decoded_txs.iter().enumerate() {
-            if tx_is_reserved_epoch_namespace(tx, tx.signer()) {
+            if boundary_hook.tx_is_reserved_namespace(tx, tx.signer()) {
                 return Err(EvmAppError::InvalidBlock(format!(
                     "reserved epoch boundary namespace transaction at index {index}"
                 )));
@@ -102,7 +104,8 @@ where
             aggregate_priority_fees(&decoded_txs, &gas_deltas, block.base_fee_per_gas)?;
         exec_state.commit(&bundle).map_err(Into::into)?;
         if let Some(ref boundary_state_changes) = boundary_state_changes {
-            apply_boundary_state_to_provider(&mut exec_state, boundary_state_changes)?;
+            boundary_hook
+                .apply_boundary_state_to_provider(&mut exec_state, boundary_state_changes)?;
         }
         maybe_apply_community_pool_unlock(
             &mut exec_state,

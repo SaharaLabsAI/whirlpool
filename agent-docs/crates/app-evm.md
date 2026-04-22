@@ -57,6 +57,7 @@ Those live in `chainspec`.
 - Non-boundary FullDkg candidate validation is fail-closed in both propose and verify paths: candidate `output.players` must match activation-resolved players for the candidate epoch before include/omit decisions.
 - FullDkg inclusion trigger compares candidate output against the **latest committed FullDkg in block storage** (backward scan) so raw-only intermediate blocks do not cause include/omit oscillation.
 - Epoch-boundary deterministic system-call handling now lives in directory-backed `epoch_boundary/` modules (`mod.rs`, `boundary_state.rs`, `boundary_rules.rs`, `boundary_execution.rs`) and is shared between propose/verify paths.
+- Epoch-boundary orchestration now flows through configurable `EpochBoundaryHook` (default `PrecompileSemanticsV1`) so app-evm consumes a hook seam instead of hard-coding boundary policy wiring in executor paths.
 - Boundary epoch math and activation-derived player resolution are shared through directory-backed `validator_activation/` modules (`BoundaryEpochContext`, `ActivationSourceResolver`) so propose/verify evaluate the same forward epoch targets.
 - `ActivationSourceResolver` is fail-closed for boundary FullDkg/Reshare targeting: a missing configured player set for the required epoch returns `InvalidBlock("activation resolver missing player set for epoch <n>")`.
 - Boundary unlock flow:

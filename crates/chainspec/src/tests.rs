@@ -1,7 +1,8 @@
 use crate::{
     build_sahara_chain_spec, build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators,
     build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators_and_community_pool_unlock_config,
-    sahara_hard_cap_base_units, try_build_sahara_chain_spec_with_alloc,
+    declared_epoch_boundary_hook, sahara_hard_cap_base_units,
+    try_build_sahara_chain_spec_with_alloc,
     try_build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators_and_community_pool_unlock_config,
     try_simplex_validators_from_chain_spec, CommunityPoolUnlockConfig, NativeTokenError,
     SAHARA_CHAIN_ID,
@@ -28,6 +29,15 @@ fn test_build_sahara_chain_spec_values() {
     assert_eq!(spec.chain.id(), SAHARA_CHAIN_ID);
     assert_eq!(spec.genesis.gas_limit, 30_000_000);
     assert!(spec.is_cancun_active_at_timestamp(0));
+}
+
+#[test]
+fn chain_spec_declares_precompile_epoch_hook() {
+    let spec = build_sahara_chain_spec();
+    assert_eq!(
+        declared_epoch_boundary_hook(&spec),
+        app_evm::EpochBoundaryHook::PrecompileSemanticsV1
+    );
 }
 
 #[test]

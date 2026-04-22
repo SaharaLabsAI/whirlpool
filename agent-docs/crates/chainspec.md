@@ -9,6 +9,7 @@ Node-facing Sahara chain-spec ownership crate.
 ## Owns
 - `SAHARA_CHAIN_ID`
 - Native-token hard-cap constants + validation helpers (`sahara_hard_cap_base_units`, `validate_genesis_alloc`, `NativeTokenError`)
+- EVM epoch-boundary hook declaration helper (`declared_epoch_boundary_hook`) used by node wiring as chainspec-side source of truth
 - `build_sahara_chain_spec*`
 - `try_build_sahara_chain_spec*`
 - `try_simplex_validators_from_chain_spec`

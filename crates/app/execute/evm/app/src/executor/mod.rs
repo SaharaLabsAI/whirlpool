@@ -27,11 +27,7 @@ use crate::canonical_extra_data::{
     full_dkg_should_be_included,
 };
 use crate::config::WhirlpoolEvmConfig;
-use crate::epoch_boundary::{
-    apply_boundary_state_to_provider, boundary_required_for_height,
-    execute_epoch_boundary_system_call_if_required, load_epoch_boundary_state,
-    tx_is_reserved_epoch_namespace, BoundaryCallFailureMode,
-};
+use crate::epoch_boundary::BoundaryCallFailureMode;
 use crate::error::EvmAppError;
 pub use crate::traits::StateProvider;
 use crate::validator_activation::{ActivationSourceResolver, BoundaryEpochContext};

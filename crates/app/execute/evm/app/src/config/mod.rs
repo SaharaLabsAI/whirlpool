@@ -16,8 +16,11 @@ use validators::{
     SIMPLEX_VALIDATORS_REGISTRY,
 };
 
+use crate::epoch_boundary::EpochBoundaryHook;
+
 mod activation_players;
 mod chain_spec_access;
+mod epoch_boundary_hook;
 mod fee_recipients;
 mod full_dkg_flags;
 mod full_dkg_payload;
@@ -40,6 +43,7 @@ pub struct WhirlpoolEvmConfig {
     local_proposer_public_key: [u8; 32],
     validator_fee_recipients: BTreeMap<[u8; 32], Address>,
     simplex_validators: Vec<ValidatorEntry>,
+    epoch_boundary_hook: EpochBoundaryHook,
     activation_players_by_epoch: BTreeMap<u64, Vec<[u8; 32]>>,
     full_dkg_feature_enabled: bool,
     full_dkg_strict_height: u64,
@@ -59,6 +63,7 @@ impl WhirlpoolEvmConfig {
             local_proposer_public_key: [0u8; 32],
             validator_fee_recipients,
             simplex_validators,
+            epoch_boundary_hook: EpochBoundaryHook::default(),
             activation_players_by_epoch: BTreeMap::new(),
             full_dkg_feature_enabled: true,
             full_dkg_strict_height: 0,

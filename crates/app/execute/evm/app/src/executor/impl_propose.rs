@@ -21,14 +21,16 @@ where
             let db = self.state_db.read().unwrap();
             db.clone()
         };
-        let boundary_state = load_epoch_boundary_state(&state_snapshot)?;
+        let boundary_hook = self.evm_config.epoch_boundary_hook();
+        let boundary_state = boundary_hook.load_boundary_state(&state_snapshot)?;
         let base_fee_per_gas = calc_next_block_base_fee(
             parent.gas_used,
             30_000_000,
             parent.base_fee_per_gas,
             BaseFeeParams::ethereum(),
         );
-        let boundary_required = boundary_required_for_height(boundary_state, block_height);
+        let boundary_required =
+            boundary_hook.boundary_required_for_height(boundary_state, block_height);
         let decoded_txs = decode_evm_transactions(raw_txs)?;
 
         let env_attributes = NextBlockEnvAttributes {
@@ -55,7 +57,7 @@ where
             .apply_pre_execution_changes()
             .map_err(|err| EvmAppError::Execution(err.to_string()))?;
 
-        let boundary_state_changes = execute_epoch_boundary_system_call_if_required(
+        let boundary_state_changes = boundary_hook.execute_system_call_if_required(
             builder.evm_mut(),
             boundary_required,
             BoundaryCallFailureMode::Propose,
@@ -66,7 +68,7 @@ where
         let mut inclusion_outcomes = Vec::with_capacity(raw_txs.len());
 
         for (raw_tx, tx) in raw_txs.iter().cloned().zip(decoded_txs) {
-            if tx_is_reserved_epoch_namespace(&tx, tx.signer()) {
+            if boundary_hook.tx_is_reserved_namespace(&tx, tx.signer()) {
                 inclusion_outcomes.push(false);
                 continue;
             }
@@ -112,7 +114,8 @@ where
             let mut canonical_db = self.state_db.write().unwrap();
             canonical_db.commit(&bundle).map_err(Into::into)?;
             if let Some(ref boundary_state_changes) = boundary_state_changes {
-                apply_boundary_state_to_provider(&mut *canonical_db, boundary_state_changes)?;
+                boundary_hook
+                    .apply_boundary_state_to_provider(&mut *canonical_db, boundary_state_changes)?;
             }
             maybe_apply_community_pool_unlock(
                 &mut *canonical_db,
