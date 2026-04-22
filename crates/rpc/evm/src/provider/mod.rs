@@ -169,11 +169,7 @@ impl WhirlpoolProvider {
     }
 }
 
-#[path = "provider/block.rs"]
 mod block;
-#[path = "provider/state.rs"]
 mod state;
-#[path = "provider/subscriptions.rs"]
 mod subscriptions;
-#[path = "provider/transactions.rs"]
 mod transactions;

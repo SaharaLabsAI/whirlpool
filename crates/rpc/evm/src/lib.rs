@@ -14,7 +14,7 @@ mod convert_impl;
 mod network_impl;
 #[path = "pool.rs"]
 mod pool_impl;
-#[path = "provider.rs"]
+#[path = "provider/mod.rs"]
 mod provider_impl;
 #[path = "server.rs"]
 mod server_impl;

@@ -26,7 +26,7 @@ Location: `crates/rpc/evm/`
 ### Adapter Pattern
 Three adapter types bridge Whirlpool's backend into reth's RPC trait requirements:
 
-1. **WhirlpoolProvider** (`provider.rs` + `provider/*.rs`): Wraps `Arc<RethStateDb>` + `Arc<ChainSpec>`. The provider is split by responsibility into submodules:
+1. **WhirlpoolProvider** (`provider/mod.rs` + `provider/*.rs`): Wraps `Arc<RethStateDb>` + `Arc<ChainSpec>`. The provider is split by responsibility into submodules:
    - `provider/block.rs` — block/hash/header/body index readers
    - `provider/transactions.rs` — transaction/receipt providers
    - `provider/state.rs` — account/state/bytecode/provider-factory/proof/checkpoint surfaces
@@ -77,7 +77,7 @@ pub async fn start_rpc_server(config: RpcConfig) -> Result<(RpcServerHandle, Soc
 
 ## Module Layout
 - `lib.rs`: Public API (`RpcConfig`, `RpcError`, `start_rpc_server`) and hidden compatibility re-exports for contract tests.
-- `provider.rs`: `WhirlpoolProvider` root (constructor/shared helpers + submodule wiring).
+- `provider/mod.rs`: `WhirlpoolProvider` root (constructor/shared helpers + submodule wiring).
 - `provider/block.rs`: block/hash/header readers + block body index provider.
 - `provider/transactions.rs`: transaction and receipt provider implementations.
 - `provider/state.rs`: account/state/bytecode/provider-factory/proof/checkpoint implementations.
