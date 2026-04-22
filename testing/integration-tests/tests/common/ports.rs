@@ -17,7 +17,7 @@ fn next_port_counter() -> &'static AtomicU16 {
     })
 }
 
-pub(crate) fn allocate_port() -> u16 {
+pub fn allocate_port() -> u16 {
     let counter = next_port_counter();
     for _ in 0..2048 {
         let candidate = counter.fetch_add(1, Ordering::SeqCst);

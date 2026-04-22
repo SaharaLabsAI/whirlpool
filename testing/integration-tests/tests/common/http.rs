@@ -3,12 +3,12 @@ use std::sync::OnceLock;
 
 use reqwest::Client;
 
-pub(crate) fn test_client() -> &'static Client {
+pub fn test_client() -> &'static Client {
     static CLIENT: OnceLock<Client> = OnceLock::new();
     CLIENT.get_or_init(Client::new)
 }
 
-pub(crate) fn rpc_req(method: &str, params: serde_json::Value) -> serde_json::Value {
+pub fn rpc_req(method: &str, params: serde_json::Value) -> serde_json::Value {
     serde_json::json!({
         "jsonrpc": "2.0",
         "method": method,
@@ -21,7 +21,7 @@ fn rpc_http_url(rpc_addr: SocketAddr) -> String {
     format!("http://{rpc_addr}")
 }
 
-pub(crate) async fn post_json_to_addr(
+pub async fn post_json_to_addr(
     client: &Client,
     rpc_addr: SocketAddr,
     body: serde_json::Value,
