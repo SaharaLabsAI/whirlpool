@@ -743,7 +743,7 @@ async fn boundary_block_system_call_advances_epoch_state_once() {
     {
         let db = db.read().unwrap();
         let boundary_state =
-            crate::epoch_boundary::load_epoch_boundary_state(&*db).expect("load boundary state");
+            evm_precompiles::load_epoch_boundary_state(&*db).expect("load boundary state");
         assert_eq!(boundary_state.next_epoch_block, 1);
     }
 

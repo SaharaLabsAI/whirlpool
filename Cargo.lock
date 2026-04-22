@@ -3400,6 +3400,8 @@ dependencies = [
  "alloy-sol-types",
  "reth-evm",
  "reth-primitives-traits",
+ "state",
+ "state-memory",
  "thiserror 2.0.18",
  "validators",
 ]

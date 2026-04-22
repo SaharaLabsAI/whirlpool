@@ -56,13 +56,16 @@ Those live in `chainspec`.
 - `executor/header_and_decode/` and `executor/state_helpers/` are directory-backed modules that split decode/header and state-helper surfaces into focused files with smaller public API sets.
 - Non-boundary FullDkg candidate validation is fail-closed in both propose and verify paths: candidate `output.players` must match activation-resolved players for the candidate epoch before include/omit decisions.
 - FullDkg inclusion trigger compares candidate output against the **latest committed FullDkg in block storage** (backward scan) so raw-only intermediate blocks do not cause include/omit oscillation.
-- Epoch-boundary deterministic system-call handling lives in directory-backed `epoch_boundary/` modules (`mod.rs`, `boundary_state.rs`, `boundary_rules.rs`, `boundary_execution.rs`) and is shared between propose/verify paths.
-- `app-evm` is now the **sole canonical-state mutator** for epoch-boundary handling; there is no configurable hook seam in config/chainspec/node anymore.
+- Epoch-boundary helper ownership now lives in `evm_precompiles::epoch`; `app-evm` no longer has a dedicated `epoch_boundary/` module tree.
+- `app-evm` keeps a **tiny pipeline call site** for epoch boundaries inside `executor/`:
+  - propose/verify load boundary state through `evm_precompiles::load_epoch_boundary_state(...)`
+  - propose/verify trigger `evm_precompiles::execute_epoch_boundary_system_call_if_required(...)`
+  - canonical epoch writes replay through `evm_precompiles::apply_epoch_boundary_effect(...)`
+  - reserved namespace detection is the only epoch adapter left locally, as a small executor helper over `reserved_advance_epoch_call_matches(...)`
 - Ownership split for epoch boundaries:
-  - `boundary_execution.rs` owns REVM `transact_system_call(...)`, preserves the in-memory execution-DB commit from the boundary system call, and maps lower-layer failures into propose/verify `EvmAppError`.
-  - `boundary_rules.rs` owns **app-side canonical apply** of the precompile-owned `EpochBoundaryEffect`; raw canonical `EvmState` replay is gone.
-  - `boundary_state.rs` reads canonical epoch storage through `state::StateDb` and returns the precompile-owned `EpochBoundaryState` snapshot type.
-  - `evm_precompiles::epoch::extract_epoch_boundary_effect(...)` is the lower-layer boundary-effect extractor; `app-evm` never writes canonical epoch state except by applying that typed effect after bundle commit.
+  - `evm-precompiles` owns the pure boundary core (`EpochBoundaryState`, predicate, reserved matcher, typed `EpochBoundaryEffect`) **and** the runtime adapter layer (`StateDb` load/apply + generic system-call support + `EpochBoundaryRuntimeError`).
+  - `app-evm` owns pipeline timing and error translation only: propose maps runtime boundary failures to `Execution`, verify maps them to `InvalidBlock`, while shared state-access failures still surface as `State`.
+  - the critical sequencing invariant remains unchanged: `apply_pre_execution_changes()` -> boundary system call -> immediate in-memory `commit(outcome.state.clone())` -> user tx execution -> bundle commit -> canonical epoch effect apply -> unlock / extra-data consumers.
 - Boundary epoch math and activation-derived player resolution are shared through directory-backed `validator_activation/` modules (`BoundaryEpochContext`, `ActivationSourceResolver`) so propose/verify evaluate the same forward epoch targets.
 - `ActivationSourceResolver` is fail-closed for boundary FullDkg/Reshare targeting: a missing configured player set for the required epoch returns `InvalidBlock("activation resolver missing player set for epoch <n>")`.
 - Boundary unlock flow:

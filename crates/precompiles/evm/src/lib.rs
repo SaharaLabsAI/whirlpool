@@ -33,18 +33,19 @@ pub use community_pool::{
     encode_u256_storage_value, COMMUNITY_POOL_ADDRESS,
 };
 pub use epoch::{
-    advance_epoch_calldata, boundary_required_for_height, current_epoch_calldata,
-    current_epoch_slot, current_epoch_storage_slot, decode_current_epoch_output,
-    decode_epoch_blocks_output, decode_epoch_start_block_output,
+    advance_epoch_calldata, apply_epoch_boundary_effect, boundary_required_for_height,
+    current_epoch_calldata, current_epoch_slot, current_epoch_storage_slot,
+    decode_current_epoch_output, decode_epoch_blocks_output, decode_epoch_start_block_output,
     decode_epoch_start_block_storage_value, decode_next_epoch_block_output,
     decode_u64_storage_value, encode_epoch_start_block_storage_value, encode_u64_storage_value,
     epoch_blocks_calldata, epoch_blocks_slot, epoch_blocks_storage_slot,
     epoch_start_block_calldata, epoch_start_block_storage_slot, epoch_system_tx_sender,
-    extract_epoch_boundary_effect, is_advance_epoch_calldata, next_epoch_block_calldata,
+    execute_epoch_boundary_system_call_if_required, extract_epoch_boundary_effect,
+    is_advance_epoch_calldata, load_epoch_boundary_state, next_epoch_block_calldata,
     next_epoch_block_slot, next_epoch_block_storage_slot, reserved_advance_epoch_call_matches,
-    EpochBoundaryEffect, EpochBoundaryEffectError, EpochBoundaryState, EpochBoundaryStorageWrite,
-    EPOCH_BLOCKS_DEFAULT, EPOCH_PRECOMPILE_ADDRESS, EPOCH_SYSTEM_TX_GAS_LIMIT,
-    EPOCH_SYSTEM_TX_INITIAL_BALANCE_WEI, EPOCH_SYSTEM_TX_PRIVATE_KEY,
+    EpochBoundaryEffect, EpochBoundaryEffectError, EpochBoundaryRuntimeError, EpochBoundaryState,
+    EpochBoundaryStorageWrite, EPOCH_BLOCKS_DEFAULT, EPOCH_PRECOMPILE_ADDRESS,
+    EPOCH_SYSTEM_TX_GAS_LIMIT, EPOCH_SYSTEM_TX_INITIAL_BALANCE_WEI, EPOCH_SYSTEM_TX_PRIVATE_KEY,
 };
 pub use fee_pool::{
     claimable_balance_calldata, claimable_balance_slot, decode_claimable_balance_output,

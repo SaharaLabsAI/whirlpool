@@ -20,9 +20,11 @@ where
             let db = self.state_db.read().unwrap();
             db.clone()
         };
-        let boundary_state = crate::epoch_boundary::load_epoch_boundary_state(&exec_state)?;
+        let boundary_state = load_epoch_boundary_state(&exec_state).map_err(|err| {
+            map_epoch_boundary_runtime_error(err, BoundaryCallFailureMode::Verify)
+        })?;
         let boundary_required =
-            crate::epoch_boundary::boundary_required_for_height(boundary_state, block.height);
+            evm_precompiles::boundary_required_for_height(boundary_state, block.height);
 
         let parent_header = build_sealed_header(parent);
         let decoded_extra_data = decode_extra_data(
@@ -71,14 +73,13 @@ where
             .map_err(|err| EvmAppError::Execution(err.to_string()))?;
 
         let boundary_effect =
-            crate::epoch_boundary::execute_epoch_boundary_system_call_if_required(
-                builder.evm_mut(),
-                boundary_required,
-                BoundaryCallFailureMode::Verify,
-            )?;
+            execute_epoch_boundary_system_call_if_required(builder.evm_mut(), boundary_required)
+                .map_err(|err| {
+                    map_epoch_boundary_runtime_error(err, BoundaryCallFailureMode::Verify)
+                })?;
 
         for (index, tx) in decoded_txs.iter().enumerate() {
-            if crate::epoch_boundary::tx_is_reserved_epoch_namespace(tx, tx.signer()) {
+            if tx_is_reserved_epoch_namespace(tx, tx.signer()) {
                 return Err(EvmAppError::InvalidBlock(format!(
                     "reserved epoch boundary namespace transaction at index {index}"
                 )));
@@ -104,7 +105,9 @@ where
             aggregate_priority_fees(&decoded_txs, &gas_deltas, block.base_fee_per_gas)?;
         exec_state.commit(&bundle).map_err(Into::into)?;
         if let Some(ref boundary_effect) = boundary_effect {
-            crate::epoch_boundary::apply_epoch_boundary_effect(&mut exec_state, boundary_effect)?;
+            apply_epoch_boundary_effect(&mut exec_state, boundary_effect).map_err(|err| {
+                map_epoch_boundary_runtime_error(err, BoundaryCallFailureMode::Verify)
+            })?;
         }
         maybe_apply_community_pool_unlock(
             &mut exec_state,

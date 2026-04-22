@@ -91,11 +91,14 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
   - effect is limited to epoch-precompile storage writes,
   - `epochStartBlock(next_epoch)` stays storage-ready with plus-one encoding,
   - extractor rejects account-info replay requirements and unexpected changed accounts.
-- Seam rule: exported boundary helpers remain primitive/value-only and do not depend on app-specific types such as `StateDb`, `TransactionSigned`, or `EvmAppError`.
+- The epoch module now has a **two-layer boundary API**:
+  - **pure core**: primitive/value-only semantics and typed effect extraction (`EpochBoundaryState`, predicate, reserved matcher, `EpochBoundaryEffect`)
+  - **runtime adapter**: `StateDb`-based boundary state load/apply plus generic REVM system-call support (`load_epoch_boundary_state`, `apply_epoch_boundary_effect`, `execute_epoch_boundary_system_call_if_required`, `EpochBoundaryRuntimeError`)
+- Updated seam rule: the **pure core** remains primitive/value-only and free of app/runtime traits; the **runtime adapter** is intentionally allowed to depend on `state::StateDb` and EVM execution traits, but still does not depend on app-local types such as `TransactionSigned` or `EvmAppError`.
 - Whirlpool-owned stateful precompiles registered via `RegisteredPrecompile::new_stateful` are direct-call-only: the final hop must keep `target_address == bytecode_address`, which allows ordinary `CALL`/`STATICCALL` and rejects delegate-style execution.
 - Non-direct-call rejection is a framework-level revert emitted before the target handler runs, so it reports zero precompile-local `gas_used`; enclosing EVM call/setup overhead is still charged outside the precompile.
 - Top-level EOAs calling a precompile address directly are not the only validated path here; the full-node tests use a tiny forwarding contract that performs an internal ordinary `CALL` into the precompile, which remains valid because the precompile boundary is still direct.
 
 ## Verification
-- Crate tests cover registry construction, duplicate-address rejection, dispatch routing, direct-call boundary enforcement, gas behavior, revert mapping, fee-pool withdraw/claim invariants, and epoch semantic-core parity checks (boundary predicate, reserved-call zero-value matcher, seam-purity signature guard).
+- Crate tests cover registry construction, duplicate-address rejection, dispatch routing, direct-call boundary enforcement, gas behavior, revert mapping, fee-pool withdraw/claim invariants, epoch semantic-core parity checks, and runtime-adapter `StateDb` load/apply coverage.
 - Test helper note: the shared precompile-call helper intentionally keeps a wide argument list and is locally annotated for `clippy::too_many_arguments`.

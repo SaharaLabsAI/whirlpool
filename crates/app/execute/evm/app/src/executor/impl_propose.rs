@@ -21,7 +21,9 @@ where
             let db = self.state_db.read().unwrap();
             db.clone()
         };
-        let boundary_state = crate::epoch_boundary::load_epoch_boundary_state(&state_snapshot)?;
+        let boundary_state = load_epoch_boundary_state(&state_snapshot).map_err(|err| {
+            map_epoch_boundary_runtime_error(err, BoundaryCallFailureMode::Propose)
+        })?;
         let base_fee_per_gas = calc_next_block_base_fee(
             parent.gas_used,
             30_000_000,
@@ -29,7 +31,7 @@ where
             BaseFeeParams::ethereum(),
         );
         let boundary_required =
-            crate::epoch_boundary::boundary_required_for_height(boundary_state, block_height);
+            evm_precompiles::boundary_required_for_height(boundary_state, block_height);
         let decoded_txs = decode_evm_transactions(raw_txs)?;
 
         let env_attributes = NextBlockEnvAttributes {
@@ -57,18 +59,17 @@ where
             .map_err(|err| EvmAppError::Execution(err.to_string()))?;
 
         let boundary_effect =
-            crate::epoch_boundary::execute_epoch_boundary_system_call_if_required(
-                builder.evm_mut(),
-                boundary_required,
-                BoundaryCallFailureMode::Propose,
-            )?;
+            execute_epoch_boundary_system_call_if_required(builder.evm_mut(), boundary_required)
+                .map_err(|err| {
+                    map_epoch_boundary_runtime_error(err, BoundaryCallFailureMode::Propose)
+                })?;
 
         let mut included_user_transactions = Vec::new();
         let mut executed_decoded_txs = Vec::new();
         let mut inclusion_outcomes = Vec::with_capacity(raw_txs.len());
 
         for (raw_tx, tx) in raw_txs.iter().cloned().zip(decoded_txs) {
-            if crate::epoch_boundary::tx_is_reserved_epoch_namespace(&tx, tx.signer()) {
+            if tx_is_reserved_epoch_namespace(&tx, tx.signer()) {
                 inclusion_outcomes.push(false);
                 continue;
             }
@@ -114,9 +115,8 @@ where
             let mut canonical_db = self.state_db.write().unwrap();
             canonical_db.commit(&bundle).map_err(Into::into)?;
             if let Some(ref boundary_effect) = boundary_effect {
-                crate::epoch_boundary::apply_epoch_boundary_effect(
-                    &mut *canonical_db,
-                    boundary_effect,
+                apply_epoch_boundary_effect(&mut *canonical_db, boundary_effect).map_err(
+                    |err| map_epoch_boundary_runtime_error(err, BoundaryCallFailureMode::Propose),
                 )?;
             }
             maybe_apply_community_pool_unlock(

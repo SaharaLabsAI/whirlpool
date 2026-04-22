@@ -1,17 +1,22 @@
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, RwLock};
 
-use alloy_consensus::TxReceipt;
+use alloy_consensus::{Transaction, TxReceipt};
 use alloy_eips::eip1559::{calc_next_block_base_fee, BaseFeeParams};
 use alloy_eips::eip2718::Encodable2718;
-use alloy_primitives::{bytes::BufMut, Address, Bytes, B256};
+use alloy_primitives::{bytes::BufMut, Address, Bytes, TxKind, B256};
 use alloy_trie::{root::ordered_trie_root_with_encoder, EMPTY_ROOT_HASH};
 use app::{
     decode_extra_data, legacy_proposer_extra_data_bytes,
     traits::{Application, TxSource},
     EvmBlock, ExecutionResult, Receipt,
 };
-use evm_precompiles::{current_epoch_slot, EPOCH_PRECOMPILE_ADDRESS, FEE_POOL_PRECOMPILE_ADDRESS};
+use evm_precompiles::{
+    apply_epoch_boundary_effect, current_epoch_slot,
+    execute_epoch_boundary_system_call_if_required, load_epoch_boundary_state,
+    reserved_advance_epoch_call_matches, EpochBoundaryRuntimeError, EPOCH_PRECOMPILE_ADDRESS,
+    FEE_POOL_PRECOMPILE_ADDRESS,
+};
 use reth_ethereum_primitives::TransactionSigned;
 use reth_evm::{
     execute::{BlockBuilder, BlockExecutor},
@@ -27,7 +32,6 @@ use crate::canonical_extra_data::{
     full_dkg_should_be_included,
 };
 use crate::config::WhirlpoolEvmConfig;
-use crate::epoch_boundary::BoundaryCallFailureMode;
 use crate::error::EvmAppError;
 pub use crate::traits::StateDb;
 use crate::validator_activation::{ActivationSourceResolver, BoundaryEpochContext};
@@ -54,6 +58,12 @@ mod state_helpers;
 pub type RecoveredTx = Recovered<TransactionSigned>;
 type ProposedCacheKey = (u64, [u8; 32]);
 type ProposedCacheEntry = (ProposedCacheKey, EvmBlock, ExecutionResult, Vec<Receipt>);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BoundaryCallFailureMode {
+    Propose,
+    Verify,
+}
 
 #[derive(Clone, Debug)]
 struct StagedReceipts {
@@ -103,6 +113,44 @@ where
         };
         let mut guard = self.staged_receipts.lock().unwrap();
         guard.insert(staged.block_id, staged);
+    }
+}
+
+fn tx_is_reserved_epoch_namespace(tx: &TransactionSigned, signer: Address) -> bool {
+    match tx.kind() {
+        TxKind::Call(target_address) => {
+            reserved_advance_epoch_call_matches(signer, target_address, tx.value(), tx.input())
+        }
+        _ => false,
+    }
+}
+
+fn map_epoch_boundary_runtime_error(
+    err: EpochBoundaryRuntimeError,
+    failure_mode: BoundaryCallFailureMode,
+) -> EvmAppError {
+    match err {
+        EpochBoundaryRuntimeError::StateAccess(message) => EvmAppError::State(message),
+        EpochBoundaryRuntimeError::InvalidStoredValue(message) => {
+            EvmAppError::InvalidBlock(message.into())
+        }
+        EpochBoundaryRuntimeError::SystemCallExecution(message) => {
+            boundary_call_failure(failure_mode, message)
+        }
+        EpochBoundaryRuntimeError::SystemCallUnsuccessful => boundary_call_failure(
+            failure_mode,
+            "required epoch boundary system call did not succeed".into(),
+        ),
+        EpochBoundaryRuntimeError::EffectExtraction(message) => {
+            boundary_call_failure(failure_mode, message)
+        }
+    }
+}
+
+fn boundary_call_failure(mode: BoundaryCallFailureMode, message: String) -> EvmAppError {
+    match mode {
+        BoundaryCallFailureMode::Propose => EvmAppError::Execution(message),
+        BoundaryCallFailureMode::Verify => EvmAppError::InvalidBlock(message),
     }
 }
 

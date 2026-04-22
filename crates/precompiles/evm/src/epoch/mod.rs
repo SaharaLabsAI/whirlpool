@@ -9,6 +9,7 @@ mod dispatch;
 pub mod gas;
 mod r#impl;
 mod registration;
+mod runtime_adapter;
 pub mod storage;
 
 pub use boundary_effect::{
@@ -27,6 +28,10 @@ pub use dispatch::{
     epoch_start_block_calldata, is_advance_epoch_calldata, next_epoch_block_calldata,
 };
 pub use registration::{epoch_system_tx_sender, register};
+pub use runtime_adapter::{
+    apply_epoch_boundary_effect, execute_epoch_boundary_system_call_if_required,
+    load_epoch_boundary_state, EpochBoundaryRuntimeError,
+};
 pub use storage::{
     current_epoch_slot, current_epoch_storage_slot, decode_epoch_start_block_storage_value,
     decode_u64_storage_value, encode_epoch_start_block_storage_value, encode_u64_storage_value,
@@ -231,7 +236,7 @@ mod tests {
     }
 
     #[test]
-    fn semantic_core_signatures_do_not_expose_app_types() {
+    fn pure_core_signatures_remain_primitive_and_value_only() {
         let _predicate: fn(EpochBoundaryState, u64) -> bool = boundary_required_for_height;
         let _matcher: fn(Address, Address, U256, &[u8]) -> bool =
             reserved_advance_epoch_call_matches;
