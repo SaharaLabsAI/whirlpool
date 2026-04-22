@@ -4,7 +4,7 @@ use app::{ApplicationAdapter, FullDkgOutputV1};
 use app_evm::{EvmApplication, WhirlpoolEvmConfig};
 use chainspec::{
     build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators,
-    declared_epoch_boundary_hook, try_simplex_validators_from_chain_spec, validate_genesis_alloc,
+    try_simplex_validators_from_chain_spec, validate_genesis_alloc,
 };
 use commonware_codec::{Encode, Read};
 use commonware_cryptography::ed25519;
@@ -402,9 +402,7 @@ pub fn start_node_with_chain_spec(
 
             let mut proposer_public_key = [0u8; 32];
             proposer_public_key.copy_from_slice(public_key.as_ref());
-            let epoch_boundary_hook = declared_epoch_boundary_hook(&chain_spec);
             let mut evm_config = WhirlpoolEvmConfig::new(chain_spec.clone())
-                .with_epoch_boundary_hook(epoch_boundary_hook)
                 .with_local_proposer_public_key(proposer_public_key)
                 .with_full_dkg_strict_height(config.consensus.full_dkg_strict_height);
             if let Some(full_dkg_output) = full_dkg_output {

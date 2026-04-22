@@ -15,7 +15,7 @@ Consensus-facing composite application that owns mixed transaction ingestion, cl
 ## Key Type
 - `CompositeApplication<DB>`
   - Wraps an internal `EvmApplication<DB>`.
-  - Runtime bound for `Application` impl: `DB: StateProvider + BlockStorage + Clone + Send + Sync + 'static + revm::Database + Debug`.
+  - Runtime bound for `Application` impl: `DB: StateDb + BlockStorage + Clone + Send + Sync + 'static + revm::Database + Debug`.
   - Owns the shared `TxSource`.
   - Maintains composite-level pending receipts and duplicate-proposal cache.
   - `store_finalized_block(&self, block, storage)`: persists finalized block receipts captured during propose/verify.

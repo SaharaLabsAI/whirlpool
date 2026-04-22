@@ -4,7 +4,7 @@ use evm_precompiles::{
     claimable_balance_slot, COMMUNITY_POOL_ADDRESS, FEE_POOL_PRECOMPILE_ADDRESS,
 };
 
-use crate::{error::EvmAppError, traits::StateProvider};
+use crate::{error::EvmAppError, traits::StateDb};
 
 use super::super::RecoveredTx;
 use super::account_balances::credit_account_balance;
@@ -15,8 +15,8 @@ pub fn credit_burned_fees<DB>(
     base_fee_per_gas: u64,
 ) -> Result<(), EvmAppError>
 where
-    DB: StateProvider,
-    <DB as StateProvider>::Error: Into<EvmAppError>,
+    DB: StateDb,
+    <DB as StateDb>::Error: Into<EvmAppError>,
 {
     let burned_amount = U256::from(gas_used) * U256::from(base_fee_per_gas);
     credit_account_balance(db, COMMUNITY_POOL_ADDRESS, burned_amount)
@@ -28,8 +28,8 @@ pub fn credit_fee_pool_claim<DB>(
     amount: U256,
 ) -> Result<(), EvmAppError>
 where
-    DB: StateProvider,
-    <DB as StateProvider>::Error: Into<EvmAppError>,
+    DB: StateDb,
+    <DB as StateDb>::Error: Into<EvmAppError>,
 {
     if amount.is_zero() {
         return Ok(());

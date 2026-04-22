@@ -1,6 +1,7 @@
 use alloy_primitives::{address, Address, Bytes, B256, U256};
 use reth_evm::revm::precompile::PrecompileResult;
 
+mod boundary_effect;
 mod boundary_semantics;
 mod decode_primary;
 mod decode_tail;
@@ -10,6 +11,10 @@ mod r#impl;
 mod registration;
 pub mod storage;
 
+pub use boundary_effect::{
+    extract_epoch_boundary_effect, EpochBoundaryEffect, EpochBoundaryEffectError,
+    EpochBoundaryStorageWrite,
+};
 pub use boundary_semantics::{
     boundary_required_for_height, reserved_advance_epoch_call_matches, EpochBoundaryState,
 };
@@ -23,8 +28,9 @@ pub use dispatch::{
 };
 pub use registration::{epoch_system_tx_sender, register};
 pub use storage::{
-    current_epoch_slot, current_epoch_storage_slot, encode_epoch_start_block_storage_value,
-    encode_u64_storage_value, epoch_blocks_slot, epoch_blocks_storage_slot, epoch_start_block_slot,
+    current_epoch_slot, current_epoch_storage_slot, decode_epoch_start_block_storage_value,
+    decode_u64_storage_value, encode_epoch_start_block_storage_value, encode_u64_storage_value,
+    epoch_blocks_slot, epoch_blocks_storage_slot, epoch_start_block_slot,
     epoch_start_block_storage_slot, next_epoch_block_slot, next_epoch_block_storage_slot,
 };
 

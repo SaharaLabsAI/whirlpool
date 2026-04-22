@@ -40,6 +40,10 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
 - `epoch_system_tx_sender()`
 - `is_advance_epoch_calldata(bytes)`
 - `EpochBoundaryState { next_epoch_block }`
+- `EpochBoundaryEffect { writes: [EpochBoundaryStorageWrite; 3] }`
+- `EpochBoundaryStorageWrite { slot, value }`
+- `EpochBoundaryEffectError`
+- `extract_epoch_boundary_effect(outcome_state)`
 - `boundary_required_for_height(state, block_height)`
 - `reserved_advance_epoch_call_matches(caller, target_address, value, calldata)`
 - epoch storage slot helpers:
@@ -58,6 +62,7 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
 - `src/validators/mod.rs`: ordered simplex-validator precompile ABI, output encoder/decoder, and tests.
 - `src/validators/gas.rs`: standalone validators gas scheduler helper module.
 - `src/epoch/mod.rs`: epoch constants, sender derivation, ABI/helper exports, and epoch tests.
+- `src/epoch/boundary_effect.rs`: typed epoch-boundary canonical-apply contract extracted from the lower-layer transition (`EpochBoundaryEffect`, `EpochBoundaryStorageWrite`, `EpochBoundaryEffectError`, `extract_epoch_boundary_effect`).
 - `src/epoch/boundary_semantics.rs`: pure epoch-boundary semantic core (`EpochBoundaryState`, boundary-required predicate, reserved-call matcher) exported for app-side adapters without app trait leakage.
 - `src/epoch/dispatch/mod.rs` + `dispatch/{read_calldata,write_calldata}.rs`: epoch selector decode and calldata helper split.
 - `src/epoch/impl.rs`: stateful epoch logic with restricted `advanceEpoch()` and `execute` kept as plain `pub` inside a private module boundary.
@@ -82,7 +87,11 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
   - write selector: `advanceEpoch()` (restricted to `epoch_system_tx_sender()`, non-static)
   - append-only epoch start map uses plus-one storage encoding so epoch 0 start block can be stored unambiguously.
 - The epoch module now also owns the pure boundary semantics consumed by `app-evm`: the boundary snapshot type, `block_height == next_epoch_block` predicate, and the canonical reserved-call matcher that includes the app-visible zero-value invariant for reserved `advanceEpoch()` namespace filtering.
-- Seam rule: the exported semantic helpers remain primitive/value-only and do not depend on app-specific types such as `StateProvider`, `TransactionSigned`, or `EvmAppError`.
+- The epoch module also owns the typed boundary-effect handoff used for canonical state application:
+  - effect is limited to epoch-precompile storage writes,
+  - `epochStartBlock(next_epoch)` stays storage-ready with plus-one encoding,
+  - extractor rejects account-info replay requirements and unexpected changed accounts.
+- Seam rule: exported boundary helpers remain primitive/value-only and do not depend on app-specific types such as `StateDb`, `TransactionSigned`, or `EvmAppError`.
 - Whirlpool-owned stateful precompiles registered via `RegisteredPrecompile::new_stateful` are direct-call-only: the final hop must keep `target_address == bytecode_address`, which allows ordinary `CALL`/`STATICCALL` and rejects delegate-style execution.
 - Non-direct-call rejection is a framework-level revert emitted before the target handler runs, so it reports zero precompile-local `gas_used`; enclosing EVM call/setup overhead is still charged outside the precompile.
 - Top-level EOAs calling a precompile address directly are not the only validated path here; the full-node tests use a tiny forwarding contract that performs an internal ordinary `CALL` into the precompile, which remains valid because the precompile boundary is still direct.

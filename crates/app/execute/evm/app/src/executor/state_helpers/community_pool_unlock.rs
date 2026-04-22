@@ -7,7 +7,7 @@ use evm_precompiles::{
 };
 use validators::ValidatorEntry;
 
-use crate::{error::EvmAppError, traits::StateProvider};
+use crate::{error::EvmAppError, traits::StateDb};
 
 use super::account_balances::transfer_account_balance;
 use super::fee_accounting::credit_fee_pool_claim;
@@ -19,8 +19,8 @@ pub fn load_u64_storage_value<DB>(
     field: &str,
 ) -> Result<u64, EvmAppError>
 where
-    DB: StateProvider,
-    <DB as StateProvider>::Error: Into<EvmAppError>,
+    DB: StateDb,
+    <DB as StateDb>::Error: Into<EvmAppError>,
 {
     let raw = db.get_storage(address, slot).map_err(Into::into)?;
     u64::try_from(raw).map_err(|_| {
@@ -34,8 +34,8 @@ pub fn maybe_apply_community_pool_unlock<DB>(
     simplex_validators: &[ValidatorEntry],
 ) -> Result<(), EvmAppError>
 where
-    DB: StateProvider,
-    <DB as StateProvider>::Error: Into<EvmAppError>,
+    DB: StateDb,
+    <DB as StateDb>::Error: Into<EvmAppError>,
 {
     if !boundary_required {
         return Ok(());

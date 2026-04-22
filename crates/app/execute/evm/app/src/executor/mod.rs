@@ -29,7 +29,7 @@ use crate::canonical_extra_data::{
 use crate::config::WhirlpoolEvmConfig;
 use crate::epoch_boundary::BoundaryCallFailureMode;
 use crate::error::EvmAppError;
-pub use crate::traits::StateProvider;
+pub use crate::traits::StateDb;
 use crate::validator_activation::{ActivationSourceResolver, BoundaryEpochContext};
 use header_and_decode::build_sealed_header;
 pub use header_and_decode::{
@@ -113,15 +113,8 @@ mod impl_verify;
 #[allow(clippy::manual_async_fn)]
 impl<DB> Application for EvmApplication<DB>
 where
-    DB: StateProvider
-        + BlockStorage
-        + Clone
-        + Send
-        + Sync
-        + 'static
-        + revm::Database
-        + std::fmt::Debug,
-    <DB as StateProvider>::Error: Into<EvmAppError>,
+    DB: StateDb + BlockStorage + Clone + Send + Sync + 'static + revm::Database + std::fmt::Debug,
+    <DB as StateDb>::Error: Into<EvmAppError>,
 {
     type Block = EvmBlock;
     type Result = ExecutionResult;

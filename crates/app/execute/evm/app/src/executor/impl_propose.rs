@@ -12,8 +12,8 @@ where
         block_height: u64,
     ) -> Result<ProposedEvmPayload, EvmAppError>
     where
-        DB: StateProvider + BlockStorage + Clone + revm::Database,
-        <DB as StateProvider>::Error: Into<EvmAppError>,
+        DB: StateDb + BlockStorage + Clone + revm::Database,
+        <DB as StateDb>::Error: Into<EvmAppError>,
     {
         let parent_header = build_sealed_header(parent);
 
@@ -21,8 +21,7 @@ where
             let db = self.state_db.read().unwrap();
             db.clone()
         };
-        let boundary_hook = self.evm_config.epoch_boundary_hook();
-        let boundary_state = boundary_hook.load_boundary_state(&state_snapshot)?;
+        let boundary_state = crate::epoch_boundary::load_epoch_boundary_state(&state_snapshot)?;
         let base_fee_per_gas = calc_next_block_base_fee(
             parent.gas_used,
             30_000_000,
@@ -30,7 +29,7 @@ where
             BaseFeeParams::ethereum(),
         );
         let boundary_required =
-            boundary_hook.boundary_required_for_height(boundary_state, block_height);
+            crate::epoch_boundary::boundary_required_for_height(boundary_state, block_height);
         let decoded_txs = decode_evm_transactions(raw_txs)?;
 
         let env_attributes = NextBlockEnvAttributes {
@@ -57,18 +56,19 @@ where
             .apply_pre_execution_changes()
             .map_err(|err| EvmAppError::Execution(err.to_string()))?;
 
-        let boundary_state_changes = boundary_hook.execute_system_call_if_required(
-            builder.evm_mut(),
-            boundary_required,
-            BoundaryCallFailureMode::Propose,
-        )?;
+        let boundary_effect =
+            crate::epoch_boundary::execute_epoch_boundary_system_call_if_required(
+                builder.evm_mut(),
+                boundary_required,
+                BoundaryCallFailureMode::Propose,
+            )?;
 
         let mut included_user_transactions = Vec::new();
         let mut executed_decoded_txs = Vec::new();
         let mut inclusion_outcomes = Vec::with_capacity(raw_txs.len());
 
         for (raw_tx, tx) in raw_txs.iter().cloned().zip(decoded_txs) {
-            if boundary_hook.tx_is_reserved_namespace(&tx, tx.signer()) {
+            if crate::epoch_boundary::tx_is_reserved_epoch_namespace(&tx, tx.signer()) {
                 inclusion_outcomes.push(false);
                 continue;
             }
@@ -113,9 +113,11 @@ where
         let (state_root, current_epoch) = {
             let mut canonical_db = self.state_db.write().unwrap();
             canonical_db.commit(&bundle).map_err(Into::into)?;
-            if let Some(ref boundary_state_changes) = boundary_state_changes {
-                boundary_hook
-                    .apply_boundary_state_to_provider(&mut *canonical_db, boundary_state_changes)?;
+            if let Some(ref boundary_effect) = boundary_effect {
+                crate::epoch_boundary::apply_epoch_boundary_effect(
+                    &mut *canonical_db,
+                    boundary_effect,
+                )?;
             }
             maybe_apply_community_pool_unlock(
                 &mut *canonical_db,

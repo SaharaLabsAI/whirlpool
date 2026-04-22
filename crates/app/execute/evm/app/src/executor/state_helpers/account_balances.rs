@@ -5,7 +5,7 @@ use evm_precompiles::{
     COMMUNITY_POOL_ADDRESS,
 };
 
-use crate::{error::EvmAppError, traits::StateProvider};
+use crate::{error::EvmAppError, traits::StateDb};
 
 pub fn credit_account_balance<DB>(
     db: &mut DB,
@@ -13,8 +13,8 @@ pub fn credit_account_balance<DB>(
     amount: U256,
 ) -> Result<(), EvmAppError>
 where
-    DB: StateProvider,
-    <DB as StateProvider>::Error: Into<EvmAppError>,
+    DB: StateDb,
+    <DB as StateDb>::Error: Into<EvmAppError>,
 {
     if amount.is_zero() {
         return Ok(());
@@ -34,8 +34,8 @@ pub fn insert_account_preserving_community_pool_unlock_storage<DB>(
     info: revm::state::AccountInfo,
 ) -> Result<(), EvmAppError>
 where
-    DB: StateProvider,
-    <DB as StateProvider>::Error: Into<EvmAppError>,
+    DB: StateDb,
+    <DB as StateDb>::Error: Into<EvmAppError>,
 {
     if address != COMMUNITY_POOL_ADDRESS {
         return db.insert_account(address, info).map_err(Into::into);
@@ -93,8 +93,8 @@ pub fn transfer_account_balance<DB>(
     amount: U256,
 ) -> Result<(), EvmAppError>
 where
-    DB: StateProvider,
-    <DB as StateProvider>::Error: Into<EvmAppError>,
+    DB: StateDb,
+    <DB as StateDb>::Error: Into<EvmAppError>,
 {
     if amount.is_zero() {
         return Ok(());

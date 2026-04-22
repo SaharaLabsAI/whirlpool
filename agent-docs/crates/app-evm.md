@@ -56,12 +56,13 @@ Those live in `chainspec`.
 - `executor/header_and_decode/` and `executor/state_helpers/` are directory-backed modules that split decode/header and state-helper surfaces into focused files with smaller public API sets.
 - Non-boundary FullDkg candidate validation is fail-closed in both propose and verify paths: candidate `output.players` must match activation-resolved players for the candidate epoch before include/omit decisions.
 - FullDkg inclusion trigger compares candidate output against the **latest committed FullDkg in block storage** (backward scan) so raw-only intermediate blocks do not cause include/omit oscillation.
-- Epoch-boundary deterministic system-call handling now lives in directory-backed `epoch_boundary/` modules (`mod.rs`, `boundary_state.rs`, `boundary_rules.rs`, `boundary_execution.rs`) and is shared between propose/verify paths.
-- Epoch-boundary orchestration now flows through configurable `EpochBoundaryHook` (default `PrecompileSemanticsV1`) so app-evm consumes a hook seam instead of hard-coding boundary policy wiring in executor paths.
+- Epoch-boundary deterministic system-call handling lives in directory-backed `epoch_boundary/` modules (`mod.rs`, `boundary_state.rs`, `boundary_rules.rs`, `boundary_execution.rs`) and is shared between propose/verify paths.
+- `app-evm` is now the **sole canonical-state mutator** for epoch-boundary handling; there is no configurable hook seam in config/chainspec/node anymore.
 - Ownership split for epoch boundaries:
-  - `boundary_execution.rs` still owns REVM `transact_system_call(...)`, propose/verify failure mapping, and app-local orchestration order.
-  - `boundary_rules.rs` is now adapter/glue only: boundary-required math and reserved-namespace matcher semantics come from `evm_precompiles::{EpochBoundaryState, boundary_required_for_height, reserved_advance_epoch_call_matches}`.
-  - `boundary_state.rs` now loads storage and returns the precompile-owned `EpochBoundaryState` snapshot type instead of defining an app-local semantic struct.
+  - `boundary_execution.rs` owns REVM `transact_system_call(...)`, preserves the in-memory execution-DB commit from the boundary system call, and maps lower-layer failures into propose/verify `EvmAppError`.
+  - `boundary_rules.rs` owns **app-side canonical apply** of the precompile-owned `EpochBoundaryEffect`; raw canonical `EvmState` replay is gone.
+  - `boundary_state.rs` reads canonical epoch storage through `state::StateDb` and returns the precompile-owned `EpochBoundaryState` snapshot type.
+  - `evm_precompiles::epoch::extract_epoch_boundary_effect(...)` is the lower-layer boundary-effect extractor; `app-evm` never writes canonical epoch state except by applying that typed effect after bundle commit.
 - Boundary epoch math and activation-derived player resolution are shared through directory-backed `validator_activation/` modules (`BoundaryEpochContext`, `ActivationSourceResolver`) so propose/verify evaluate the same forward epoch targets.
 - `ActivationSourceResolver` is fail-closed for boundary FullDkg/Reshare targeting: a missing configured player set for the required epoch returns `InvalidBlock("activation resolver missing player set for epoch <n>")`.
 - Boundary unlock flow:
@@ -78,7 +79,8 @@ Those live in `chainspec`.
   - per-recipient claimable balances are stored in fee-pool precompile storage (`claimable_balance_slot`)
   - proposers withdraw later via fee-pool precompile `withdraw()`
 - `suggested_fee_recipient` in execution env is now forced to fee-pool address; block header `proposer_fee_recipient` remains proposer metadata.
-- `state::StateDb` writes are now used for claim-ledger slot updates via `insert_storage`.
+- `state::StateDb` is now the only state trait used by `app-evm`; the old subset seam `app_evm::traits::StateProvider` is removed.
+- `state::StateDb` writes are used for claim-ledger slot updates via `insert_storage`.
 - Block gas accounting now uses the final cumulative receipt gas (last receipt), avoiding sum-of-cumulative overcounting.
 - On boundary heights, propose executes `advanceEpoch` as an internal system call before user tx execution; no synthetic boundary tx bytes are added to `block.transactions`.
 - Reserved epoch namespace tx bytes in the user payload are treated as invalid protocol artifacts: propose excludes them and verify rejects blocks that contain them.
@@ -96,7 +98,7 @@ Those live in `chainspec`.
   - one-off single-element slices use `std::slice::from_ref(...)`.
 
 ## Canonical Imports
-- `app_evm::traits::StateProvider`
+- `app_evm::traits::StateDb`
 - `app_evm::WhirlpoolEvmConfig`
 - `app_evm::EvmApplication`
 - `app_evm::decode_evm_transaction`

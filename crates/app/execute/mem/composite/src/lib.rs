@@ -9,10 +9,9 @@ use app::{
     EvmBlock, ExecutionResult, Receipt,
 };
 use app_evm::{EvmAppError, EvmApplication, WhirlpoolEvmConfig};
-use state::BlockStorage;
+use state::{traits::StateDb, BlockStorage};
 use tx_dispatch::{classify_transactions, ClassifiedTransaction};
 
-pub use app_evm::traits::StateProvider;
 pub use error::CompositeAppError;
 
 type ProposedCacheEntry = (u64, EvmBlock, ExecutionResult, Vec<Receipt>);
@@ -60,15 +59,8 @@ where
 #[allow(clippy::manual_async_fn)]
 impl<DB> Application for CompositeApplication<DB>
 where
-    DB: StateProvider
-        + BlockStorage
-        + Clone
-        + Send
-        + Sync
-        + 'static
-        + revm::Database
-        + std::fmt::Debug,
-    <DB as StateProvider>::Error: Into<EvmAppError>,
+    DB: StateDb + BlockStorage + Clone + Send + Sync + 'static + revm::Database + std::fmt::Debug,
+    <DB as StateDb>::Error: Into<EvmAppError>,
 {
     type Block = EvmBlock;
     type Result = ExecutionResult;

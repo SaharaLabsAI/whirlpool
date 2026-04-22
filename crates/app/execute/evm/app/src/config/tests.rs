@@ -1,7 +1,6 @@
 use super::{
     WhirlpoolEvmConfig, DEFAULT_PROPOSER_FEE_RECIPIENT, VALIDATOR_FEE_RECIPIENTS_REGISTRY,
 };
-use crate::EpochBoundaryHook;
 use alloy_primitives::Address;
 use chainspec::{
     build_sahara_chain_spec, build_sahara_chain_spec_with_alloc_and_fee_recipients, SAHARA_CHAIN_ID,
@@ -125,23 +124,4 @@ fn activation_players_can_be_epoch_overridden() {
         Some(players_epoch_7)
     );
     assert_eq!(config.activation_players_for_epoch(8), None);
-}
-
-#[test]
-fn epoch_boundary_hook_defaults_to_precompile_semantics() {
-    let config = WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec()));
-    assert_eq!(
-        config.epoch_boundary_hook(),
-        EpochBoundaryHook::PrecompileSemanticsV1
-    );
-}
-
-#[test]
-fn epoch_boundary_hook_can_be_overridden() {
-    let config = WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec()))
-        .with_epoch_boundary_hook(EpochBoundaryHook::PrecompileSemanticsV1);
-    assert_eq!(
-        config.epoch_boundary_hook(),
-        EpochBoundaryHook::PrecompileSemanticsV1
-    );
 }

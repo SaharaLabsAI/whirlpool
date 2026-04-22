@@ -32,9 +32,9 @@
 - Normal startup optionally loads local bundle material from `genesis_dkg_session_dir`; on load/validation failure startup hard-fails before engine start.
 - Startup rejects `--genesis-dkg-dealer-pubkey` when no `--genesis-dkg-session-dir` is configured.
 - When BLS material is loaded, node derives `FullDkgOutputV1` (`dealers`, `players`, encoded `public_polynomial`) and wires it into `WhirlpoolEvmConfig` via `with_current_full_dkg_output(...)`.
-- Node now resolves epoch-boundary hook declaration from `chainspec::declared_epoch_boundary_hook(&chain_spec)` and wires it into `WhirlpoolEvmConfig::with_epoch_boundary_hook(...)`.
 - `full_dkg_strict_height` is wired from `NodeConfig.consensus.full_dkg_strict_height` into `WhirlpoolEvmConfig`, with CLI/TOML surface `--full-dkg-strict-height` / `full_dkg_strict_height`.
 - `EvmApplication` is wired through `ApplicationAdapter` + `PersistingFinalizationSink`.
+- Node no longer routes any epoch-boundary hook selection through chainspec; the boundary path is the single built-in `app-evm`/`evm-precompiles` integration.
 - Config parsing helpers in `src/config/parse.rs` use plain `pub` visibility inside the private `config::parse` module (no scoped `pub(super)` / `pub(crate)` modifiers), with parent-module imports controlling the crate-visible surface.
 
 ## RPC
