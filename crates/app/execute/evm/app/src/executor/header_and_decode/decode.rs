@@ -7,8 +7,7 @@ use crate::error::EvmAppError;
 use super::super::RecoveredTx;
 
 pub fn decode_evm_transaction(raw_tx: &[u8]) -> Result<RecoveredTx, EvmAppError> {
-    let mut input = raw_tx;
-    let tx = TransactionSigned::decode_2718(&mut input)
+    let tx = TransactionSigned::decode_2718_exact(raw_tx)
         .map_err(|err| EvmAppError::InvalidBlock(err.to_string()))?;
 
     let signer = tx

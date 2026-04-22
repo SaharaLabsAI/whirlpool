@@ -7,9 +7,11 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
 `crates/precompiles/evm/`
 
 ## Key exports
-- `WhirlpoolEvmFactory`: custom EVM factory that injects Whirlpool precompiles into `EthEvmBuilder`.
-- `whirlpool_precompiles(spec) -> PrecompilesMap`: builds builtin+Whirlpool precompile map for a given spec.
+- `WhirlpoolEvmFactory`: custom EVM factory that injects Whirlpool precompiles into `EthEvmBuilder`; `with_validators(...)` is the canonical runtime constructor, while `Default::default()` is a zero-validator bootstrap/test path.
+- `whirlpool_precompiles(spec) -> PrecompilesMap`: compatibility helper for a zero-validator bootstrap/test registry; not the canonical runtime path.
 - `whirlpool_precompiles_with_validators(spec, validators) -> PrecompilesMap`: builds builtin+Whirlpool precompile map with a captured ordered simplex-validator list.
+- `build_whirlpool_precompiles(spec) -> Result<PrecompilesMap, RegistryError>`: compatibility helper for a zero-validator bootstrap/test registry; not the canonical runtime path.
+- `build_whirlpool_precompiles_with_validators(spec, validators) -> Result<PrecompilesMap, RegistryError>`: canonical validator-aware registry builder.
 - `NonDirectCall`: shared ABI-visible framework error for non-direct Whirlpool precompile execution.
 - `COMMUNITY_POOL_ADDRESS`: canonical single-address business sink and read-only precompile endpoint for community-pool balance.
 - `community_pool_balance_calldata()`
@@ -73,6 +75,7 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
 ## Design notes
 - Reth v2 alignment: this crate uses `reth_evm::revm::*` types everywhere (no direct `revm` crate import) to avoid mixed-REVM type graphs during factory wiring.
 - Custom precompiles are installed through `PrecompilesMap` dynamic entries, not vendor edits.
+- Canonical runtime wiring is validator-aware: `whirlpool_precompiles_with_validators(...)`, `build_whirlpool_precompiles_with_validators(...)`, and `WhirlpoolEvmFactory::with_validators(...)`. The zero-validator convenience helpers/default factory remain exported only for compatibility and bootstrap/test scenarios.
 - The validators precompile is read-only and returns the ordered list provided by the canonical Rust validator reader (`validators` crate).
 - The community-pool precompile is read-only and returns the balance of `COMMUNITY_POOL_ADDRESS`.
 - Community-pool unlock schedule state is also anchored at `COMMUNITY_POOL_ADDRESS` storage (configured by chainspec/runtime), but unlock execution itself is runtime logic in `app-evm`, not a mutable community-pool precompile method.

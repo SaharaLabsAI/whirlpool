@@ -38,6 +38,7 @@ Those live in `chainspec`.
 - Precompile injection remains in `WhirlpoolEvmConfig::evm_with_env(...)` via `evm_precompiles::whirlpool_precompiles_with_validators(...)`.
 - Block header `extra_data` now uses app-shared canonical envelope bytes (`RawEth` + optional `FullDkgV1`) instead of raw proposer key bytes.
 - Verify path decodes `extra_data` with a height gate (`Legacy` before strict height, `Strict` at/after strict height), enforces proposer-key parity against `RawEth`, and enforces boundary-aware FullDkg/Reshare invariants.
+- EVM tx decode helpers now use exact EIP-2718 decoding, so padded tx bytes fail closed during both proposal pre-decode and verify decoding.
 - Boundary extra-data semantics:
   - when a FullDkg candidate is configured, boundary blocks emit `FullDkgV1` at `E+1` and `ReshareV1(target_epoch=E+2)` where `E` is post-`advanceEpoch` epoch.
   - non-boundary blocks must not carry `ReshareV1`.
@@ -87,6 +88,7 @@ Those live in `chainspec`.
 - Block gas accounting now uses the final cumulative receipt gas (last receipt), avoiding sum-of-cumulative overcounting.
 - On boundary heights, propose executes `advanceEpoch` as an internal system call before user tx execution; no synthetic boundary tx bytes are added to `block.transactions`.
 - Reserved epoch namespace tx bytes in the user payload are treated as invalid protocol artifacts: propose excludes them and verify rejects blocks that contain them.
+- Proposal and verify now share one executor-local invalid-tx classification seam: `InvalidTx` validation failures are soft-rejected during proposal and reported as `InvalidBlock` during verify, while non-validation execution failures remain `Execution`.
 - Reserved-namespace filtering stays behaviorally strict on the app path: only `(system sender, epoch precompile, zero value, advanceEpoch calldata)` is treated as reserved; non-zero value near-miss epoch calls are not filtered as reserved and remain ordinary user transactions.
 - `verify()` computes against a cloned state snapshot and validates roots; it does not persist the computed post-state back into `state_db`.
 - Proposal cache reuse is now keyed by `(height, parent_id)` (not height alone), and `verify()` fail-closes when `block.parent_id != parent.compute_id()`.

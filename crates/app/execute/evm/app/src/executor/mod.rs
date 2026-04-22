@@ -59,6 +59,12 @@ pub type RecoveredTx = Recovered<TransactionSigned>;
 type ProposedCacheKey = (u64, [u8; 32]);
 type ProposedCacheEntry = (ProposedCacheKey, EvmBlock, ExecutionResult, Vec<Receipt>);
 
+enum TxExecutionErrorDisposition {
+    InvalidTxValidation(String),
+    OtherValidation(String),
+    Other(String),
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum BoundaryCallFailureMode {
     Propose,
@@ -151,6 +157,20 @@ fn boundary_call_failure(mode: BoundaryCallFailureMode, message: String) -> EvmA
     match mode {
         BoundaryCallFailureMode::Propose => EvmAppError::Execution(message),
         BoundaryCallFailureMode::Verify => EvmAppError::InvalidBlock(message),
+    }
+}
+
+fn classify_tx_execution_error(
+    err: reth_evm::execute::BlockExecutionError,
+) -> TxExecutionErrorDisposition {
+    match err {
+        reth_evm::execute::BlockExecutionError::Validation(
+            reth_evm::execute::BlockValidationError::InvalidTx { .. },
+        ) => TxExecutionErrorDisposition::InvalidTxValidation(err.to_string()),
+        reth_evm::execute::BlockExecutionError::Validation(other) => {
+            TxExecutionErrorDisposition::OtherValidation(other.to_string())
+        }
+        other => TxExecutionErrorDisposition::Other(other.to_string()),
     }
 }
 

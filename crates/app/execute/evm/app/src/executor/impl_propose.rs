@@ -80,10 +80,15 @@ where
                     executed_decoded_txs.push(tx);
                     inclusion_outcomes.push(true);
                 }
-                Err(reth_evm::execute::BlockExecutionError::Validation(
-                    reth_evm::execute::BlockValidationError::InvalidTx { .. },
-                )) => inclusion_outcomes.push(false),
-                Err(err) => return Err(EvmAppError::Execution(err.to_string())),
+                Err(err) => match classify_tx_execution_error(err) {
+                    TxExecutionErrorDisposition::InvalidTxValidation(_) => {
+                        inclusion_outcomes.push(false);
+                    }
+                    TxExecutionErrorDisposition::OtherValidation(message)
+                    | TxExecutionErrorDisposition::Other(message) => {
+                        return Err(EvmAppError::Execution(message));
+                    }
+                },
             }
         }
 

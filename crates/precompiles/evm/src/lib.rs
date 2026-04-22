@@ -125,6 +125,12 @@ where
     Ok(precompiles)
 }
 
+/// Whirlpool EVM factory that injects the workspace precompile registry.
+///
+/// `Default::default()` is retained for compatibility and bootstrap/test cases,
+/// but it carries an empty validator snapshot. Runtime wiring should prefer
+/// [`WhirlpoolEvmFactory::with_validators`] so the validators precompile
+/// exposes the canonical ordered simplex-validator list.
 #[derive(Debug, Default, Clone)]
 pub struct WhirlpoolEvmFactory {
     simplex_validators: Vec<RegistryValidatorEntry>,

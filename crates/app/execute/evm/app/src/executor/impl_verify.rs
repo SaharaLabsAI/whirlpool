@@ -87,9 +87,21 @@ where
         }
 
         for tx in decoded_txs.iter().cloned() {
-            builder.execute_transaction(tx).map_err(|err| {
-                EvmAppError::Execution(format!("Transaction execution failed: {err}"))
-            })?;
+            if let Err(err) = builder.execute_transaction(tx) {
+                match classify_tx_execution_error(err) {
+                    TxExecutionErrorDisposition::InvalidTxValidation(message)
+                    | TxExecutionErrorDisposition::OtherValidation(message) => {
+                        return Err(EvmAppError::InvalidBlock(
+                            format!("Transaction execution failed validation: {message}"),
+                        ))
+                    }
+                    TxExecutionErrorDisposition::Other(message) => {
+                        return Err(EvmAppError::Execution(format!(
+                            "Transaction execution failed: {message}"
+                        )))
+                    }
+                }
+            }
         }
 
         let executor = builder.into_executor();
