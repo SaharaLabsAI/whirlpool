@@ -2,10 +2,7 @@ use evm_precompiles::{next_epoch_block_slot, EPOCH_PRECOMPILE_ADDRESS};
 
 use crate::{error::EvmAppError, traits::StateProvider};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct EpochBoundaryState {
-    pub next_epoch_block: u64,
-}
+pub use evm_precompiles::EpochBoundaryState;
 
 pub fn load_epoch_boundary_state<DB>(db: &DB) -> Result<EpochBoundaryState, EvmAppError>
 where

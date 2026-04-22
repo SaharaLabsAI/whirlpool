@@ -175,13 +175,17 @@ fn sample_evm_tx() -> (Vec<u8>, Address) {
 }
 
 fn sample_reserved_epoch_namespace_tx(nonce: u64, gas_price: u128) -> Vec<u8> {
+    sample_epoch_system_call_tx(nonce, gas_price, U256::ZERO)
+}
+
+fn sample_epoch_system_call_tx(nonce: u64, gas_price: u128, value: U256) -> Vec<u8> {
     let tx = TxLegacy {
         chain_id: Some(SAHARA_CHAIN_ID),
         nonce,
         gas_price,
         gas_limit: EPOCH_SYSTEM_TX_GAS_LIMIT,
         to: TxKind::Call(EPOCH_PRECOMPILE_ADDRESS),
-        value: U256::ZERO,
+        value,
         input: advance_epoch_calldata(),
     };
     let signature = sign_message(EPOCH_SYSTEM_TX_PRIVATE_KEY, tx.signature_hash())
@@ -703,6 +707,27 @@ async fn propose_excludes_reserved_epoch_namespace_transaction() {
         .expect("propose should skip reserved namespace transaction");
 
     assert_eq!(block.transactions, vec![user_tx]);
+    assert_eq!(result.receipt_count, 1);
+    assert_eq!(app.pending_receipts().len(), 1);
+}
+
+#[tokio::test]
+async fn propose_keeps_non_zero_value_system_advance_epoch_tx_outside_reserved_namespace() {
+    let near_miss_tx = sample_epoch_system_call_tx(0, 2_000_000_000, U256::from(1_u64));
+    let (app, db) = setup_app(vec![near_miss_tx.clone()]).await;
+
+    {
+        let mut db = db.write().unwrap();
+        seed_epoch_boundary_state(&mut db, 10, EPOCH_BLOCKS_DEFAULT);
+    }
+
+    let parent = app.genesis().await;
+    let (block, result) = app
+        .propose(&parent, 1)
+        .await
+        .expect("non-zero near miss should not be filtered as reserved namespace");
+
+    assert_eq!(block.transactions, vec![near_miss_tx]);
     assert_eq!(result.receipt_count, 1);
     assert_eq!(app.pending_receipts().len(), 1);
 }

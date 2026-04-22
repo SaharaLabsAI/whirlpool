@@ -39,6 +39,9 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
 - `advance_epoch_calldata()`
 - `epoch_system_tx_sender()`
 - `is_advance_epoch_calldata(bytes)`
+- `EpochBoundaryState { next_epoch_block }`
+- `boundary_required_for_height(state, block_height)`
+- `reserved_advance_epoch_call_matches(caller, target_address, value, calldata)`
 - epoch storage slot helpers:
   - `current_epoch_slot()`, `epoch_blocks_slot()`, `next_epoch_block_slot()`
   - `epoch_start_block_slot(epoch)` + `encode_epoch_start_block_storage_value(...)`
@@ -54,7 +57,8 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
 - `src/fee_pool/gas.rs`: fee-pool gas schedule.
 - `src/validators/mod.rs`: ordered simplex-validator precompile ABI, output encoder/decoder, and tests.
 - `src/validators/gas.rs`: standalone validators gas scheduler helper module.
-- `src/epoch/mod.rs`: epoch constants, sender derivation, ABI helper exports, and epoch tests.
+- `src/epoch/mod.rs`: epoch constants, sender derivation, ABI/helper exports, and epoch tests.
+- `src/epoch/boundary_semantics.rs`: pure epoch-boundary semantic core (`EpochBoundaryState`, boundary-required predicate, reserved-call matcher) exported for app-side adapters without app trait leakage.
 - `src/epoch/dispatch/mod.rs` + `dispatch/{read_calldata,write_calldata}.rs`: epoch selector decode and calldata helper split.
 - `src/epoch/impl.rs`: stateful epoch logic with restricted `advanceEpoch()` and `execute` kept as plain `pub` inside a private module boundary.
 - `src/epoch/storage/mod.rs` + storage submodules: scalar slots + append-only epoch-start mapping slot derivation, split by helper domain.
@@ -77,10 +81,12 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
   - read selectors: `currentEpoch`, `nextEpochBlock`, `epochBlocks`, `epochStartBlock(epoch)`
   - write selector: `advanceEpoch()` (restricted to `epoch_system_tx_sender()`, non-static)
   - append-only epoch start map uses plus-one storage encoding so epoch 0 start block can be stored unambiguously.
+- The epoch module now also owns the pure boundary semantics consumed by `app-evm`: the boundary snapshot type, `block_height == next_epoch_block` predicate, and the canonical reserved-call matcher that includes the app-visible zero-value invariant for reserved `advanceEpoch()` namespace filtering.
+- Seam rule: the exported semantic helpers remain primitive/value-only and do not depend on app-specific types such as `StateProvider`, `TransactionSigned`, or `EvmAppError`.
 - Whirlpool-owned stateful precompiles registered via `RegisteredPrecompile::new_stateful` are direct-call-only: the final hop must keep `target_address == bytecode_address`, which allows ordinary `CALL`/`STATICCALL` and rejects delegate-style execution.
 - Non-direct-call rejection is a framework-level revert emitted before the target handler runs, so it reports zero precompile-local `gas_used`; enclosing EVM call/setup overhead is still charged outside the precompile.
 - Top-level EOAs calling a precompile address directly are not the only validated path here; the full-node tests use a tiny forwarding contract that performs an internal ordinary `CALL` into the precompile, which remains valid because the precompile boundary is still direct.
 
 ## Verification
-- Crate tests cover registry construction, duplicate-address rejection, dispatch routing, direct-call boundary enforcement, gas behavior, revert mapping, and fee-pool withdraw/claim invariants.
+- Crate tests cover registry construction, duplicate-address rejection, dispatch routing, direct-call boundary enforcement, gas behavior, revert mapping, fee-pool withdraw/claim invariants, and epoch semantic-core parity checks (boundary predicate, reserved-call zero-value matcher, seam-purity signature guard).
 - Test helper note: the shared precompile-call helper intentionally keeps a wide argument list and is locally annotated for `clippy::too_many_arguments`.

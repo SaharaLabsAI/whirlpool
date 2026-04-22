@@ -58,6 +58,10 @@ Those live in `chainspec`.
 - FullDkg inclusion trigger compares candidate output against the **latest committed FullDkg in block storage** (backward scan) so raw-only intermediate blocks do not cause include/omit oscillation.
 - Epoch-boundary deterministic system-call handling now lives in directory-backed `epoch_boundary/` modules (`mod.rs`, `boundary_state.rs`, `boundary_rules.rs`, `boundary_execution.rs`) and is shared between propose/verify paths.
 - Epoch-boundary orchestration now flows through configurable `EpochBoundaryHook` (default `PrecompileSemanticsV1`) so app-evm consumes a hook seam instead of hard-coding boundary policy wiring in executor paths.
+- Ownership split for epoch boundaries:
+  - `boundary_execution.rs` still owns REVM `transact_system_call(...)`, propose/verify failure mapping, and app-local orchestration order.
+  - `boundary_rules.rs` is now adapter/glue only: boundary-required math and reserved-namespace matcher semantics come from `evm_precompiles::{EpochBoundaryState, boundary_required_for_height, reserved_advance_epoch_call_matches}`.
+  - `boundary_state.rs` now loads storage and returns the precompile-owned `EpochBoundaryState` snapshot type instead of defining an app-local semantic struct.
 - Boundary epoch math and activation-derived player resolution are shared through directory-backed `validator_activation/` modules (`BoundaryEpochContext`, `ActivationSourceResolver`) so propose/verify evaluate the same forward epoch targets.
 - `ActivationSourceResolver` is fail-closed for boundary FullDkg/Reshare targeting: a missing configured player set for the required epoch returns `InvalidBlock("activation resolver missing player set for epoch <n>")`.
 - Boundary unlock flow:
@@ -78,6 +82,7 @@ Those live in `chainspec`.
 - Block gas accounting now uses the final cumulative receipt gas (last receipt), avoiding sum-of-cumulative overcounting.
 - On boundary heights, propose executes `advanceEpoch` as an internal system call before user tx execution; no synthetic boundary tx bytes are added to `block.transactions`.
 - Reserved epoch namespace tx bytes in the user payload are treated as invalid protocol artifacts: propose excludes them and verify rejects blocks that contain them.
+- Reserved-namespace filtering stays behaviorally strict on the app path: only `(system sender, epoch precompile, zero value, advanceEpoch calldata)` is treated as reserved; non-zero value near-miss epoch calls are not filtered as reserved and remain ordinary user transactions.
 - `verify()` computes against a cloned state snapshot and validates roots; it does not persist the computed post-state back into `state_db`.
 - Proposal cache reuse is now keyed by `(height, parent_id)` (not height alone), and `verify()` fail-closes when `block.parent_id != parent.compute_id()`.
 - Finalization receipts are identity-bound to blocks (`height`, `parent_id`, `block_id`) and are cleared only after successful `store_block`; failed persistence retains staged receipts for retry/inspection.

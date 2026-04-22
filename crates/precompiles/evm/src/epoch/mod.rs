@@ -1,6 +1,7 @@
 use alloy_primitives::{address, Address, Bytes, B256, U256};
 use reth_evm::revm::precompile::PrecompileResult;
 
+mod boundary_semantics;
 mod decode_primary;
 mod decode_tail;
 mod dispatch;
@@ -9,6 +10,9 @@ mod r#impl;
 mod registration;
 pub mod storage;
 
+pub use boundary_semantics::{
+    boundary_required_for_height, reserved_advance_epoch_call_matches, EpochBoundaryState,
+};
 pub use decode_primary::{
     decode_current_epoch_output, decode_next_epoch_block_output, decode_u64_output,
 };
@@ -187,6 +191,44 @@ mod tests {
     fn epoch_system_sender_is_stable() {
         let sender = epoch_system_tx_sender();
         assert_eq!(sender, epoch_system_tx_sender());
+    }
+
+    #[test]
+    fn boundary_required_for_height_matches_next_epoch_block() {
+        let state = EpochBoundaryState {
+            next_epoch_block: 5,
+        };
+
+        assert!(boundary_required_for_height(state, 5));
+        assert!(!boundary_required_for_height(state, 4));
+        assert!(!boundary_required_for_height(state, 6));
+    }
+
+    #[test]
+    fn reserved_advance_epoch_call_matches_requires_zero_value() {
+        assert!(reserved_advance_epoch_call_matches(
+            epoch_system_tx_sender(),
+            EPOCH_PRECOMPILE_ADDRESS,
+            U256::ZERO,
+            &advance_epoch_calldata(),
+        ));
+    }
+
+    #[test]
+    fn reserved_advance_epoch_call_matches_rejects_non_zero_value_near_miss() {
+        assert!(!reserved_advance_epoch_call_matches(
+            epoch_system_tx_sender(),
+            EPOCH_PRECOMPILE_ADDRESS,
+            U256::from(1_u64),
+            &advance_epoch_calldata(),
+        ));
+    }
+
+    #[test]
+    fn semantic_core_signatures_do_not_expose_app_types() {
+        let _predicate: fn(EpochBoundaryState, u64) -> bool = boundary_required_for_height;
+        let _matcher: fn(Address, Address, U256, &[u8]) -> bool =
+            reserved_advance_epoch_call_matches;
     }
 
     #[test]

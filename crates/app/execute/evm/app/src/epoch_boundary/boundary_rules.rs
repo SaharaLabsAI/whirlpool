@@ -1,7 +1,8 @@
 use alloy_consensus::Transaction;
-use alloy_primitives::{Address, TxKind, U256};
+use alloy_primitives::{Address, TxKind};
 use evm_precompiles::{
-    epoch_system_tx_sender, is_advance_epoch_calldata, EPOCH_PRECOMPILE_ADDRESS,
+    boundary_required_for_height as epoch_boundary_required_for_height,
+    reserved_advance_epoch_call_matches,
 };
 use reth_ethereum_primitives::TransactionSigned;
 use revm::state::EvmState;
@@ -11,14 +12,16 @@ use crate::{error::EvmAppError, traits::StateProvider};
 use super::boundary_state::EpochBoundaryState;
 
 pub fn boundary_required_for_height(state: EpochBoundaryState, block_height: u64) -> bool {
-    block_height == state.next_epoch_block
+    epoch_boundary_required_for_height(state, block_height)
 }
 
 pub fn tx_is_reserved_epoch_namespace(tx: &TransactionSigned, signer: Address) -> bool {
-    signer == epoch_system_tx_sender()
-        && tx.kind() == TxKind::Call(EPOCH_PRECOMPILE_ADDRESS)
-        && tx.value() == U256::ZERO
-        && is_advance_epoch_calldata(tx.input())
+    match tx.kind() {
+        TxKind::Call(target_address) => {
+            reserved_advance_epoch_call_matches(signer, target_address, tx.value(), tx.input())
+        }
+        _ => false,
+    }
 }
 
 pub fn apply_boundary_state_to_provider<DB>(
