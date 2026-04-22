@@ -49,7 +49,7 @@ Those live in `chainspec`.
   - `header_and_decode.rs` — header projection + tx decode helpers.
   - `state_helpers.rs` — internal fee/community-pool/state helper logic.
   - `impl_core_methods.rs` / `impl_propose.rs` / `impl_verify.rs` — split `EvmApplication` method lanes.
-  - `tests.rs` — extracted executor unit tests.
+  - `tests/mod.rs` + `tests/*.rs` — directory-backed executor unit tests split by topic with shared fixtures in the parent module.
   - `mod.rs` now uses explicit module wiring/imports (no `include!` composition for helper files).
   - executor helper functions now avoid scoped visibility modifiers (`pub(super)`/`pub(crate)`), using `pub` inside private modules for parent-module access.
 - `full_dkg_strict_height` defaults to `0` (strict from genesis) and can be explicitly overridden via config builders for migration/testing scenarios.
