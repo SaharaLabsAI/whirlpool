@@ -1,6 +1,6 @@
 use super::*;
-use commonware_cryptography::Signer;
 use commonware_cryptography::ed25519::PrivateKey;
+use commonware_cryptography::Signer;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::sync::atomic::{AtomicU64, Ordering};

@@ -22,10 +22,7 @@ pub fn parse_bootstrap_peer(s: &str) -> Result<BootstrapPeer, String> {
     Ok((public_key, addr))
 }
 
-pub fn parse_socket_addr(
-    field: &'static str,
-    value: String,
-) -> Result<SocketAddr, ConfigError> {
+pub fn parse_socket_addr(field: &'static str, value: String) -> Result<SocketAddr, ConfigError> {
     value
         .parse()
         .map_err(|source| ConfigError::InvalidSocketAddr {
@@ -47,9 +44,7 @@ pub fn parse_validator_hex(value: &str) -> Result<ed25519::PublicKey, String> {
     Ok(public_key)
 }
 
-pub fn parse_validator_list(
-    values: Vec<String>,
-) -> Result<Vec<ed25519::PublicKey>, ConfigError> {
+pub fn parse_validator_list(values: Vec<String>) -> Result<Vec<ed25519::PublicKey>, ConfigError> {
     if values.is_empty() {
         return Err(ConfigError::EmptyBootstrapValidators);
     }

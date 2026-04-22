@@ -1,4 +1,3 @@
-
 use super::*;
 use crate::tests::{MockApp, TestBlock};
 use commonware_codec::Encode;

@@ -1,5 +1,6 @@
 use crate::{
-    classify_transaction, decode_evm_transaction, ClassifiedTransaction, RecoveredTx, TxDispatchError,
+    classify_transaction, decode_evm_transaction, ClassifiedTransaction, RecoveredTx,
+    TxDispatchError,
 };
 
 pub fn decode_evm_transactions(raw_txs: &[Vec<u8>]) -> Result<Vec<RecoveredTx>, TxDispatchError> {

@@ -1,4 +1,3 @@
-
 use super::*;
 use crate::sink::FinalizationSink;
 use crate::tests::{MockApp, TestBlock};
