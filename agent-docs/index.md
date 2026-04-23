@@ -8,7 +8,7 @@ Read this file first, then follow links to relevant sections based on your task.
 Whirlpool is a modular consensus framework for the Sahara Chain, built in Rust.
 It uses a 3-layer architecture: abstract consensus traits -> Simplex BFT adapter -> node binary.
 Canonical interface imports use `crate::traits::...` paths across crates after interface/implementation split refactoring.
-EVM implementation crates are grouped under `crates/app/execute/evm/`.
+EVM implementation crates are grouped under `crates/app/evm/`.
 The vendor layer (commonware) is a git submodule under `vendor/` — **do not modify**.
 
 ## Reading Order
@@ -94,10 +94,10 @@ Step-by-step instructions for common tasks and workflows.
 | `consensus-manager` | `crates/consensus/manager/src/` | `crates/consensus-manager.md` | — |
 | `network-commonware` | `crates/network/commonware/src/` | `crates/network-commonware.md` | — |
 | `state` | `crates/app/state/src/` | `crates/state.md` | — |
-| `state-reth` | `crates/app/execute/evm/state/src/` | `crates/state-reth.md` | — |
+| `state-reth` | `crates/app/evm/state/src/` | `crates/state-reth.md` | — |
 | `app` | `crates/app/traits/src/` | `crates/app.md` | — |
 | `chainspec` | `crates/chainspec/src/` | `crates/chainspec.md` | — |
-| `app-evm` | `crates/app/execute/evm/app/src/` | `crates/app-evm.md` | — |
+| `app-evm` | `crates/app/evm/app/src/` | `crates/app-evm.md` | — |
 | `evm-precompiles` | `crates/precompiles/evm/src/` | `crates/evm-precompiles.md` | — |
 | `validators` | `crates/validators/src/` | `crates/validators.md` | — |
 | `mempool` | `crates/mempool/traits/src/` | `crates/mempool.md` | — |

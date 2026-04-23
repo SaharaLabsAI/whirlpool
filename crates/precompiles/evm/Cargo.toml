@@ -14,4 +14,4 @@ state = { path = "../../app/state" }
 
 
 [dev-dependencies]
-state-reth = { path = "../../app/execute/evm/state" }
+state-reth = { path = "../../app/evm/state" }

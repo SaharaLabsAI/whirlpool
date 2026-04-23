@@ -16,7 +16,7 @@ Three layers with explicit interface boundaries:
 
 ## Current Scope
 - EVM path: `whirlpool-node` + `app` + `app-evm` + `state`.
-- Grouped on disk under `crates/app/execute/evm/{app,rpc,state}` for EVM-specific implementations.
+- Grouped on disk under `crates/app/evm/{app,state}` for EVM-specific implementations.
 - Networking path: `network` interfaces + `network-commonware` implementation.
 
 ## Design Principles

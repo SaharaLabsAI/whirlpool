@@ -7,13 +7,13 @@ edition.workspace = true
 # There is no library target.
 [dependencies]
 app = { path = "../../crates/app/traits" }
-app-evm = { path = "../../crates/app/execute/evm/app" }
+app-evm = { path = "../../crates/app/evm/app" }
 chainspec = { path = "../../crates/chainspec" }
 evm-precompiles = { path = "../../crates/precompiles/evm" }
 validators = { path = "../../crates/validators" }
 rpc-eth = { path = "../../crates/rpc/evm" }
 state = { path = "../../crates/app/state" }
-state-reth = { path = "../../crates/app/execute/evm/state" }
+state-reth = { path = "../../crates/app/evm/state" }
 whirlpool-node = { path = "../../crates/node" }
 consensus-manager = { path = "../../crates/consensus/manager" }
 commonware-cryptography = { path = "../../vendor/commonware/cryptography" }

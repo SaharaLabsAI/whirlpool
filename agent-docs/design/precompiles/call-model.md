@@ -12,7 +12,7 @@ Whirlpool-owned stateful precompiles are direct-call-only at the precompile boun
 - Fail before precompile-local business logic starts, which keeps the policy easy to reason about.
 
 ## What is still allowed
-A forwarding contract can make an ordinary internal `CALL` to the precompile address and remain valid, because the final hop is still direct. That path is covered in app-level verification tests in `crates/app/execute/evm/app/src/executor.rs`.
+A forwarding contract can make an ordinary internal `CALL` to the precompile address and remain valid, because the final hop is still direct. That path is covered in app-level verification tests in `crates/app/evm/app/src/executor.rs`.
 
 ## Example state model
 The fee-pool precompile (`0x0000000000000000000000000000000000000102`) is the stateful reference model. Its write path (`withdraw`) mutates both journaled account balances and claim-ledger storage via EVM internals; its read paths expose fee-pool and per-recipient claimable balances.

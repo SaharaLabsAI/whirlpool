@@ -6,9 +6,9 @@ edition.workspace = true
 [dependencies]
 # --- Whirlpool crates ---
 app = { path = "../../app/traits" }
-app-evm = { path = "../../app/execute/evm/app" }
+app-evm = { path = "../../app/evm/app" }
 state = { path = "../../app/state" }
-state-reth = { path = "../../app/execute/evm/state" }
+state-reth = { path = "../../app/evm/state" }
 
 alloy-consensus = "1.4.3"
 alloy-eips = "1.1.2"
@@ -55,7 +55,7 @@ tracing = "0.1"
 tokio = { version = "1", features = ["full"] }
 
 [dev-dependencies]
-state-reth = { path = "../../app/execute/evm/state" }
+state-reth = { path = "../../app/evm/state" }
 jsonrpsee = { version = "0.26.0", features = ["client"] }
 tempfile = "3"
 tokio = { version = "1", features = ["full", "test-util"] }
