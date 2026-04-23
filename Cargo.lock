@@ -979,7 +979,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "app-evm"
+name = "app-evm-execution"
 version = "0.1.0"
 dependencies = [
  "alloy-consensus",
@@ -988,6 +988,7 @@ dependencies = [
  "alloy-primitives",
  "alloy-trie",
  "app",
+ "app-evm-state",
  "chainspec",
  "consensus",
  "evm-precompiles",
@@ -1001,10 +1002,35 @@ dependencies = [
  "reth-primitives-traits",
  "revm",
  "state",
- "state-reth",
  "thiserror 2.0.18",
  "tokio",
  "validators",
+]
+
+[[package]]
+name = "app-evm-state"
+version = "0.1.0"
+dependencies = [
+ "alloy-consensus",
+ "alloy-eips",
+ "alloy-genesis",
+ "alloy-primitives",
+ "app",
+ "reth-db",
+ "reth-db-api",
+ "reth-db-models",
+ "reth-ethereum-primitives",
+ "reth-primitives-traits",
+ "reth-storage-errors",
+ "reth-trie",
+ "reth-trie-common",
+ "reth-trie-db",
+ "revm",
+ "serial_test",
+ "state",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tracing",
 ]
 
 [[package]]
@@ -1919,7 +1945,7 @@ version = "0.1.0"
 dependencies = [
  "alloy-genesis",
  "alloy-primitives",
- "app-evm",
+ "app-evm-execution",
  "evm-precompiles",
  "reth-chainspec",
  "thiserror 2.0.18",
@@ -3366,10 +3392,10 @@ version = "0.1.0"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
+ "app-evm-state",
  "reth-evm",
  "reth-primitives-traits",
  "state",
- "state-reth",
  "thiserror 2.0.18",
  "validators",
 ]
@@ -4404,7 +4430,8 @@ dependencies = [
  "alloy-signer",
  "alloy-signer-local",
  "app",
- "app-evm",
+ "app-evm-execution",
+ "app-evm-state",
  "chainspec",
  "commonware-cryptography",
  "consensus-manager",
@@ -4418,7 +4445,6 @@ dependencies = [
  "rpc-eth",
  "serde_json",
  "state",
- "state-reth",
  "tempfile",
  "tokio",
  "tracing",
@@ -8470,7 +8496,8 @@ dependencies = [
  "alloy-eips",
  "alloy-primitives",
  "app",
- "app-evm",
+ "app-evm-execution",
+ "app-evm-state",
  "enr",
  "jsonrpsee",
  "reth-chain-state",
@@ -8500,7 +8527,6 @@ dependencies = [
  "reth-trie",
  "revm-database",
  "state",
- "state-reth",
  "tempfile",
  "thiserror 2.0.18",
  "tokio",
@@ -9275,32 +9301,6 @@ dependencies = [
  "app",
  "revm",
  "thiserror 2.0.18",
-]
-
-[[package]]
-name = "state-reth"
-version = "0.1.0"
-dependencies = [
- "alloy-consensus",
- "alloy-eips",
- "alloy-genesis",
- "alloy-primitives",
- "app",
- "reth-db",
- "reth-db-api",
- "reth-db-models",
- "reth-ethereum-primitives",
- "reth-primitives-traits",
- "reth-storage-errors",
- "reth-trie",
- "reth-trie-common",
- "reth-trie-db",
- "revm",
- "serial_test",
- "state",
- "tempfile",
- "thiserror 2.0.18",
- "tracing",
 ]
 
 [[package]]
@@ -10543,7 +10543,8 @@ version = "0.1.0"
 dependencies = [
  "alloy-primitives",
  "app",
- "app-evm",
+ "app-evm-execution",
+ "app-evm-state",
  "bytes",
  "chainspec",
  "clap",
@@ -10563,7 +10564,6 @@ dependencies = [
  "serde",
  "sha2 0.10.9",
  "state",
- "state-reth",
  "tokio",
  "toml 0.8.23",
  "tracing",

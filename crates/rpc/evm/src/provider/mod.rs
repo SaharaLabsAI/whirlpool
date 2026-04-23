@@ -41,7 +41,7 @@ use reth_trie::{
     updates::TrieUpdates, AccountProof, HashedPostState, HashedStorage, MultiProof,
     MultiProofTargets, StorageMultiProof, StorageProof, TrieInput,
 };
-use state_reth::{
+use app_evm_state::{
     tables::{
         BlockBodyIndices, CanonicalHeaders, HeaderNumbers, Headers, PlainAccountState, Receipts,
         TransactionBlocks, TransactionHashNumbers, Transactions,

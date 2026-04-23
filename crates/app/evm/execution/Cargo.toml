@@ -1,5 +1,5 @@
 [package]
-name = "app-evm"
+name = "app-evm-execution"
 version.workspace = true
 edition.workspace = true
 
@@ -11,7 +11,7 @@ app = { path = "../../traits" }
 evm-precompiles = { path = "../../../precompiles/evm" }
 validators = { path = "../../../validators" }
 state = { path = "../../state" }
-state-reth = { path = "../state" }
+app-evm-state = { path = "../state-reth" }
 consensus = { path = "../../../consensus/traits" }
 reth-evm = { path = "../../../../vendor/reth/crates/evm/evm" }
 reth-evm-ethereum = { path = "../../../../vendor/reth/crates/ethereum/evm" }

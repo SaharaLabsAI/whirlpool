@@ -15,7 +15,7 @@ Three layers with explicit interface boundaries:
 - Canonical import convention across workspace: `crate::traits::...`.
 
 ## Current Scope
-- EVM path: `whirlpool-node` + `app` + `app-evm` + `state`.
+- EVM path: `whirlpool-node` + `app` + `app-evm-execution` + `state`.
 - Grouped on disk under `crates/app/evm/{app,state}` for EVM-specific implementations.
 - Networking path: `network` interfaces + `network-commonware` implementation.
 

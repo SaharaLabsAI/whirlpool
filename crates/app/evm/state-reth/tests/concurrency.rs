@@ -4,7 +4,7 @@ use std::thread;
 use alloy_primitives::{address, U256};
 use revm::state::AccountInfo;
 use state::StateDb;
-use state_reth::RethStateDb;
+use app_evm_state::RethStateDb;
 
 #[test]
 fn test_concurrent_reads() {

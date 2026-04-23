@@ -15,10 +15,10 @@ Node-facing Sahara chain-spec ownership crate.
 - `CommunityPoolUnlockConfig` and the extended builder path `*_and_community_pool_unlock_config`
 
 ## Dependency Boundary
-- Depends on `app-evm` for fee-recipient registry constants only.
+- Depends on `app-evm-execution` for fee-recipient registry constants only.
 - Depends on `evm-precompiles` for epoch + community-pool unlock storage constants/helpers.
 - Reuses `validators` codec helpers, including `encode_ethereum_address_storage_value` and validator-registry decode helpers.
-- No runtime dependency from `app-evm` back to `chainspec` (only test/dev usage in `app-evm`).
+- No runtime dependency from `app-evm-execution` back to `chainspec` (only test/dev usage in `app-evm-execution`).
 
 ## Notes
 - Root `chainspec` API is now a thin re-export surface in `src/lib.rs`; builder logic is split across focused modules (`spec_builders_base`, `spec_builders_alloc`, `spec_builders_try`, `spec_builders_core`) to keep per-file cohesion policy limits satisfied without changing public signatures.

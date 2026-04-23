@@ -12,7 +12,7 @@ use alloy_genesis::{Genesis, GenesisAccount};
 use alloy_primitives::{Address, Bytes, FixedBytes, TxKind, B256, U256};
 use alloy_signer::Signer as AlloySigner;
 use alloy_signer_local::PrivateKeySigner;
-use app_evm::DEFAULT_PROPOSER_FEE_RECIPIENT;
+use app_evm_execution::DEFAULT_PROPOSER_FEE_RECIPIENT;
 use chainspec::{
     build_sahara_chain_spec_with_alloc, build_sahara_chain_spec_with_alloc_and_fee_recipients,
     sahara_hard_cap_base_units, SAHARA_CHAIN_ID,

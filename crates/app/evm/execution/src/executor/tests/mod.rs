@@ -24,7 +24,7 @@ use reth_evm::execute::BlockValidationError;
 use reth_primitives_traits::crypto::secp256k1::sign_message;
 use reth_primitives_traits::SignerRecoverable;
 use revm::state::Bytecode;
-use state_reth::InMemoryStateDb;
+use app_evm_state::InMemoryStateDb;
 use std::collections::BTreeMap;
 
 struct MockTxSource {

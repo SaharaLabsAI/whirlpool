@@ -1,25 +1,25 @@
-# state-reth
+# app-evm-state
 
 ## Purpose
 Persistent state storage implementation backed by reth-db (MDBX/libmdbx), plus the shared in-memory test DB used after `state-memory` crate removal.
 
 ## Modules
-- `crates/app/evm/state/src/db.rs` — `RethStateDb` core implementation + `StateDb` impl
-- `crates/app/evm/state/src/db_revm_impls.rs` — `revm::Database` / `revm::DatabaseRef` adapter impls
-- `crates/app/evm/state/src/db_failure_injection.rs` — deterministic delete-failure injection seam used by db tests
-- `crates/app/evm/state/src/tests/db.rs` — file-separated `db.rs` unit tests (wired via `#[path = "tests/db.rs"] mod tests;`)
-- `crates/app/evm/state/src/block_storage.rs` — `BlockStorage` persistence for finalized blocks + receipts
-- `crates/app/evm/state/src/tests/block_storage.rs` — file-separated block-storage unit tests (wired via `#[path = "tests/block_storage.rs"] mod tests;`)
-- `crates/app/evm/state/src/init.rs` — `open_state_db` helper
-- `crates/app/evm/state/src/error.rs` — `RethStateError` enum
-- `crates/app/evm/state/src/tables.rs` — reth-db table re-exports
-- `crates/app/evm/state/src/trie.rs` — state root computation via `StateRoot<DatabaseTrieCursorFactory<_, LegacyKeyAdapter>, ...>`
-- `crates/app/evm/state/src/codec.rs` — account/info serialization
-- `crates/app/evm/state/src/in_memory_db.rs` — `InMemoryStateDb` test utility migrated from the removed `state-memory` crate
+- `crates/app/evm/state-reth/src/db.rs` — `RethStateDb` core implementation + `StateDb` impl
+- `crates/app/evm/state-reth/src/db_revm_impls.rs` — `revm::Database` / `revm::DatabaseRef` adapter impls
+- `crates/app/evm/state-reth/src/db_failure_injection.rs` — deterministic delete-failure injection seam used by db tests
+- `crates/app/evm/state-reth/src/tests/db.rs` — file-separated `db.rs` unit tests (wired via `#[path = "tests/db.rs"] mod tests;`)
+- `crates/app/evm/state-reth/src/block_storage.rs` — `BlockStorage` persistence for finalized blocks + receipts
+- `crates/app/evm/state-reth/src/tests/block_storage.rs` — file-separated block-storage unit tests (wired via `#[path = "tests/block_storage.rs"] mod tests;`)
+- `crates/app/evm/state-reth/src/init.rs` — `open_state_db` helper
+- `crates/app/evm/state-reth/src/error.rs` — `RethStateError` enum
+- `crates/app/evm/state-reth/src/tables.rs` — reth-db table re-exports
+- `crates/app/evm/state-reth/src/trie.rs` — state root computation via `StateRoot<DatabaseTrieCursorFactory<_, LegacyKeyAdapter>, ...>`
+- `crates/app/evm/state-reth/src/codec.rs` — account/info serialization
+- `crates/app/evm/state-reth/src/in_memory_db.rs` — `InMemoryStateDb` test utility migrated from the removed `state-memory` crate
 
 ## Key Types
 - `RethStateDb`: persistent DB wrapping `Arc<DatabaseEnv>`. Thread-safe, implements `StateDb`, `Database`, and `DatabaseRef`.
-- `InMemoryStateDb`: HashMap-backed `StateDb` + `BlockStorage` test utility re-exported from `state-reth` so other crates no longer depend on a separate `state-memory` package.
+- `InMemoryStateDb`: HashMap-backed `StateDb` + `BlockStorage` test utility re-exported from `app-evm-state` so other crates no longer depend on a separate `state-memory` package.
 - `RethStateError`: error type with `Database`, `Init`, `Codec`, and `StateRoot` variants. Implements `DBErrorMarker`.
 
 ## Public API
@@ -62,10 +62,10 @@ Persistent state storage implementation backed by reth-db (MDBX/libmdbx), plus t
 - `Receipts`: tx number -> receipt
 
 ## Canonical Imports
-- `state_reth::RethStateDb`
-- `state_reth::InMemoryStateDb`
-- `state_reth::RethStateError`
-- `state_reth::open_state_db`
+- `app_evm_state::RethStateDb`
+- `app_evm_state::InMemoryStateDb`
+- `app_evm_state::RethStateError`
+- `app_evm_state::open_state_db`
 
 ## Dependencies
 - `state`: interface traits and error types
@@ -77,7 +77,7 @@ Persistent state storage implementation backed by reth-db (MDBX/libmdbx), plus t
 
 ## Test Coverage
 - 33 total tests (26 unit + 7 integration).
-- Block storage unit tests: TC-SR-01..10 in `crates/app/evm/state/src/tests/block_storage.rs`.
+- Block storage unit tests: TC-SR-01..10 in `crates/app/evm/state-reth/src/tests/block_storage.rs`.
 - Coverage: persistence, recovery (TC-SR-09/10), concurrency, genesis allocation, deterministic state root, revm trait compatibility, block/receipt persistence round-trips.
 
 ## Status

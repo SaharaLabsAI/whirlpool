@@ -41,7 +41,7 @@ Structured reference docs optimized for fast LLM lookup. Each contains type sign
 | [crates/validators.md](crates/validators.md) | Ordered simplex validator-registry model and genesis-storage codec shared across node/app/precompile surfaces | `validators` |
 | [crates/consensus-manager.md](crates/consensus-manager.md) | Trusted-dealer bootstrap artifact manager for BLS threshold startup material | `consensus-manager` |
 | [crates/rpc-eth.md](crates/rpc-eth.md) | Ethereum JSON-RPC server: reth-backed adapters (WhirlpoolProvider, WhirlpoolTxPool, WhirlpoolNetwork), RpcConfig API, blob exclusion | `rpc-eth` |
-| [crates/state-reth.md](crates/state-reth.md) | Persistent state implementation: RethStateDb, MDBX, state root | `state-reth` |
+| [crates/app-evm-state.md](crates/app-evm-state.md) | Persistent state implementation: RethStateDb, MDBX, state root | `app-evm-state` |
 | [crates/mempool.md](crates/mempool.md) | Persistent transaction pool: MempoolStore, MDBX, FIFO ordering | `mempool` |
 
 ## Design
@@ -94,10 +94,10 @@ Step-by-step instructions for common tasks and workflows.
 | `consensus-manager` | `crates/consensus/manager/src/` | `crates/consensus-manager.md` | — |
 | `network-commonware` | `crates/network/commonware/src/` | `crates/network-commonware.md` | — |
 | `state` | `crates/app/state/src/` | `crates/state.md` | — |
-| `state-reth` | `crates/app/evm/state/src/` | `crates/state-reth.md` | — |
+| `app-evm-state` | `crates/app/evm/state-reth/src/` | `crates/app-evm-state.md` | — |
 | `app` | `crates/app/traits/src/` | `crates/app.md` | — |
 | `chainspec` | `crates/chainspec/src/` | `crates/chainspec.md` | — |
-| `app-evm` | `crates/app/evm/app/src/` | `crates/app-evm.md` | — |
+| `app-evm-execution` | `crates/app/evm/execution/src/` | `crates/app-evm-execution.md` | — |
 | `evm-precompiles` | `crates/precompiles/evm/src/` | `crates/evm-precompiles.md` | — |
 | `validators` | `crates/validators/src/` | `crates/validators.md` | — |
 | `mempool` | `crates/mempool/traits/src/` | `crates/mempool.md` | — |

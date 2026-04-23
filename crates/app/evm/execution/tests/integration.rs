@@ -7,12 +7,12 @@ use app::{
     traits::{Application, TxSource},
     InMemoryTxPool,
 };
-use app_evm::executor::EvmApplication;
-use app_evm::WhirlpoolEvmConfig;
+use app_evm_execution::executor::EvmApplication;
+use app_evm_execution::WhirlpoolEvmConfig;
 use chainspec::{build_sahara_chain_spec, SAHARA_CHAIN_ID};
 use reth_ethereum_primitives::TransactionSigned;
 use reth_primitives_traits::SignerRecoverable;
-use state_reth::InMemoryStateDb;
+use app_evm_state::InMemoryStateDb;
 
 /// Simple MockTxSource for integration tests
 struct MockTxSource {

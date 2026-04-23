@@ -6,9 +6,9 @@ Location: `testing/integration-tests/`
 
 ## Dependency Boundaries
 - `chainspec`: canonical Sahara chain-spec builders/chain-id used by full-node tests.
-- `app-evm`: runtime-owned constants and EVM runtime behavior under test.
+- `app-evm-execution`: runtime-owned constants and EVM runtime behavior under test.
 - `whirlpool-node`: in-process node startup via `start_node_with_chain_spec(...)`.
-- `rpc-eth`, `state-reth`, `validators`, `evm-precompiles`: subsystem coverage.
+- `rpc-eth`, `app-evm-state`, `validators`, `evm-precompiles`: subsystem coverage.
 
 ## Notable Coverage
 - `tests/tokenomics/native_token_supply_cap.rs`: over-cap rejection + supply conservation.

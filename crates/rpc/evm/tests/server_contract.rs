@@ -5,7 +5,7 @@ use app::traits::TxSource;
 use jsonrpsee::core::{client::ClientT, rpc_params};
 use reth_chainspec::ChainSpec;
 use rpc_eth::server::start_rpc_server;
-use state_reth::RethStateDb;
+use app_evm_state::RethStateDb;
 
 #[derive(Debug, Default)]
 struct RecordingTxSource {

@@ -78,7 +78,7 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
 - Canonical runtime wiring is validator-aware: `whirlpool_precompiles_with_validators(...)`, `build_whirlpool_precompiles_with_validators(...)`, and `WhirlpoolEvmFactory::with_validators(...)`. The zero-validator convenience helpers/default factory remain exported only for compatibility and bootstrap/test scenarios.
 - The validators precompile is read-only and returns the ordered list provided by the canonical Rust validator reader (`validators` crate).
 - The community-pool precompile is read-only and returns the balance of `COMMUNITY_POOL_ADDRESS`.
-- Community-pool unlock schedule state remains anchored at `COMMUNITY_POOL_ADDRESS` storage (configured by chainspec/runtime), but the mutable runtime ownership now lives in the internal `accounting` runtime-adapter surface rather than in `app-evm` or a new public precompile selector.
+- Community-pool unlock schedule state remains anchored at `COMMUNITY_POOL_ADDRESS` storage (configured by chainspec/runtime), but the mutable runtime ownership now lives in the internal `accounting` runtime-adapter surface rather than in `app-evm-execution` or a new public precompile selector.
 - Fee routing model:
   - burned base fees -> `COMMUNITY_POOL_ADDRESS`
   - priority fees -> `FEE_POOL_PRECOMPILE_ADDRESS`
@@ -88,12 +88,12 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
 - The accounting module now owns a second **two-layer boundary API** for post-block accounting:
   - **pure core**: `PostBlockAccountingInputs`, `PostBlockAccountingEffect`, `PostBlockAccountingOutcome`, community-pool unlock state/effect math
   - **runtime adapter**: `apply_post_block_accounting(...)` + `PostBlockAccountingRuntimeError`
-- Accounting boundary rule: `app-evm` may compute executor-native inputs (for example aggregated priority fees) and choose when accounting runs, but fee/community-pool slot knowledge, balance-preserving rewrites, unlock share distribution, and claim-ledger mutation now stay inside `evm-precompiles`.
+- Accounting boundary rule: `app-evm-execution` may compute executor-native inputs (for example aggregated priority fees) and choose when accounting runs, but fee/community-pool slot knowledge, balance-preserving rewrites, unlock share distribution, and claim-ledger mutation now stay inside `evm-precompiles`.
 - Epoch precompile model:
   - read selectors: `currentEpoch`, `nextEpochBlock`, `epochBlocks`, `epochStartBlock(epoch)`
   - write selector: `advanceEpoch()` (restricted to `epoch_system_tx_sender()`, non-static)
   - append-only epoch start map uses plus-one storage encoding so epoch 0 start block can be stored unambiguously.
-- The epoch module now also owns the pure boundary semantics consumed by `app-evm`: the boundary snapshot type, `block_height == next_epoch_block` predicate, and the canonical reserved-call matcher that includes the app-visible zero-value invariant for reserved `advanceEpoch()` namespace filtering.
+- The epoch module now also owns the pure boundary semantics consumed by `app-evm-execution`: the boundary snapshot type, `block_height == next_epoch_block` predicate, and the canonical reserved-call matcher that includes the app-visible zero-value invariant for reserved `advanceEpoch()` namespace filtering.
 - The epoch module also owns the typed boundary-effect handoff used for canonical state application:
   - effect is limited to epoch-precompile storage writes,
   - `epochStartBlock(next_epoch)` stays storage-ready with plus-one encoding,

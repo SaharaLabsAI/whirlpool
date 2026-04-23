@@ -1,7 +1,7 @@
 use alloy_primitives::Address;
 use app::traits::TxSource;
 use app::{ApplicationAdapter, FullDkgOutputV1};
-use app_evm::{EvmApplication, WhirlpoolEvmConfig};
+use app_evm_execution::{EvmApplication, WhirlpoolEvmConfig};
 use chainspec::{
     build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators,
     try_simplex_validators_from_chain_spec, validate_genesis_alloc,
@@ -344,7 +344,7 @@ pub fn start_node_with_chain_spec(
             let db_path = config.storage.state_dir();
             info!(?db_path, "Opening persistent state database");
             let reth_db =
-                state_reth::open_state_db(&db_path).expect("failed to open state database");
+                app_evm_state::open_state_db(&db_path).expect("failed to open state database");
 
             // Apply genesis allocations (pre-funded accounts) to the state DB if provided.
             let genesis_alloc =

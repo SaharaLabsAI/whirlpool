@@ -1,6 +1,6 @@
 use alloy_genesis::{Genesis, GenesisAccount};
 use alloy_primitives::{Address, B256, U256};
-use app_evm::VALIDATOR_FEE_RECIPIENTS_REGISTRY;
+use app_evm_execution::VALIDATOR_FEE_RECIPIENTS_REGISTRY;
 use evm_precompiles::{
     community_pool_last_processed_epoch_storage_slot, community_pool_locked_remaining_storage_slot,
     community_pool_unlock_amount_per_cycle_storage_slot,

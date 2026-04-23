@@ -2,7 +2,7 @@
 //! delegating to the inner `FinalizationSink`.
 
 use app::EvmBlock;
-use app_evm::EvmApplication;
+use app_evm_execution::EvmApplication;
 use consensus::event::{ConsensusEvent, EventSink};
 use consensus_simplex::FinalizationSink;
 use state::{BlockStorage, StateDb};
@@ -73,13 +73,13 @@ mod tests {
     use super::PersistingFinalizationSink;
     use app::traits::TxSource;
     use app::{EvmBlock, Receipt};
-    use app_evm::{EvmApplication, WhirlpoolEvmConfig};
+    use app_evm_execution::{EvmApplication, WhirlpoolEvmConfig};
     use chainspec::build_sahara_chain_spec;
     use consensus::event::{ConsensusEvent, EventSink};
     use consensus_simplex::FinalizationSink;
     use revm::primitives::B256;
     use state::{BlockStorage, BlockStorageError};
-    use state_reth::InMemoryStateDb;
+    use app_evm_state::InMemoryStateDb;
     use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
     use std::sync::{Arc, Mutex, RwLock};
 

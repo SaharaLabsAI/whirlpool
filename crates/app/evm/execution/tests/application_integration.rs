@@ -1,11 +1,11 @@
 use std::sync::{Arc, RwLock};
 
 use app::{traits::Application, ApplicationAdapter, EvmBlock, NoopTxSource};
-use app_evm::executor::EvmApplication;
-use app_evm::WhirlpoolEvmConfig;
+use app_evm_execution::executor::EvmApplication;
+use app_evm_execution::WhirlpoolEvmConfig;
 use chainspec::build_sahara_chain_spec;
 use consensus::{traits::ConsensusApp, ConsensusError};
-use state_reth::InMemoryStateDb;
+use app_evm_state::InMemoryStateDb;
 
 fn assert_application_impl<A: Application<Block = EvmBlock>>(_app: &A) {}
 

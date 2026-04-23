@@ -74,7 +74,7 @@ fn canon_state_subscriptions_yields_receiver() {
 
 /// Helper: build a WhirlpoolProvider backed by a temporary MDBX database.
 fn test_provider() -> (WhirlpoolProvider, tempfile::TempDir) {
-    use state_reth::RethStateDb;
+    use app_evm_state::RethStateDb;
 
     let tmp = tempfile::tempdir().expect("failed to create temp dir");
     let db = RethStateDb::open(tmp.path()).expect("failed to open MDBX");

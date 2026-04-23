@@ -1,7 +1,7 @@
 # validators
 
 ## Purpose
-Canonical ordered simplex validator registry model and genesis-storage codec shared across `app-evm`, `evm-precompiles`, and `whirlpool-node`.
+Canonical ordered simplex validator registry model and genesis-storage codec shared across `app-evm-execution`, `evm-precompiles`, and `whirlpool-node`.
 
 ## Location
 `crates/validators/`

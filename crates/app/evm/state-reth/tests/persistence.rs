@@ -1,7 +1,7 @@
 use alloy_primitives::{address, U256};
 use revm::state::AccountInfo;
 use state::StateDb;
-use state_reth::RethStateDb;
+use app_evm_state::RethStateDb;
 use tempfile::tempdir;
 
 #[test]

@@ -5,14 +5,14 @@ edition.workspace = true
 
 [dependencies]
 app = { path = "../app/traits" }
-app-evm = { path = "../app/evm/app" }
+app-evm-execution = { path = "../app/evm/execution" }
 chainspec = { path = "../chainspec" }
 mempool-mdbx = { path = "../mempool/mdbx" }
 validators = { path = "../validators" }
 rpc-eth = { path = "../rpc/evm" }
 reth-chainspec = { path = "../../vendor/reth/crates/chainspec" }
 state = { path = "../app/state" }
-state-reth = { path = "../app/evm/state" }
+app-evm-state = { path = "../app/evm/state-reth" }
 revm = { version = "36" }
 alloy-primitives = { version = "1.5.0" }
 consensus = { path = "../consensus/traits" }

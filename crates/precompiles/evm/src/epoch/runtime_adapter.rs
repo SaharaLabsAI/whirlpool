@@ -97,7 +97,7 @@ mod tests {
     use alloy_primitives::U256;
     use reth_evm::revm::database::{CacheDB, EmptyDB};
     use reth_evm::{EvmEnv, EvmFactory};
-    use state_reth::InMemoryStateDb;
+    use app_evm_state::InMemoryStateDb;
 
     use super::super::{current_epoch_slot, epoch_start_block_slot, EpochBoundaryStorageWrite};
     use super::*;

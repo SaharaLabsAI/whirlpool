@@ -29,8 +29,8 @@ impl From<state::StateError> for EvmAppError {
     }
 }
 
-impl From<state_reth::RethStateError> for EvmAppError {
-    fn from(err: state_reth::RethStateError) -> Self {
+impl From<app_evm_state::RethStateError> for EvmAppError {
+    fn from(err: app_evm_state::RethStateError) -> Self {
         EvmAppError::State(err.to_string())
     }
 }

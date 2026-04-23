@@ -140,13 +140,13 @@ fn validator_registry_encoding_is_independent_of_fee_recipient_registry() {
     assert!(spec
         .genesis
         .alloc
-        .contains_key(&app_evm::VALIDATOR_FEE_RECIPIENTS_REGISTRY));
+        .contains_key(&app_evm_execution::VALIDATOR_FEE_RECIPIENTS_REGISTRY));
     assert!(spec
         .genesis
         .alloc
         .contains_key(&SIMPLEX_VALIDATORS_REGISTRY));
     assert_ne!(
-        app_evm::VALIDATOR_FEE_RECIPIENTS_REGISTRY,
+        app_evm_execution::VALIDATOR_FEE_RECIPIENTS_REGISTRY,
         SIMPLEX_VALIDATORS_REGISTRY
     );
 }

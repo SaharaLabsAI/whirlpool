@@ -1,13 +1,13 @@
-# app-evm
+# app-evm-execution
 
 ## Purpose
 Pure EVM runtime/config/execution crate for Whirlpool.
 
 ## Location
-`crates/app/evm/app/`
+`crates/app/evm/execution/`
 
 ## Ownership Boundary
-`app-evm` now owns EVM behavior, not Sahara chain-spec construction.
+`app-evm-execution` now owns EVM behavior, not Sahara chain-spec construction.
 
 ### Owns
 - `WhirlpoolEvmConfig`
@@ -62,19 +62,19 @@ Those live in `chainspec`.
 - Non-boundary FullDkg candidate validation is fail-closed in both propose and verify paths: candidate `output.players` must match activation-resolved players for the candidate epoch before include/omit decisions.
 - FullDkg inclusion trigger compares candidate output against the **latest committed FullDkg in block storage** (backward scan) so raw-only intermediate blocks do not cause include/omit oscillation.
 - When `full_dkg_feature_enabled == false`, verify now rejects **both** `full_dkg` and `reshare` sections instead of rejecting `reshare` alone, preventing disabled-feature metadata from entering historical scans.
-- Epoch-boundary helper ownership now lives in `evm_precompiles::epoch`; `app-evm` no longer has a dedicated `epoch_boundary/` module tree.
-- `app-evm` keeps a **tiny pipeline call site** for epoch boundaries inside `executor/`:
+- Epoch-boundary helper ownership now lives in `evm_precompiles::epoch`; `app-evm-execution` no longer has a dedicated `epoch_boundary/` module tree.
+- `app-evm-execution` keeps a **tiny pipeline call site** for epoch boundaries inside `executor/`:
   - propose/verify load boundary state through `evm_precompiles::load_epoch_boundary_state(...)`
   - propose/verify trigger `evm_precompiles::execute_epoch_boundary_system_call_if_required(...)`
   - canonical epoch writes replay through `evm_precompiles::apply_epoch_boundary_effect(...)`
   - reserved namespace detection is the only epoch adapter left locally, as a small executor helper over `reserved_advance_epoch_call_matches(...)`
 - Ownership split for epoch boundaries:
   - `evm-precompiles` owns the pure boundary core (`EpochBoundaryState`, predicate, reserved matcher, typed `EpochBoundaryEffect`) **and** the runtime adapter layer (`StateDb` load/apply + generic system-call support + `EpochBoundaryRuntimeError`).
-  - `app-evm` owns pipeline timing and error translation only: propose maps runtime boundary failures to `Execution`, verify maps them to `InvalidBlock`, while shared state-access failures still surface as `State`.
+  - `app-evm-execution` owns pipeline timing and error translation only: propose maps runtime boundary failures to `Execution`, verify maps them to `InvalidBlock`, while shared state-access failures still surface as `State`.
   - the critical sequencing invariant remains unchanged: `apply_pre_execution_changes()` -> boundary system call -> immediate in-memory `commit(outcome.state.clone())` -> user tx execution -> bundle commit -> canonical epoch effect apply -> post-block accounting / extra-data consumers.
 - Fee/community-pool ownership split now mirrors the epoch boundary pattern:
   - `evm-precompiles` owns the new internal post-block accounting boundary (`PostBlockAccountingInputs`, `PostBlockAccountingEffect`, `PostBlockAccountingOutcome`, `apply_post_block_accounting`, `PostBlockAccountingRuntimeError`) and the fee/community-pool write logic previously housed in local executor helpers.
-  - `app-evm` keeps only executor-native input derivation (`aggregate_priority_fees`) plus propose/verify ordering and runtime-error translation.
+  - `app-evm-execution` keeps only executor-native input derivation (`aggregate_priority_fees`) plus propose/verify ordering and runtime-error translation.
   - propose/verify both call the same lower-layer accounting entrypoint after bundle commit and epoch effect application.
 - Boundary epoch math and activation-derived player resolution are shared through directory-backed `validator_activation/` modules (`BoundaryEpochContext`, `ActivationSourceResolver`) so propose/verify evaluate the same forward epoch targets.
 - `ActivationSourceResolver` is fail-closed for boundary FullDkg/Reshare targeting: a missing configured player set for the required epoch returns `InvalidBlock("activation resolver missing player set for epoch <n>")`.
@@ -92,7 +92,7 @@ Those live in `chainspec`.
   - per-recipient claimable balances are stored in fee-pool precompile storage (`claimable_balance_slot`)
   - proposers withdraw later via fee-pool precompile `withdraw()`
 - `suggested_fee_recipient` in execution env is now forced to fee-pool address; block header `proposer_fee_recipient` remains proposer metadata.
-- `state::StateDb` is now the only state trait used by `app-evm`; the old subset seam `app_evm::traits::StateProvider` is removed.
+- `state::StateDb` is now the only state trait used by `app-evm-execution`; the old subset seam `app_evm_execution::traits::StateProvider` is removed.
 - Block gas accounting now uses the final cumulative receipt gas (last receipt), avoiding sum-of-cumulative overcounting.
 - On boundary heights, propose executes `advanceEpoch` as an internal system call before user tx execution; no synthetic boundary tx bytes are added to `block.transactions`.
 - Reserved epoch namespace tx bytes in the user payload are treated as invalid protocol artifacts: propose excludes them and verify rejects blocks that contain them.
@@ -111,14 +111,14 @@ Those live in `chainspec`.
   - one-off single-element slices use `std::slice::from_ref(...)`.
 
 ## Canonical Imports
-- `app_evm::traits::StateDb`
-- `app_evm::WhirlpoolEvmConfig`
-- `app_evm::EvmApplication`
-- `app_evm::decode_evm_transaction`
-- `app_evm::decode_evm_transactions`
-- `app_evm::ProposedEvmPayload`
-- `app_evm::DEFAULT_PROPOSER_FEE_RECIPIENT`
-- `app_evm::VALIDATOR_FEE_RECIPIENTS_REGISTRY`
+- `app_evm_execution::traits::StateDb`
+- `app_evm_execution::WhirlpoolEvmConfig`
+- `app_evm_execution::EvmApplication`
+- `app_evm_execution::decode_evm_transaction`
+- `app_evm_execution::decode_evm_transactions`
+- `app_evm_execution::ProposedEvmPayload`
+- `app_evm_execution::DEFAULT_PROPOSER_FEE_RECIPIENT`
+- `app_evm_execution::VALIDATOR_FEE_RECIPIENTS_REGISTRY`
 - `chainspec::build_sahara_chain_spec*`
 - `chainspec::try_build_sahara_chain_spec*`
 - `chainspec::SAHARA_CHAIN_ID`

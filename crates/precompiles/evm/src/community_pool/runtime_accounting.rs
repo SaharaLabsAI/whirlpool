@@ -290,7 +290,7 @@ where
 #[cfg(test)]
 mod tests {
     use alloy_primitives::Address;
-    use state_reth::InMemoryStateDb;
+    use app_evm_state::InMemoryStateDb;
     use validators::ValidatorEntry;
 
     use super::*;

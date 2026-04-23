@@ -7,14 +7,14 @@ Location: `crates/rpc/evm/`
 
 ## Dependency Boundaries
 - `app`: `TxSource` trait (`app::traits`) — transaction submission bridge.
-- `state-reth`: `RethStateDb` — persistent MDBX-backed state and block storage.
+- `app-evm-state`: `RethStateDb` — persistent MDBX-backed state and block storage.
 - `reth-rpc-builder`: `RpcModuleBuilder`, `TransportRpcModuleConfig`, `RpcServerConfig` — server assembly.
 - `reth-rpc`: `EthApi` implementation wired through the builder.
 - `reth-provider`: Provider traits (`BlockReader`, `HeaderProvider`, `TransactionsProvider`, `ReceiptProvider`, `StateProviderFactory`, `AccountReader`, `ChainSpecProvider`, `CanonStateSubscriptions`, `StageCheckpointReader`, etc.).
 - `reth-transaction-pool`: `TransactionPool` trait and pool types.
 - `reth-network-api`: `NetworkInfo`, `Peers`, `PeersInfo` traits.
 - `reth-chainspec`: `ChainSpec`, `EthereumHardforks`.
-- `app-evm`: `WhirlpoolEvmConfig` for shared Whirlpool EVM/precompile configuration.
+- `app-evm-execution`: `WhirlpoolEvmConfig` for shared Whirlpool EVM/precompile configuration.
 - `reth-consensus`: `NoopConsensus` — no consensus validation in RPC path.
 - `reth-tasks`: `TaskExecutor` runtime passed to `RpcModuleBuilder::with_executor(...)`.
 - `reth-tokio-util`: `EventSender` for RPC event fanout.
@@ -119,7 +119,7 @@ All standard `eth_*` methods from `RpcModuleSelection::standard_modules()` are s
 - MDBX access pattern: `self.state_db.inner().tx().map_err(map_db_err)?` for read-only transactions.
 - State tables used: `CanonicalHeaders`, `HeaderNumbers`, `Headers`, `BlockBodyIndices`, `Transactions`, `TransactionHashNumbers`, `TransactionBlocks`, `Receipts`, `HeaderTerminalDifficulties`, `PlainAccountState`, `PlainStorageState`, `Bytecodes`.
 - On empty DB: `eth_blockNumber` returns 0 and `eth_getBalance` returns 0.
-- RPC `eth_call` / estimation now share the same Whirlpool precompile registry as consensus execution by using `app_evm::WhirlpoolEvmConfig` in `server.rs`.
+- RPC `eth_call` / estimation now share the same Whirlpool precompile registry as consensus execution by using `app_evm_execution::WhirlpoolEvmConfig` in `server.rs`.
 
 ## Status
 Complete. Replaces the original hand-rolled JSON-RPC with reth's production RPC stack (Tasks 01-13), with legacy in-crate JSON-RPC handler/test scaffolding removed.

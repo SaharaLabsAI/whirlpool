@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use reth_chainspec::ChainSpec;
 use reth_rpc_builder::RpcServerHandle;
-use state_reth::db::RethStateDb;
+use app_evm_state::db::RethStateDb;
 
 // Internal modules (adapter types, not part of public API).
 #[path = "convert.rs"]
