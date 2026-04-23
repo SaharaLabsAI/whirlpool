@@ -24,7 +24,7 @@ use reth_evm::execute::BlockValidationError;
 use reth_primitives_traits::crypto::secp256k1::sign_message;
 use reth_primitives_traits::SignerRecoverable;
 use revm::state::Bytecode;
-use state_memory::InMemoryStateDb;
+use state_reth::InMemoryStateDb;
 use std::collections::BTreeMap;
 
 struct MockTxSource {
@@ -37,6 +37,18 @@ impl TxSource for MockTxSource {
     fn pending(&self) -> Vec<Vec<u8>> {
         self.txs.clone()
     }
+}
+
+fn account_balance(db: &InMemoryStateDb, address: Address) -> U256 {
+    db.get_account(address).unwrap_or_default().balance
+}
+
+fn storage_value(db: &InMemoryStateDb, address: Address, slot: U256) -> U256 {
+    db.get_storage(address, slot)
+}
+
+fn state_root_value(db: &InMemoryStateDb) -> [u8; 32] {
+    db.state_root().0
 }
 
 async fn setup_app(
@@ -92,22 +104,22 @@ fn setup_app_with_unlock_config(
 }
 
 fn seed_epoch_boundary_state(db: &mut InMemoryStateDb, next_epoch_block: u64, epoch_blocks: u64) {
-    db.insert_storage(
+    let _ = db.insert_storage(
         EPOCH_PRECOMPILE_ADDRESS,
         current_epoch_slot(),
         U256::from(0_u64),
     );
-    db.insert_storage(
+    let _ = db.insert_storage(
         EPOCH_PRECOMPILE_ADDRESS,
         epoch_blocks_slot(),
         U256::from(epoch_blocks),
     );
-    db.insert_storage(
+    let _ = db.insert_storage(
         EPOCH_PRECOMPILE_ADDRESS,
         next_epoch_block_slot(),
         U256::from(next_epoch_block),
     );
-    db.insert_account(
+    let _ = db.insert_account(
         epoch_system_tx_sender(),
         revm::state::AccountInfo {
             balance: U256::from(EPOCH_SYSTEM_TX_INITIAL_BALANCE_WEI),
@@ -124,7 +136,7 @@ fn seed_community_pool_unlock_state(
     locked_remaining: U256,
     community_pool_balance: U256,
 ) {
-    db.insert_account(
+    let _ = db.insert_account(
         COMMUNITY_POOL_ADDRESS,
         revm::state::AccountInfo {
             balance: community_pool_balance,
@@ -132,22 +144,22 @@ fn seed_community_pool_unlock_state(
             ..Default::default()
         },
     );
-    db.insert_storage(
+    let _ = db.insert_storage(
         COMMUNITY_POOL_ADDRESS,
         community_pool_unlock_every_epochs_slot(),
         U256::from(unlock_every_epochs),
     );
-    db.insert_storage(
+    let _ = db.insert_storage(
         COMMUNITY_POOL_ADDRESS,
         community_pool_unlock_amount_per_cycle_slot(),
         unlock_amount_per_cycle,
     );
-    db.insert_storage(
+    let _ = db.insert_storage(
         COMMUNITY_POOL_ADDRESS,
         community_pool_locked_remaining_slot(),
         locked_remaining,
     );
-    db.insert_storage(
+    let _ = db.insert_storage(
         COMMUNITY_POOL_ADDRESS,
         community_pool_last_processed_epoch_slot(),
         U256::ZERO,

@@ -5,7 +5,7 @@ use app_evm::executor::EvmApplication;
 use app_evm::{EvmAppError, WhirlpoolEvmConfig};
 use chainspec::build_sahara_chain_spec;
 use consensus::{traits::ConsensusApp, ConsensusError};
-use state_memory::InMemoryStateDb;
+use state_reth::InMemoryStateDb;
 
 fn build_app() -> EvmApplication<InMemoryStateDb> {
     let state_db = Arc::new(RwLock::new(InMemoryStateDb::new()));

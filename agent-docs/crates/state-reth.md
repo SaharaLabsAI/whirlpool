@@ -1,7 +1,7 @@
 # state-reth
 
 ## Purpose
-Persistent state storage implementation backed by reth-db (MDBX/libmdbx).
+Persistent state storage implementation backed by reth-db (MDBX/libmdbx), plus the shared in-memory test DB used after `state-memory` crate removal.
 
 ## Modules
 - `crates/app/execute/evm/state/src/db.rs` — `RethStateDb` core implementation + `StateDb` impl
@@ -15,9 +15,11 @@ Persistent state storage implementation backed by reth-db (MDBX/libmdbx).
 - `crates/app/execute/evm/state/src/tables.rs` — reth-db table re-exports
 - `crates/app/execute/evm/state/src/trie.rs` — state root computation via `StateRoot<DatabaseTrieCursorFactory<_, LegacyKeyAdapter>, ...>`
 - `crates/app/execute/evm/state/src/codec.rs` — account/info serialization
+- `crates/app/execute/evm/state/src/in_memory_db.rs` — `InMemoryStateDb` test utility migrated from the removed `state-memory` crate
 
 ## Key Types
 - `RethStateDb`: persistent DB wrapping `Arc<DatabaseEnv>`. Thread-safe, implements `StateDb`, `Database`, and `DatabaseRef`.
+- `InMemoryStateDb`: HashMap-backed `StateDb` + `BlockStorage` test utility re-exported from `state-reth` so other crates no longer depend on a separate `state-memory` package.
 - `RethStateError`: error type with `Database`, `Init`, `Codec`, and `StateRoot` variants. Implements `DBErrorMarker`.
 
 ## Public API
@@ -61,6 +63,7 @@ Persistent state storage implementation backed by reth-db (MDBX/libmdbx).
 
 ## Canonical Imports
 - `state_reth::RethStateDb`
+- `state_reth::InMemoryStateDb`
 - `state_reth::RethStateError`
 - `state_reth::open_state_db`
 
@@ -78,5 +81,5 @@ Persistent state storage implementation backed by reth-db (MDBX/libmdbx).
 - Coverage: persistence, recovery (TC-SR-09/10), concurrency, genesis allocation, deterministic state root, revm trait compatibility, block/receipt persistence round-trips.
 
 ## Status
-Complete. Production-ready persistent state implementation for Whirlpool nodes.
+Complete. Production-ready persistent state implementation for Whirlpool nodes, and the canonical home for the shared in-memory test DB after `state-memory` removal.
 Clippy hygiene: receipt mapping in `block_storage` now forwards `cumulative_gas_used` without redundant same-type casts.

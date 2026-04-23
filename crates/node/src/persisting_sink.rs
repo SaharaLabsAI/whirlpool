@@ -79,7 +79,7 @@ mod tests {
     use consensus_simplex::FinalizationSink;
     use revm::primitives::B256;
     use state::{BlockStorage, BlockStorageError};
-    use state_memory::InMemoryStateDb;
+    use state_reth::InMemoryStateDb;
     use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
     use std::sync::{Arc, Mutex, RwLock};
 

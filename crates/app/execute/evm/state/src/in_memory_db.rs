@@ -315,7 +315,3 @@ impl BlockStorage for InMemoryStateDb {
         Ok(blocks.keys().max().copied())
     }
 }
-
-#[path = "tests/db.rs"]
-#[cfg(test)]
-mod tests;

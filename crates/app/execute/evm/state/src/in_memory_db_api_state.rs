@@ -2,7 +2,7 @@ use revm::primitives::B256;
 
 use state::traits::StateDb;
 
-use crate::db::InMemoryStateDb;
+use crate::in_memory_db::InMemoryStateDb;
 
 impl InMemoryStateDb {
     pub fn state_root(&self) -> B256 {

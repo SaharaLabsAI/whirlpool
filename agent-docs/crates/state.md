@@ -4,7 +4,7 @@
 State database trait and error types — pure interface crate with no concrete implementations.
 
 ## Crate Split
-`state` is the interface half of the state layer. Concrete implementations live in `state-memory`.
+`state` is the interface half of the state layer. Concrete implementations now live in `state-reth`; its public test utility also re-exports `InMemoryStateDb` for fast non-persistent fixtures.
 
 ## Modules
 - `crates/app/state/src/block_storage.rs` — `BlockStorage` trait + `BlockStorageError`
@@ -40,4 +40,4 @@ State database trait and error types — pure interface crate with no concrete i
 - `thiserror` (error derive)
 
 ## Status
-Complete. Interface-only crate after physical split. See `state-memory` for concrete implementation.
+Complete. Interface-only crate after physical split. See `state-reth` for both the persistent MDBX backend and the shared in-memory test DB.

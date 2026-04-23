@@ -290,7 +290,7 @@ where
 #[cfg(test)]
 mod tests {
     use alloy_primitives::Address;
-    use state_memory::InMemoryStateDb;
+    use state_reth::InMemoryStateDb;
     use validators::ValidatorEntry;
 
     use super::*;
@@ -299,6 +299,14 @@ mod tests {
         community_pool_locked_remaining_slot, community_pool_unlock_amount_per_cycle_slot,
         community_pool_unlock_every_epochs_slot, current_epoch_slot,
     };
+
+    fn account_balance(db: &InMemoryStateDb, address: Address) -> U256 {
+        db.get_account(address).unwrap_or_default().balance
+    }
+
+    fn storage_value(db: &InMemoryStateDb, address: Address, slot: U256) -> U256 {
+        db.get_storage(address, slot)
+    }
 
     fn seed_unlock_state(
         db: &mut InMemoryStateDb,
@@ -379,20 +387,20 @@ mod tests {
             apply_post_block_accounting(&mut db, &inputs).expect("apply post-block accounting");
         assert_eq!(outcome.current_epoch, 1);
         assert_eq!(
-            db.get_account(COMMUNITY_POOL_ADDRESS)
-                .unwrap_or_default()
-                .balance,
+            account_balance(&db, COMMUNITY_POOL_ADDRESS),
             U256::from(31_u64)
         );
         assert_eq!(
-            db.get_storage(
+            storage_value(
+                &db,
                 COMMUNITY_POOL_ADDRESS,
                 community_pool_locked_remaining_slot(),
             ),
             U256::from(25_u64)
         );
         assert_eq!(
-            db.get_storage(
+            storage_value(
+                &db,
                 COMMUNITY_POOL_ADDRESS,
                 community_pool_last_processed_epoch_slot(),
             ),
@@ -413,7 +421,8 @@ mod tests {
         apply_post_block_accounting(&mut db, &inputs).expect("apply post-block accounting");
 
         assert_eq!(
-            db.get_storage(
+            storage_value(
+                &db,
                 FEE_POOL_PRECOMPILE_ADDRESS,
                 claimable_balance_slot(claim_recipient),
             ),
@@ -445,27 +454,25 @@ mod tests {
 
         let inputs = sample_inputs(validators.clone());
         apply_post_block_accounting(&mut db, &inputs).expect("first apply");
-        let community_pool_before = db
-            .get_account(COMMUNITY_POOL_ADDRESS)
-            .unwrap_or_default()
-            .balance;
-        let fee_pool_before = db
-            .get_account(FEE_POOL_PRECOMPILE_ADDRESS)
-            .unwrap_or_default()
-            .balance;
-        let locked_before = db.get_storage(
+        let community_pool_before = account_balance(&db, COMMUNITY_POOL_ADDRESS);
+        let fee_pool_before = account_balance(&db, FEE_POOL_PRECOMPILE_ADDRESS);
+        let locked_before = storage_value(
+            &db,
             COMMUNITY_POOL_ADDRESS,
             community_pool_locked_remaining_slot(),
         );
-        let claim0_before = db.get_storage(
+        let claim0_before = storage_value(
+            &db,
             FEE_POOL_PRECOMPILE_ADDRESS,
             claimable_balance_slot(validators[0].ethereum_address),
         );
-        let claim1_before = db.get_storage(
+        let claim1_before = storage_value(
+            &db,
             FEE_POOL_PRECOMPILE_ADDRESS,
             claimable_balance_slot(validators[1].ethereum_address),
         );
-        let proposer_claim_before = db.get_storage(
+        let proposer_claim_before = storage_value(
+            &db,
             FEE_POOL_PRECOMPILE_ADDRESS,
             claimable_balance_slot(inputs.claim_recipient),
         );
@@ -473,40 +480,40 @@ mod tests {
         apply_post_block_accounting(&mut db, &inputs).expect("second apply");
 
         assert_eq!(
-            db.get_account(COMMUNITY_POOL_ADDRESS)
-                .unwrap_or_default()
-                .balance,
+            account_balance(&db, COMMUNITY_POOL_ADDRESS),
             community_pool_before
         );
         assert_eq!(
-            db.get_account(FEE_POOL_PRECOMPILE_ADDRESS)
-                .unwrap_or_default()
-                .balance,
+            account_balance(&db, FEE_POOL_PRECOMPILE_ADDRESS),
             fee_pool_before
         );
         assert_eq!(
-            db.get_storage(
+            storage_value(
+                &db,
                 COMMUNITY_POOL_ADDRESS,
                 community_pool_locked_remaining_slot(),
             ),
             locked_before
         );
         assert_eq!(
-            db.get_storage(
+            storage_value(
+                &db,
                 FEE_POOL_PRECOMPILE_ADDRESS,
                 claimable_balance_slot(validators[0].ethereum_address),
             ),
             claim0_before
         );
         assert_eq!(
-            db.get_storage(
+            storage_value(
+                &db,
                 FEE_POOL_PRECOMPILE_ADDRESS,
                 claimable_balance_slot(validators[1].ethereum_address),
             ),
             claim1_before
         );
         assert_eq!(
-            db.get_storage(
+            storage_value(
+                &db,
                 FEE_POOL_PRECOMPILE_ADDRESS,
                 claimable_balance_slot(inputs.claim_recipient),
             ),

@@ -158,12 +158,7 @@ async fn verify_accepts_block_with_precompile_proxy_transaction() {
     let pre_state = db.read().unwrap().clone();
     let parent = app.genesis().await;
     let (block, _) = app.propose(&parent, 1).await.unwrap();
-    let current_balance = db
-        .read()
-        .unwrap()
-        .get_account(proxy_address)
-        .unwrap_or_default()
-        .balance;
+    let current_balance = account_balance(&db.read().unwrap(), proxy_address);
     assert_eq!(current_balance, claimable);
 
     let chain_spec = Arc::new(build_sahara_chain_spec());

@@ -97,11 +97,15 @@ mod tests {
     use alloy_primitives::U256;
     use reth_evm::revm::database::{CacheDB, EmptyDB};
     use reth_evm::{EvmEnv, EvmFactory};
-    use state_memory::InMemoryStateDb;
+    use state_reth::InMemoryStateDb;
 
     use super::super::{current_epoch_slot, epoch_start_block_slot, EpochBoundaryStorageWrite};
     use super::*;
     use crate::WhirlpoolEvmFactory;
+
+    fn storage_value(db: &InMemoryStateDb, slot: U256) -> U256 {
+        db.get_storage(EPOCH_PRECOMPILE_ADDRESS, slot)
+    }
 
     #[test]
     fn load_epoch_boundary_state_from_statedb() {
@@ -146,18 +150,9 @@ mod tests {
 
         apply_epoch_boundary_effect(&mut db, &effect).expect("apply effect");
 
-        assert_eq!(
-            db.get_storage(EPOCH_PRECOMPILE_ADDRESS, current_epoch_slot()),
-            U256::from(1_u64)
-        );
-        assert_eq!(
-            db.get_storage(EPOCH_PRECOMPILE_ADDRESS, next_epoch_block_slot()),
-            U256::from(20_u64)
-        );
-        assert_eq!(
-            db.get_storage(EPOCH_PRECOMPILE_ADDRESS, epoch_start_block_slot(1)),
-            U256::from(11_u64)
-        );
+        assert_eq!(storage_value(&db, current_epoch_slot()), U256::from(1_u64));
+        assert_eq!(storage_value(&db, next_epoch_block_slot()), U256::from(20_u64));
+        assert_eq!(storage_value(&db, epoch_start_block_slot(1)), U256::from(11_u64));
     }
 
     #[test]

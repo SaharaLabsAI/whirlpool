@@ -10,12 +10,9 @@ app = { path = "../../crates/app/traits" }
 app-evm = { path = "../../crates/app/execute/evm/app" }
 chainspec = { path = "../../crates/chainspec" }
 evm-precompiles = { path = "../../crates/precompiles/evm" }
-app-mem = { path = "../../crates/app/execute/mem/app" }
 validators = { path = "../../crates/validators" }
 rpc-eth = { path = "../../crates/rpc/evm" }
-rpc-mem = { path = "../../crates/rpc/mem" }
 state = { path = "../../crates/app/state" }
-state-memory = { path = "../../crates/app/execute/mem/state" }
 state-reth = { path = "../../crates/app/execute/evm/state" }
 whirlpool-node = { path = "../../crates/node" }
 consensus-manager = { path = "../../crates/consensus/manager" }

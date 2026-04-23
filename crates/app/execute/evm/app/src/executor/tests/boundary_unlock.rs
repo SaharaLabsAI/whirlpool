@@ -39,23 +39,17 @@ async fn boundary_unlock_credits_simplex_validator_addresses_and_conserves_balan
     let (_block, _result) = app.propose(&parent, 1).await.expect("boundary propose");
 
     let db = db.read().unwrap();
-    let community_pool_balance = db
-        .get_account(COMMUNITY_POOL_ADDRESS)
-        .unwrap_or_default()
-        .balance;
-    let fee_pool_balance = db
-        .get_account(FEE_POOL_PRECOMPILE_ADDRESS)
-        .unwrap_or_default()
-        .balance;
-    let remaining_locked = db.get_storage(
+    let community_pool_balance = account_balance(&db, COMMUNITY_POOL_ADDRESS);
+    let fee_pool_balance = account_balance(&db, FEE_POOL_PRECOMPILE_ADDRESS);
+    let remaining_locked = storage_value(&db, 
         COMMUNITY_POOL_ADDRESS,
         community_pool_locked_remaining_slot(),
     );
-    let last_processed = db.get_storage(
+    let last_processed = storage_value(&db, 
         COMMUNITY_POOL_ADDRESS,
         community_pool_last_processed_epoch_slot(),
     );
-    let current_epoch = db.get_storage(EPOCH_PRECOMPILE_ADDRESS, current_epoch_slot());
+    let current_epoch = storage_value(&db, EPOCH_PRECOMPILE_ADDRESS, current_epoch_slot());
 
     assert_eq!(current_epoch, U256::from(1_u64));
     assert_eq!(community_pool_balance, U256::from(15_u64));
@@ -63,15 +57,15 @@ async fn boundary_unlock_credits_simplex_validator_addresses_and_conserves_balan
     assert_eq!(remaining_locked, U256::from(15_u64));
     assert_eq!(last_processed, U256::from(1_u64));
 
-    let claim0 = db.get_storage(
+    let claim0 = storage_value(&db, 
         FEE_POOL_PRECOMPILE_ADDRESS,
         claimable_balance_slot(validators[0].ethereum_address),
     );
-    let claim1 = db.get_storage(
+    let claim1 = storage_value(&db, 
         FEE_POOL_PRECOMPILE_ADDRESS,
         claimable_balance_slot(validators[1].ethereum_address),
     );
-    let claim2 = db.get_storage(
+    let claim2 = storage_value(&db, 
         FEE_POOL_PRECOMPILE_ADDRESS,
         claimable_balance_slot(validators[2].ethereum_address),
     );
@@ -113,19 +107,15 @@ async fn boundary_unlock_final_tranche_distributes_top_k_remainder() {
 
     let db = db.read().unwrap();
     assert_eq!(
-        db.get_account(COMMUNITY_POOL_ADDRESS)
-            .unwrap_or_default()
-            .balance,
+        account_balance(&db, COMMUNITY_POOL_ADDRESS),
         U256::ZERO
     );
     assert_eq!(
-        db.get_account(FEE_POOL_PRECOMPILE_ADDRESS)
-            .unwrap_or_default()
-            .balance,
+        account_balance(&db, FEE_POOL_PRECOMPILE_ADDRESS),
         U256::from(4_u64)
     );
     assert_eq!(
-        db.get_storage(
+        storage_value(&db, 
             COMMUNITY_POOL_ADDRESS,
             community_pool_locked_remaining_slot()
         ),
@@ -133,7 +123,7 @@ async fn boundary_unlock_final_tranche_distributes_top_k_remainder() {
     );
 
     for (index, validator) in validators.iter().enumerate() {
-        let claim = db.get_storage(
+        let claim = storage_value(&db, 
             FEE_POOL_PRECOMPILE_ADDRESS,
             claimable_balance_slot(validator.ethereum_address),
         );
@@ -184,23 +174,17 @@ async fn boundary_unlock_skips_non_multiple_epoch() {
         .expect("propose first boundary block");
 
     let db = db.read().unwrap();
-    let community_pool_balance = db
-        .get_account(COMMUNITY_POOL_ADDRESS)
-        .unwrap_or_default()
-        .balance;
-    let fee_pool_balance = db
-        .get_account(FEE_POOL_PRECOMPILE_ADDRESS)
-        .unwrap_or_default()
-        .balance;
-    let locked_remaining = db.get_storage(
+    let community_pool_balance = account_balance(&db, COMMUNITY_POOL_ADDRESS);
+    let fee_pool_balance = account_balance(&db, FEE_POOL_PRECOMPILE_ADDRESS);
+    let locked_remaining = storage_value(&db, 
         COMMUNITY_POOL_ADDRESS,
         community_pool_locked_remaining_slot(),
     );
-    let last_processed = db.get_storage(
+    let last_processed = storage_value(&db, 
         COMMUNITY_POOL_ADDRESS,
         community_pool_last_processed_epoch_slot(),
     );
-    let current_epoch = db.get_storage(EPOCH_PRECOMPILE_ADDRESS, current_epoch_slot());
+    let current_epoch = storage_value(&db, EPOCH_PRECOMPILE_ADDRESS, current_epoch_slot());
 
     assert_eq!(current_epoch, U256::from(1_u64));
     assert_eq!(community_pool_balance, unlock_config.genesis_prefund_amount);
@@ -210,7 +194,7 @@ async fn boundary_unlock_skips_non_multiple_epoch() {
 
     for validator in &validators {
         assert_eq!(
-            db.get_storage(
+            storage_value(&db, 
                 FEE_POOL_PRECOMPILE_ADDRESS,
                 claimable_balance_slot(validator.ethereum_address),
             ),
@@ -262,28 +246,22 @@ async fn boundary_unlock_applies_once_on_matching_epoch() {
 
     {
         let db = db.read().unwrap();
-        let current_epoch = db.get_storage(EPOCH_PRECOMPILE_ADDRESS, current_epoch_slot());
-        let community_pool_balance = db
-            .get_account(COMMUNITY_POOL_ADDRESS)
-            .unwrap_or_default()
-            .balance;
-        let fee_pool_balance = db
-            .get_account(FEE_POOL_PRECOMPILE_ADDRESS)
-            .unwrap_or_default()
-            .balance;
-        let locked_remaining = db.get_storage(
+        let current_epoch = storage_value(&db, EPOCH_PRECOMPILE_ADDRESS, current_epoch_slot());
+        let community_pool_balance = account_balance(&db, COMMUNITY_POOL_ADDRESS);
+        let fee_pool_balance = account_balance(&db, FEE_POOL_PRECOMPILE_ADDRESS);
+        let locked_remaining = storage_value(&db, 
             COMMUNITY_POOL_ADDRESS,
             community_pool_locked_remaining_slot(),
         );
-        let last_processed = db.get_storage(
+        let last_processed = storage_value(&db, 
             COMMUNITY_POOL_ADDRESS,
             community_pool_last_processed_epoch_slot(),
         );
-        let claim0 = db.get_storage(
+        let claim0 = storage_value(&db, 
             FEE_POOL_PRECOMPILE_ADDRESS,
             claimable_balance_slot(validators[0].ethereum_address),
         );
-        let claim1 = db.get_storage(
+        let claim1 = storage_value(&db, 
             FEE_POOL_PRECOMPILE_ADDRESS,
             claimable_balance_slot(validators[1].ethereum_address),
         );
@@ -308,25 +286,21 @@ async fn boundary_unlock_applies_once_on_matching_epoch() {
     ) = {
         let db = db.read().unwrap();
         (
-            db.get_account(COMMUNITY_POOL_ADDRESS)
-                .unwrap_or_default()
-                .balance,
-            db.get_account(FEE_POOL_PRECOMPILE_ADDRESS)
-                .unwrap_or_default()
-                .balance,
-            db.get_storage(
+            account_balance(&db, COMMUNITY_POOL_ADDRESS),
+            account_balance(&db, FEE_POOL_PRECOMPILE_ADDRESS),
+            storage_value(&db, 
                 COMMUNITY_POOL_ADDRESS,
                 community_pool_locked_remaining_slot(),
             ),
-            db.get_storage(
+            storage_value(&db, 
                 COMMUNITY_POOL_ADDRESS,
                 community_pool_last_processed_epoch_slot(),
             ),
-            db.get_storage(
+            storage_value(&db, 
                 FEE_POOL_PRECOMPILE_ADDRESS,
                 claimable_balance_slot(validators[0].ethereum_address),
             ),
-            db.get_storage(
+            storage_value(&db, 
                 FEE_POOL_PRECOMPILE_ADDRESS,
                 claimable_balance_slot(validators[1].ethereum_address),
             ),
@@ -351,40 +325,36 @@ async fn boundary_unlock_applies_once_on_matching_epoch() {
 
     let db = db.read().unwrap();
     assert_eq!(
-        db.get_account(COMMUNITY_POOL_ADDRESS)
-            .unwrap_or_default()
-            .balance,
+        account_balance(&db, COMMUNITY_POOL_ADDRESS),
         community_pool_before_repeat
     );
     assert_eq!(
-        db.get_account(FEE_POOL_PRECOMPILE_ADDRESS)
-            .unwrap_or_default()
-            .balance,
+        account_balance(&db, FEE_POOL_PRECOMPILE_ADDRESS),
         fee_pool_before_repeat
     );
     assert_eq!(
-        db.get_storage(
+        storage_value(&db, 
             COMMUNITY_POOL_ADDRESS,
             community_pool_locked_remaining_slot()
         ),
         remaining_before_repeat
     );
     assert_eq!(
-        db.get_storage(
+        storage_value(&db, 
             COMMUNITY_POOL_ADDRESS,
             community_pool_last_processed_epoch_slot()
         ),
         last_processed_before_repeat
     );
     assert_eq!(
-        db.get_storage(
+        storage_value(&db, 
             FEE_POOL_PRECOMPILE_ADDRESS,
             claimable_balance_slot(validators[0].ethereum_address),
         ),
         claim0_before_repeat
     );
     assert_eq!(
-        db.get_storage(
+        storage_value(&db, 
             FEE_POOL_PRECOMPILE_ADDRESS,
             claimable_balance_slot(validators[1].ethereum_address),
         ),

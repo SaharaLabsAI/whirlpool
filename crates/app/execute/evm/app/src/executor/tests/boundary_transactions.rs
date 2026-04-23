@@ -102,7 +102,7 @@ async fn boundary_block_system_call_advances_epoch_state_once() {
     {
         let db = db.read().unwrap();
         assert_eq!(
-            db.get_storage(EPOCH_PRECOMPILE_ADDRESS, current_epoch_slot()),
+            storage_value(&db, EPOCH_PRECOMPILE_ADDRESS, current_epoch_slot()),
             U256::from(1_u64)
         );
     }
@@ -113,11 +113,11 @@ async fn boundary_block_system_call_advances_epoch_state_once() {
 
     let db = db.read().unwrap();
     assert_eq!(
-        db.get_storage(EPOCH_PRECOMPILE_ADDRESS, current_epoch_slot()),
+        storage_value(&db, EPOCH_PRECOMPILE_ADDRESS, current_epoch_slot()),
         U256::from(1_u64)
     );
     assert_eq!(
-        db.get_storage(EPOCH_PRECOMPILE_ADDRESS, next_epoch_block_slot()),
+        storage_value(&db, EPOCH_PRECOMPILE_ADDRESS, next_epoch_block_slot()),
         U256::from(1_u64 + EPOCH_BLOCKS_DEFAULT)
     );
 }

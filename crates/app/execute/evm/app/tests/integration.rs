@@ -12,7 +12,7 @@ use app_evm::WhirlpoolEvmConfig;
 use chainspec::{build_sahara_chain_spec, SAHARA_CHAIN_ID};
 use reth_ethereum_primitives::TransactionSigned;
 use reth_primitives_traits::SignerRecoverable;
-use state_memory::InMemoryStateDb;
+use state_reth::InMemoryStateDb;
 
 /// Simple MockTxSource for integration tests
 struct MockTxSource {

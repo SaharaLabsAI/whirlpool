@@ -12,5 +12,6 @@ thiserror = "2"
 validators = { path = "../../validators" }
 state = { path = "../../app/state" }
 
+
 [dev-dependencies]
-state-memory = { path = "../../app/execute/mem/state" }
+state-reth = { path = "../../app/execute/evm/state" }

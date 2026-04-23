@@ -48,7 +48,7 @@ async fn verify_boundary_unlock_matches_propose_state() {
         .expect("propose boundary block");
 
     let proposer_state = db.read().unwrap().clone();
-    let proposer_state_root = proposer_state.state_root().0;
+    let proposer_state_root = state_root_value(&proposer_state);
     let verifier_db = Arc::new(RwLock::new(pre_state));
     let verifier_app = EvmApplication::new(
         WhirlpoolEvmConfig::new(chain_spec),
@@ -68,21 +68,18 @@ async fn verify_boundary_unlock_matches_propose_state() {
 
     let verifier_state = verifier_db.read().unwrap();
     assert_eq!(
-        verifier_state
-            .get_account(COMMUNITY_POOL_ADDRESS)
-            .unwrap_or_default()
-            .balance,
+        account_balance(&verifier_state, COMMUNITY_POOL_ADDRESS),
         unlock_config.genesis_prefund_amount
     );
     assert_eq!(
-        verifier_state.get_storage(
+        storage_value(&verifier_state, 
             COMMUNITY_POOL_ADDRESS,
             community_pool_locked_remaining_slot()
         ),
         unlock_config.genesis_prefund_amount
     );
     assert_eq!(
-        verifier_state.get_storage(
+        storage_value(&verifier_state, 
             COMMUNITY_POOL_ADDRESS,
             community_pool_last_processed_epoch_slot()
         ),

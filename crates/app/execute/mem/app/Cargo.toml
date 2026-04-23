@@ -1,8 +1,0 @@
-[package]
-name = "app-mem"
-version.workspace = true
-edition.workspace = true
-
-[dependencies]
-sha2 = "0.10"
-thiserror = "2"

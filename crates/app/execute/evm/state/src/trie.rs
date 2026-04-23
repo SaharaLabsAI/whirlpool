@@ -2,7 +2,7 @@
 //
 // Provides state root calculation using reth's trie infrastructure.
 // This uses the real Merkle Patricia Trie rather than the simplified
-// keccak256-over-sorted-data approach used by state-memory.
+// keccak256-over-sorted-data approach shared with the in-memory test DB.
 
 use alloy_primitives::B256;
 use reth_db_api::transaction::DbTx;

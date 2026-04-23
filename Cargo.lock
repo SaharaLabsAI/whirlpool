@@ -979,29 +979,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "app-composite"
-version = "0.1.0"
-dependencies = [
- "alloy-consensus",
- "alloy-eips",
- "alloy-primitives",
- "alloy-trie",
- "app",
- "app-evm",
- "app-mem",
- "chainspec",
- "evm-precompiles",
- "reth-ethereum-primitives",
- "reth-primitives-traits",
- "revm",
- "state",
- "state-memory",
- "thiserror 2.0.18",
- "tokio",
- "tx-dispatch",
-]
-
-[[package]]
 name = "app-evm"
 version = "0.1.0"
 dependencies = [
@@ -1024,19 +1001,10 @@ dependencies = [
  "reth-primitives-traits",
  "revm",
  "state",
- "state-memory",
  "state-reth",
  "thiserror 2.0.18",
  "tokio",
  "validators",
-]
-
-[[package]]
-name = "app-mem"
-version = "0.1.0"
-dependencies = [
- "sha2 0.10.9",
- "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -3401,7 +3369,7 @@ dependencies = [
  "reth-evm",
  "reth-primitives-traits",
  "state",
- "state-memory",
+ "state-reth",
  "thiserror 2.0.18",
  "validators",
 ]
@@ -4437,7 +4405,6 @@ dependencies = [
  "alloy-signer-local",
  "app",
  "app-evm",
- "app-mem",
  "chainspec",
  "commonware-cryptography",
  "consensus-manager",
@@ -4449,10 +4416,8 @@ dependencies = [
  "reth-rpc-builder",
  "revm",
  "rpc-eth",
- "rpc-mem",
  "serde_json",
  "state",
- "state-memory",
  "state-reth",
  "tempfile",
  "tokio",
@@ -8543,22 +8508,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rpc-mem"
-version = "0.1.0"
-dependencies = [
- "app",
- "app-mem",
- "async-trait",
- "hex",
- "jsonrpsee",
- "serde",
- "state",
- "state-memory",
- "thiserror 2.0.18",
- "tokio",
-]
-
-[[package]]
 name = "ruint"
 version = "1.17.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9325,18 +9274,6 @@ dependencies = [
  "alloy-genesis",
  "app",
  "revm",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "state-memory"
-version = "0.1.0"
-dependencies = [
- "alloy-genesis",
- "app",
- "revm",
- "sha2 0.10.9",
- "state",
  "thiserror 2.0.18",
 ]
 
@@ -10153,20 +10090,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tx-dispatch"
-version = "0.1.0"
-dependencies = [
- "alloy-consensus",
- "alloy-eips",
- "alloy-primitives",
- "app-evm",
- "app-mem",
- "chainspec",
- "reth-ethereum-primitives",
- "thiserror 2.0.18",
-]
-
-[[package]]
 name = "typeid"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10640,7 +10563,6 @@ dependencies = [
  "serde",
  "sha2 0.10.9",
  "state",
- "state-memory",
  "state-reth",
  "tokio",
  "toml 0.8.23",

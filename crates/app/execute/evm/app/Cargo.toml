@@ -11,7 +11,6 @@ app = { path = "../../../traits" }
 evm-precompiles = { path = "../../../../precompiles/evm" }
 validators = { path = "../../../../validators" }
 state = { path = "../../../state" }
-state-memory = { path = "../../mem/state" }
 state-reth = { path = "../state" }
 consensus = { path = "../../../../consensus/traits" }
 reth-evm = { path = "../../../../../vendor/reth/crates/evm/evm" }
