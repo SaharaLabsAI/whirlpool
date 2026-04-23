@@ -7,13 +7,16 @@ mod decode_outputs;
 mod dispatch;
 pub mod gas;
 mod r#impl;
+mod runtime_accounting;
 pub mod storage;
 
 pub use decode_outputs::{
     decode_claimable_balance_output, decode_fee_pool_balance_output, decode_withdraw_output,
 };
 pub use dispatch::{claimable_balance_calldata, fee_pool_balance_calldata, withdraw_calldata};
+pub use runtime_accounting::ClaimCredit;
 pub use storage::claimable_balance_slot;
+pub(crate) use runtime_accounting::credit_fee_pool_claim;
 
 pub const FEE_POOL_PRECOMPILE_ADDRESS: Address =
     address!("0x0000000000000000000000000000000000000102");

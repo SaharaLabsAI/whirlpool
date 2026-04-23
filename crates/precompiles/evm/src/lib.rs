@@ -19,24 +19,21 @@ mod registered_precompile_api;
 mod registry_build;
 mod registry_runtime;
 
-mod accounting;
 pub mod community_pool;
 pub mod epoch;
 pub mod fee_pool;
 pub mod validators;
 
-pub use accounting::{
-    apply_post_block_accounting, ClaimCredit, CommunityPoolUnlockEffect, CommunityPoolUnlockState,
-    PostBlockAccountingEffect, PostBlockAccountingEffectError, PostBlockAccountingInputs,
-    PostBlockAccountingOutcome, PostBlockAccountingRuntimeError,
-};
 pub use community_pool::{
+    apply_post_block_accounting, build_post_block_accounting_effect,
     community_pool_balance_calldata, community_pool_last_processed_epoch_slot,
     community_pool_last_processed_epoch_storage_slot, community_pool_locked_remaining_slot,
     community_pool_locked_remaining_storage_slot, community_pool_unlock_amount_per_cycle_slot,
     community_pool_unlock_amount_per_cycle_storage_slot, community_pool_unlock_every_epochs_slot,
     community_pool_unlock_every_epochs_storage_slot, decode_community_pool_balance_output,
-    encode_u256_storage_value, COMMUNITY_POOL_ADDRESS,
+    encode_u256_storage_value, CommunityPoolUnlockEffect, CommunityPoolUnlockState,
+    PostBlockAccountingEffect, PostBlockAccountingEffectError, PostBlockAccountingInputs,
+    PostBlockAccountingOutcome, PostBlockAccountingRuntimeError, COMMUNITY_POOL_ADDRESS,
 };
 pub use epoch::{
     advance_epoch_calldata, apply_epoch_boundary_effect, boundary_required_for_height,
@@ -56,7 +53,7 @@ pub use epoch::{
 pub use fee_pool::{
     claimable_balance_calldata, claimable_balance_slot, decode_claimable_balance_output,
     decode_fee_pool_balance_output, decode_withdraw_output, fee_pool_balance_calldata,
-    withdraw_calldata, FEE_POOL_PRECOMPILE_ADDRESS,
+    withdraw_calldata, ClaimCredit, FEE_POOL_PRECOMPILE_ADDRESS,
 };
 pub use registry_build::{
     build_whirlpool_precompiles, build_whirlpool_precompiles_with_validators,

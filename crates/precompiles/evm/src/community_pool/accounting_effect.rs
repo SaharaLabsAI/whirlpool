@@ -1,15 +1,7 @@
 use alloy_primitives::{Address, U256};
 use validators::ValidatorEntry;
 
-mod runtime_adapter;
-
-pub use runtime_adapter::{apply_post_block_accounting, PostBlockAccountingRuntimeError};
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ClaimCredit {
-    pub recipient: Address,
-    pub amount: U256,
-}
+use crate::fee_pool::ClaimCredit;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CommunityPoolUnlockState {

@@ -4,17 +4,15 @@ use alloy_primitives::{Address, U256};
 use reth_evm::revm::state::AccountInfo;
 use state::StateDb;
 
-use crate::{
-    claimable_balance_slot, community_pool_last_processed_epoch_slot,
-    community_pool_locked_remaining_slot, community_pool_unlock_amount_per_cycle_slot,
-    community_pool_unlock_every_epochs_slot, current_epoch_slot, COMMUNITY_POOL_ADDRESS,
-    EPOCH_PRECOMPILE_ADDRESS, FEE_POOL_PRECOMPILE_ADDRESS,
-};
+use crate::{current_epoch_slot, EPOCH_PRECOMPILE_ADDRESS, FEE_POOL_PRECOMPILE_ADDRESS};
+use crate::fee_pool::credit_fee_pool_claim;
 
 use super::{
-    build_post_block_accounting_effect, ClaimCredit, CommunityPoolUnlockEffect,
+    build_post_block_accounting_effect, community_pool_last_processed_epoch_slot,
+    community_pool_locked_remaining_slot, community_pool_unlock_amount_per_cycle_slot,
+    community_pool_unlock_every_epochs_slot, CommunityPoolUnlockEffect,
     CommunityPoolUnlockState, PostBlockAccountingEffectError, PostBlockAccountingInputs,
-    PostBlockAccountingOutcome,
+    PostBlockAccountingOutcome, COMMUNITY_POOL_ADDRESS,
 };
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
@@ -161,30 +159,6 @@ where
         U256::from(effect.last_processed_epoch),
     )
     .map_err(|err| PostBlockAccountingRuntimeError::StateAccess(err.to_string()))
-}
-
-fn credit_fee_pool_claim<DB>(
-    db: &mut DB,
-    claim: &ClaimCredit,
-) -> Result<(), PostBlockAccountingRuntimeError>
-where
-    DB: StateDb,
-    <DB as StateDb>::Error: Display,
-{
-    if claim.amount.is_zero() {
-        return Ok(());
-    }
-
-    let slot = claimable_balance_slot(claim.recipient);
-    let current = db
-        .get_storage(FEE_POOL_PRECOMPILE_ADDRESS, slot)
-        .map_err(|err| PostBlockAccountingRuntimeError::StateAccess(err.to_string()))?;
-    let next = current.checked_add(claim.amount).ok_or_else(|| {
-        PostBlockAccountingRuntimeError::Execution("fee-pool claim ledger overflow".into())
-    })?;
-
-    db.insert_storage(FEE_POOL_PRECOMPILE_ADDRESS, slot, next)
-        .map_err(|err| PostBlockAccountingRuntimeError::StateAccess(err.to_string()))
 }
 
 fn credit_account_balance<DB>(

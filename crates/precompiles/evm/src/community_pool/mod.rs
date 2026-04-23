@@ -5,6 +5,8 @@ use reth_evm::revm::precompile::{PrecompileError, PrecompileOutput, PrecompileRe
 
 use crate::RegisteredPrecompile;
 
+mod accounting_effect;
+mod runtime_accounting;
 mod slot_storage_primary;
 mod slot_storage_tail;
 mod slot_value_primary;
@@ -25,6 +27,12 @@ pub use slot_storage_primary::{
     community_pool_unlock_amount_per_cycle_storage_slot,
     community_pool_unlock_every_epochs_storage_slot,
 };
+pub use accounting_effect::{
+    build_post_block_accounting_effect, CommunityPoolUnlockEffect, CommunityPoolUnlockState,
+    PostBlockAccountingEffect, PostBlockAccountingEffectError, PostBlockAccountingInputs,
+    PostBlockAccountingOutcome,
+};
+pub use runtime_accounting::{apply_post_block_accounting, PostBlockAccountingRuntimeError};
 pub use slot_storage_tail::{
     community_pool_last_processed_epoch_storage_slot, encode_u256_storage_value,
 };
