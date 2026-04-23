@@ -38,6 +38,10 @@ Those live in `chainspec`.
 - Precompile injection remains in `WhirlpoolEvmConfig::evm_with_env(...)` via `evm_precompiles::whirlpool_precompiles_with_validators(...)`.
 - Block header `extra_data` now uses app-shared canonical envelope bytes (`RawEth` + optional `FullDkgV1`) instead of raw proposer key bytes.
 - Verify path decodes `extra_data` with a height gate (`Legacy` before strict height, `Strict` at/after strict height), enforces proposer-key parity against `RawEth`, and enforces boundary-aware FullDkg/Reshare invariants.
+- Propose/verify now share one executor-local next-block base-fee seam:
+  - propose derives `base_fee_per_gas` through the shared helper,
+  - verify rejects blocks whose `block.base_fee_per_gas` does not match the protocol-derived next-block fee before fee accounting,
+  - verify-side burned-fee / priority-fee accounting now uses the derived canonical fee after the mismatch guard.
 - EVM tx decode helpers now use exact EIP-2718 decoding, so padded tx bytes fail closed during both proposal pre-decode and verify decoding.
 - Boundary extra-data semantics:
   - when a FullDkg candidate is configured, boundary blocks emit `FullDkgV1` at `E+1` and `ReshareV1(target_epoch=E+2)` where `E` is post-`advanceEpoch` epoch.
@@ -57,6 +61,7 @@ Those live in `chainspec`.
 - `executor/header_and_decode/` and `executor/state_helpers/` are directory-backed modules that split decode/header and state-helper surfaces into focused files with smaller public API sets.
 - Non-boundary FullDkg candidate validation is fail-closed in both propose and verify paths: candidate `output.players` must match activation-resolved players for the candidate epoch before include/omit decisions.
 - FullDkg inclusion trigger compares candidate output against the **latest committed FullDkg in block storage** (backward scan) so raw-only intermediate blocks do not cause include/omit oscillation.
+- When `full_dkg_feature_enabled == false`, verify now rejects **both** `full_dkg` and `reshare` sections instead of rejecting `reshare` alone, preventing disabled-feature metadata from entering historical scans.
 - Epoch-boundary helper ownership now lives in `evm_precompiles::epoch`; `app-evm` no longer has a dedicated `epoch_boundary/` module tree.
 - `app-evm` keeps a **tiny pipeline call site** for epoch boundaries inside `executor/`:
   - propose/verify load boundary state through `evm_precompiles::load_epoch_boundary_state(...)`

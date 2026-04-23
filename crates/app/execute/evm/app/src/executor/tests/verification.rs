@@ -29,6 +29,44 @@ async fn verify_accepts_valid_block() {
 }
 
 #[tokio::test]
+async fn verify_rejects_block_with_mismatched_base_fee_per_gas() {
+    let (tx, recovered) = sample_evm_tx();
+    let (app, db) = setup_app(vec![tx]).await;
+
+    {
+        let mut db = db.write().unwrap();
+        let info = revm::state::AccountInfo {
+            balance: U256::from(1_000_000_000_000_000_000u64),
+            nonce: 0,
+            ..Default::default()
+        };
+        db.insert_account(recovered, info);
+    }
+
+    let pre_state = db.read().unwrap().clone();
+    let parent = app.genesis().await;
+    let (mut block, _) = app.propose(&parent, 1).await.unwrap();
+    block.base_fee_per_gas += 1;
+
+    let chain_spec = Arc::new(build_sahara_chain_spec());
+    let config = WhirlpoolEvmConfig::new(chain_spec).with_local_proposer_public_key([0x77; 32]);
+    let verifier = EvmApplication::new(
+        config,
+        Arc::new(RwLock::new(pre_state)),
+        Arc::new(MockTxSource { txs: vec![] }),
+    );
+    let err = verifier
+        .verify(&parent, &block)
+        .await
+        .expect_err("verify must reject mismatched base fee");
+
+    assert!(
+        matches!(err, EvmAppError::InvalidBlock(ref msg) if msg.contains("base fee mismatch")),
+        "unexpected error: {err:?}"
+    );
+}
+
+#[tokio::test]
 async fn verify_accepts_legacy_extra_data_before_strict_height() {
     let strict_height = 2;
     let chain_spec = Arc::new(build_sahara_chain_spec());

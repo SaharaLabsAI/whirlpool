@@ -93,7 +93,8 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
 - The epoch module also owns the typed boundary-effect handoff used for canonical state application:
   - effect is limited to epoch-precompile storage writes,
   - `epochStartBlock(next_epoch)` stays storage-ready with plus-one encoding,
-  - extractor rejects account-info replay requirements and unexpected changed accounts.
+  - extractor rejects account-info replay requirements and unexpected changed accounts,
+  - when REVM omits a dirty `nextEpochBlock` write from the changed-slot set, extraction reconstructs it from loaded runtime context (`old nextEpochBlock + epochBlocks`) instead of deriving it from `epochStartBlock`.
 - The epoch module now has a **two-layer boundary API**:
   - **pure core**: primitive/value-only semantics and typed effect extraction (`EpochBoundaryState`, predicate, reserved matcher, `EpochBoundaryEffect`)
   - **runtime adapter**: `StateDb`-based boundary state load/apply plus generic REVM system-call support (`load_epoch_boundary_state`, `apply_epoch_boundary_effect`, `execute_epoch_boundary_system_call_if_required`, `EpochBoundaryRuntimeError`)

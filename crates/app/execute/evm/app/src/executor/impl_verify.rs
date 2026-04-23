@@ -27,6 +27,13 @@ where
             evm_precompiles::boundary_required_for_height(boundary_state, block.height);
 
         let parent_header = build_sealed_header(parent);
+        let expected_base_fee_per_gas = expected_next_block_base_fee(parent);
+        if block.base_fee_per_gas != expected_base_fee_per_gas {
+            return Err(EvmAppError::InvalidBlock(format!(
+                "base fee mismatch: expected {expected_base_fee_per_gas}, found {}",
+                block.base_fee_per_gas
+            )));
+        }
         let decoded_extra_data = decode_extra_data(
             &block.extra_data,
             extra_data_decode_mode_for_height(&self.evm_config, block.height),
@@ -52,7 +59,7 @@ where
             timestamp: block.timestamp,
             suggested_fee_recipient: FEE_POOL_PRECOMPILE_ADDRESS,
             prev_randao: B256::ZERO,
-            gas_limit: 30_000_000,
+            gas_limit: BLOCK_GAS_LIMIT,
             parent_beacon_block_root: Some(B256::ZERO),
             withdrawals: None,
             extra_data: Bytes::default(),
@@ -91,9 +98,9 @@ where
                 match classify_tx_execution_error(err) {
                     TxExecutionErrorDisposition::InvalidTxValidation(message)
                     | TxExecutionErrorDisposition::OtherValidation(message) => {
-                        return Err(EvmAppError::InvalidBlock(
-                            format!("Transaction execution failed validation: {message}"),
-                        ))
+                        return Err(EvmAppError::InvalidBlock(format!(
+                            "Transaction execution failed validation: {message}"
+                        )))
                     }
                     TxExecutionErrorDisposition::Other(message) => {
                         return Err(EvmAppError::Execution(format!(
@@ -114,7 +121,7 @@ where
         let bundle = state.take_bundle();
         let (gas_deltas, computed_gas_used) = gas_deltas_and_used(&execution_result.receipts)?;
         let priority_fees =
-            aggregate_priority_fees(&decoded_txs, &gas_deltas, block.base_fee_per_gas)?;
+            aggregate_priority_fees(&decoded_txs, &gas_deltas, expected_base_fee_per_gas)?;
         exec_state.commit(&bundle).map_err(Into::into)?;
         if let Some(ref boundary_effect) = boundary_effect {
             apply_epoch_boundary_effect(&mut exec_state, boundary_effect).map_err(|err| {
@@ -132,7 +139,11 @@ where
             current_epoch_slot(),
             "epoch currentEpoch",
         )?;
-        credit_burned_fees(&mut exec_state, computed_gas_used, block.base_fee_per_gas)?;
+        credit_burned_fees(
+            &mut exec_state,
+            computed_gas_used,
+            expected_base_fee_per_gas,
+        )?;
         credit_fee_pool_claim(&mut exec_state, claim_recipient, priority_fees)?;
 
         let computed_state_root = exec_state.state_root().map_err(Into::into)?;
@@ -286,9 +297,10 @@ where
                     }
                 }
             }
-        } else if decoded_extra_data.reshare.is_some() {
+        } else if decoded_extra_data.full_dkg.is_some() || decoded_extra_data.reshare.is_some() {
             return Err(EvmAppError::InvalidBlock(
-                "reshare section must be omitted when full_dkg feature is disabled".into(),
+                "full_dkg and reshare sections must be omitted when full_dkg feature is disabled"
+                    .into(),
             ));
         }
 

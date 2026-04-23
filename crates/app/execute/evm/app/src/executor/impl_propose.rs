@@ -24,12 +24,7 @@ where
         let boundary_state = load_epoch_boundary_state(&state_snapshot).map_err(|err| {
             map_epoch_boundary_runtime_error(err, BoundaryCallFailureMode::Propose)
         })?;
-        let base_fee_per_gas = calc_next_block_base_fee(
-            parent.gas_used,
-            30_000_000,
-            parent.base_fee_per_gas,
-            BaseFeeParams::ethereum(),
-        );
+        let base_fee_per_gas = expected_next_block_base_fee(parent);
         let boundary_required =
             evm_precompiles::boundary_required_for_height(boundary_state, block_height);
         let decoded_txs = decode_evm_transactions(raw_txs)?;
@@ -38,7 +33,7 @@ where
             timestamp,
             suggested_fee_recipient: FEE_POOL_PRECOMPILE_ADDRESS,
             prev_randao: B256::ZERO,
-            gas_limit: 30_000_000,
+            gas_limit: BLOCK_GAS_LIMIT,
             parent_beacon_block_root: Some(B256::ZERO),
             withdrawals: None,
             extra_data: Bytes::default(),

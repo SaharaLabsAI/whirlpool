@@ -205,6 +205,54 @@ async fn verify_rejects_reshare_section_on_non_boundary_block() {
 }
 
 #[tokio::test]
+async fn verify_rejects_full_dkg_section_when_feature_is_disabled() {
+    let chain_spec = Arc::new(build_sahara_chain_spec());
+    let base_config = WhirlpoolEvmConfig::new(chain_spec.clone())
+        .with_local_proposer_public_key([0x77; 32])
+        .with_full_dkg_feature_enabled(false)
+        .with_full_dkg_strict_height(0);
+    let players = base_config.simplex_consensus_public_keys();
+    let candidate_full_dkg = app::FullDkgV1 {
+        epoch: 1,
+        output: app::FullDkgOutputV1 {
+            dealers: players.clone(),
+            players,
+            public_polynomial: vec![0xaa, 0xbb, 0xcc],
+        },
+    };
+    let (app, db) = setup_app_with_config(vec![], base_config.clone()).await;
+
+    let pre_state = db.read().unwrap().clone();
+    let parent = app.genesis().await;
+    let (mut block, _) = app
+        .propose(&parent, 1)
+        .await
+        .expect("non-boundary block should propose");
+
+    block.extra_data = encode_canonical_extra_data(&CanonicalExtraDataV1 {
+        raw_eth: Some(block.proposer_public_key.to_vec()),
+        full_dkg: Some(candidate_full_dkg),
+        reshare: None,
+    })
+    .expect("canonical extra_data with forbidden full_dkg should encode");
+
+    let verifier = EvmApplication::new(
+        base_config,
+        Arc::new(RwLock::new(pre_state)),
+        Arc::new(MockTxSource { txs: vec![] }),
+    );
+    let err = verifier
+        .verify(&parent, &block)
+        .await
+        .expect_err("verify must reject full_dkg metadata when feature is disabled");
+
+    assert!(
+        matches!(err, EvmAppError::InvalidBlock(ref msg) if msg.contains("full_dkg and reshare sections must be omitted")),
+        "unexpected error: {err:?}"
+    );
+}
+
+#[tokio::test]
 async fn boundary_reshare_can_follow_epoch_pipeline_lag_from_activation_schedule() {
     let chain_spec = Arc::new(build_sahara_chain_spec());
     let base_config = WhirlpoolEvmConfig::new(chain_spec.clone())

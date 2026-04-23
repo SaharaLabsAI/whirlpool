@@ -12,6 +12,12 @@ async fn verify_rejects_reserved_epoch_namespace_transaction() {
 
     let pre_state = db.read().unwrap().clone();
     let parent = app.genesis().await;
+    let expected_base_fee_per_gas = calc_next_block_base_fee(
+        parent.gas_used,
+        BLOCK_GAS_LIMIT,
+        parent.base_fee_per_gas,
+        BaseFeeParams::ethereum(),
+    );
     let block = EvmBlock {
         height: 1,
         parent_id: parent.compute_id(),
@@ -26,7 +32,7 @@ async fn verify_rejects_reserved_epoch_namespace_transaction() {
         proposer_fee_recipient: parent.proposer_fee_recipient,
         extra_data: parent.extra_data.clone(),
         gas_used: 0,
-        base_fee_per_gas: parent.base_fee_per_gas,
+        base_fee_per_gas: expected_base_fee_per_gas,
         timestamp: parent.timestamp + 12,
         transactions: vec![reserved_tx],
     };
@@ -104,6 +110,12 @@ async fn verify_rejects_when_required_boundary_system_call_fails() {
     }
 
     let parent = app.genesis().await;
+    let expected_base_fee_per_gas = calc_next_block_base_fee(
+        parent.gas_used,
+        BLOCK_GAS_LIMIT,
+        parent.base_fee_per_gas,
+        BaseFeeParams::ethereum(),
+    );
     let boundary_block = EvmBlock {
         height: 1,
         parent_id: parent.compute_id(),
@@ -114,7 +126,7 @@ async fn verify_rejects_when_required_boundary_system_call_fails() {
         proposer_fee_recipient: parent.proposer_fee_recipient,
         extra_data: parent.extra_data.clone(),
         gas_used: 0,
-        base_fee_per_gas: parent.base_fee_per_gas,
+        base_fee_per_gas: expected_base_fee_per_gas,
         timestamp: parent.timestamp + 12,
         transactions: vec![],
     };

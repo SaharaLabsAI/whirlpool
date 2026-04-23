@@ -58,6 +58,7 @@ mod state_helpers;
 pub type RecoveredTx = Recovered<TransactionSigned>;
 type ProposedCacheKey = (u64, [u8; 32]);
 type ProposedCacheEntry = (ProposedCacheKey, EvmBlock, ExecutionResult, Vec<Receipt>);
+const BLOCK_GAS_LIMIT: u64 = 30_000_000;
 
 enum TxExecutionErrorDisposition {
     InvalidTxValidation(String),
@@ -172,6 +173,15 @@ fn classify_tx_execution_error(
         }
         other => TxExecutionErrorDisposition::Other(other.to_string()),
     }
+}
+
+fn expected_next_block_base_fee(parent: &EvmBlock) -> u64 {
+    calc_next_block_base_fee(
+        parent.gas_used,
+        BLOCK_GAS_LIMIT,
+        parent.base_fee_per_gas,
+        BaseFeeParams::ethereum(),
+    )
 }
 
 mod impl_core_methods;

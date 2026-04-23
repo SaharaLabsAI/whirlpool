@@ -3,7 +3,7 @@ use reth_evm::revm::state::EvmState;
 
 use super::{
     current_epoch_slot, decode_epoch_start_block_storage_value, decode_u64_storage_value,
-    epoch_start_block_slot, next_epoch_block_slot, EPOCH_PRECOMPILE_ADDRESS,
+    epoch_blocks_slot, epoch_start_block_slot, next_epoch_block_slot, EPOCH_PRECOMPILE_ADDRESS,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -31,6 +31,8 @@ pub enum EpochBoundaryEffectError {
     UnexpectedChangedSlot(U256),
     #[error("epoch boundary effect is missing currentEpoch write")]
     MissingCurrentEpochWrite,
+    #[error("epoch boundary effect is missing nextEpochBlock write")]
+    MissingNextEpochBlockWrite,
     #[error("epoch boundary effect is missing epochStartBlock(next_epoch) write")]
     MissingEpochStartBlockWrite,
     #[error("epoch boundary currentEpoch value does not fit in u64")]
@@ -51,6 +53,8 @@ pub fn extract_epoch_boundary_effect(
     outcome_state: &EvmState,
 ) -> Result<EpochBoundaryEffect, EpochBoundaryEffectError> {
     let mut epoch_writes = None;
+    let mut loaded_epoch_blocks = None;
+    let mut loaded_next_epoch_block = None;
 
     for (address, account) in outcome_state {
         let changed_slots: Vec<_> = account
@@ -71,6 +75,14 @@ pub fn extract_epoch_boundary_effect(
             return Err(EpochBoundaryEffectError::AccountInfoReplayRequired);
         }
 
+        loaded_epoch_blocks = account
+            .storage
+            .get(&epoch_blocks_slot())
+            .map(|slot| slot.present_value());
+        loaded_next_epoch_block = account
+            .storage
+            .get(&next_epoch_block_slot())
+            .map(|slot| (slot.original_value(), slot.present_value()));
         epoch_writes = Some(changed_slots);
     }
 
@@ -127,7 +139,7 @@ pub fn extract_epoch_boundary_effect(
         return Err(EpochBoundaryEffectError::EpochStartBlockAlreadyInitialized);
     }
 
-    let epoch_start_block = decode_epoch_start_block_storage_value(epoch_start_value)
+    decode_epoch_start_block_storage_value(epoch_start_value)
         .ok_or(EpochBoundaryEffectError::InvalidEpochStartBlockEncoding)?;
     let next_epoch_block_value = match next_epoch_block_write {
         Some((_original, present)) => {
@@ -135,7 +147,20 @@ pub fn extract_epoch_boundary_effect(
                 .ok_or(EpochBoundaryEffectError::InvalidNextEpochBlockValue)?;
             present
         }
-        None => U256::from(epoch_start_block),
+        None => {
+            let (loaded_next_epoch_original, _) = loaded_next_epoch_block
+                .ok_or(EpochBoundaryEffectError::MissingNextEpochBlockWrite)?;
+            let loaded_epoch_blocks =
+                loaded_epoch_blocks.ok_or(EpochBoundaryEffectError::MissingNextEpochBlockWrite)?;
+            let next_epoch_block = decode_u64_storage_value(loaded_next_epoch_original)
+                .ok_or(EpochBoundaryEffectError::InvalidNextEpochBlockValue)?;
+            let epoch_blocks = decode_u64_storage_value(loaded_epoch_blocks)
+                .ok_or(EpochBoundaryEffectError::InvalidNextEpochBlockValue)?;
+            let synthesized_next_epoch_block = next_epoch_block
+                .checked_add(epoch_blocks)
+                .ok_or(EpochBoundaryEffectError::InvalidNextEpochBlockValue)?;
+            U256::from(synthesized_next_epoch_block)
+        }
     };
 
     Ok(EpochBoundaryEffect {
@@ -212,7 +237,7 @@ mod tests {
     }
 
     #[test]
-    fn synthesizes_next_epoch_block_write_from_start_block_when_missing() {
+    fn rejects_missing_next_epoch_block_write() {
         let current_epoch = 2_u64;
         let start_slot = epoch_start_block_slot(current_epoch);
         let start_value = U256::from(3_u64);
@@ -229,12 +254,44 @@ mod tests {
         let mut outcome_state = EvmState::default();
         outcome_state.insert(EPOCH_PRECOMPILE_ADDRESS, account);
 
-        let effect = extract_epoch_boundary_effect(&outcome_state).expect("extract effect");
+        let err = extract_epoch_boundary_effect(&outcome_state)
+            .expect_err("missing next epoch block write rejected");
+        assert_eq!(err, EpochBoundaryEffectError::MissingNextEpochBlockWrite);
+    }
+
+    #[test]
+    fn synthesizes_next_epoch_block_from_loaded_runtime_context_when_write_is_missing() {
+        let current_epoch = 2_u64;
+        let start_slot = epoch_start_block_slot(current_epoch);
+        let start_value = U256::from(3_u64);
+
+        let mut account = Account::default();
+        account.storage.insert(
+            current_epoch_slot(),
+            changed_slot(1, U256::from(current_epoch)),
+        );
+        account
+            .storage
+            .insert(start_slot, changed_slot(0, start_value));
+        account.storage.insert(
+            epoch_blocks_slot(),
+            EvmStorageSlot::new(U256::from(1_u64), 0),
+        );
+        account.storage.insert(
+            next_epoch_block_slot(),
+            EvmStorageSlot::new(U256::from(2_u64), 0),
+        );
+
+        let mut outcome_state = EvmState::default();
+        outcome_state.insert(EPOCH_PRECOMPILE_ADDRESS, account);
+
+        let effect = extract_epoch_boundary_effect(&outcome_state)
+            .expect("loaded runtime context should synthesize next epoch block");
         assert_eq!(
             effect.writes[1],
             EpochBoundaryStorageWrite {
                 slot: next_epoch_block_slot(),
-                value: U256::from(2_u64),
+                value: U256::from(3_u64),
             }
         );
     }
