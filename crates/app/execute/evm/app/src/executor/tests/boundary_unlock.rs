@@ -335,8 +335,18 @@ async fn boundary_unlock_applies_once_on_matching_epoch() {
 
     {
         let mut db = db.write().unwrap();
-        maybe_apply_community_pool_unlock(&mut *db, true, &validators)
-            .expect("same-epoch unlock invocation must no-op");
+        apply_post_block_accounting(
+            &mut *db,
+            &PostBlockAccountingInputs {
+                boundary_required: true,
+                gas_used: 0,
+                base_fee_per_gas: 1,
+                priority_fees: U256::ZERO,
+                claim_recipient: Address::ZERO,
+                simplex_validators: validators.clone(),
+            },
+        )
+        .expect("same-epoch accounting invocation must preserve unlock state");
     }
 
     let db = db.read().unwrap();

@@ -19,11 +19,17 @@ mod registered_precompile_api;
 mod registry_build;
 mod registry_runtime;
 
+mod accounting;
 pub mod community_pool;
 pub mod epoch;
 pub mod fee_pool;
 pub mod validators;
 
+pub use accounting::{
+    apply_post_block_accounting, ClaimCredit, CommunityPoolUnlockEffect, CommunityPoolUnlockState,
+    PostBlockAccountingEffect, PostBlockAccountingEffectError, PostBlockAccountingInputs,
+    PostBlockAccountingOutcome, PostBlockAccountingRuntimeError,
+};
 pub use community_pool::{
     community_pool_balance_calldata, community_pool_last_processed_epoch_slot,
     community_pool_last_processed_epoch_storage_slot, community_pool_locked_remaining_slot,

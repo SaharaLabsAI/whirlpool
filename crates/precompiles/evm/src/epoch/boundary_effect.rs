@@ -298,9 +298,11 @@ mod tests {
 
     #[test]
     fn rejects_account_info_replay_dependency() {
-        let mut account = Account::default();
-        account.info = AccountInfo::from_balance(U256::from(1_u64));
-        account.original_info = Box::new(AccountInfo::default());
+        let mut account = Account {
+            info: AccountInfo::from_balance(U256::from(1_u64)),
+            original_info: Box::new(AccountInfo::default()),
+            ..Default::default()
+        };
         account
             .storage
             .insert(current_epoch_slot(), changed_slot(0, U256::from(1_u64)));

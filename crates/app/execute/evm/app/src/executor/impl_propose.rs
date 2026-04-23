@@ -119,22 +119,21 @@ where
                     |err| map_epoch_boundary_runtime_error(err, BoundaryCallFailureMode::Propose),
                 )?;
             }
-            maybe_apply_community_pool_unlock(
+            let accounting_outcome = apply_post_block_accounting(
                 &mut *canonical_db,
-                boundary_required,
-                self.evm_config.simplex_validators(),
-            )?;
-            let current_epoch = load_u64_storage_value(
-                &*canonical_db,
-                EPOCH_PRECOMPILE_ADDRESS,
-                current_epoch_slot(),
-                "epoch currentEpoch",
-            )?;
-            credit_burned_fees(&mut *canonical_db, gas_used, base_fee_per_gas)?;
-            credit_fee_pool_claim(&mut *canonical_db, claim_recipient, priority_fees)?;
+                &PostBlockAccountingInputs {
+                    boundary_required,
+                    gas_used,
+                    base_fee_per_gas,
+                    priority_fees,
+                    claim_recipient,
+                    simplex_validators: self.evm_config.simplex_validators().to_vec(),
+                },
+            )
+            .map_err(map_post_block_accounting_runtime_error)?;
             (
                 canonical_db.state_root().map_err(Into::into)?,
-                current_epoch,
+                accounting_outcome.current_epoch,
             )
         };
 

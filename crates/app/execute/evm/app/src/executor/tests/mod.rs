@@ -10,12 +10,13 @@ use chainspec::{
     CommunityPoolUnlockConfig, SAHARA_CHAIN_ID,
 };
 use evm_precompiles::{
-    advance_epoch_calldata, claimable_balance_slot, community_pool_last_processed_epoch_slot,
-    community_pool_locked_remaining_slot, community_pool_unlock_amount_per_cycle_slot,
-    community_pool_unlock_every_epochs_slot, current_epoch_slot, epoch_blocks_slot,
-    epoch_system_tx_sender, next_epoch_block_slot, withdraw_calldata, COMMUNITY_POOL_ADDRESS,
-    EPOCH_BLOCKS_DEFAULT, EPOCH_PRECOMPILE_ADDRESS, EPOCH_SYSTEM_TX_GAS_LIMIT,
-    EPOCH_SYSTEM_TX_INITIAL_BALANCE_WEI, EPOCH_SYSTEM_TX_PRIVATE_KEY, FEE_POOL_PRECOMPILE_ADDRESS,
+    advance_epoch_calldata, apply_post_block_accounting, claimable_balance_slot,
+    community_pool_last_processed_epoch_slot, community_pool_locked_remaining_slot,
+    community_pool_unlock_amount_per_cycle_slot, community_pool_unlock_every_epochs_slot,
+    current_epoch_slot, epoch_blocks_slot, epoch_system_tx_sender, next_epoch_block_slot,
+    withdraw_calldata, PostBlockAccountingInputs, COMMUNITY_POOL_ADDRESS, EPOCH_BLOCKS_DEFAULT,
+    EPOCH_PRECOMPILE_ADDRESS, EPOCH_SYSTEM_TX_GAS_LIMIT, EPOCH_SYSTEM_TX_INITIAL_BALANCE_WEI,
+    EPOCH_SYSTEM_TX_PRIVATE_KEY, FEE_POOL_PRECOMPILE_ADDRESS,
 };
 use reth_ethereum_primitives::TransactionSigned;
 use reth_evm::execute::BlockExecutionError;

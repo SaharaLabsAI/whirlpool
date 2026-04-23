@@ -12,10 +12,10 @@ use app::{
     EvmBlock, ExecutionResult, Receipt,
 };
 use evm_precompiles::{
-    apply_epoch_boundary_effect, current_epoch_slot,
+    apply_epoch_boundary_effect, apply_post_block_accounting,
     execute_epoch_boundary_system_call_if_required, load_epoch_boundary_state,
-    reserved_advance_epoch_call_matches, EpochBoundaryRuntimeError, EPOCH_PRECOMPILE_ADDRESS,
-    FEE_POOL_PRECOMPILE_ADDRESS,
+    reserved_advance_epoch_call_matches, EpochBoundaryRuntimeError, PostBlockAccountingInputs,
+    PostBlockAccountingRuntimeError, FEE_POOL_PRECOMPILE_ADDRESS,
 };
 use reth_ethereum_primitives::TransactionSigned;
 use reth_evm::{
@@ -43,12 +43,7 @@ use state_helpers::block_extra_data::{
     extra_data_decode_mode_for_height, proposer_public_key_from_raw_eth_section,
     validate_or_recover_fee_recipient,
 };
-use state_helpers::community_pool_unlock::{
-    load_u64_storage_value, maybe_apply_community_pool_unlock,
-};
-use state_helpers::fee_accounting::{
-    aggregate_priority_fees, credit_burned_fees, credit_fee_pool_claim,
-};
+use state_helpers::fee_accounting::aggregate_priority_fees;
 use state_helpers::full_dkg_history::latest_committed_full_dkg;
 use state_helpers::receipt_accounting::gas_deltas_and_used;
 
@@ -158,6 +153,16 @@ fn boundary_call_failure(mode: BoundaryCallFailureMode, message: String) -> EvmA
     match mode {
         BoundaryCallFailureMode::Propose => EvmAppError::Execution(message),
         BoundaryCallFailureMode::Verify => EvmAppError::InvalidBlock(message),
+    }
+}
+
+fn map_post_block_accounting_runtime_error(err: PostBlockAccountingRuntimeError) -> EvmAppError {
+    match err {
+        PostBlockAccountingRuntimeError::StateAccess(message) => EvmAppError::State(message),
+        PostBlockAccountingRuntimeError::InvalidStoredValue(message) => {
+            EvmAppError::InvalidBlock(message)
+        }
+        PostBlockAccountingRuntimeError::Execution(message) => EvmAppError::Execution(message),
     }
 }
 

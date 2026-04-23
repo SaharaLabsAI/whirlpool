@@ -78,13 +78,17 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
 - Canonical runtime wiring is validator-aware: `whirlpool_precompiles_with_validators(...)`, `build_whirlpool_precompiles_with_validators(...)`, and `WhirlpoolEvmFactory::with_validators(...)`. The zero-validator convenience helpers/default factory remain exported only for compatibility and bootstrap/test scenarios.
 - The validators precompile is read-only and returns the ordered list provided by the canonical Rust validator reader (`validators` crate).
 - The community-pool precompile is read-only and returns the balance of `COMMUNITY_POOL_ADDRESS`.
-- Community-pool unlock schedule state is also anchored at `COMMUNITY_POOL_ADDRESS` storage (configured by chainspec/runtime), but unlock execution itself is runtime logic in `app-evm`, not a mutable community-pool precompile method.
+- Community-pool unlock schedule state remains anchored at `COMMUNITY_POOL_ADDRESS` storage (configured by chainspec/runtime), but the mutable runtime ownership now lives in the internal `accounting` runtime-adapter surface rather than in `app-evm` or a new public precompile selector.
 - Fee routing model:
   - burned base fees -> `COMMUNITY_POOL_ADDRESS`
   - priority fees -> `FEE_POOL_PRECOMPILE_ADDRESS`
   - proposer entitlement -> fee-pool claim ledger keyed by recipient address
   - payout -> precompile `withdraw()` path
 - The fee-pool precompile mutates journaled EVM **account balances** and claim-ledger storage through the shared EVM internals.
+- The accounting module now owns a second **two-layer boundary API** for post-block accounting:
+  - **pure core**: `PostBlockAccountingInputs`, `PostBlockAccountingEffect`, `PostBlockAccountingOutcome`, community-pool unlock state/effect math
+  - **runtime adapter**: `apply_post_block_accounting(...)` + `PostBlockAccountingRuntimeError`
+- Accounting boundary rule: `app-evm` may compute executor-native inputs (for example aggregated priority fees) and choose when accounting runs, but fee/community-pool slot knowledge, balance-preserving rewrites, unlock share distribution, and claim-ledger mutation now stay inside `evm-precompiles`.
 - Epoch precompile model:
   - read selectors: `currentEpoch`, `nextEpochBlock`, `epochBlocks`, `epochStartBlock(epoch)`
   - write selector: `advanceEpoch()` (restricted to `epoch_system_tx_sender()`, non-static)

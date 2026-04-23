@@ -128,23 +128,19 @@ where
                 map_epoch_boundary_runtime_error(err, BoundaryCallFailureMode::Verify)
             })?;
         }
-        maybe_apply_community_pool_unlock(
+        let current_epoch = apply_post_block_accounting(
             &mut exec_state,
-            boundary_required,
-            self.evm_config.simplex_validators(),
-        )?;
-        let current_epoch = load_u64_storage_value(
-            &exec_state,
-            EPOCH_PRECOMPILE_ADDRESS,
-            current_epoch_slot(),
-            "epoch currentEpoch",
-        )?;
-        credit_burned_fees(
-            &mut exec_state,
-            computed_gas_used,
-            expected_base_fee_per_gas,
-        )?;
-        credit_fee_pool_claim(&mut exec_state, claim_recipient, priority_fees)?;
+            &PostBlockAccountingInputs {
+                boundary_required,
+                gas_used: computed_gas_used,
+                base_fee_per_gas: expected_base_fee_per_gas,
+                priority_fees,
+                claim_recipient,
+                simplex_validators: self.evm_config.simplex_validators().to_vec(),
+            },
+        )
+        .map_err(map_post_block_accounting_runtime_error)?
+        .current_epoch;
 
         let computed_state_root = exec_state.state_root().map_err(Into::into)?;
         let computed_receipts_root = ordered_trie_root_with_encoder(

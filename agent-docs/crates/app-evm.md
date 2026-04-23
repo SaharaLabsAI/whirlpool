@@ -71,7 +71,11 @@ Those live in `chainspec`.
 - Ownership split for epoch boundaries:
   - `evm-precompiles` owns the pure boundary core (`EpochBoundaryState`, predicate, reserved matcher, typed `EpochBoundaryEffect`) **and** the runtime adapter layer (`StateDb` load/apply + generic system-call support + `EpochBoundaryRuntimeError`).
   - `app-evm` owns pipeline timing and error translation only: propose maps runtime boundary failures to `Execution`, verify maps them to `InvalidBlock`, while shared state-access failures still surface as `State`.
-  - the critical sequencing invariant remains unchanged: `apply_pre_execution_changes()` -> boundary system call -> immediate in-memory `commit(outcome.state.clone())` -> user tx execution -> bundle commit -> canonical epoch effect apply -> unlock / extra-data consumers.
+  - the critical sequencing invariant remains unchanged: `apply_pre_execution_changes()` -> boundary system call -> immediate in-memory `commit(outcome.state.clone())` -> user tx execution -> bundle commit -> canonical epoch effect apply -> post-block accounting / extra-data consumers.
+- Fee/community-pool ownership split now mirrors the epoch boundary pattern:
+  - `evm-precompiles` owns the new internal post-block accounting boundary (`PostBlockAccountingInputs`, `PostBlockAccountingEffect`, `PostBlockAccountingOutcome`, `apply_post_block_accounting`, `PostBlockAccountingRuntimeError`) and the fee/community-pool write logic previously housed in local executor helpers.
+  - `app-evm` keeps only executor-native input derivation (`aggregate_priority_fees`) plus propose/verify ordering and runtime-error translation.
+  - propose/verify both call the same lower-layer accounting entrypoint after bundle commit and epoch effect application.
 - Boundary epoch math and activation-derived player resolution are shared through directory-backed `validator_activation/` modules (`BoundaryEpochContext`, `ActivationSourceResolver`) so propose/verify evaluate the same forward epoch targets.
 - `ActivationSourceResolver` is fail-closed for boundary FullDkg/Reshare targeting: a missing configured player set for the required epoch returns `InvalidBlock("activation resolver missing player set for epoch <n>")`.
 - Boundary unlock flow:
@@ -83,13 +87,12 @@ Those live in `chainspec`.
   - unlock progress is tracked by `lockedRemaining` + `lastProcessedEpoch` slots at the community-pool account
 - Fee routing behavior:
   - burned base fees are credited to `evm_precompiles::COMMUNITY_POOL_ADDRESS`
-  - regression coverage asserts burned-fee account rewrites preserve all community-pool unlock slots (`unlockEveryEpochs`, `unlockAmountPerCycle`, `lockedRemaining`, `lastProcessedEpoch`) on non-boundary blocks
+  - regression coverage asserts lower-layer burned-fee account rewrites preserve all community-pool unlock slots (`unlockEveryEpochs`, `unlockAmountPerCycle`, `lockedRemaining`, `lastProcessedEpoch`) on non-boundary blocks
   - priority fees are credited to `evm_precompiles::FEE_POOL_PRECOMPILE_ADDRESS`
   - per-recipient claimable balances are stored in fee-pool precompile storage (`claimable_balance_slot`)
   - proposers withdraw later via fee-pool precompile `withdraw()`
 - `suggested_fee_recipient` in execution env is now forced to fee-pool address; block header `proposer_fee_recipient` remains proposer metadata.
 - `state::StateDb` is now the only state trait used by `app-evm`; the old subset seam `app_evm::traits::StateProvider` is removed.
-- `state::StateDb` writes are used for claim-ledger slot updates via `insert_storage`.
 - Block gas accounting now uses the final cumulative receipt gas (last receipt), avoiding sum-of-cumulative overcounting.
 - On boundary heights, propose executes `advanceEpoch` as an internal system call before user tx execution; no synthetic boundary tx bytes are added to `block.transactions`.
 - Reserved epoch namespace tx bytes in the user payload are treated as invalid protocol artifacts: propose excludes them and verify rejects blocks that contain them.
