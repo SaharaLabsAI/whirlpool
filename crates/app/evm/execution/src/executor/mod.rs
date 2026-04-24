@@ -1,51 +1,29 @@
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, RwLock};
 
-use alloy_consensus::{Transaction, TxReceipt};
+use alloy_consensus::Transaction;
 use alloy_eips::eip1559::{calc_next_block_base_fee, BaseFeeParams};
-use alloy_eips::eip2718::Encodable2718;
-use alloy_primitives::{bytes::BufMut, Address, Bytes, TxKind, B256};
+use alloy_primitives::{bytes::BufMut, Address, TxKind};
 use alloy_trie::{root::ordered_trie_root_with_encoder, EMPTY_ROOT_HASH};
 use app::{
-    decode_extra_data, legacy_proposer_extra_data_bytes,
+    legacy_proposer_extra_data_bytes,
     traits::{Application, TxSource},
     EvmBlock, ExecutionResult, Receipt,
 };
 use evm_precompiles::{
-    apply_epoch_boundary_effect, apply_post_block_accounting,
-    execute_epoch_boundary_system_call_if_required, load_epoch_boundary_state,
-    reserved_advance_epoch_call_matches, EpochBoundaryRuntimeError, PostBlockAccountingInputs,
-    PostBlockAccountingRuntimeError, FEE_POOL_PRECOMPILE_ADDRESS,
+    reserved_advance_epoch_call_matches, EpochBoundaryRuntimeError, PostBlockAccountingRuntimeError,
 };
 use reth_ethereum_primitives::TransactionSigned;
-use reth_evm::{
-    execute::{BlockBuilder, BlockExecutor},
-    ConfigureEvm, NextBlockEnvAttributes,
-};
 use reth_primitives_traits::Recovered;
-use revm::database::states::bundle_state::BundleRetention;
-use revm::database::State;
 use state::BlockStorage;
 
-use crate::canonical_extra_data::{
-    build_canonical_extra_data, ensure_full_dkg_players_match_activation,
-    full_dkg_should_be_included,
-};
+use crate::canonical_extra_data::build_canonical_extra_data;
 use crate::config::WhirlpoolEvmConfig;
 use crate::error::EvmAppError;
 pub use crate::traits::StateDb;
-use crate::validator_activation::{ActivationSourceResolver, BoundaryEpochContext};
-use header_and_decode::build_sealed_header;
 pub use header_and_decode::{
     build_header_from_evm_block, decode_evm_transaction, decode_evm_transactions,
 };
-use state_helpers::block_extra_data::{
-    extra_data_decode_mode_for_height, proposer_public_key_from_raw_eth_section,
-    validate_or_recover_fee_recipient,
-};
-use state_helpers::fee_accounting::aggregate_priority_fees;
-use state_helpers::full_dkg_history::latest_committed_full_dkg;
-use state_helpers::receipt_accounting::gas_deltas_and_used;
 
 mod header_and_decode;
 mod state_helpers;

@@ -1,9 +1,15 @@
 use super::*;
+use crate::canonical_extra_data::full_dkg_should_be_included;
 use crate::config::DEFAULT_PROPOSER_FEE_RECIPIENT;
+use crate::executor::state_helpers::full_dkg_history::latest_committed_full_dkg;
 use alloy_consensus::{SignableTransaction, TxLegacy};
 use alloy_eips::eip2718::Encodable2718;
-use alloy_primitives::{Address, Signature, TxKind, U256};
-use app::{encode_canonical_extra_data, CanonicalExtraDataV1, ExtraDataDecodeMode, FullDkgV1};
+use alloy_primitives::{Address, Bytes, Signature, TxKind, B256, U256};
+use app::{
+    decode_extra_data, encode_canonical_extra_data, CanonicalExtraDataV1, ExtraDataDecodeMode,
+    FullDkgV1,
+};
+use app_evm_state::InMemoryStateDb;
 use chainspec::{
     build_sahara_chain_spec, build_sahara_chain_spec_with_alloc_and_fee_recipients,
     build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators_and_community_pool_unlock_config,
@@ -24,7 +30,6 @@ use reth_evm::execute::BlockValidationError;
 use reth_primitives_traits::crypto::secp256k1::sign_message;
 use reth_primitives_traits::SignerRecoverable;
 use revm::state::Bytecode;
-use app_evm_state::InMemoryStateDb;
 use std::collections::BTreeMap;
 
 struct MockTxSource {
@@ -258,5 +263,7 @@ mod decoding;
 mod fee_accounting;
 mod full_dkg_activation;
 mod full_dkg_core;
+mod lifecycle;
 mod receipts;
+mod tx_pool;
 mod verification;

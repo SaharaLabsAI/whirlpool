@@ -1,4 +1,6 @@
-use super::*;
+use app::{FullDkgOutputV1, FullDkgV1};
+
+use crate::config::WhirlpoolEvmConfig;
 
 impl WhirlpoolEvmConfig {
     pub fn full_dkg_strict_height(&self) -> u64 {

@@ -1,4 +1,4 @@
-use super::*;
+use crate::config::WhirlpoolEvmConfig;
 
 impl WhirlpoolEvmConfig {
     pub fn with_activation_players_for_epoch(mut self, epoch: u64, players: Vec<[u8; 32]>) -> Self {

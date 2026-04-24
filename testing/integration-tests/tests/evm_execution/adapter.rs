@@ -3,9 +3,9 @@ use std::sync::{Arc, RwLock};
 use app::{traits::Application, ApplicationAdapter, EvmBlock, NoopTxSource};
 use app_evm_execution::executor::EvmApplication;
 use app_evm_execution::WhirlpoolEvmConfig;
+use app_evm_state::InMemoryStateDb;
 use chainspec::build_sahara_chain_spec;
 use consensus::{traits::ConsensusApp, ConsensusError};
-use app_evm_state::InMemoryStateDb;
 
 fn assert_application_impl<A: Application<Block = EvmBlock>>(_app: &A) {}
 
@@ -72,6 +72,45 @@ async fn test_adapter_verify_failure() {
     let verify_result = adapter.verify(&genesis, &tampered_block).await;
     assert!(matches!(
         verify_result,
+        Err(ConsensusError::InvalidBlock(_))
+    ));
+}
+
+#[tokio::test]
+async fn test_error_propagation_through_adapter() {
+    let adapter = build_adapter();
+
+    let genesis = ConsensusApp::genesis(&adapter).await;
+    let block1 = ConsensusApp::propose(&adapter, &genesis, 1)
+        .await
+        .expect("adapter propose should return Some");
+
+    let mut tampered_block = block1.clone();
+    tampered_block.state_root[0] ^= 0x01;
+
+    let verify_result = ConsensusApp::verify(&adapter, &genesis, &tampered_block).await;
+    assert!(matches!(
+        verify_result,
+        Err(ConsensusError::InvalidBlock(_))
+    ));
+}
+
+#[tokio::test]
+async fn test_state_root_mismatch_maps_to_consensus_invalid_block() {
+    let adapter = build_adapter();
+
+    let genesis = adapter.genesis().await;
+    let block1 = adapter
+        .propose(&genesis, 1)
+        .await
+        .expect("propose should return a block");
+
+    let mut tampered_block = block1.clone();
+    tampered_block.state_root[0] ^= 0x01;
+
+    let adapter_verify = adapter.verify(&genesis, &tampered_block).await;
+    assert!(matches!(
+        adapter_verify,
         Err(ConsensusError::InvalidBlock(_))
     ));
 }

@@ -1,4 +1,6 @@
-use super::*;
+use alloy_primitives::Address;
+
+use crate::config::{WhirlpoolEvmConfig, DEFAULT_PROPOSER_FEE_RECIPIENT};
 
 impl WhirlpoolEvmConfig {
     pub fn fee_recipient(&self) -> Address {

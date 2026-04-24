@@ -1,5 +1,5 @@
 use alloy_primitives::{Address, B256};
-use app::{FullDkgOutputV1, FullDkgV1};
+use app::FullDkgOutputV1;
 use core::convert::Infallible;
 use evm_precompiles::{whirlpool_precompiles_with_validators, WhirlpoolEvmFactory};
 use reth_chainspec::ChainSpec;

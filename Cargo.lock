@@ -4434,6 +4434,7 @@ dependencies = [
  "app-evm-state",
  "chainspec",
  "commonware-cryptography",
+ "consensus",
  "consensus-manager",
  "evm-precompiles",
  "hex",

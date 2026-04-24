@@ -2,8 +2,7 @@ use alloy_consensus::Transaction;
 use alloy_primitives::U256;
 
 use crate::error::EvmAppError;
-
-use super::super::RecoveredTx;
+use crate::executor::RecoveredTx;
 
 pub fn aggregate_priority_fees(
     txs: &[RecoveredTx],

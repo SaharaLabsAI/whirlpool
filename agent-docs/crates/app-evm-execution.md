@@ -54,8 +54,11 @@ Those live in `chainspec`.
   - `state_helpers.rs` — internal fee/community-pool/state helper logic.
   - `impl_core_methods.rs` / `impl_propose.rs` / `impl_verify.rs` — split `EvmApplication` method lanes.
   - `tests/mod.rs` + `tests/*.rs` — directory-backed executor unit tests split by topic with shared fixtures in the parent module.
+  - `tests/lifecycle.rs` — source-adjacent `EvmApplication` lifecycle / propose / verify / state-root coverage migrated from the former crate-local `tests/*.rs` tree.
+  - `tests/tx_pool.rs` — source-adjacent tx-pool behavior coverage migrated from the former crate-local `tests/*.rs` tree.
   - `mod.rs` now uses explicit module wiring/imports (no `include!` composition for helper files).
   - executor helper functions now avoid scoped visibility modifiers (`pub(super)`/`pub(crate)`), using `pub` inside private modules for parent-module access.
+  - production import rewrites now avoid `super::` in the split `config/*`, `impl_*`, decode, and fee-accounting files.
 - `full_dkg_strict_height` defaults to `0` (strict from genesis) and can be explicitly overridden via config builders for migration/testing scenarios.
 - `WhirlpoolEvmConfig` is now split across directory-backed `config/` submodules so builder/accessor APIs stay grouped by concern while preserving the same external type and behavior.
 - `executor/header_and_decode/` and `executor/state_helpers/` are directory-backed modules that split decode/header and state-helper surfaces into focused files with smaller public API sets.

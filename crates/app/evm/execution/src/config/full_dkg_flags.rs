@@ -1,4 +1,4 @@
-use super::*;
+use crate::config::WhirlpoolEvmConfig;
 
 impl WhirlpoolEvmConfig {
     pub fn with_full_dkg_feature_enabled(mut self, enabled: bool) -> Self {

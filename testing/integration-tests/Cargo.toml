@@ -16,6 +16,7 @@ state = { path = "../../crates/app/state" }
 app-evm-state = { path = "../../crates/app/evm/state-reth" }
 whirlpool-node = { path = "../../crates/node" }
 consensus-manager = { path = "../../crates/consensus/manager" }
+consensus = { path = "../../crates/consensus/traits" }
 commonware-cryptography = { path = "../../vendor/commonware/cryptography" }
 revm = { version = "36" }
 alloy-primitives = { version = "1.5.0" }

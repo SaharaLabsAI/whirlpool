@@ -1,4 +1,33 @@
-use super::*;
+use alloy_consensus::TxReceipt;
+use alloy_eips::eip2718::Encodable2718;
+use alloy_primitives::{Bytes, B256};
+use alloy_trie::root::ordered_trie_root_with_encoder;
+use app::{ExecutionResult, Receipt};
+use evm_precompiles::{
+    apply_epoch_boundary_effect, apply_post_block_accounting,
+    execute_epoch_boundary_system_call_if_required, load_epoch_boundary_state,
+    PostBlockAccountingInputs, FEE_POOL_PRECOMPILE_ADDRESS,
+};
+use reth_evm::{
+    execute::{BlockBuilder, BlockExecutor},
+    ConfigureEvm, NextBlockEnvAttributes,
+};
+use revm::database::states::bundle_state::BundleRetention;
+use revm::database::State;
+use state::BlockStorage;
+
+use crate::canonical_extra_data::build_canonical_extra_data;
+use crate::error::EvmAppError;
+use crate::executor::header_and_decode::build_sealed_header;
+use crate::executor::state_helpers::fee_accounting::aggregate_priority_fees;
+use crate::executor::state_helpers::full_dkg_history::latest_committed_full_dkg;
+use crate::executor::state_helpers::receipt_accounting::gas_deltas_and_used;
+use crate::executor::{
+    classify_tx_execution_error, expected_next_block_base_fee, map_epoch_boundary_runtime_error,
+    map_post_block_accounting_runtime_error, tx_is_reserved_epoch_namespace,
+    BoundaryCallFailureMode, EvmApplication, ProposedEvmPayload, BLOCK_GAS_LIMIT,
+};
+use crate::traits::StateDb;
 
 impl<DB> EvmApplication<DB>
 where
@@ -6,7 +35,7 @@ where
 {
     pub fn propose_evm_transactions(
         &self,
-        parent: &EvmBlock,
+        parent: &app::EvmBlock,
         raw_txs: &[Vec<u8>],
         timestamp: u64,
         block_height: u64,
@@ -27,7 +56,7 @@ where
         let base_fee_per_gas = expected_next_block_base_fee(parent);
         let boundary_required =
             evm_precompiles::boundary_required_for_height(boundary_state, block_height);
-        let decoded_txs = decode_evm_transactions(raw_txs)?;
+        let decoded_txs = crate::executor::decode_evm_transactions(raw_txs)?;
 
         let env_attributes = NextBlockEnvAttributes {
             timestamp,
@@ -76,11 +105,11 @@ where
                     inclusion_outcomes.push(true);
                 }
                 Err(err) => match classify_tx_execution_error(err) {
-                    TxExecutionErrorDisposition::InvalidTxValidation(_) => {
+                    crate::executor::TxExecutionErrorDisposition::InvalidTxValidation(_) => {
                         inclusion_outcomes.push(false);
                     }
-                    TxExecutionErrorDisposition::OtherValidation(message)
-                    | TxExecutionErrorDisposition::Other(message) => {
+                    crate::executor::TxExecutionErrorDisposition::OtherValidation(message)
+                    | crate::executor::TxExecutionErrorDisposition::Other(message) => {
                         return Err(EvmAppError::Execution(message));
                     }
                 },

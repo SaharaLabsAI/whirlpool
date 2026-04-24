@@ -1,4 +1,40 @@
-use super::*;
+use alloy_consensus::TxReceipt;
+use alloy_eips::eip2718::Encodable2718;
+use alloy_primitives::{Bytes, B256};
+use alloy_trie::root::ordered_trie_root_with_encoder;
+use app::{decode_extra_data, ExecutionResult, Receipt};
+use evm_precompiles::{
+    apply_epoch_boundary_effect, apply_post_block_accounting,
+    execute_epoch_boundary_system_call_if_required, load_epoch_boundary_state,
+    PostBlockAccountingInputs, FEE_POOL_PRECOMPILE_ADDRESS,
+};
+use reth_evm::{
+    execute::{BlockBuilder, BlockExecutor},
+    ConfigureEvm, NextBlockEnvAttributes,
+};
+use revm::database::states::bundle_state::BundleRetention;
+use revm::database::State;
+use state::BlockStorage;
+
+use crate::canonical_extra_data::{
+    ensure_full_dkg_players_match_activation, full_dkg_should_be_included,
+};
+use crate::error::EvmAppError;
+use crate::executor::header_and_decode::build_sealed_header;
+use crate::executor::state_helpers::block_extra_data::{
+    extra_data_decode_mode_for_height, proposer_public_key_from_raw_eth_section,
+    validate_or_recover_fee_recipient,
+};
+use crate::executor::state_helpers::fee_accounting::aggregate_priority_fees;
+use crate::executor::state_helpers::full_dkg_history::latest_committed_full_dkg;
+use crate::executor::state_helpers::receipt_accounting::gas_deltas_and_used;
+use crate::executor::{
+    classify_tx_execution_error, expected_next_block_base_fee, map_epoch_boundary_runtime_error,
+    map_post_block_accounting_runtime_error, tx_is_reserved_epoch_namespace,
+    BoundaryCallFailureMode, EvmApplication, BLOCK_GAS_LIMIT,
+};
+use crate::traits::StateDb;
+use crate::validator_activation::{ActivationSourceResolver, BoundaryEpochContext};
 
 impl<DB> EvmApplication<DB>
 where
@@ -6,15 +42,15 @@ where
 {
     pub fn verify_evm_transactions(
         &self,
-        parent: &EvmBlock,
-        block: &EvmBlock,
+        parent: &app::EvmBlock,
+        block: &app::EvmBlock,
         raw_txs: &[Vec<u8>],
     ) -> Result<ExecutionResult, EvmAppError>
     where
         DB: StateDb + BlockStorage + Clone + revm::Database,
         <DB as StateDb>::Error: Into<EvmAppError>,
     {
-        let decoded_txs = decode_evm_transactions(raw_txs)?;
+        let decoded_txs = crate::executor::decode_evm_transactions(raw_txs)?;
 
         let mut exec_state = {
             let db = self.state_db.read().unwrap();
@@ -96,13 +132,13 @@ where
         for tx in decoded_txs.iter().cloned() {
             if let Err(err) = builder.execute_transaction(tx) {
                 match classify_tx_execution_error(err) {
-                    TxExecutionErrorDisposition::InvalidTxValidation(message)
-                    | TxExecutionErrorDisposition::OtherValidation(message) => {
+                    crate::executor::TxExecutionErrorDisposition::InvalidTxValidation(message)
+                    | crate::executor::TxExecutionErrorDisposition::OtherValidation(message) => {
                         return Err(EvmAppError::InvalidBlock(format!(
                             "Transaction execution failed validation: {message}"
                         )))
                     }
-                    TxExecutionErrorDisposition::Other(message) => {
+                    crate::executor::TxExecutionErrorDisposition::Other(message) => {
                         return Err(EvmAppError::Execution(format!(
                             "Transaction execution failed: {message}"
                         )))

@@ -18,8 +18,9 @@ Location: `testing/integration-tests/`
 - `src/bin/single_node_transfer_benchmark.rs`: release-binary benchmark harness; starts an in-process single node with a custom genesis (2,000 funded sender accounts by default), submits transfer traffic for a fixed 120-second window, and emits JSON metrics including block count, average block time, packaged transaction count, and TPS (= tx_count / 120s).
 
 ## Test Layout
-- Cargo entrypoints: `tests/rpc_suite.rs`, `tests/tokenomics_suite.rs`, `tests/consensus_suite.rs`
-- Domain modules: `tests/{rpc,tokenomics,consensus}/mod.rs`
+- Cargo entrypoints: `tests/rpc_suite.rs`, `tests/tokenomics_suite.rs`, `tests/consensus_suite.rs`, `tests/evm_execution_suite.rs`
+- Domain modules: `tests/{rpc,tokenomics,consensus,evm_execution}/mod.rs`
+- `tests/evm_execution/adapter.rs` holds only `ApplicationAdapter` / `ConsensusApp` public-seam coverage migrated out of `app-evm-execution` crate-local `tests/*.rs` files.
 - Shared helpers: `tests/common/http.rs`, `tests/common/encoding.rs`, and `tests/common/ports.rs`
 - Benchmark support modules: `src/bin/benchmark_support/cli.rs` and `src/bin/benchmark_support/runner.rs`
 - Benchmark entrypoint: `cargo run --release -p integration-tests --bin single_node_transfer_benchmark -- --duration-seconds 120 --sender-accounts 2000 --recipient-accounts 2000`
