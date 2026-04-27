@@ -1,15 +1,60 @@
-use alloy_primitives::{address, Address, Bytes};
+use alloy_primitives::{address, Address, Bytes, B256, U256};
 use alloy_sol_types::{sol, SolCall};
 use reth_evm::precompiles::PrecompileInput;
 use reth_evm::revm::precompile::{PrecompileError, PrecompileOutput, PrecompileResult};
 
-use crate::RegisteredPrecompile;
-use ::validators::ValidatorEntry;
+use std::collections::BTreeMap;
 
+use crate::RegisteredPrecompile;
+
+mod activation;
+mod address_storage;
 pub mod gas;
+mod registry_codec;
+
+pub use activation::{
+    BoundaryValidatorActivation, ValidatorActivationError, ValidatorActivationSchedule,
+};
+pub use address_storage::encode_ethereum_address_storage_value;
+pub use registry_codec::{
+    decode_validator_registry_storage, encode_validator_registry_storage, ordered_consensus_pubkeys,
+};
 
 pub const VALIDATORS_PRECOMPILE_ADDRESS: Address =
     address!("0x0000000000000000000000000000000000000101");
+
+/// Dedicated genesis account storing ordered simplex validator entries.
+pub const SIMPLEX_VALIDATORS_REGISTRY: Address = Address::new([
+    0x76, 0x61, 0x6c, 0x69, 0x64, 0x61, 0x74, 0x6f, 0x72, 0x2d, 0x73, 0x65, 0x74, 0x2d, 0x30, 0x31,
+    0x2d, 0x6f, 0x72, 0x64,
+]);
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatorEntry {
+    pub consensus_pubkey: [u8; 32],
+    pub ethereum_address: Address,
+}
+
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+pub enum ValidatorRegistryError {
+    #[error("validator registry length {length} does not fit in usize")]
+    RegistryLengthOverflow { length: U256 },
+    #[error("missing consensus pubkey storage slot for validator index {index}")]
+    MissingConsensusPubkey { index: usize },
+    #[error("missing ethereum address storage slot for validator index {index}")]
+    MissingEthereumAddress { index: usize },
+    #[error("invalid ethereum address storage value for validator index {index}")]
+    InvalidEthereumAddressValue { index: usize },
+}
+
+pub fn decode_validator_registry_storage_opt(
+    storage: Option<&BTreeMap<B256, B256>>,
+) -> Result<Vec<ValidatorEntry>, ValidatorRegistryError> {
+    match storage {
+        Some(storage) => decode_validator_registry_storage(storage),
+        None => Ok(Vec::new()),
+    }
+}
 
 sol! {
     struct ValidatorRecord {
@@ -170,10 +215,9 @@ mod tests {
                 ethereum_address: address!("0x0000000000000000000000000000000000000022"),
             },
         ];
-        let rust_reader_output = ::validators::decode_validator_registry_storage(
-            &::validators::encode_validator_registry_storage(&source_entries),
-        )
-        .expect("decode rust registry representation");
+        let rust_reader_output =
+            decode_validator_registry_storage(&encode_validator_registry_storage(&source_entries))
+                .expect("decode rust registry representation");
 
         let result = call_validators_precompile(rust_reader_output.clone(), gas::validators_gas(2));
         let abi_output = decode_validators_output(&result.bytes).expect("decode precompile output");

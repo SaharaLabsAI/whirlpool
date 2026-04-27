@@ -4,15 +4,15 @@ use alloy_primitives::{Address, U256};
 use reth_evm::revm::state::AccountInfo;
 use state::StateDb;
 
-use crate::{current_epoch_slot, EPOCH_PRECOMPILE_ADDRESS, FEE_POOL_PRECOMPILE_ADDRESS};
 use crate::fee_pool::credit_fee_pool_claim;
+use crate::{current_epoch_slot, EPOCH_PRECOMPILE_ADDRESS, FEE_POOL_PRECOMPILE_ADDRESS};
 
 use super::{
     build_post_block_accounting_effect, community_pool_last_processed_epoch_slot,
     community_pool_locked_remaining_slot, community_pool_unlock_amount_per_cycle_slot,
-    community_pool_unlock_every_epochs_slot, CommunityPoolUnlockEffect,
-    CommunityPoolUnlockState, PostBlockAccountingEffectError, PostBlockAccountingInputs,
-    PostBlockAccountingOutcome, COMMUNITY_POOL_ADDRESS,
+    community_pool_unlock_every_epochs_slot, CommunityPoolUnlockEffect, CommunityPoolUnlockState,
+    PostBlockAccountingEffectError, PostBlockAccountingInputs, PostBlockAccountingOutcome,
+    COMMUNITY_POOL_ADDRESS,
 };
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
@@ -289,9 +289,9 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::validators::ValidatorEntry;
     use alloy_primitives::Address;
     use app_evm_state::InMemoryStateDb;
-    use validators::ValidatorEntry;
 
     use super::*;
     use crate::{

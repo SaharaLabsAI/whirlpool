@@ -1,3 +1,5 @@
+use evm_precompiles::validators::ValidatorActivationSchedule;
+
 use crate::config::WhirlpoolEvmConfig;
 
 impl WhirlpoolEvmConfig {
@@ -6,10 +8,16 @@ impl WhirlpoolEvmConfig {
         self
     }
 
+    pub fn validator_activation_schedule(&self) -> ValidatorActivationSchedule {
+        ValidatorActivationSchedule::from_parts(
+            self.simplex_consensus_public_keys(),
+            self.activation_players_by_epoch.clone(),
+        )
+    }
+
     pub fn activation_players_for_epoch(&self, epoch: u64) -> Option<Vec<[u8; 32]>> {
-        if self.activation_players_by_epoch.is_empty() {
-            return Some(self.simplex_consensus_public_keys());
-        }
-        self.activation_players_by_epoch.get(&epoch).cloned()
+        self.validator_activation_schedule()
+            .resolve_players_for_epoch(epoch)
+            .ok()
     }
 }

@@ -1,4 +1,4 @@
-use ::validators::ValidatorEntry as RegistryValidatorEntry;
+use crate::validators::ValidatorEntry as RegistryValidatorEntry;
 use alloy_primitives::{Address, Bytes};
 use alloy_sol_types::{sol, SolError};
 use reth_evm::revm::{
@@ -24,6 +24,14 @@ pub mod epoch;
 pub mod fee_pool;
 pub mod validators;
 
+pub use crate::validators::{
+    decode_validator_registry_storage, decode_validator_registry_storage_opt,
+    decode_validators_output, encode_ethereum_address_storage_value,
+    encode_validator_registry_storage, ordered_consensus_pubkeys, validators_calldata,
+    BoundaryValidatorActivation, ValidatorActivationError, ValidatorActivationSchedule,
+    ValidatorEntry, ValidatorRegistryError, SIMPLEX_VALIDATORS_REGISTRY,
+    VALIDATORS_PRECOMPILE_ADDRESS,
+};
 pub use community_pool::{
     apply_post_block_accounting, build_post_block_accounting_effect,
     community_pool_balance_calldata, community_pool_last_processed_epoch_slot,
@@ -46,7 +54,8 @@ pub use epoch::{
     execute_epoch_boundary_system_call_if_required, extract_epoch_boundary_effect,
     is_advance_epoch_calldata, load_epoch_boundary_state, next_epoch_block_calldata,
     next_epoch_block_slot, next_epoch_block_storage_slot, reserved_advance_epoch_call_matches,
-    EpochBoundaryEffect, EpochBoundaryEffectError, EpochBoundaryRuntimeError, EpochBoundaryState,
+    EpochActivationTargetError, EpochActivationTargets, EpochBoundaryEffect,
+    EpochBoundaryEffectError, EpochBoundaryRuntimeError, EpochBoundaryState,
     EpochBoundaryStorageWrite, EPOCH_BLOCKS_DEFAULT, EPOCH_PRECOMPILE_ADDRESS,
     EPOCH_SYSTEM_TX_GAS_LIMIT, EPOCH_SYSTEM_TX_INITIAL_BALANCE_WEI, EPOCH_SYSTEM_TX_PRIVATE_KEY,
 };
@@ -59,9 +68,6 @@ pub use registry_build::{
     build_whirlpool_precompiles, build_whirlpool_precompiles_with_validators,
 };
 pub use registry_runtime::{whirlpool_precompiles, whirlpool_precompiles_with_validators};
-pub use validators::{
-    decode_validators_output, validators_calldata, VALIDATORS_PRECOMPILE_ADDRESS,
-};
 
 sol! {
     /// Shared framework-level error used when a Whirlpool-owned stateful precompile

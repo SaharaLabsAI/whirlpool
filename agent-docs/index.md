@@ -38,7 +38,7 @@ Structured reference docs optimized for fast LLM lookup. Each contains type sign
 | [crates/whirlpool-node.md](crates/whirlpool-node.md) | EVM binary entrypoint and node configuration | `whirlpool-node` (bin) |
 | [crates/chainspec.md](crates/chainspec.md) | Sahara chain-spec ownership crate (builders, chain-id, validator-registry reader seam) | `chainspec` |
 | [crates/evm-precompiles.md](crates/evm-precompiles.md) | Workspace-owned registry/factory crate for Whirlpool custom EVM precompiles, including canonical community-pool address + read-only balance ABI | `evm-precompiles` |
-| [crates/validators.md](crates/validators.md) | Ordered simplex validator-registry model and genesis-storage codec shared across node/app/precompile surfaces | `validators` |
+| [crates/validators.md](crates/validators.md) | Thin compatibility facade that re-exports canonical validator registry/query APIs from `evm-precompiles::validators` | `validators` |
 | [crates/consensus-manager.md](crates/consensus-manager.md) | Trusted-dealer bootstrap artifact manager for BLS threshold startup material | `consensus-manager` |
 | [crates/rpc-eth.md](crates/rpc-eth.md) | Ethereum JSON-RPC server: reth-backed adapters (WhirlpoolProvider, WhirlpoolTxPool, WhirlpoolNetwork), RpcConfig API, blob exclusion | `rpc-eth` |
 | [crates/app-evm-state.md](crates/app-evm-state.md) | Persistent state implementation: RethStateDb, MDBX, state root | `app-evm-state` |

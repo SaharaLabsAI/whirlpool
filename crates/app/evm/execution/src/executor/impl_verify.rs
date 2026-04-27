@@ -6,7 +6,8 @@ use app::{decode_extra_data, ExecutionResult, Receipt};
 use evm_precompiles::{
     apply_epoch_boundary_effect, apply_post_block_accounting,
     execute_epoch_boundary_system_call_if_required, load_epoch_boundary_state,
-    PostBlockAccountingInputs, FEE_POOL_PRECOMPILE_ADDRESS,
+    EpochActivationTargetError, EpochActivationTargets, PostBlockAccountingInputs,
+    FEE_POOL_PRECOMPILE_ADDRESS,
 };
 use reth_evm::{
     execute::{BlockBuilder, BlockExecutor},
@@ -34,7 +35,15 @@ use crate::executor::{
     BoundaryCallFailureMode, EvmApplication, BLOCK_GAS_LIMIT,
 };
 use crate::traits::StateDb;
-use crate::validator_activation::{ActivationSourceResolver, BoundaryEpochContext};
+use evm_precompiles::validators::ValidatorActivationError;
+
+fn map_epoch_activation_target_error(err: EpochActivationTargetError) -> EvmAppError {
+    EvmAppError::InvalidBlock(err.to_string())
+}
+
+fn map_validator_activation_error(err: ValidatorActivationError) -> EvmAppError {
+    EvmAppError::InvalidBlock(err.to_string())
+}
 
 impl<DB> EvmApplication<DB>
 where
@@ -208,13 +217,14 @@ where
         }
 
         let boundary_epoch_context = if boundary_required {
-            Some(BoundaryEpochContext::from_post_advance_epoch(
-                current_epoch,
-            )?)
+            Some(
+                EpochActivationTargets::from_post_advance_epoch(current_epoch)
+                    .map_err(map_epoch_activation_target_error)?,
+            )
         } else {
             None
         };
-        let activation_resolver = ActivationSourceResolver::new(&self.evm_config);
+        let activation_schedule = self.evm_config.validator_activation_schedule();
 
         if !boundary_required && decoded_extra_data.reshare.is_some() {
             return Err(EvmAppError::InvalidBlock(
@@ -235,7 +245,7 @@ where
             match candidate_full_dkg {
                 Some(candidate_full_dkg) => {
                     ensure_full_dkg_players_match_activation(
-                        &activation_resolver,
+                        &activation_schedule,
                         &candidate_full_dkg,
                     )?;
 
@@ -275,10 +285,9 @@ where
                                 observed_reshare.target_epoch
                             )));
                         }
-                        let expected_reshare_players = activation_resolver
-                            .resolve_players_for_epoch(
-                                boundary_epoch_context.reshare_target_epoch,
-                            )?;
+                        let expected_reshare_players = activation_schedule
+                            .resolve_players_for_epoch(boundary_epoch_context.reshare_target_epoch)
+                            .map_err(map_validator_activation_error)?;
                         if observed_reshare.players != expected_reshare_players {
                             return Err(EvmAppError::InvalidBlock(
                                 "reshare players do not match activation-resolved player set"

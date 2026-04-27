@@ -3397,7 +3397,6 @@ dependencies = [
  "reth-primitives-traits",
  "state",
  "thiserror 2.0.18",
- "validators",
 ]
 
 [[package]]
@@ -10237,7 +10236,7 @@ name = "validators"
 version = "0.1.0"
 dependencies = [
  "alloy-primitives",
- "thiserror 2.0.18",
+ "evm-precompiles",
 ]
 
 [[package]]

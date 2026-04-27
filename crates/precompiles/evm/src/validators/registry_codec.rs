@@ -1,6 +1,4 @@
-use crate::{
-    address_storage::encode_ethereum_address_storage_value, ValidatorEntry, ValidatorRegistryError,
-};
+use super::{encode_ethereum_address_storage_value, ValidatorEntry, ValidatorRegistryError};
 use alloy_primitives::{Address, B256, U256};
 use std::collections::BTreeMap;
 
@@ -93,4 +91,63 @@ fn decode_ethereum_address_storage_value(
 
 fn b256_from_u64(value: u64) -> B256 {
     B256::from(U256::from(value).to_be_bytes::<32>())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy_primitives::address;
+
+    #[test]
+    fn registry_round_trip_preserves_order() {
+        let entries = vec![
+            ValidatorEntry {
+                consensus_pubkey: [0x33; 32],
+                ethereum_address: address!("0x0000000000000000000000000000000000000011"),
+            },
+            ValidatorEntry {
+                consensus_pubkey: [0x11; 32],
+                ethereum_address: address!("0x0000000000000000000000000000000000000022"),
+            },
+            ValidatorEntry {
+                consensus_pubkey: [0x22; 32],
+                ethereum_address: address!("0x0000000000000000000000000000000000000033"),
+            },
+        ];
+
+        let storage = encode_validator_registry_storage(&entries);
+        let decoded = decode_validator_registry_storage(&storage).expect("decode registry");
+
+        assert_eq!(decoded, entries);
+    }
+
+    #[test]
+    fn registry_empty_missing_storage_decodes_empty() {
+        assert_eq!(
+            decode_validator_registry_storage(&BTreeMap::new()),
+            Ok(vec![])
+        );
+    }
+
+    #[test]
+    fn invalid_address_value_is_rejected() {
+        let mut storage = encode_validator_registry_storage(&[ValidatorEntry {
+            consensus_pubkey: [0x55; 32],
+            ethereum_address: address!("0x0000000000000000000000000000000000000001"),
+        }]);
+        storage.insert(
+            b256_from_u64(2),
+            B256::from([
+                0xff, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 1,
+            ]),
+        );
+
+        let err = decode_validator_registry_storage(&storage)
+            .expect_err("non-zero address padding should fail");
+        assert_eq!(
+            err,
+            ValidatorRegistryError::InvalidEthereumAddressValue { index: 0 }
+        );
+    }
 }

@@ -1,4 +1,4 @@
-use ::validators::ValidatorEntry as RegistryValidatorEntry;
+use crate::validators::ValidatorEntry as RegistryValidatorEntry;
 
 use super::WhirlpoolEvmFactory;
 

@@ -1,4 +1,4 @@
-use ::validators::ValidatorEntry as RegistryValidatorEntry;
+use crate::validators::ValidatorEntry as RegistryValidatorEntry;
 use reth_evm::precompiles::PrecompilesMap;
 use reth_evm::revm::primitives::hardfork::SpecId;
 

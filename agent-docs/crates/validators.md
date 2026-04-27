@@ -1,35 +1,33 @@
 # validators
 
 ## Purpose
-Canonical ordered simplex validator registry model and genesis-storage codec shared across `app-evm-execution`, `evm-precompiles`, and `whirlpool-node`.
+Thin compatibility/query facade for the canonical Whirlpool validator registry model.
 
 ## Location
 `crates/validators/`
 
+## Ownership Boundary
+Canonical validator semantics now live in `evm-precompiles::validators`. This crate exists so downstream consumers such as chainspec, node/RPC code, and integration tests can continue importing `validators::{...}` without making `evm-precompiles` depend on `validators`.
+
 ## Key exports
+All exports are re-exports from `evm_precompiles::validators`:
 - `ValidatorEntry { consensus_pubkey, ethereum_address }`
-- `SIMPLEX_VALIDATORS_REGISTRY`: dedicated genesis account for ordered simplex validators.
+- `SIMPLEX_VALIDATORS_REGISTRY`
 - `encode_validator_registry_storage(entries)`
 - `decode_validator_registry_storage(storage)`
 - `decode_validator_registry_storage_opt(storage)`
 - `ordered_consensus_pubkeys(entries)`
 - `encode_ethereum_address_storage_value(address)`
+- `ValidatorRegistryError`
 
 ## Internal structure
-- `src/lib.rs`: public entrypoint, shared types/errors/constants, optional decode helper.
-- `src/registry_codec.rs`: registry slot codec + strict decode validation.
-- `src/address_storage.rs`: address-to-storage encoder helper.
-
-## Storage layout
-- Slot `0`: validator count.
-- For index `i`:
-  - slot `2*i + 1`: `consensus_pubkey` (`bytes32`)
-  - slot `2*i + 2`: `ethereum_address` (left-padded `address` in `bytes32`)
+- `src/lib.rs`: re-export/forward-only public facade plus wrapper-compatibility tests.
+- No local registry codec/address-storage implementation files remain.
 
 ## Guarantees
-- Round-trip decode preserves caller-supplied order.
-- Empty/missing registry decodes to an empty list.
-- Invalid address padding is rejected.
+- Public Rust callers using the `validators` crate keep the same import surface.
+- Registry codec, storage layout, and validator entry semantics are not duplicated here.
+- Allowed dependency direction is `validators -> evm-precompiles`; `evm-precompiles -> validators` is forbidden.
 
 ## Status
-Active. This crate is the single source of truth for validator-registry encoding/decoding semantics.
+Compatibility facade. Do not add activation logic, registry slot math, address-padding logic, or validator semantic rules here; add those under `evm-precompiles::validators`.

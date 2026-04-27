@@ -5,7 +5,10 @@ use app::{
 
 use crate::config::WhirlpoolEvmConfig;
 use crate::error::EvmAppError;
-use crate::validator_activation::{ActivationSourceResolver, BoundaryEpochContext};
+use evm_precompiles::{
+    validators::{ValidatorActivationError, ValidatorActivationSchedule},
+    EpochActivationTargetError, EpochActivationTargets,
+};
 
 pub fn full_dkg_should_be_included(
     evm_config: &WhirlpoolEvmConfig,
@@ -28,10 +31,12 @@ pub fn full_dkg_should_be_included(
 }
 
 pub fn ensure_full_dkg_players_match_activation(
-    activation_resolver: &ActivationSourceResolver<'_>,
+    activation_schedule: &ValidatorActivationSchedule,
     full_dkg: &FullDkgV1,
 ) -> Result<(), EvmAppError> {
-    let expected_players = activation_resolver.resolve_players_for_epoch(full_dkg.epoch)?;
+    let expected_players = activation_schedule
+        .resolve_players_for_epoch(full_dkg.epoch)
+        .map_err(map_validator_activation_error)?;
     if full_dkg.output.players != expected_players {
         return Err(EvmAppError::InvalidBlock(
             "full_dkg output.players does not match activation-resolved player set".into(),
@@ -39,6 +44,14 @@ pub fn ensure_full_dkg_players_match_activation(
     }
 
     Ok(())
+}
+
+fn map_epoch_activation_target_error(err: EpochActivationTargetError) -> EvmAppError {
+    EvmAppError::InvalidBlock(err.to_string())
+}
+
+fn map_validator_activation_error(err: ValidatorActivationError) -> EvmAppError {
+    EvmAppError::InvalidBlock(err.to_string())
 }
 
 pub fn build_canonical_extra_data(
@@ -54,9 +67,12 @@ pub fn build_canonical_extra_data(
         return Ok(raw_eth);
     }
 
-    let activation_resolver = ActivationSourceResolver::new(evm_config);
+    let activation_schedule = evm_config.validator_activation_schedule();
     let boundary_context = if boundary_required {
-        Some(BoundaryEpochContext::from_post_advance_epoch(epoch)?)
+        Some(
+            EpochActivationTargets::from_post_advance_epoch(epoch)
+                .map_err(map_epoch_activation_target_error)?,
+        )
     } else {
         None
     };
@@ -66,13 +82,15 @@ pub fn build_canonical_extra_data(
 
     let candidate_full_dkg = evm_config.current_full_dkg_payload(candidate_epoch);
     if let Some(candidate) = candidate_full_dkg.as_ref() {
-        ensure_full_dkg_players_match_activation(&activation_resolver, candidate)?;
+        ensure_full_dkg_players_match_activation(&activation_schedule, candidate)?;
     }
 
     let (full_dkg, reshare) = if let Some(boundary_context) = boundary_context {
         if let Some(full_dkg) = candidate_full_dkg {
-            let reshare_players = activation_resolver
-                .resolve_players_for_epoch(boundary_context.reshare_target_epoch)?;
+            let boundary_activation = activation_schedule
+                .resolve_boundary_activation(boundary_context)
+                .map_err(map_validator_activation_error)?;
+            let reshare_players = boundary_activation.reshare_players;
             let reshare = ReshareV1 {
                 target_epoch: boundary_context.reshare_target_epoch,
                 players: reshare_players,

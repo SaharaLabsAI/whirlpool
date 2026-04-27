@@ -1,5 +1,5 @@
+use crate::validators::ValidatorEntry;
 use alloy_primitives::{Address, U256};
-use validators::ValidatorEntry;
 
 use crate::fee_pool::ClaimCredit;
 
@@ -92,9 +92,7 @@ fn build_community_pool_unlock_effect(
         ));
     }
 
-    if current_epoch == 0
-        || !current_epoch.is_multiple_of(unlock_state.unlock_every_epochs)
-    {
+    if current_epoch == 0 || !current_epoch.is_multiple_of(unlock_state.unlock_every_epochs) {
         return Ok(None);
     }
 

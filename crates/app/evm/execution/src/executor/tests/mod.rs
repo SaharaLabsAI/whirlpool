@@ -109,22 +109,22 @@ fn setup_app_with_unlock_config(
 }
 
 fn seed_epoch_boundary_state(db: &mut InMemoryStateDb, next_epoch_block: u64, epoch_blocks: u64) {
-    let _ = db.insert_storage(
+    db.insert_storage(
         EPOCH_PRECOMPILE_ADDRESS,
         current_epoch_slot(),
         U256::from(0_u64),
     );
-    let _ = db.insert_storage(
+    db.insert_storage(
         EPOCH_PRECOMPILE_ADDRESS,
         epoch_blocks_slot(),
         U256::from(epoch_blocks),
     );
-    let _ = db.insert_storage(
+    db.insert_storage(
         EPOCH_PRECOMPILE_ADDRESS,
         next_epoch_block_slot(),
         U256::from(next_epoch_block),
     );
-    let _ = db.insert_account(
+    db.insert_account(
         epoch_system_tx_sender(),
         revm::state::AccountInfo {
             balance: U256::from(EPOCH_SYSTEM_TX_INITIAL_BALANCE_WEI),
@@ -141,7 +141,7 @@ fn seed_community_pool_unlock_state(
     locked_remaining: U256,
     community_pool_balance: U256,
 ) {
-    let _ = db.insert_account(
+    db.insert_account(
         COMMUNITY_POOL_ADDRESS,
         revm::state::AccountInfo {
             balance: community_pool_balance,
@@ -149,22 +149,22 @@ fn seed_community_pool_unlock_state(
             ..Default::default()
         },
     );
-    let _ = db.insert_storage(
+    db.insert_storage(
         COMMUNITY_POOL_ADDRESS,
         community_pool_unlock_every_epochs_slot(),
         U256::from(unlock_every_epochs),
     );
-    let _ = db.insert_storage(
+    db.insert_storage(
         COMMUNITY_POOL_ADDRESS,
         community_pool_unlock_amount_per_cycle_slot(),
         unlock_amount_per_cycle,
     );
-    let _ = db.insert_storage(
+    db.insert_storage(
         COMMUNITY_POOL_ADDRESS,
         community_pool_locked_remaining_slot(),
         locked_remaining,
     );
-    let _ = db.insert_storage(
+    db.insert_storage(
         COMMUNITY_POOL_ADDRESS,
         community_pool_last_processed_epoch_slot(),
         U256::ZERO,
