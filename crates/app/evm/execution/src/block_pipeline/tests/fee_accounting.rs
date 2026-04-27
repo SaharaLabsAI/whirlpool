@@ -153,28 +153,32 @@ async fn burned_fee_credit_preserves_community_pool_unlock_storage() {
         "burned fee credit should only increase community pool balance"
     );
     assert_eq!(
-        storage_value(&db, 
+        storage_value(
+            &db,
             COMMUNITY_POOL_ADDRESS,
             community_pool_unlock_every_epochs_slot()
         ),
         U256::from(unlock_config.unlock_every_epochs)
     );
     assert_eq!(
-        storage_value(&db, 
+        storage_value(
+            &db,
             COMMUNITY_POOL_ADDRESS,
             community_pool_unlock_amount_per_cycle_slot()
         ),
         unlock_config.unlock_amount_per_cycle
     );
     assert_eq!(
-        storage_value(&db, 
+        storage_value(
+            &db,
             COMMUNITY_POOL_ADDRESS,
             community_pool_locked_remaining_slot()
         ),
         expected_locked_remaining
     );
     assert_eq!(
-        storage_value(&db, 
+        storage_value(
+            &db,
             COMMUNITY_POOL_ADDRESS,
             community_pool_last_processed_epoch_slot()
         ),

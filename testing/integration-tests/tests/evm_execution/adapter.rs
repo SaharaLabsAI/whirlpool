@@ -1,7 +1,7 @@
 use std::sync::{Arc, RwLock};
 
 use app::{traits::Application, ApplicationAdapter, EvmBlock, NoopTxSource};
-use app_evm_execution::executor::EvmApplication;
+use app_evm_execution::EvmApplication;
 use app_evm_execution::WhirlpoolEvmConfig;
 use app_evm_state::InMemoryStateDb;
 use chainspec::build_sahara_chain_spec;

@@ -72,14 +72,16 @@ async fn verify_boundary_unlock_matches_propose_state() {
         unlock_config.genesis_prefund_amount
     );
     assert_eq!(
-        storage_value(&verifier_state, 
+        storage_value(
+            &verifier_state,
             COMMUNITY_POOL_ADDRESS,
             community_pool_locked_remaining_slot()
         ),
         unlock_config.genesis_prefund_amount
     );
     assert_eq!(
-        storage_value(&verifier_state, 
+        storage_value(
+            &verifier_state,
             COMMUNITY_POOL_ADDRESS,
             community_pool_last_processed_epoch_slot()
         ),

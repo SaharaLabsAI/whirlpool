@@ -1,30 +1,44 @@
 use std::collections::BTreeMap;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex};
 
-use app::{traits::TxSource, EvmBlock, Receipt};
+use app::{EvmBlock, Receipt};
 use state::BlockStorage;
 
-use crate::config::WhirlpoolEvmConfig;
 use crate::error::EvmAppError;
-use crate::executor::EvmApplication;
 
-impl<DB> EvmApplication<DB>
-where
-    DB: std::fmt::Debug,
-{
-    pub fn new(
-        evm_config: WhirlpoolEvmConfig,
-        state_db: Arc<RwLock<DB>>,
-        tx_source: Arc<dyn TxSource + Send + Sync>,
-    ) -> Self {
-        Self {
-            evm_config,
-            state_db,
-            tx_source,
-            pending_receipts: Arc::new(Mutex::new(None)),
-            staged_receipts: Arc::new(Mutex::new(BTreeMap::new())),
-            last_proposed: Arc::new(Mutex::new(None)),
+#[derive(Clone, Debug)]
+struct StagedReceipts {
+    height: u64,
+    parent_id: [u8; 32],
+    block_id: [u8; 32],
+    receipts: Vec<Receipt>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct ReceiptStore {
+    pending_receipts: Arc<Mutex<Option<Vec<Receipt>>>>,
+    staged_receipts: Arc<Mutex<BTreeMap<[u8; 32], StagedReceipts>>>,
+}
+
+impl ReceiptStore {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn stage_for_block(&self, block: &EvmBlock, receipts: Vec<Receipt>) {
+        {
+            let mut guard = self.pending_receipts.lock().unwrap();
+            *guard = Some(receipts.clone());
         }
+
+        let staged = StagedReceipts {
+            height: block.height,
+            parent_id: block.parent_id,
+            block_id: block.compute_id(),
+            receipts,
+        };
+        let mut guard = self.staged_receipts.lock().unwrap();
+        guard.insert(staged.block_id, staged);
     }
 
     pub fn store_finalized_block(
@@ -83,6 +97,16 @@ where
             }
         };
         Ok(())
+    }
+
+    #[cfg(test)]
+    pub fn has_staged_receipts_for(&self, block_id: [u8; 32]) -> bool {
+        self.staged_receipts.lock().unwrap().contains_key(&block_id)
+    }
+
+    #[cfg(test)]
+    pub fn staged_receipts_is_empty(&self) -> bool {
+        self.staged_receipts.lock().unwrap().is_empty()
     }
 
     pub fn pending_receipts(&self) -> Vec<Receipt> {

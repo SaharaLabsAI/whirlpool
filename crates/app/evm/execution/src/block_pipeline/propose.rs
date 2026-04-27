@@ -16,17 +16,18 @@ use revm::database::states::bundle_state::BundleRetention;
 use revm::database::State;
 use state::BlockStorage;
 
-use crate::canonical_extra_data::build_canonical_extra_data;
-use crate::error::EvmAppError;
-use crate::executor::header_and_decode::build_sealed_header;
-use crate::executor::state_helpers::fee_accounting::aggregate_priority_fees;
-use crate::executor::state_helpers::full_dkg_history::latest_committed_full_dkg;
-use crate::executor::state_helpers::receipt_accounting::gas_deltas_and_used;
-use crate::executor::{
+use crate::block_pipeline::build_sealed_header;
+use crate::block_pipeline::state_helpers::fee_accounting::aggregate_priority_fees;
+use crate::block_pipeline::state_helpers::full_dkg_history::latest_committed_full_dkg;
+use crate::block_pipeline::state_helpers::receipt_accounting::gas_deltas_and_used;
+use crate::block_pipeline::{
     classify_tx_execution_error, expected_next_block_base_fee, map_epoch_boundary_runtime_error,
     map_post_block_accounting_runtime_error, tx_is_reserved_epoch_namespace,
-    BoundaryCallFailureMode, EvmApplication, ProposedEvmPayload, BLOCK_GAS_LIMIT,
+    BoundaryCallFailureMode, EvmApplication, ProposedEvmPayload, TxExecutionErrorDisposition,
+    BLOCK_GAS_LIMIT,
 };
+use crate::canonical_extra_data::build_canonical_extra_data;
+use crate::error::EvmAppError;
 use crate::traits::StateDb;
 
 impl<DB> EvmApplication<DB>
@@ -56,7 +57,7 @@ where
         let base_fee_per_gas = expected_next_block_base_fee(parent);
         let boundary_required =
             evm_precompiles::boundary_required_for_height(boundary_state, block_height);
-        let decoded_txs = crate::executor::decode_evm_transactions(raw_txs)?;
+        let decoded_txs = crate::codec::decode_evm_transactions(raw_txs)?;
 
         let env_attributes = NextBlockEnvAttributes {
             timestamp,
@@ -105,11 +106,11 @@ where
                     inclusion_outcomes.push(true);
                 }
                 Err(err) => match classify_tx_execution_error(err) {
-                    crate::executor::TxExecutionErrorDisposition::InvalidTxValidation(_) => {
+                    TxExecutionErrorDisposition::InvalidTxValidation(_) => {
                         inclusion_outcomes.push(false);
                     }
-                    crate::executor::TxExecutionErrorDisposition::OtherValidation(message)
-                    | crate::executor::TxExecutionErrorDisposition::Other(message) => {
+                    TxExecutionErrorDisposition::OtherValidation(message)
+                    | TxExecutionErrorDisposition::Other(message) => {
                         return Err(EvmAppError::Execution(message));
                     }
                 },

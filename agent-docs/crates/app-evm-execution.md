@@ -36,43 +36,40 @@ Those live in `chainspec`.
 - Precompile injection remains in `WhirlpoolEvmConfig::evm_with_env(...)` via `evm_precompiles::whirlpool_precompiles_with_validators(...)`.
 - Block header `extra_data` now uses app-shared canonical envelope bytes (`RawEth` + optional `FullDkgV1`) instead of raw proposer key bytes.
 - Verify path decodes `extra_data` with a height gate (`Legacy` before strict height, `Strict` at/after strict height), enforces proposer-key parity against `RawEth`, and enforces boundary-aware FullDkg/Reshare invariants.
-- Propose/verify now share one executor-local next-block base-fee seam:
+- Propose/verify now share one block-pipeline-local next-block base-fee seam:
   - propose derives `base_fee_per_gas` through the shared helper,
   - verify rejects blocks whose `block.base_fee_per_gas` does not match the protocol-derived next-block fee before fee accounting,
   - verify-side burned-fee / priority-fee accounting now uses the derived canonical fee after the mismatch guard.
 - EVM tx decode helpers now use exact EIP-2718 decoding, so padded tx bytes fail closed during both proposal pre-decode and verify decoding.
 - Boundary extra-data semantics are orchestrated here but target derivation is lower-layer-owned: `evm_precompiles::epoch::EpochActivationTargets` supplies `E`, `E+1`, and `E+2`; `evm_precompiles::validators::ValidatorActivationSchedule` resolves FullDkg/Reshare players. Non-boundary blocks must not carry `ReshareV1`, and boundary verify remains fail-closed for missing/mismatched required `ReshareV1` fields when FullDkg candidate data is configured.
-- Canonical extra-data composition and include/omit predicates are centralized in `canonical_extra_data.rs` (`build_canonical_extra_data`, `full_dkg_should_be_included`, activation-parity guard) and reused by propose/verify paths through `executor/mod.rs`.
-- Executor layout is now directory-backed under `app/src/executor/`:
-  - `mod.rs` — public façade + `Application` trait implementation wiring.
-  - `header_and_decode.rs` — header projection + tx decode helpers.
-  - `state_helpers.rs` — internal fee/community-pool/state helper logic.
-  - `impl_core_methods.rs` / `impl_propose.rs` / `impl_verify.rs` — split `EvmApplication` method lanes.
-  - `tests/mod.rs` + `tests/*.rs` — directory-backed executor unit tests split by topic with shared fixtures in the parent module.
-  - `tests/lifecycle.rs` — source-adjacent `EvmApplication` lifecycle / propose / verify / state-root coverage migrated from the former crate-local `tests/*.rs` tree.
-  - `tests/tx_pool.rs` — source-adjacent tx-pool behavior coverage migrated from the former crate-local `tests/*.rs` tree.
-  - `mod.rs` now uses explicit module wiring/imports (no `include!` composition for helper files).
-  - executor helper functions now avoid scoped visibility modifiers (`pub(super)`/`pub(crate)`), using `pub` inside private modules for parent-module access.
-  - production import rewrites now avoid `super::` in the split `config/*`, `impl_*`, decode, and fee-accounting files.
+- Canonical extra-data composition and include/omit predicates are centralized in `canonical_extra_data.rs` (`build_canonical_extra_data`, `full_dkg_should_be_included`, activation-parity guard) and reused by propose/verify paths through `block_pipeline/`.
+- Reviewer entrypoints are now named by pipeline ownership zone:
+  - `src/ingress.rs` — candidate transaction sources: proposal reads `TxSource::pending()`, verification borrows `block.transactions`.
+  - `src/codec/` — EIP-2718 transaction decode/recovery plus EVM header projection. Prefer `app_evm_execution::codec::decode_evm_transaction` and `decode_evm_transactions` for reviewer-facing decode APIs; root re-exports remain for compatibility.
+  - `src/block_pipeline/` — `EvmApplication`, `Application` trait wiring, explicit `propose.rs` and `verify.rs` lanes, and pipeline-local `state_helpers/`.
+  - `src/post_handle.rs` — `ReceiptStore` owns staged/pending receipt state, finalization persistence, and `pending_receipts` visibility.
+  - `src/executor.rs` — compatibility-only re-export shim for the former executor-facing API; do not use it as the primary review map.
+  - `block_pipeline/tests/mod.rs` + `block_pipeline/tests/*.rs` — source-adjacent unit tests split by topic with shared fixtures in the parent module.
+- The discoverability refactor is behavior-preserving: no shared generic propose/verify pipeline abstraction was added, and deeper ownership issues should be tracked as remaining risks rather than repaired in this layout pass.
 - `full_dkg_strict_height` defaults to `0` (strict from genesis) and can be explicitly overridden via config builders for migration/testing scenarios.
 - `WhirlpoolEvmConfig` is now split across directory-backed `config/` submodules so builder/accessor APIs stay grouped by concern while preserving the same external type and behavior.
-- `executor/header_and_decode/` and `executor/state_helpers/` are directory-backed modules that split decode/header and state-helper surfaces into focused files with smaller public API sets.
+- `codec/` and `block_pipeline/state_helpers/` are directory-backed modules that split decode/header and state-helper surfaces into focused files with smaller public API sets.
 - Non-boundary FullDkg candidate validation is fail-closed in both propose and verify paths: candidate `output.players` must match activation-resolved players for the candidate epoch before include/omit decisions.
 - FullDkg inclusion trigger compares candidate output against the **latest committed FullDkg in block storage** (backward scan) so raw-only intermediate blocks do not cause include/omit oscillation.
 - When `full_dkg_feature_enabled == false`, verify now rejects **both** `full_dkg` and `reshare` sections instead of rejecting `reshare` alone, preventing disabled-feature metadata from entering historical scans.
 - Epoch-boundary helper ownership now lives in `evm_precompiles::epoch`; `app-evm-execution` no longer has a dedicated `epoch_boundary/` module tree.
-- `app-evm-execution` keeps a **tiny pipeline call site** for epoch boundaries inside `executor/`:
+- `app-evm-execution` keeps a **tiny pipeline call site** for epoch boundaries inside `block_pipeline/`:
   - propose/verify load boundary state through `evm_precompiles::load_epoch_boundary_state(...)`
   - propose/verify trigger `evm_precompiles::execute_epoch_boundary_system_call_if_required(...)`
   - canonical epoch writes replay through `evm_precompiles::apply_epoch_boundary_effect(...)`
-  - reserved namespace detection is the only epoch adapter left locally, as a small executor helper over `reserved_advance_epoch_call_matches(...)`
+  - reserved namespace detection is the only epoch adapter left locally, as a small block-pipeline helper over `reserved_advance_epoch_call_matches(...)`
 - Ownership split for epoch boundaries:
   - `evm-precompiles` owns the pure boundary core (`EpochBoundaryState`, predicate, reserved matcher, typed `EpochBoundaryEffect`) **and** the runtime adapter layer (`StateDb` load/apply + generic system-call support + `EpochBoundaryRuntimeError`).
   - `app-evm-execution` owns pipeline timing and error translation only: propose maps runtime boundary failures to `Execution`, verify maps them to `InvalidBlock`, while shared state-access failures still surface as `State`.
   - the critical sequencing invariant remains unchanged: `apply_pre_execution_changes()` -> boundary system call -> immediate in-memory `commit(outcome.state.clone())` -> user tx execution -> bundle commit -> canonical epoch effect apply -> post-block accounting / extra-data consumers.
 - Fee/community-pool ownership split now mirrors the epoch boundary pattern:
-  - `evm-precompiles` owns the new internal post-block accounting boundary (`PostBlockAccountingInputs`, `PostBlockAccountingEffect`, `PostBlockAccountingOutcome`, `apply_post_block_accounting`, `PostBlockAccountingRuntimeError`) and the fee/community-pool write logic previously housed in local executor helpers.
-  - `app-evm-execution` keeps only executor-native input derivation (`aggregate_priority_fees`) plus propose/verify ordering and runtime-error translation.
+  - `evm-precompiles` owns the new internal post-block accounting boundary (`PostBlockAccountingInputs`, `PostBlockAccountingEffect`, `PostBlockAccountingOutcome`, `apply_post_block_accounting`, `PostBlockAccountingRuntimeError`) and the fee/community-pool write logic previously housed in local pipeline helpers.
+  - `app-evm-execution` keeps only pipeline-native input derivation (`aggregate_priority_fees`) plus propose/verify ordering and runtime-error translation.
   - propose/verify both call the same lower-layer accounting entrypoint after bundle commit and epoch effect application.
 - Validator activation semantics are no longer app-owned: `validator_activation/` was removed. Propose/verify call `evm_precompiles::epoch::EpochActivationTargets` for boundary target facts and `evm_precompiles::validators::ValidatorActivationSchedule` for player resolution, mapping lower-layer errors into `EvmAppError::InvalidBlock`.
 - Boundary unlock flow:
@@ -93,7 +90,7 @@ Those live in `chainspec`.
 - Block gas accounting now uses the final cumulative receipt gas (last receipt), avoiding sum-of-cumulative overcounting.
 - On boundary heights, propose executes `advanceEpoch` as an internal system call before user tx execution; no synthetic boundary tx bytes are added to `block.transactions`.
 - Reserved epoch namespace tx bytes in the user payload are treated as invalid protocol artifacts: propose excludes them and verify rejects blocks that contain them.
-- Proposal and verify now share one executor-local invalid-tx classification seam: `InvalidTx` validation failures are soft-rejected during proposal and reported as `InvalidBlock` during verify, while non-validation execution failures remain `Execution`.
+- Proposal and verify now share one block-pipeline-local invalid-tx classification seam: `InvalidTx` validation failures are soft-rejected during proposal and reported as `InvalidBlock` during verify, while non-validation execution failures remain `Execution`.
 - Reserved-namespace filtering stays behaviorally strict on the app path: only `(system sender, epoch precompile, zero value, advanceEpoch calldata)` is treated as reserved; non-zero value near-miss epoch calls are not filtered as reserved and remain ordinary user transactions.
 - `verify()` computes against a cloned state snapshot and validates roots; it does not persist the computed post-state back into `state_db`.
 - Proposal cache reuse is now keyed by `(height, parent_id)` (not height alone), and `verify()` fail-closes when `block.parent_id != parent.compute_id()`.
@@ -111,8 +108,10 @@ Those live in `chainspec`.
 - `app_evm_execution::traits::StateDb`
 - `app_evm_execution::WhirlpoolEvmConfig`
 - `app_evm_execution::EvmApplication`
-- `app_evm_execution::decode_evm_transaction`
-- `app_evm_execution::decode_evm_transactions`
+- `app_evm_execution::codec::decode_evm_transaction`
+- `app_evm_execution::codec::decode_evm_transactions`
+- `app_evm_execution::decode_evm_transaction` (compatibility root re-export)
+- `app_evm_execution::decode_evm_transactions` (compatibility root re-export)
 - `app_evm_execution::ProposedEvmPayload`
 - `app_evm_execution::DEFAULT_PROPOSER_FEE_RECIPIENT`
 - `app_evm_execution::VALIDATOR_FEE_RECIPIENTS_REGISTRY`

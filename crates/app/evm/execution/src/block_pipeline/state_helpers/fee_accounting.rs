@@ -1,8 +1,8 @@
 use alloy_consensus::Transaction;
 use alloy_primitives::U256;
 
+use crate::codec::RecoveredTx;
 use crate::error::EvmAppError;
-use crate::executor::RecoveredTx;
 
 pub fn aggregate_priority_fees(
     txs: &[RecoveredTx],

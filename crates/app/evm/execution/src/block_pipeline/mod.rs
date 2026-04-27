@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, RwLock};
 
 use alloy_consensus::Transaction;
@@ -14,21 +13,20 @@ use evm_precompiles::{
     reserved_advance_epoch_call_matches, EpochBoundaryRuntimeError, PostBlockAccountingRuntimeError,
 };
 use reth_ethereum_primitives::TransactionSigned;
-use reth_primitives_traits::Recovered;
+use reth_primitives_traits::SealedHeader;
 use state::BlockStorage;
 
 use crate::canonical_extra_data::build_canonical_extra_data;
+pub use crate::codec::RecoveredTx;
 use crate::config::WhirlpoolEvmConfig;
 use crate::error::EvmAppError;
+use crate::post_handle::ReceiptStore;
 pub use crate::traits::StateDb;
-pub use header_and_decode::{
-    build_header_from_evm_block, decode_evm_transaction, decode_evm_transactions,
-};
 
-mod header_and_decode;
+mod propose;
 mod state_helpers;
+mod verify;
 
-pub type RecoveredTx = Recovered<TransactionSigned>;
 type ProposedCacheKey = (u64, [u8; 32]);
 type ProposedCacheEntry = (ProposedCacheKey, EvmBlock, ExecutionResult, Vec<Receipt>);
 const BLOCK_GAS_LIMIT: u64 = 30_000_000;
@@ -43,14 +41,6 @@ enum TxExecutionErrorDisposition {
 enum BoundaryCallFailureMode {
     Propose,
     Verify,
-}
-
-#[derive(Clone, Debug)]
-struct StagedReceipts {
-    height: u64,
-    parent_id: [u8; 32],
-    block_id: [u8; 32],
-    receipts: Vec<Receipt>,
 }
 
 #[derive(Clone, Debug)]
@@ -70,8 +60,7 @@ pub struct EvmApplication<DB> {
     evm_config: WhirlpoolEvmConfig,
     state_db: Arc<RwLock<DB>>,
     tx_source: Arc<dyn TxSource + Send + Sync>,
-    pending_receipts: Arc<Mutex<Option<Vec<Receipt>>>>,
-    staged_receipts: Arc<Mutex<BTreeMap<[u8; 32], StagedReceipts>>>,
+    receipt_store: ReceiptStore,
     last_proposed: Arc<Mutex<Option<ProposedCacheEntry>>>,
 }
 
@@ -79,20 +68,40 @@ impl<DB> EvmApplication<DB>
 where
     DB: std::fmt::Debug,
 {
-    fn stage_receipts_for_block(&self, block: &EvmBlock, receipts: Vec<Receipt>) {
-        {
-            let mut guard = self.pending_receipts.lock().unwrap();
-            *guard = Some(receipts.clone());
+    pub fn new(
+        evm_config: WhirlpoolEvmConfig,
+        state_db: Arc<RwLock<DB>>,
+        tx_source: Arc<dyn TxSource + Send + Sync>,
+    ) -> Self {
+        Self {
+            evm_config,
+            state_db,
+            tx_source,
+            receipt_store: ReceiptStore::new(),
+            last_proposed: Arc::new(Mutex::new(None)),
         }
+    }
 
-        let staged = StagedReceipts {
-            height: block.height,
-            parent_id: block.parent_id,
-            block_id: block.compute_id(),
-            receipts,
-        };
-        let mut guard = self.staged_receipts.lock().unwrap();
-        guard.insert(staged.block_id, staged);
+    pub fn store_finalized_block(
+        &self,
+        block: &EvmBlock,
+        storage: &dyn BlockStorage,
+    ) -> Result<(), EvmAppError> {
+        self.receipt_store.store_finalized_block(block, storage)
+    }
+
+    #[cfg(test)]
+    fn has_staged_receipts_for(&self, block_id: [u8; 32]) -> bool {
+        self.receipt_store.has_staged_receipts_for(block_id)
+    }
+
+    #[cfg(test)]
+    fn staged_receipts_is_empty(&self) -> bool {
+        self.receipt_store.staged_receipts_is_empty()
+    }
+
+    pub fn pending_receipts(&self) -> Vec<Receipt> {
+        self.receipt_store.pending_receipts()
     }
 }
 
@@ -167,9 +176,11 @@ fn expected_next_block_base_fee(parent: &EvmBlock) -> u64 {
     )
 }
 
-mod impl_core_methods;
-mod impl_propose;
-mod impl_verify;
+fn build_sealed_header(block: &EvmBlock) -> SealedHeader {
+    let header = crate::codec::build_header_from_evm_block(block);
+    let hash = header.hash_slow();
+    SealedHeader::new(header, hash)
+}
 
 #[allow(clippy::manual_async_fn)]
 impl<DB> Application for EvmApplication<DB>
@@ -230,13 +241,13 @@ where
                 let cache = self.last_proposed.lock().unwrap();
                 if let Some((cached_key, ref block, ref result, ref receipts)) = *cache {
                     if cached_key == cache_key {
-                        self.stage_receipts_for_block(block, receipts.clone());
+                        self.receipt_store.stage_for_block(block, receipts.clone());
                         return Ok((block.clone(), result.clone()));
                     }
                 }
             }
 
-            let raw_pending = self.tx_source.pending();
+            let raw_pending = crate::ingress::pending_transactions(self.tx_source.as_ref());
             let timestamp = parent.timestamp + 12;
             let payload = self.propose_evm_transactions(parent, &raw_pending, timestamp, height)?;
 
@@ -262,7 +273,7 @@ where
                 transactions: block_transactions,
             };
             let receipts = payload.receipts;
-            self.stage_receipts_for_block(&block, receipts.clone());
+            self.receipt_store.stage_for_block(&block, receipts.clone());
 
             {
                 let mut cache = self.last_proposed.lock().unwrap();
@@ -287,8 +298,9 @@ where
                 )));
             }
 
+            let block_transactions = crate::ingress::candidate_block_transactions(block);
             let computed_tx_root =
-                ordered_trie_root_with_encoder(&block.transactions, |tx, out| out.put_slice(tx));
+                ordered_trie_root_with_encoder(block_transactions, |tx, out| out.put_slice(tx));
             if computed_tx_root.0 != block.transactions_root {
                 return Err(EvmAppError::InvalidBlock(format!(
                     "Transactions root mismatch: expected {:?}, computed {:?}",
@@ -296,7 +308,7 @@ where
                 )));
             }
 
-            self.verify_evm_transactions(parent, block, &block.transactions)
+            self.verify_evm_transactions(parent, block, block_transactions)
         }
     }
 }

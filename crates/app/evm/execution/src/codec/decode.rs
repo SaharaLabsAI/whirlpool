@@ -2,8 +2,8 @@ use alloy_eips::eip2718::Decodable2718;
 use reth_ethereum_primitives::TransactionSigned;
 use reth_primitives_traits::SignedTransaction;
 
+use crate::codec::RecoveredTx;
 use crate::error::EvmAppError;
-use crate::executor::RecoveredTx;
 
 pub fn decode_evm_transaction(raw_tx: &[u8]) -> Result<RecoveredTx, EvmAppError> {
     let tx = TransactionSigned::decode_2718_exact(raw_tx)

@@ -1,6 +1,6 @@
 use alloy_primitives::{Address, Bytes, B256, U256};
 use app::EvmBlock;
-use reth_primitives_traits::{Header, SealedHeader};
+use reth_primitives_traits::Header;
 
 pub fn build_header_from_evm_block(block: &EvmBlock) -> Header {
     Header {
@@ -20,10 +20,4 @@ pub fn build_header_from_evm_block(block: &EvmBlock) -> Header {
         blob_gas_used: Some(0),
         ..Header::default()
     }
-}
-
-pub fn build_sealed_header(block: &EvmBlock) -> SealedHeader {
-    let header = build_header_from_evm_block(block);
-    let hash = header.hash_slow();
-    SealedHeader::new(header, hash)
 }

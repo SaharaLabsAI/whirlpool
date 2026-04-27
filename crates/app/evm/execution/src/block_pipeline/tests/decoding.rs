@@ -1,4 +1,5 @@
 use super::*;
+use crate::codec::{decode_evm_transaction, decode_evm_transactions};
 
 #[test]
 fn decode_evm_transaction_recovers_signer() {

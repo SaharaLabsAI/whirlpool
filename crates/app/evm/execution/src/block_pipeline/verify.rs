@@ -17,23 +17,23 @@ use revm::database::states::bundle_state::BundleRetention;
 use revm::database::State;
 use state::BlockStorage;
 
+use crate::block_pipeline::build_sealed_header;
+use crate::block_pipeline::state_helpers::block_extra_data::{
+    extra_data_decode_mode_for_height, proposer_public_key_from_raw_eth_section,
+    validate_or_recover_fee_recipient,
+};
+use crate::block_pipeline::state_helpers::fee_accounting::aggregate_priority_fees;
+use crate::block_pipeline::state_helpers::full_dkg_history::latest_committed_full_dkg;
+use crate::block_pipeline::state_helpers::receipt_accounting::gas_deltas_and_used;
+use crate::block_pipeline::{
+    classify_tx_execution_error, expected_next_block_base_fee, map_epoch_boundary_runtime_error,
+    map_post_block_accounting_runtime_error, tx_is_reserved_epoch_namespace,
+    BoundaryCallFailureMode, EvmApplication, TxExecutionErrorDisposition, BLOCK_GAS_LIMIT,
+};
 use crate::canonical_extra_data::{
     ensure_full_dkg_players_match_activation, full_dkg_should_be_included,
 };
 use crate::error::EvmAppError;
-use crate::executor::header_and_decode::build_sealed_header;
-use crate::executor::state_helpers::block_extra_data::{
-    extra_data_decode_mode_for_height, proposer_public_key_from_raw_eth_section,
-    validate_or_recover_fee_recipient,
-};
-use crate::executor::state_helpers::fee_accounting::aggregate_priority_fees;
-use crate::executor::state_helpers::full_dkg_history::latest_committed_full_dkg;
-use crate::executor::state_helpers::receipt_accounting::gas_deltas_and_used;
-use crate::executor::{
-    classify_tx_execution_error, expected_next_block_base_fee, map_epoch_boundary_runtime_error,
-    map_post_block_accounting_runtime_error, tx_is_reserved_epoch_namespace,
-    BoundaryCallFailureMode, EvmApplication, BLOCK_GAS_LIMIT,
-};
 use crate::traits::StateDb;
 use evm_precompiles::validators::ValidatorActivationError;
 
@@ -59,7 +59,7 @@ where
         DB: StateDb + BlockStorage + Clone + revm::Database,
         <DB as StateDb>::Error: Into<EvmAppError>,
     {
-        let decoded_txs = crate::executor::decode_evm_transactions(raw_txs)?;
+        let decoded_txs = crate::codec::decode_evm_transactions(raw_txs)?;
 
         let mut exec_state = {
             let db = self.state_db.read().unwrap();
@@ -141,13 +141,13 @@ where
         for tx in decoded_txs.iter().cloned() {
             if let Err(err) = builder.execute_transaction(tx) {
                 match classify_tx_execution_error(err) {
-                    crate::executor::TxExecutionErrorDisposition::InvalidTxValidation(message)
-                    | crate::executor::TxExecutionErrorDisposition::OtherValidation(message) => {
+                    TxExecutionErrorDisposition::InvalidTxValidation(message)
+                    | TxExecutionErrorDisposition::OtherValidation(message) => {
                         return Err(EvmAppError::InvalidBlock(format!(
                             "Transaction execution failed validation: {message}"
                         )))
                     }
-                    crate::executor::TxExecutionErrorDisposition::Other(message) => {
+                    TxExecutionErrorDisposition::Other(message) => {
                         return Err(EvmAppError::Execution(format!(
                             "Transaction execution failed: {message}"
                         )))
@@ -355,7 +355,7 @@ where
             })
             .collect();
 
-        self.stage_receipts_for_block(block, receipts);
+        self.receipt_store.stage_for_block(block, receipts);
 
         Ok(ExecutionResult {
             state_root: block.state_root,

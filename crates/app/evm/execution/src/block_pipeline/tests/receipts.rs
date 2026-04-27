@@ -106,11 +106,7 @@ async fn store_finalized_block_retains_receipts_when_store_fails() {
         .expect_err("finalize persistence failure should return error");
     assert!(matches!(err, EvmAppError::State(_)));
     assert_eq!(app.pending_receipts().len(), 1);
-    assert!(app
-        .staged_receipts
-        .lock()
-        .unwrap()
-        .contains_key(&block.compute_id()));
+    assert!(app.has_staged_receipts_for(block.compute_id()));
 }
 
 #[tokio::test]
@@ -182,11 +178,7 @@ async fn store_finalized_block_rejects_receipts_for_mismatched_cached_block() {
         .expect_err("mismatched staged receipts must be rejected");
     assert!(matches!(err, EvmAppError::InvalidBlock(_)));
     assert_eq!(*storage.calls.lock().unwrap(), 0);
-    assert!(app
-        .staged_receipts
-        .lock()
-        .unwrap()
-        .contains_key(&staged_block_id));
+    assert!(app.has_staged_receipts_for(staged_block_id));
 }
 
 #[tokio::test]
@@ -259,5 +251,5 @@ async fn store_finalized_block_stores_and_clears_receipts() {
     assert_eq!(stored[0].0.height, 1);
     assert_eq!(stored[0].1.len(), 1);
     assert!(app.pending_receipts().is_empty());
-    assert!(app.staged_receipts.lock().unwrap().is_empty());
+    assert!(app.staged_receipts_is_empty());
 }
