@@ -3,7 +3,6 @@ mod canonical_extra_data;
 pub mod codec;
 pub mod config;
 pub mod error;
-pub mod executor;
 pub mod ingress;
 pub mod post_handle;
 pub mod traits;
