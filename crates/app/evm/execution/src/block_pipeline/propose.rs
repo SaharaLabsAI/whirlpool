@@ -14,11 +14,9 @@ use reth_evm::{
 };
 use revm::database::states::bundle_state::BundleRetention;
 use revm::database::State;
-use state::BlockStorage;
 
 use crate::block_pipeline::build_sealed_header;
 use crate::block_pipeline::state_helpers::fee_accounting::aggregate_priority_fees;
-use crate::block_pipeline::state_helpers::full_dkg_history::latest_committed_full_dkg_from_storage;
 use crate::block_pipeline::state_helpers::receipt_accounting::gas_deltas_and_used;
 use crate::block_pipeline::{
     classify_tx_execution_error, expected_next_block_base_fee, map_epoch_boundary_runtime_error,
@@ -28,7 +26,9 @@ use crate::block_pipeline::{
 };
 use crate::error::EvmAppError;
 use crate::traits::StateDb;
-use validators_dkg::{build_canonical_dkg_extra_data, DkgProposalInput};
+use validators_dkg::{
+    build_canonical_dkg_extra_data, latest_committed_full_dkg, DkgHistory, DkgProposalInput,
+};
 
 impl<DB> EvmApplication<DB>
 where
@@ -42,8 +42,9 @@ where
         block_height: u64,
     ) -> Result<ProposedEvmPayload, EvmAppError>
     where
-        DB: StateDb + BlockStorage + Clone + revm::Database,
+        DB: StateDb + DkgHistory + Clone + revm::Database,
         <DB as StateDb>::Error: Into<EvmAppError>,
+        <DB as DkgHistory>::Error: std::fmt::Display,
     {
         let parent_header = build_sealed_header(parent);
 
@@ -176,7 +177,8 @@ where
 
         let latest_committed_full_dkg = {
             let db = self.state_db.read().unwrap();
-            latest_committed_full_dkg_from_storage(&*db, parent.height)?
+            latest_committed_full_dkg(&*db, parent.height)
+                .map_err(crate::block_pipeline::map_dkg_metadata_error)?
         };
         let extra_data = build_canonical_dkg_extra_data(DkgProposalInput {
             feature_enabled: self.evm_config.full_dkg_feature_enabled(),

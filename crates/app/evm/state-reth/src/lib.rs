@@ -1,6 +1,7 @@
 pub mod block_storage;
 pub mod codec;
 pub mod db;
+mod dkg_history;
 pub mod error;
 pub mod in_memory_db;
 mod in_memory_db_api_account;

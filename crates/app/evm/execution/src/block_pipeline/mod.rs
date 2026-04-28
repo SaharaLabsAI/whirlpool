@@ -21,7 +21,8 @@ use crate::error::EvmAppError;
 use crate::post_handle::ReceiptStore;
 pub use crate::traits::StateDb;
 use validators_dkg::{
-    build_canonical_dkg_extra_data, legacy_proposer_extra_data_bytes, DkgProposalInput,
+    build_canonical_dkg_extra_data, legacy_proposer_extra_data_bytes, DkgHistory, DkgMetadataError,
+    DkgProposalInput,
 };
 
 mod propose;
@@ -144,6 +145,13 @@ fn boundary_call_failure(mode: BoundaryCallFailureMode, message: String) -> EvmA
     }
 }
 
+fn map_dkg_metadata_error(err: DkgMetadataError) -> EvmAppError {
+    match err {
+        DkgMetadataError::History(message) => EvmAppError::State(message),
+        other => EvmAppError::InvalidBlock(other.to_string()),
+    }
+}
+
 fn map_post_block_accounting_runtime_error(err: PostBlockAccountingRuntimeError) -> EvmAppError {
     match err {
         PostBlockAccountingRuntimeError::StateAccess(message) => EvmAppError::State(message),
@@ -186,8 +194,9 @@ fn build_sealed_header(block: &EvmBlock) -> SealedHeader {
 #[allow(clippy::manual_async_fn)]
 impl<DB> Application for EvmApplication<DB>
 where
-    DB: StateDb + BlockStorage + Clone + Send + Sync + 'static + revm::Database + std::fmt::Debug,
+    DB: StateDb + DkgHistory + Clone + Send + Sync + 'static + revm::Database + std::fmt::Debug,
     <DB as StateDb>::Error: Into<EvmAppError>,
+    <DB as DkgHistory>::Error: std::fmt::Display,
 {
     type Block = EvmBlock;
     type Result = ExecutionResult;

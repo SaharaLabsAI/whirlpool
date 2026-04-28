@@ -14,8 +14,10 @@ use reth_evm::{
 };
 use revm::database::states::bundle_state::BundleRetention;
 use revm::database::State;
-use state::BlockStorage;
-use validators_dkg::{decode_extra_data, validate_dkg_extra_data, DkgVerifyInput};
+use validators_dkg::{
+    decode_extra_data, latest_committed_full_dkg, validate_dkg_extra_data, DkgHistory,
+    DkgVerifyInput,
+};
 
 use crate::block_pipeline::build_sealed_header;
 use crate::block_pipeline::state_helpers::block_extra_data::{
@@ -23,7 +25,6 @@ use crate::block_pipeline::state_helpers::block_extra_data::{
     validate_or_recover_fee_recipient,
 };
 use crate::block_pipeline::state_helpers::fee_accounting::aggregate_priority_fees;
-use crate::block_pipeline::state_helpers::full_dkg_history::latest_committed_full_dkg_from_storage;
 use crate::block_pipeline::state_helpers::receipt_accounting::gas_deltas_and_used;
 use crate::block_pipeline::{
     classify_tx_execution_error, expected_next_block_base_fee, map_epoch_boundary_runtime_error,
@@ -44,8 +45,9 @@ where
         raw_txs: &[Vec<u8>],
     ) -> Result<ExecutionResult, EvmAppError>
     where
-        DB: StateDb + BlockStorage + Clone + revm::Database,
+        DB: StateDb + DkgHistory + Clone + revm::Database,
         <DB as StateDb>::Error: Into<EvmAppError>,
+        <DB as DkgHistory>::Error: std::fmt::Display,
     {
         let decoded_txs = crate::codec::decode_evm_transactions(raw_txs)?;
 
@@ -206,7 +208,8 @@ where
 
         let latest_committed_full_dkg = {
             let db = self.state_db.read().unwrap();
-            latest_committed_full_dkg_from_storage(&*db, parent.height)?
+            latest_committed_full_dkg(&*db, parent.height)
+                .map_err(crate::block_pipeline::map_dkg_metadata_error)?
         };
         validate_dkg_extra_data(
             &decoded_extra_data,

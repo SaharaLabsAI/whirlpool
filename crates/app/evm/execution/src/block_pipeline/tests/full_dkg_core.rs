@@ -2,56 +2,16 @@ use super::*;
 
 #[test]
 fn latest_committed_full_dkg_scans_backwards_past_raw_eth_only_blocks() {
-    use state::BlockStorageError;
-
     #[derive(Default)]
-    struct MockStorage {
-        blocks: BTreeMap<u64, EvmBlock>,
+    struct MockHistory {
+        blocks: BTreeMap<u64, Vec<u8>>,
     }
 
-    impl BlockStorage for MockStorage {
-        fn store_block(
-            &self,
-            _block: &EvmBlock,
-            _receipts: &[Receipt],
-        ) -> Result<(), BlockStorageError> {
-            Ok(())
-        }
+    impl validators_dkg::DkgHistory for MockHistory {
+        type Error = String;
 
-        fn get_block_by_number(&self, number: u64) -> Result<Option<EvmBlock>, BlockStorageError> {
-            Ok(self.blocks.get(&number).cloned())
-        }
-
-        fn get_block_by_hash(&self, _hash: B256) -> Result<Option<EvmBlock>, BlockStorageError> {
-            Ok(None)
-        }
-
-        fn get_receipts_by_block(
-            &self,
-            _number: u64,
-        ) -> Result<Option<Vec<Receipt>>, BlockStorageError> {
-            Ok(None)
-        }
-
-        fn get_latest_block_number(&self) -> Result<Option<u64>, BlockStorageError> {
-            Ok(self.blocks.keys().next_back().cloned())
-        }
-    }
-
-    fn block_with_extra_data(height: u64, extra_data: Vec<u8>) -> EvmBlock {
-        EvmBlock {
-            height,
-            parent_id: [0u8; 32],
-            state_root: [0u8; 32],
-            transactions_root: [0u8; 32],
-            receipts_root: [0u8; 32],
-            proposer_public_key: [0x11; 32],
-            proposer_fee_recipient: [0x22; 20],
-            extra_data,
-            gas_used: 0,
-            base_fee_per_gas: 1_000_000_000,
-            timestamp: height * 12,
-            transactions: vec![],
+        fn full_dkg_at_height(&self, height: u64) -> Result<Option<Vec<u8>>, Self::Error> {
+            Ok(self.blocks.get(&height).cloned())
         }
     }
 
@@ -80,18 +40,12 @@ fn latest_committed_full_dkg_scans_backwards_past_raw_eth_only_blocks() {
     })
     .expect("encode raw only");
 
-    let mut storage = MockStorage::default();
-    storage
-        .blocks
-        .insert(0, block_with_extra_data(0, extra_with_full_dkg));
-    storage
-        .blocks
-        .insert(1, block_with_extra_data(1, extra_raw_only.clone()));
-    storage
-        .blocks
-        .insert(2, block_with_extra_data(2, extra_raw_only));
+    let mut history = MockHistory::default();
+    history.blocks.insert(0, extra_with_full_dkg);
+    history.blocks.insert(1, extra_raw_only.clone());
+    history.blocks.insert(2, extra_raw_only);
 
-    let resolved = latest_committed_full_dkg_from_storage(&storage, 2)
+    let resolved = validators_dkg::latest_committed_full_dkg(&history, 2)
         .expect("scan should succeed")
         .expect("full_dkg should resolve from earlier block");
     assert_eq!(resolved, full_dkg);

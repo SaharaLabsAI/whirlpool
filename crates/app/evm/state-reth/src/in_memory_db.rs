@@ -200,6 +200,14 @@ impl StateDb for InMemoryStateDb {
 }
 
 impl InMemoryStateDb {
+    pub(crate) fn raw_dkg_carrier_at_height(&self, height: u64) -> Result<Option<Vec<u8>>, String> {
+        let blocks = self
+            .blocks_by_number
+            .lock()
+            .map_err(|err| err.to_string())?;
+        Ok(blocks.get(&height).map(|block| block.extra_data.clone()))
+    }
+
     pub fn new() -> Self {
         <Self as StateDb>::new()
     }

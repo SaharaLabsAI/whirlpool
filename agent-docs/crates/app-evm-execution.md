@@ -42,7 +42,7 @@ Those live in `chainspec`.
   - verify-side burned-fee / priority-fee accounting now uses the derived canonical fee after the mismatch guard.
 - EVM tx decode helpers now use exact EIP-2718 decoding, so padded tx bytes fail closed during both proposal pre-decode and verify decoding.
 - Boundary extra-data semantics are delegated to `validators-dkg`: `EpochActivationTargets` supplies `E`, `E+1`, and `E+2`; `ValidatorActivationSchedule` resolves FullDkg/Reshare players. Non-boundary blocks must not carry `ReshareV1`, and boundary verify remains fail-closed for missing/mismatched required `ReshareV1` fields when FullDkg candidate data is configured.
-- `app-evm-execution` is now only the DKG call-site/adapter: propose calls `validators_dkg::build_canonical_dkg_extra_data`, verify calls `validators_dkg::validate_dkg_extra_data`, and `state_helpers/full_dkg_history.rs` adapts `state::BlockStorage` to `DkgExtraDataHistory`.
+- `app-evm-execution` is now only the DKG pipeline call site: propose calls `validators_dkg::latest_committed_full_dkg` and `build_canonical_dkg_extra_data`, verify calls `latest_committed_full_dkg` and `validate_dkg_extra_data`. Historical carrier-byte lookup is supplied by the DB through `validators_dkg::DkgHistory`; execution keeps only DKG error translation.
 - Reviewer entrypoints are now named by pipeline ownership zone:
   - `src/ingress.rs` — candidate transaction sources: proposal reads `TxSource::pending()`, verification borrows `block.transactions`.
   - `src/codec/` — EIP-2718 transaction decode/recovery plus EVM header projection. Prefer `app_evm_execution::codec::decode_evm_transaction` and `decode_evm_transactions` for reviewer-facing decode APIs; root re-exports remain for compatibility.
@@ -55,7 +55,7 @@ Those live in `chainspec`.
 - `WhirlpoolEvmConfig` is now split across directory-backed `config/` submodules so builder/accessor APIs stay grouped by concern while preserving the same external type and behavior.
 - `codec/` and `block_pipeline/state_helpers/` are directory-backed modules that split decode/header and state-helper surfaces into focused files with smaller public API sets.
 - Non-boundary FullDkg candidate validation is fail-closed in both propose and verify paths: candidate `output.players` must match activation-resolved players for the candidate epoch before include/omit decisions.
-- FullDkg inclusion trigger compares candidate output against the **latest committed FullDkg in block storage** (backward scan) so raw-only intermediate blocks do not cause include/omit oscillation.
+- FullDkg inclusion trigger compares candidate output against the **latest committed FullDkg from `DkgHistory`** (validators-dkg backward scan over raw carrier bytes) so raw-only intermediate blocks do not cause include/omit oscillation.
 - When `full_dkg_feature_enabled == false`, verify now rejects **both** `full_dkg` and `reshare` sections instead of rejecting `reshare` alone, preventing disabled-feature metadata from entering historical scans.
 - Epoch-boundary helper ownership now lives in `evm_precompiles::epoch`; `app-evm-execution` no longer has a dedicated `epoch_boundary/` module tree.
 - `app-evm-execution` keeps a **tiny pipeline call site** for epoch boundaries inside `block_pipeline/`:

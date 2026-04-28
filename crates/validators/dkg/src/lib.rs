@@ -490,10 +490,10 @@ pub fn validate_dkg_extra_data(
     Ok(())
 }
 
-pub trait DkgExtraDataHistory {
+pub trait DkgHistory {
     type Error;
 
-    fn extra_data_at_height(&self, height: u64) -> Result<Option<Vec<u8>>, Self::Error>;
+    fn full_dkg_at_height(&self, height: u64) -> Result<Option<Vec<u8>>, Self::Error>;
 }
 
 pub fn latest_committed_full_dkg<History>(
@@ -501,13 +501,13 @@ pub fn latest_committed_full_dkg<History>(
     start_height: u64,
 ) -> Result<Option<FullDkgV1>, DkgMetadataError>
 where
-    History: DkgExtraDataHistory,
+    History: DkgHistory,
     History::Error: fmt::Display,
 {
     let mut height = start_height;
     loop {
         let maybe_extra_data = history
-            .extra_data_at_height(height)
+            .full_dkg_at_height(height)
             .map_err(|err| DkgMetadataError::History(err.to_string()))?;
         if let Some(extra_data) = maybe_extra_data {
             let decoded = decode_extra_data(&extra_data, ExtraDataDecodeMode::Legacy)

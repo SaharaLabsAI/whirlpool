@@ -1,5 +1,4 @@
 use super::*;
-use crate::block_pipeline::state_helpers::full_dkg_history::latest_committed_full_dkg_from_storage;
 use crate::config::DEFAULT_PROPOSER_FEE_RECIPIENT;
 use alloy_consensus::{SignableTransaction, TxLegacy};
 use alloy_eips::eip2718::Encodable2718;

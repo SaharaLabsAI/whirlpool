@@ -215,12 +215,26 @@ struct TestHistory {
     blocks: std::collections::BTreeMap<u64, Vec<u8>>,
 }
 
-impl super::DkgExtraDataHistory for TestHistory {
+impl super::DkgHistory for TestHistory {
     type Error = String;
 
-    fn extra_data_at_height(&self, height: u64) -> Result<Option<Vec<u8>>, Self::Error> {
+    fn full_dkg_at_height(&self, height: u64) -> Result<Option<Vec<u8>>, Self::Error> {
         Ok(self.blocks.get(&height).cloned())
     }
+}
+
+#[test]
+fn latest_committed_full_dkg_fails_closed_on_malformed_historical_bytes() {
+    let mut history = TestHistory::default();
+    history.blocks.insert(2, vec![0x01, 0x02, 0x03]);
+
+    let err = super::latest_committed_full_dkg(&history, 2)
+        .expect_err("malformed historical bytes must fail closed");
+
+    assert!(matches!(
+        err,
+        super::DkgMetadataError::HistoricalExtraDataDecode { height: 2, .. }
+    ));
 }
 
 #[test]
