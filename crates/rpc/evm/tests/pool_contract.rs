@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use alloy_consensus::{TxEip1559, TxEip4844};
 use alloy_eips::eip2718::Encodable2718;
 use alloy_primitives::{Address, Signature, TxKind, U256};
-use app::traits::TxSource;
+use app_traits::traits::TxSource;
 use reth_ethereum_primitives::{EthPrimitives, Transaction, TransactionSigned};
 use reth_primitives_traits::SignedTransaction;
 use reth_rpc_builder::RpcModuleBuilder;

@@ -1,7 +1,7 @@
 use alloy_primitives::Address;
-use app::traits::TxSource;
-use app::ApplicationAdapter;
 use app_evm_execution::{EvmApplication, WhirlpoolEvmConfig};
+use app_traits::traits::TxSource;
+use app_traits::ApplicationAdapter;
 use chainspec::{
     build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators,
     try_simplex_validators_from_chain_spec, validate_genesis_alloc,
@@ -404,8 +404,7 @@ pub fn start_node_with_chain_spec(
             let mut proposer_public_key = [0u8; 32];
             proposer_public_key.copy_from_slice(public_key.as_ref());
             let mut evm_config = WhirlpoolEvmConfig::new(chain_spec.clone())
-                .with_local_proposer_public_key(proposer_public_key)
-                .with_full_dkg_strict_height(config.consensus.full_dkg_strict_height);
+                .with_local_proposer_public_key(proposer_public_key);
             if let Some(full_dkg_output) = full_dkg_output {
                 evm_config = evm_config.with_current_full_dkg_output(full_dkg_output);
             }

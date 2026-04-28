@@ -5,7 +5,7 @@ edition.workspace = true
 
 [dependencies]
 state = { path = "../../state" }
-app = { path = "../../traits" }
+app-primitives = { path = "../../primitives" }
 validators-dkg = { path = "../../../validators/dkg" }
 revm = "36"
 reth-db = { path = "../../../../vendor/reth/crates/storage/db", features = ["mdbx"] }

@@ -1,4 +1,4 @@
-use app::ApplicationError;
+use app_traits::ApplicationError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum EvmAppError {

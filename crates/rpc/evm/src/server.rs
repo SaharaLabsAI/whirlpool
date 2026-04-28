@@ -21,7 +21,7 @@ use crate::provider::WhirlpoolProvider;
 pub async fn start_rpc_server(
     state_db: Arc<RethStateDb>,
     chain_spec: Arc<ChainSpec>,
-    tx_source: Arc<dyn app::traits::TxSource>,
+    tx_source: Arc<dyn app_traits::traits::TxSource>,
     addr: SocketAddr,
 ) -> Result<(RpcServerHandle, SocketAddr), Box<dyn std::error::Error + Send + Sync>> {
     let provider = WhirlpoolProvider::new(state_db, chain_spec.clone());

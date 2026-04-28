@@ -1,7 +1,7 @@
 use alloy_consensus::TxEip1559;
 use alloy_eips::eip2718::Encodable2718;
 use alloy_primitives::{Address, Signature, TxKind, B256, U256};
-use app::types::EvmBlock;
+use app_primitives::EvmBlock;
 use reth_ethereum_primitives::{Transaction, TransactionSigned};
 use rpc_eth::convert::{decode_transaction, evmblock_to_block, evmblock_to_header};
 use validators_dkg::{

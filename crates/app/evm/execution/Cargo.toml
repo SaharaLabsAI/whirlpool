@@ -7,7 +7,8 @@ edition.workspace = true
 doctest = false
 
 [dependencies]
-app = { path = "../../traits" }
+app-traits = { path = "../../traits" }
+app-primitives = { path = "../../primitives" }
 evm-precompiles = { path = "../../../precompiles/evm" }
 validators-reader = { path = "../../../validators/reader" }
 validators-dkg = { path = "../../../validators/dkg" }

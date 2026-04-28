@@ -5,7 +5,8 @@ edition.workspace = true
 
 [dependencies]
 # --- Whirlpool crates ---
-app = { path = "../../app/traits" }
+app-traits = { path = "../../app/traits" }
+app-primitives = { path = "../../app/primitives" }
 app-evm-execution = { path = "../../app/evm/execution" }
 validators-dkg = { path = "../../validators/dkg" }
 state = { path = "../../app/state" }

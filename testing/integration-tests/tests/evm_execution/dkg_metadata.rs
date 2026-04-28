@@ -1,8 +1,8 @@
 use std::sync::{Arc, RwLock};
 
-use app::{traits::Application, NoopTxSource};
 use app_evm_execution::{EvmAppError, EvmApplication, WhirlpoolEvmConfig};
 use app_evm_state::InMemoryStateDb;
+use app_traits::{traits::Application, NoopTxSource};
 use chainspec::build_sahara_chain_spec;
 use evm_precompiles::{
     current_epoch_slot, epoch_blocks_slot, epoch_system_tx_sender, next_epoch_block_slot,
@@ -10,8 +10,7 @@ use evm_precompiles::{
 };
 use revm::primitives::U256;
 use validators_dkg::{
-    decode_extra_data, encode_canonical_extra_data, CanonicalExtraDataV1, ExtraDataDecodeMode,
-    FullDkgOutputV1,
+    decode_extra_data, encode_canonical_extra_data, CanonicalExtraDataV1, FullDkgOutputV1,
 };
 
 fn dkg_config_with_output(output: FullDkgOutputV1) -> WhirlpoolEvmConfig {
@@ -69,8 +68,7 @@ async fn non_boundary_dkg_candidate_is_included_and_verifies() {
 
     let genesis = app.genesis().await;
     let (block, _) = app.propose(&genesis, 1).await.expect("propose");
-    let decoded = decode_extra_data(&block.extra_data, ExtraDataDecodeMode::Strict)
-        .expect("canonical extra_data decodes");
+    let decoded = decode_extra_data(&block.extra_data).expect("canonical extra_data decodes");
 
     assert_eq!(decoded.full_dkg.expect("full_dkg included").output, output);
     assert!(decoded.reshare.is_none());
@@ -92,8 +90,7 @@ async fn non_boundary_unchanged_baseline_dkg_candidate_is_omitted_and_verifies()
 
     let genesis = app.genesis().await;
     let (block, _) = app.propose(&genesis, 1).await.expect("propose");
-    let decoded = decode_extra_data(&block.extra_data, ExtraDataDecodeMode::Strict)
-        .expect("canonical extra_data decodes");
+    let decoded = decode_extra_data(&block.extra_data).expect("canonical extra_data decodes");
 
     assert!(decoded.full_dkg.is_none());
     assert!(decoded.reshare.is_none());
@@ -115,8 +112,7 @@ async fn non_boundary_omit_uses_latest_committed_history_across_raw_only_interme
 
     let genesis = app.genesis().await;
     let (block1, _) = app.propose(&genesis, 1).await.expect("block1 propose");
-    let decoded1 = decode_extra_data(&block1.extra_data, ExtraDataDecodeMode::Strict)
-        .expect("block1 extra_data decodes");
+    let decoded1 = decode_extra_data(&block1.extra_data).expect("block1 extra_data decodes");
     assert!(
         decoded1.full_dkg.is_some(),
         "block1 establishes DKG history"
@@ -128,8 +124,7 @@ async fn non_boundary_omit_uses_latest_committed_history_across_raw_only_interme
     }
 
     let (block2, _) = app.propose(&block1, 2).await.expect("block2 propose");
-    let decoded2 = decode_extra_data(&block2.extra_data, ExtraDataDecodeMode::Strict)
-        .expect("block2 extra_data decodes");
+    let decoded2 = decode_extra_data(&block2.extra_data).expect("block2 extra_data decodes");
     assert!(
         decoded2.full_dkg.is_none(),
         "block2 is raw-only intermediate"
@@ -141,8 +136,7 @@ async fn non_boundary_omit_uses_latest_committed_history_across_raw_only_interme
     }
 
     let (block3, _) = app.propose(&block2, 3).await.expect("block3 propose");
-    let decoded3 = decode_extra_data(&block3.extra_data, ExtraDataDecodeMode::Strict)
-        .expect("block3 extra_data decodes");
+    let decoded3 = decode_extra_data(&block3.extra_data).expect("block3 extra_data decodes");
     assert!(
         decoded3.full_dkg.is_none(),
         "block3 must scan past raw-only block2 and omit unchanged FullDKG"
@@ -171,8 +165,7 @@ async fn boundary_dkg_candidate_includes_full_dkg_and_reshare_and_verifies() {
 
     let parent = app.genesis().await;
     let (block, _) = app.propose(&parent, 1).await.expect("boundary propose");
-    let decoded = decode_extra_data(&block.extra_data, ExtraDataDecodeMode::Strict)
-        .expect("canonical extra_data decodes");
+    let decoded = decode_extra_data(&block.extra_data).expect("canonical extra_data decodes");
     let full_dkg = decoded.full_dkg.expect("boundary full_dkg included");
     let reshare = decoded.reshare.expect("boundary reshare included");
 
@@ -242,8 +235,7 @@ async fn verify_rejects_mismatched_dkg_candidate_payload() {
     let parent = app.genesis().await;
     let (mut block, _) = app.propose(&parent, 1).await.expect("propose");
 
-    let mut decoded = decode_extra_data(&block.extra_data, ExtraDataDecodeMode::Strict)
-        .expect("canonical extra_data decodes");
+    let mut decoded = decode_extra_data(&block.extra_data).expect("canonical extra_data decodes");
     decoded
         .full_dkg
         .as_mut()

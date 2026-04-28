@@ -52,7 +52,7 @@ pub struct RpcConfig {
     /// Chain specification.
     pub chain_spec: Arc<ChainSpec>,
     /// Transaction source for the mempool.
-    pub tx_source: Arc<dyn app::traits::TxSource>,
+    pub tx_source: Arc<dyn app_traits::traits::TxSource>,
     /// Address to bind the HTTP server.
     pub addr: SocketAddr,
 }

@@ -15,6 +15,7 @@ members = [
     "crates/app/state",
     "crates/app/evm/state-reth",
     "crates/app/traits",
+    "crates/app/primitives",
     "crates/app/evm/execution",
     "crates/precompiles/evm",
     "crates/mempool/traits",

@@ -2,7 +2,7 @@ use alloy_consensus::TxReceipt;
 use alloy_eips::eip2718::Encodable2718;
 use alloy_primitives::{Bytes, B256};
 use alloy_trie::root::ordered_trie_root_with_encoder;
-use app::{ExecutionResult, Receipt};
+use app_primitives::{ExecutionResult, Receipt};
 use evm_precompiles::{
     apply_epoch_boundary_effect, apply_post_block_accounting,
     execute_epoch_boundary_system_call_if_required, load_epoch_boundary_state,
@@ -36,7 +36,7 @@ where
 {
     pub fn propose_evm_transactions(
         &self,
-        parent: &app::EvmBlock,
+        parent: &app_primitives::EvmBlock,
         raw_txs: &[Vec<u8>],
         timestamp: u64,
         block_height: u64,

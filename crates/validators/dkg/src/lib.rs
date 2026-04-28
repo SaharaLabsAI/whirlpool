@@ -8,10 +8,7 @@ mod extra_data_projection;
 mod tests;
 
 pub use extra_data_codec::{decode_extra_data, encode_canonical_extra_data};
-pub use extra_data_projection::{
-    legacy_proposer_extra_data_bytes, project_raw_eth_extra_data,
-    proposer_public_key_from_extra_data,
-};
+pub use extra_data_projection::{project_raw_eth_extra_data, proposer_public_key_from_extra_data};
 
 const EXTRA_DATA_MAGIC: &[u8; 4] = b"WDX1";
 const EXTRA_DATA_VERSION: u8 = 1;
@@ -23,7 +20,7 @@ const MAX_RAW_ETH_EXTRA_DATA_BYTES: usize = 1024;
 const MAX_FULL_DKG_KEYS: usize = 1024;
 const MAX_RESHARE_KEYS: usize = 1024;
 const MAX_FULL_DKG_POLYNOMIAL_BYTES: usize = 128 * 1024;
-pub const LEGACY_PROPOSER_EXTRA_DATA_LEN: usize = 32;
+pub const RAW_ETH_PROPOSER_PUBLIC_KEY_LEN: usize = 32;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FullDkgOutputV1 {
@@ -51,13 +48,6 @@ pub struct CanonicalExtraDataV1 {
     pub reshare: Option<ReshareV1>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ExtraDataDecodeMode {
-    Strict,
-    Legacy,
-    RpcProjection,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExtraDataError {
     EmptySections,
@@ -83,9 +73,7 @@ pub enum ExtraDataError {
     InvalidRawEthLen {
         found: usize,
     },
-    LegacyUnsupportedLen {
-        found: usize,
-    },
+    MissingRawEth,
     TooManyDealers {
         found: usize,
         max: usize,
@@ -125,8 +113,8 @@ impl fmt::Display for ExtraDataError {
             Self::InvalidSectionOrder { section } => write!(f, "invalid canonical extra_data section order at section: {section}"),
             Self::UnknownSection { section } => write!(f, "unknown canonical extra_data section: {section}"),
             Self::RawEthTooLarge { found, max } => write!(f, "raw_eth section too large: found {found}, max {max}"),
-            Self::InvalidRawEthLen { found } => write!(f, "raw_eth proposer key must be {LEGACY_PROPOSER_EXTRA_DATA_LEN} bytes, found {found}"),
-            Self::LegacyUnsupportedLen { found } => write!(f, "legacy extra_data must be exactly {LEGACY_PROPOSER_EXTRA_DATA_LEN} bytes, found {found}"),
+            Self::InvalidRawEthLen { found } => write!(f, "raw_eth proposer key must be {RAW_ETH_PROPOSER_PUBLIC_KEY_LEN} bytes, found {found}"),
+            Self::MissingRawEth => write!(f, "missing raw_eth section in canonical extra_data"),
             Self::TooManyDealers { found, max } => write!(f, "too many full_dkg dealers: found {found}, max {max}"),
             Self::TooManyPlayers { found, max } => write!(f, "too many full_dkg players: found {found}, max {max}"),
             Self::TooManyResharePlayers { found, max } => write!(f, "too many reshare players: found {found}, max {max}"),
@@ -295,11 +283,7 @@ pub struct DkgProposalInput<'a> {
 pub fn build_canonical_dkg_extra_data(
     input: DkgProposalInput<'_>,
 ) -> Result<Vec<u8>, DkgMetadataError> {
-    let raw_eth = legacy_proposer_extra_data_bytes(input.proposer_public_key);
-
-    if !input.feature_enabled {
-        return Ok(raw_eth);
-    }
+    let raw_eth = input.proposer_public_key.to_vec();
 
     let boundary_context = if input.boundary_required {
         Some(EpochActivationTargets::from_post_advance_epoch(
@@ -312,10 +296,14 @@ pub fn build_canonical_dkg_extra_data(
     let candidate_epoch = boundary_context
         .map(|ctx| ctx.full_dkg_epoch)
         .unwrap_or(input.post_advance_epoch);
-    let candidate_full_dkg = input.candidate_output.cloned().map(|output| FullDkgV1 {
-        epoch: candidate_epoch,
-        output,
-    });
+    let candidate_full_dkg = input
+        .feature_enabled
+        .then(|| input.candidate_output.cloned())
+        .flatten()
+        .map(|output| FullDkgV1 {
+            epoch: candidate_epoch,
+            output,
+        });
     if let Some(candidate) = candidate_full_dkg.as_ref() {
         ensure_full_dkg_players_match_activation(input.activation_schedule, candidate)?;
     }
@@ -510,7 +498,7 @@ where
             .full_dkg_at_height(height)
             .map_err(|err| DkgMetadataError::History(err.to_string()))?;
         if let Some(extra_data) = maybe_extra_data {
-            let decoded = decode_extra_data(&extra_data, ExtraDataDecodeMode::Legacy)
+            let decoded = decode_extra_data(&extra_data)
                 .map_err(|source| DkgMetadataError::HistoricalExtraDataDecode { height, source })?;
             if let Some(full_dkg) = decoded.full_dkg {
                 return Ok(Some(full_dkg));

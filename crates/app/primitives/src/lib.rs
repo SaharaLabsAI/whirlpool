@@ -2,10 +2,12 @@ use commonware_cryptography::sha256;
 
 mod block;
 mod block_traits;
+pub mod header_extra_data;
 
 #[cfg(test)]
 mod tests;
 
+pub use alloy_consensus::Receipt;
 pub use block::EvmBlock;
 
 pub type BlockId = [u8; 32];

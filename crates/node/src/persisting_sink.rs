@@ -1,8 +1,8 @@
 //! Finalization sink that persists finalized blocks via `BlockStorage` before
 //! delegating to the inner `FinalizationSink`.
 
-use app::EvmBlock;
 use app_evm_execution::EvmApplication;
+use app_primitives::EvmBlock;
 use consensus::event::{ConsensusEvent, EventSink};
 use consensus_simplex::FinalizationSink;
 use state::{BlockStorage, StateDb};
@@ -71,10 +71,10 @@ where
 #[cfg(test)]
 mod tests {
     use super::PersistingFinalizationSink;
-    use app::traits::TxSource;
-    use app::{EvmBlock, Receipt};
     use app_evm_execution::{EvmApplication, WhirlpoolEvmConfig};
     use app_evm_state::InMemoryStateDb;
+    use app_primitives::{EvmBlock, Receipt};
+    use app_traits::traits::TxSource;
     use chainspec::build_sahara_chain_spec;
     use consensus::event::{ConsensusEvent, EventSink};
     use consensus_simplex::FinalizationSink;

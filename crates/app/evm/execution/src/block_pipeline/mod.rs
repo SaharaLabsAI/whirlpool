@@ -4,10 +4,10 @@ use alloy_consensus::Transaction;
 use alloy_eips::eip1559::{calc_next_block_base_fee, BaseFeeParams};
 use alloy_primitives::{bytes::BufMut, Address, TxKind};
 use alloy_trie::{root::ordered_trie_root_with_encoder, EMPTY_ROOT_HASH};
-use app::{
-    traits::{Application, TxSource},
-    EvmBlock, ExecutionResult, Receipt,
+use app_primitives::{
+    header_extra_data::build_raw_eth_envelope, EvmBlock, ExecutionResult, Receipt,
 };
+use app_traits::traits::{Application, TxSource};
 use evm_precompiles::{
     reserved_advance_epoch_call_matches, EpochBoundaryRuntimeError, PostBlockAccountingRuntimeError,
 };
@@ -20,10 +20,7 @@ use crate::config::WhirlpoolEvmConfig;
 use crate::error::EvmAppError;
 use crate::post_handle::ReceiptStore;
 pub use crate::traits::StateDb;
-use validators_dkg::{
-    build_canonical_dkg_extra_data, legacy_proposer_extra_data_bytes, DkgHistory, DkgMetadataError,
-    DkgProposalInput,
-};
+use validators_dkg::{DkgHistory, DkgMetadataError};
 
 mod propose;
 mod state_helpers;
@@ -210,19 +207,9 @@ where
                     .map_err(Into::into)
                     .expect("genesis state root should not fail")
             };
-            let genesis_extra_data = build_canonical_dkg_extra_data(DkgProposalInput {
-                feature_enabled: self.evm_config.full_dkg_feature_enabled(),
-                activation_schedule: &self.evm_config.validator_activation_schedule(),
-                default_players: &self.evm_config.simplex_consensus_public_keys(),
-                previous_full_dkg: None,
-                candidate_output: self.evm_config.current_full_dkg_output(),
-                proposer_public_key: self.evm_config.local_proposer_public_key(),
-                boundary_required: false,
-                post_advance_epoch: 0,
-            })
-            .unwrap_or_else(|_| {
-                legacy_proposer_extra_data_bytes(self.evm_config.local_proposer_public_key())
-            });
+            let genesis_extra_data =
+                build_raw_eth_envelope(self.evm_config.local_proposer_public_key())
+                    .expect("genesis raw_eth extra_data envelope should encode");
 
             EvmBlock {
                 height: 0,

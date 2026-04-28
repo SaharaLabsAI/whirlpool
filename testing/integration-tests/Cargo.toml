@@ -6,7 +6,8 @@ edition.workspace = true
 # This crate has integration tests plus small benchmark harness binaries.
 # There is no library target.
 [dependencies]
-app = { path = "../../crates/app/traits" }
+app-traits = { path = "../../crates/app/traits" }
+app-primitives = { path = "../../crates/app/primitives" }
 app-evm-execution = { path = "../../crates/app/evm/execution" }
 chainspec = { path = "../../crates/chainspec" }
 evm-precompiles = { path = "../../crates/precompiles/evm" }

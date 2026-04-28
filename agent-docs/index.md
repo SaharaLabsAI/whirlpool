@@ -81,7 +81,7 @@ Step-by-step instructions for common tasks and workflows.
 | Wire a new consensus engine | `architecture/simplex-adapter.md` -> `guides/wiring-simplex-adapter.md` |
 | Understand block flow | `architecture/block-lifecycle.md` -> `guides/block-lifecycle-walkthrough.md` |
 | Extend node/mempool | `architecture/whirlpool-node.md` -> `guides/whirlpool-node-components.md` + `crates/mempool.md` |
-| Update EVM node tx sourcing | `crates/app.md` + `crates/whirlpool-node.md` + `crates/mempool.md` |
+| Update EVM node tx sourcing | `crates/app-traits.md` + `crates/app-primitives.md` + `crates/whirlpool-node.md` + `crates/mempool.md` |
 | Understand why Whirlpool precompiles are runtime-installed | `design/precompiles/index.md` -> `design/precompiles/availability.md` -> `design/precompiles/wiring.md` |
 | Check code style | `reference/coding-conventions.md` |
 | Write a commit message | `reference/git-conventions.md` |
@@ -97,7 +97,8 @@ Step-by-step instructions for common tasks and workflows.
 | `network-commonware` | `crates/network/commonware/src/` | `crates/network-commonware.md` | — |
 | `state` | `crates/app/state/src/` | `crates/state.md` | — |
 | `app-evm-state` | `crates/app/evm/state-reth/src/` | `crates/app-evm-state.md` | — |
-| `app` | `crates/app/traits/src/` | `crates/app.md` | — |
+| `app-traits` | `crates/app/traits/src/` | `crates/app-traits.md` | — |
+| `app-primitives` | `crates/app/primitives/src/` | `crates/app-primitives.md` | — |
 | `chainspec` | `crates/chainspec/src/` | `crates/chainspec.md` | — |
 | `app-evm-execution` | `crates/app/evm/execution/src/` | `crates/app-evm-execution.md` | — |
 | `evm-precompiles` | `crates/precompiles/evm/src/` | `crates/evm-precompiles.md` | — |

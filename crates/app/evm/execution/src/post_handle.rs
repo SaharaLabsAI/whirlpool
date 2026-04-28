@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
-use app::{EvmBlock, Receipt};
+use app_primitives::{EvmBlock, Receipt};
 use state::BlockStorage;
 
 use crate::error::EvmAppError;

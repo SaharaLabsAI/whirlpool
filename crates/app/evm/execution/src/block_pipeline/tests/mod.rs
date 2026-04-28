@@ -27,7 +27,7 @@ use revm::state::Bytecode;
 use std::collections::BTreeMap;
 use validators_dkg::{
     decode_extra_data, encode_canonical_extra_data, full_dkg_should_be_included,
-    legacy_proposer_extra_data_bytes, CanonicalExtraDataV1, ExtraDataDecodeMode, FullDkgV1,
+    CanonicalExtraDataV1, FullDkgV1,
 };
 
 struct MockTxSource {

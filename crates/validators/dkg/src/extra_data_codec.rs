@@ -1,11 +1,10 @@
 use bytes::Buf;
 
 use super::{
-    CanonicalExtraDataV1, ExtraDataDecodeMode, ExtraDataError, FullDkgOutputV1, FullDkgV1,
-    ReshareV1, EXTRA_DATA_MAGIC, EXTRA_DATA_SECTION_FULL_DKG_V1, EXTRA_DATA_SECTION_RAW_ETH,
-    EXTRA_DATA_SECTION_RESHARE_V1, EXTRA_DATA_VERSION, LEGACY_PROPOSER_EXTRA_DATA_LEN,
-    MAX_FULL_DKG_KEYS, MAX_FULL_DKG_POLYNOMIAL_BYTES, MAX_RAW_ETH_EXTRA_DATA_BYTES,
-    MAX_RESHARE_KEYS, MAX_TOTAL_EXTRA_DATA_BYTES,
+    CanonicalExtraDataV1, ExtraDataError, FullDkgOutputV1, FullDkgV1, ReshareV1, EXTRA_DATA_MAGIC,
+    EXTRA_DATA_SECTION_FULL_DKG_V1, EXTRA_DATA_SECTION_RAW_ETH, EXTRA_DATA_SECTION_RESHARE_V1,
+    EXTRA_DATA_VERSION, MAX_FULL_DKG_KEYS, MAX_FULL_DKG_POLYNOMIAL_BYTES,
+    MAX_RAW_ETH_EXTRA_DATA_BYTES, MAX_RESHARE_KEYS, MAX_TOTAL_EXTRA_DATA_BYTES,
 };
 
 pub fn encode_canonical_extra_data(data: &CanonicalExtraDataV1) -> Result<Vec<u8>, ExtraDataError> {
@@ -61,27 +60,11 @@ pub fn encode_canonical_extra_data(data: &CanonicalExtraDataV1) -> Result<Vec<u8
     Ok(out)
 }
 
-pub fn decode_extra_data(
-    bytes: &[u8],
-    mode: ExtraDataDecodeMode,
-) -> Result<CanonicalExtraDataV1, ExtraDataError> {
-    if bytes.starts_with(EXTRA_DATA_MAGIC) {
-        return decode_enveloped_extra_data(bytes);
+pub fn decode_extra_data(bytes: &[u8]) -> Result<CanonicalExtraDataV1, ExtraDataError> {
+    if !bytes.starts_with(EXTRA_DATA_MAGIC) {
+        return Err(ExtraDataError::InvalidMagic);
     }
-
-    match mode {
-        ExtraDataDecodeMode::Strict => Err(ExtraDataError::InvalidMagic),
-        ExtraDataDecodeMode::Legacy | ExtraDataDecodeMode::RpcProjection => {
-            if bytes.len() != LEGACY_PROPOSER_EXTRA_DATA_LEN {
-                return Err(ExtraDataError::LegacyUnsupportedLen { found: bytes.len() });
-            }
-            Ok(CanonicalExtraDataV1 {
-                raw_eth: Some(bytes.to_vec()),
-                full_dkg: None,
-                reshare: None,
-            })
-        }
-    }
+    decode_enveloped_extra_data(bytes)
 }
 
 fn decode_enveloped_extra_data(bytes: &[u8]) -> Result<CanonicalExtraDataV1, ExtraDataError> {

@@ -1,4 +1,4 @@
-use app::{EvmBlock, Receipt};
+use app_primitives::{EvmBlock, Receipt};
 use revm::primitives::B256;
 
 /// Errors that can occur during block storage operations.

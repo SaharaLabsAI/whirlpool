@@ -6,7 +6,7 @@ edition = "2021"
 doctest = false
 
 [dependencies]
-app = { path = "../../app/traits" }
+app-traits = { path = "../../app/traits" }
 mempool = { path = "../traits" }
 reth-libmdbx = { path = "../../../vendor/reth/crates/storage/libmdbx-rs" }
 

@@ -142,7 +142,6 @@ fn start_benchmark_node(
         consensus: ConsensusStartupConfig {
             namespace: format!("benchmark-{}", std::process::id()).into_bytes(),
             block_interval,
-            full_dkg_strict_height: 0,
         },
         bootstrap_validators: Some(vec![validator_public_key]),
         bootstrap: Default::default(),

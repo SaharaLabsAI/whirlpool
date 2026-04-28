@@ -4,7 +4,7 @@ Persistent transaction pool implementation using MDBX.
 
 ## Overview
 
-The `mempool` crate provides a persistent storage layer for transactions, ensuring they survive node restarts. It implements the `TxSource` trait from the `app` crate.
+The `mempool` crate provides a persistent storage layer for transactions, ensuring they survive node restarts. It implements the `TxSource` trait from the `app-traits` crate.
 
 ## Key Components
 

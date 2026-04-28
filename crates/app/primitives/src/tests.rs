@@ -50,6 +50,45 @@ fn test_evm_block_codec_roundtrip() {
 }
 
 #[test]
+fn fixed_evm_block_wire_id_and_digest_fixture_is_stable() {
+    use commonware_codec::Write as CodecWrite;
+    use commonware_cryptography::Digestible;
+
+    let block = sample_block();
+    let mut encoded = bytes::BytesMut::new();
+    block.write(&mut encoded);
+
+    let expected_encoded = bytes_from_hex(
+        "000000000000000a010101010101010101010101010101010101010101010101010101010101010102020202020202020202020202020202020202020202020202020202020202020303030303030303030303030303030303030303030303030303030303030303040404040404040404040404040404040404040404040404040404040404040405050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505000000200505050505050505050505050505050505050505050505050505050505050505000000000000002a000000003b9aca00000000006553f1000000000200000002aabb00000001cc",
+    );
+    assert_eq!(encoded.as_ref(), expected_encoded.as_slice());
+    assert_eq!(
+        block.compute_id(),
+        bytes32_from_hex("7fbbcf742ba014ef47d8005d6753cd989082b17c9d0e702086d89c04abd4a200")
+    );
+    assert_eq!(
+        block.digest().as_ref(),
+        bytes32_from_hex("5696896bbec57e5d66ce8268096fe1235c95dd2c519994a132ffd960a96f49c2")
+            .as_slice()
+    );
+}
+
+fn bytes_from_hex(hex: &str) -> Vec<u8> {
+    assert_eq!(hex.len() % 2, 0, "hex string must contain byte pairs");
+    (0..hex.len())
+        .step_by(2)
+        .map(|idx| u8::from_str_radix(&hex[idx..idx + 2], 16).expect("valid hex byte"))
+        .collect()
+}
+
+fn bytes32_from_hex(hex: &str) -> [u8; 32] {
+    let bytes = bytes_from_hex(hex);
+    let mut out = [0u8; 32];
+    out.copy_from_slice(&bytes);
+    out
+}
+
+#[test]
 fn test_execution_result_fields() {
     let result = ExecutionResult {
         state_root: [2u8; 32],

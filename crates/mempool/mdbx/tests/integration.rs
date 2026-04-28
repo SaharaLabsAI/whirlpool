@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-use app::traits::TxSource;
+use app_traits::traits::TxSource;
 use mempool_mdbx::PersistentTxPool;
 use tempfile::TempDir;
 

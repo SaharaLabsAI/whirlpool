@@ -42,7 +42,6 @@ pub struct WhirlpoolEvmConfig {
     simplex_validators: Vec<ValidatorEntry>,
     activation_players_by_epoch: BTreeMap<u64, Vec<[u8; 32]>>,
     full_dkg_feature_enabled: bool,
-    full_dkg_strict_height: u64,
     current_full_dkg_output: Option<FullDkgOutputV1>,
 }
 
@@ -61,7 +60,6 @@ impl WhirlpoolEvmConfig {
             simplex_validators,
             activation_players_by_epoch: BTreeMap::new(),
             full_dkg_feature_enabled: true,
-            full_dkg_strict_height: 0,
             current_full_dkg_output: None,
         }
     }

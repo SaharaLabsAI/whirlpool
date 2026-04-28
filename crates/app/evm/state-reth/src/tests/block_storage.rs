@@ -1,7 +1,7 @@
 use alloy_consensus::{SignableTransaction, TxLegacy};
 use alloy_eips::eip2718::Encodable2718;
 use alloy_primitives::{Address, Bytes, Signature, TxKind, U256};
-use app::Receipt as AppReceipt;
+use app_primitives::{header_extra_data::build_raw_eth_envelope, Receipt as AppReceipt};
 use reth_db::Database;
 use reth_db_api::transaction::DbTx;
 use reth_ethereum_primitives::TransactionSigned;
@@ -28,16 +28,17 @@ fn make_raw_tx(nonce: u64) -> Vec<u8> {
     raw
 }
 
-fn make_block(height: u64, tx_count: usize) -> app::EvmBlock {
-    app::EvmBlock {
+fn make_block(height: u64, tx_count: usize) -> app_primitives::EvmBlock {
+    let proposer_public_key = [height as u8; 32];
+    app_primitives::EvmBlock {
         height,
         parent_id: [height.saturating_sub(1) as u8; 32],
         state_root: [2u8.wrapping_add(height as u8); 32],
         transactions_root: [3u8.wrapping_add(height as u8); 32],
         receipts_root: [4u8.wrapping_add(height as u8); 32],
-        proposer_public_key: [height as u8; 32],
+        proposer_public_key,
         proposer_fee_recipient: [height as u8; 20],
-        extra_data: vec![height as u8; 32],
+        extra_data: build_raw_eth_envelope(proposer_public_key).expect("canonical extra_data"),
         gas_used: 21_000 * tx_count as u64,
         base_fee_per_gas: 1_000_000_000,
         timestamp: 1_700_000_000 + height,
@@ -112,17 +113,17 @@ fn tc_sr_03_get_block_by_number_round_trip() {
 
 #[test]
 #[serial_test::serial]
-fn get_block_by_number_errors_on_malformed_extra_data() {
+fn get_block_by_number_errors_on_legacy_raw_32_byte_extra_data() {
     let dir = tempfile::tempdir().expect("create temp dir");
     let db = open_state_db(dir.path()).expect("open db");
     let mut block = make_block(12, 1);
-    block.extra_data = vec![0x01, 0x02];
+    block.extra_data = block.proposer_public_key.to_vec();
     let receipts = make_receipts(1);
 
     db.store_block(&block, &receipts).expect("store block");
     let err = db
         .get_block_by_number(12)
-        .expect_err("malformed extra_data should fail block reconstruction");
+        .expect_err("legacy raw 32-byte extra_data should fail block reconstruction");
     assert!(matches!(err, state::BlockStorageError::Codec(_)));
 }
 

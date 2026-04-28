@@ -2,13 +2,13 @@ use std::sync::{Arc, RwLock};
 
 use super::*;
 use crate::error::EvmAppError;
-use app::traits::Application;
 use app_evm_state::InMemoryStateDb;
+use app_traits::traits::Application;
 
 fn build_noop_app() -> EvmApplication<InMemoryStateDb> {
     let state_db = Arc::new(RwLock::new(InMemoryStateDb::new()));
     let evm_config = WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec()));
-    let tx_source = Arc::new(app::NoopTxSource);
+    let tx_source = Arc::new(app_traits::NoopTxSource);
     EvmApplication::new(evm_config, state_db, tx_source)
 }
 

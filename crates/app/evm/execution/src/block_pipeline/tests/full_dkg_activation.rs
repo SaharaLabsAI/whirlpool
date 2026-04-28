@@ -3,9 +3,8 @@ use super::*;
 #[tokio::test]
 async fn propose_rejects_non_boundary_full_dkg_players_mismatch_with_activation_schedule() {
     let chain_spec = Arc::new(build_sahara_chain_spec());
-    let base_config = WhirlpoolEvmConfig::new(chain_spec.clone())
-        .with_local_proposer_public_key([0x77; 32])
-        .with_full_dkg_strict_height(0);
+    let base_config =
+        WhirlpoolEvmConfig::new(chain_spec.clone()).with_local_proposer_public_key([0x77; 32]);
     let candidate_players = base_config.simplex_consensus_public_keys();
     let proposer_config = base_config
         .with_current_full_dkg_output(validators_dkg::FullDkgOutputV1 {
@@ -30,9 +29,8 @@ async fn propose_rejects_non_boundary_full_dkg_players_mismatch_with_activation_
 #[tokio::test]
 async fn verify_rejects_non_boundary_full_dkg_players_mismatch_with_activation_schedule() {
     let chain_spec = Arc::new(build_sahara_chain_spec());
-    let base_config = WhirlpoolEvmConfig::new(chain_spec.clone())
-        .with_local_proposer_public_key([0x77; 32])
-        .with_full_dkg_strict_height(0);
+    let base_config =
+        WhirlpoolEvmConfig::new(chain_spec.clone()).with_local_proposer_public_key([0x77; 32]);
     let candidate_players = base_config.simplex_consensus_public_keys();
     let candidate_output = validators_dkg::FullDkgOutputV1 {
         dealers: candidate_players.clone(),
@@ -70,9 +68,8 @@ async fn verify_rejects_non_boundary_full_dkg_players_mismatch_with_activation_s
 async fn propose_boundary_block_emits_forward_full_dkg_and_reshare_sections_when_candidate_configured(
 ) {
     let chain_spec = Arc::new(build_sahara_chain_spec());
-    let base_config = WhirlpoolEvmConfig::new(chain_spec.clone())
-        .with_local_proposer_public_key([0x77; 32])
-        .with_full_dkg_strict_height(0);
+    let base_config =
+        WhirlpoolEvmConfig::new(chain_spec.clone()).with_local_proposer_public_key([0x77; 32]);
     let players = base_config.simplex_consensus_public_keys();
     let proposer_config =
         base_config.with_current_full_dkg_output(validators_dkg::FullDkgOutputV1 {
@@ -92,8 +89,7 @@ async fn propose_boundary_block_emits_forward_full_dkg_and_reshare_sections_when
         .propose(&parent, 1)
         .await
         .expect("boundary block should propose");
-    let decoded = decode_extra_data(&block.extra_data, ExtraDataDecodeMode::Strict)
-        .expect("canonical extra_data should decode");
+    let decoded = decode_extra_data(&block.extra_data).expect("canonical extra_data should decode");
 
     let full_dkg = decoded
         .full_dkg
@@ -116,9 +112,8 @@ async fn propose_boundary_block_emits_forward_full_dkg_and_reshare_sections_when
 #[tokio::test]
 async fn verify_rejects_missing_reshare_section_on_boundary_when_candidate_configured() {
     let chain_spec = Arc::new(build_sahara_chain_spec());
-    let base_config = WhirlpoolEvmConfig::new(chain_spec.clone())
-        .with_local_proposer_public_key([0x77; 32])
-        .with_full_dkg_strict_height(0);
+    let base_config =
+        WhirlpoolEvmConfig::new(chain_spec.clone()).with_local_proposer_public_key([0x77; 32]);
     let players = base_config.simplex_consensus_public_keys();
     let proposer_config =
         base_config.with_current_full_dkg_output(validators_dkg::FullDkgOutputV1 {
@@ -140,8 +135,8 @@ async fn verify_rejects_missing_reshare_section_on_boundary_when_candidate_confi
         .await
         .expect("boundary block should propose");
 
-    let mut decoded = decode_extra_data(&block.extra_data, ExtraDataDecodeMode::Strict)
-        .expect("canonical extra_data must decode");
+    let mut decoded =
+        decode_extra_data(&block.extra_data).expect("canonical extra_data must decode");
     decoded.reshare = None;
     block.extra_data =
         encode_canonical_extra_data(&decoded).expect("mutated canonical extra_data encodes");
@@ -164,9 +159,8 @@ async fn verify_rejects_missing_reshare_section_on_boundary_when_candidate_confi
 #[tokio::test]
 async fn verify_rejects_reshare_section_on_non_boundary_block() {
     let chain_spec = Arc::new(build_sahara_chain_spec());
-    let base_config = WhirlpoolEvmConfig::new(chain_spec.clone())
-        .with_local_proposer_public_key([0x77; 32])
-        .with_full_dkg_strict_height(0);
+    let base_config =
+        WhirlpoolEvmConfig::new(chain_spec.clone()).with_local_proposer_public_key([0x77; 32]);
     let players = base_config.simplex_consensus_public_keys();
     let proposer_config =
         base_config.with_current_full_dkg_output(validators_dkg::FullDkgOutputV1 {
@@ -183,8 +177,8 @@ async fn verify_rejects_reshare_section_on_non_boundary_block() {
         .await
         .expect("non-boundary block should propose");
 
-    let mut decoded = decode_extra_data(&block.extra_data, ExtraDataDecodeMode::Strict)
-        .expect("canonical extra_data must decode");
+    let mut decoded =
+        decode_extra_data(&block.extra_data).expect("canonical extra_data must decode");
     decoded.reshare = Some(validators_dkg::ReshareV1 {
         target_epoch: 1,
         players: players.clone(),
@@ -212,8 +206,7 @@ async fn verify_rejects_full_dkg_section_when_feature_is_disabled() {
     let chain_spec = Arc::new(build_sahara_chain_spec());
     let base_config = WhirlpoolEvmConfig::new(chain_spec.clone())
         .with_local_proposer_public_key([0x77; 32])
-        .with_full_dkg_feature_enabled(false)
-        .with_full_dkg_strict_height(0);
+        .with_full_dkg_feature_enabled(false);
     let players = base_config.simplex_consensus_public_keys();
     let candidate_full_dkg = validators_dkg::FullDkgV1 {
         epoch: 1,
@@ -258,9 +251,8 @@ async fn verify_rejects_full_dkg_section_when_feature_is_disabled() {
 #[tokio::test]
 async fn boundary_reshare_can_follow_epoch_pipeline_lag_from_activation_schedule() {
     let chain_spec = Arc::new(build_sahara_chain_spec());
-    let base_config = WhirlpoolEvmConfig::new(chain_spec.clone())
-        .with_local_proposer_public_key([0x77; 32])
-        .with_full_dkg_strict_height(0);
+    let base_config =
+        WhirlpoolEvmConfig::new(chain_spec.clone()).with_local_proposer_public_key([0x77; 32]);
 
     let next_epoch_players = base_config.simplex_consensus_public_keys();
     let next_next_epoch_players = vec![[0x41; 32], [0x42; 32]];
@@ -286,8 +278,7 @@ async fn boundary_reshare_can_follow_epoch_pipeline_lag_from_activation_schedule
         .propose(&parent, 1)
         .await
         .expect("boundary block should propose");
-    let decoded = decode_extra_data(&block.extra_data, ExtraDataDecodeMode::Strict)
-        .expect("canonical extra_data should decode");
+    let decoded = decode_extra_data(&block.extra_data).expect("canonical extra_data should decode");
     let full_dkg = decoded
         .full_dkg
         .as_ref()
@@ -320,9 +311,8 @@ async fn boundary_reshare_can_follow_epoch_pipeline_lag_from_activation_schedule
 #[tokio::test]
 async fn propose_rejects_boundary_when_activation_schedule_missing_reshare_epoch() {
     let chain_spec = Arc::new(build_sahara_chain_spec());
-    let base_config = WhirlpoolEvmConfig::new(chain_spec.clone())
-        .with_local_proposer_public_key([0x77; 32])
-        .with_full_dkg_strict_height(0);
+    let base_config =
+        WhirlpoolEvmConfig::new(chain_spec.clone()).with_local_proposer_public_key([0x77; 32]);
     let next_epoch_players = base_config.simplex_consensus_public_keys();
     let proposer_config = base_config
         .with_current_full_dkg_output(validators_dkg::FullDkgOutputV1 {

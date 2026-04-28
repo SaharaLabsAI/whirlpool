@@ -106,7 +106,6 @@ async fn verify_rejects_full_dkg_payload_mismatch_against_candidate() {
     };
     let proposer_config = base_config
         .with_local_proposer_public_key([0x77; 32])
-        .with_full_dkg_strict_height(0)
         .with_current_full_dkg_output(candidate_output.clone());
     let (app, db) = setup_app_with_config(vec![tx], proposer_config.clone()).await;
 
@@ -126,8 +125,8 @@ async fn verify_rejects_full_dkg_payload_mismatch_against_candidate() {
     let parent = app.genesis().await;
     let (mut block, _) = app.propose(&parent, 1).await.unwrap();
 
-    let mut decoded = decode_extra_data(&block.extra_data, ExtraDataDecodeMode::Strict)
-        .expect("canonical extra_data must decode");
+    let mut decoded =
+        decode_extra_data(&block.extra_data).expect("canonical extra_data must decode");
     decoded
         .full_dkg
         .as_mut()
@@ -157,9 +156,8 @@ async fn verify_rejects_full_dkg_payload_mismatch_against_candidate() {
 async fn verify_rejects_full_dkg_when_candidate_is_not_configured() {
     let (tx, recovered) = sample_evm_tx();
     let chain_spec = Arc::new(build_sahara_chain_spec());
-    let config = WhirlpoolEvmConfig::new(chain_spec.clone())
-        .with_local_proposer_public_key([0x77; 32])
-        .with_full_dkg_strict_height(0);
+    let config =
+        WhirlpoolEvmConfig::new(chain_spec.clone()).with_local_proposer_public_key([0x77; 32]);
     let (app, db) = setup_app_with_config(vec![tx], config.clone()).await;
 
     {

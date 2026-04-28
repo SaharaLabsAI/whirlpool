@@ -98,12 +98,6 @@ fn test_fee_recipient_mapping_roundtrip_in_genesis_registry() {
 }
 
 #[test]
-fn test_full_dkg_strict_height_defaults_to_zero() {
-    let config = WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec()));
-    assert_eq!(config.full_dkg_strict_height(), 0);
-}
-
-#[test]
 fn activation_players_default_to_simplex_registry() {
     let config = WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec()));
     let expected = config.simplex_consensus_public_keys();

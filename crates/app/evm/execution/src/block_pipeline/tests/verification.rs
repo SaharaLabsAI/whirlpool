@@ -67,45 +67,17 @@ async fn verify_rejects_block_with_mismatched_base_fee_per_gas() {
 }
 
 #[tokio::test]
-async fn verify_accepts_legacy_extra_data_before_strict_height() {
-    let strict_height = 2;
+async fn verify_rejects_raw_32_byte_extra_data() {
     let chain_spec = Arc::new(build_sahara_chain_spec());
-    let proposer_config = WhirlpoolEvmConfig::new(chain_spec.clone())
-        .with_local_proposer_public_key([0x77; 32])
-        .with_full_dkg_strict_height(strict_height);
-    let (app, db) = setup_app_with_config(vec![], proposer_config.clone()).await;
-    let pre_state = db.read().unwrap().clone();
-
-    let parent = app.genesis().await;
-    let (mut block, _) = app.propose(&parent, 1).await.unwrap();
-    block.extra_data = legacy_proposer_extra_data_bytes(block.proposer_public_key);
-
-    let verifier = EvmApplication::new(
-        proposer_config,
-        Arc::new(RwLock::new(pre_state)),
-        Arc::new(MockTxSource { txs: vec![] }),
-    );
-
-    assert!(
-        verifier.verify(&parent, &block).await.is_ok(),
-        "legacy extra_data must remain accepted before strict-height boundary"
-    );
-}
-
-#[tokio::test]
-async fn verify_rejects_legacy_extra_data_at_or_after_strict_height() {
-    let strict_height = 2;
-    let chain_spec = Arc::new(build_sahara_chain_spec());
-    let proposer_config = WhirlpoolEvmConfig::new(chain_spec.clone())
-        .with_local_proposer_public_key([0x77; 32])
-        .with_full_dkg_strict_height(strict_height);
+    let proposer_config =
+        WhirlpoolEvmConfig::new(chain_spec.clone()).with_local_proposer_public_key([0x77; 32]);
     let (app, db) = setup_app_with_config(vec![], proposer_config.clone()).await;
 
     let genesis = app.genesis().await;
     let (parent, _) = app.propose(&genesis, 1).await.unwrap();
     let pre_state = db.read().unwrap().clone();
-    let (mut block, _) = app.propose(&parent, strict_height).await.unwrap();
-    block.extra_data = legacy_proposer_extra_data_bytes(block.proposer_public_key);
+    let (mut block, _) = app.propose(&parent, 2).await.unwrap();
+    block.extra_data = block.proposer_public_key.to_vec();
 
     let verifier = EvmApplication::new(
         proposer_config,
@@ -115,10 +87,72 @@ async fn verify_rejects_legacy_extra_data_at_or_after_strict_height() {
     let err = verifier
         .verify(&parent, &block)
         .await
-        .expect_err("legacy extra_data must be rejected at/after strict height");
+        .expect_err("raw 32-byte extra_data must be rejected");
 
     assert!(
         matches!(err, EvmAppError::InvalidBlock(ref msg) if msg.contains("failed to decode block extra_data")),
+        "unexpected error: {err:?}"
+    );
+}
+
+#[tokio::test]
+async fn genesis_and_propose_emit_canonical_raw_eth_extra_data() {
+    let proposer_public_key = [0x77; 32];
+    let chain_spec = Arc::new(build_sahara_chain_spec());
+    let proposer_config =
+        WhirlpoolEvmConfig::new(chain_spec).with_local_proposer_public_key(proposer_public_key);
+    let (app, _) = setup_app_with_config(vec![], proposer_config).await;
+
+    let genesis = app.genesis().await;
+    let decoded_genesis =
+        decode_extra_data(&genesis.extra_data).expect("genesis extra_data must be canonical");
+    assert_eq!(decoded_genesis.raw_eth, Some(proposer_public_key.to_vec()));
+    assert!(decoded_genesis.full_dkg.is_none());
+    assert!(decoded_genesis.reshare.is_none());
+    assert_ne!(genesis.extra_data, proposer_public_key.to_vec());
+
+    let (block, _) = app.propose(&genesis, 1).await.unwrap();
+    let decoded_block =
+        decode_extra_data(&block.extra_data).expect("proposed extra_data must be canonical");
+    assert_eq!(decoded_block.raw_eth, Some(proposer_public_key.to_vec()));
+    assert!(decoded_block.full_dkg.is_none());
+    assert!(decoded_block.reshare.is_none());
+    assert_ne!(block.extra_data, proposer_public_key.to_vec());
+}
+
+#[tokio::test]
+async fn verify_rejects_canonical_extra_data_proposer_mismatch() {
+    let proposer_public_key = [0x77; 32];
+    let chain_spec = Arc::new(build_sahara_chain_spec());
+    let proposer_config = WhirlpoolEvmConfig::new(chain_spec.clone())
+        .with_local_proposer_public_key(proposer_public_key);
+    let (app, db) = setup_app_with_config(vec![], proposer_config).await;
+
+    let genesis = app.genesis().await;
+    let (parent, _) = app.propose(&genesis, 1).await.unwrap();
+    let pre_state = db.read().unwrap().clone();
+    let (mut block, _) = app.propose(&parent, 2).await.unwrap();
+    block.extra_data = encode_canonical_extra_data(&CanonicalExtraDataV1 {
+        raw_eth: Some([0x88; 32].to_vec()),
+        full_dkg: None,
+        reshare: None,
+    })
+    .expect("canonical mismatched extra_data should encode");
+
+    let verifier_config =
+        WhirlpoolEvmConfig::new(chain_spec).with_local_proposer_public_key(proposer_public_key);
+    let verifier = EvmApplication::new(
+        verifier_config,
+        Arc::new(RwLock::new(pre_state)),
+        Arc::new(MockTxSource { txs: vec![] }),
+    );
+    let err = verifier
+        .verify(&parent, &block)
+        .await
+        .expect_err("canonical raw_eth proposer mismatch must be rejected");
+
+    assert!(
+        matches!(err, EvmAppError::InvalidBlock(ref msg) if msg.contains("proposer key mismatch")),
         "unexpected error: {err:?}"
     );
 }

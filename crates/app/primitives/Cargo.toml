@@ -1,0 +1,14 @@
+[package]
+name = "app-primitives"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+consensus = { path = "../../consensus/traits" }
+validators-dkg = { path = "../../validators/dkg" }
+commonware-consensus = { path = "../../../vendor/commonware/consensus" }
+commonware-codec = { path = "../../../vendor/commonware/codec" }
+commonware-cryptography = { path = "../../../vendor/commonware/cryptography" }
+alloy-consensus = "1.4.3"
+sha2 = "0.10"
+bytes = "1"

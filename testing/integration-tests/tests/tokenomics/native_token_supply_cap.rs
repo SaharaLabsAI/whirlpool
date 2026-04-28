@@ -138,7 +138,6 @@ fn start_node_for_chain_spec(
         consensus: ConsensusStartupConfig {
             namespace: format!("native-token-supply-{seed}").into_bytes(),
             block_interval: Duration::from_secs(1),
-            full_dkg_strict_height: 0,
         },
         bootstrap_validators: Some(vec![public_key]),
         bootstrap: Default::default(),

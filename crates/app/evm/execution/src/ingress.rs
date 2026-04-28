@@ -1,4 +1,5 @@
-use app::{traits::TxSource, EvmBlock};
+use app_primitives::EvmBlock;
+use app_traits::traits::TxSource;
 
 pub fn pending_transactions(tx_source: &(dyn TxSource + Send + Sync)) -> Vec<Vec<u8>> {
     tx_source.pending()

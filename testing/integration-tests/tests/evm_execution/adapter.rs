@@ -1,9 +1,10 @@
 use std::sync::{Arc, RwLock};
 
-use app::{traits::Application, ApplicationAdapter, EvmBlock, NoopTxSource};
 use app_evm_execution::EvmApplication;
 use app_evm_execution::WhirlpoolEvmConfig;
 use app_evm_state::InMemoryStateDb;
+use app_primitives::EvmBlock;
+use app_traits::{traits::Application, ApplicationAdapter, NoopTxSource};
 use chainspec::build_sahara_chain_spec;
 use consensus::{traits::ConsensusApp, ConsensusError};
 

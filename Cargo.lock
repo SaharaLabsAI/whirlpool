@@ -964,21 +964,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
-name = "app"
-version = "0.1.0"
-dependencies = [
- "alloy-consensus",
- "bytes",
- "commonware-codec",
- "commonware-consensus",
- "commonware-cryptography",
- "consensus",
- "futures",
- "sha2 0.10.9",
- "thiserror 2.0.18",
-]
-
-[[package]]
 name = "app-evm-execution"
 version = "0.1.0"
 dependencies = [
@@ -987,8 +972,9 @@ dependencies = [
  "alloy-genesis",
  "alloy-primitives",
  "alloy-trie",
- "app",
  "app-evm-state",
+ "app-primitives",
+ "app-traits",
  "chainspec",
  "consensus",
  "evm-precompiles",
@@ -1016,7 +1002,7 @@ dependencies = [
  "alloy-eips",
  "alloy-genesis",
  "alloy-primitives",
- "app",
+ "app-primitives",
  "reth-db",
  "reth-db-api",
  "reth-db-models",
@@ -1033,6 +1019,29 @@ dependencies = [
  "thiserror 2.0.18",
  "tracing",
  "validators-dkg",
+]
+
+[[package]]
+name = "app-primitives"
+version = "0.1.0"
+dependencies = [
+ "alloy-consensus",
+ "bytes",
+ "commonware-codec",
+ "commonware-consensus",
+ "commonware-cryptography",
+ "consensus",
+ "sha2 0.10.9",
+ "validators-dkg",
+]
+
+[[package]]
+name = "app-traits"
+version = "0.1.0"
+dependencies = [
+ "consensus",
+ "futures",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -4431,9 +4440,10 @@ dependencies = [
  "alloy-rpc-types",
  "alloy-signer",
  "alloy-signer-local",
- "app",
  "app-evm-execution",
  "app-evm-state",
+ "app-primitives",
+ "app-traits",
  "chainspec",
  "commonware-cryptography",
  "consensus",
@@ -5076,7 +5086,7 @@ version = "0.1.0"
 name = "mempool-mdbx"
 version = "0.0.0"
 dependencies = [
- "app",
+ "app-traits",
  "mempool",
  "reth-libmdbx",
  "tempfile",
@@ -8499,9 +8509,10 @@ dependencies = [
  "alloy-consensus",
  "alloy-eips",
  "alloy-primitives",
- "app",
  "app-evm-execution",
  "app-evm-state",
+ "app-primitives",
+ "app-traits",
  "enr",
  "jsonrpsee",
  "reth-chain-state",
@@ -9303,7 +9314,7 @@ name = "state"
 version = "0.1.0"
 dependencies = [
  "alloy-genesis",
- "app",
+ "app-primitives",
  "revm",
  "thiserror 2.0.18",
 ]
@@ -10555,9 +10566,10 @@ name = "whirlpool-node"
 version = "0.1.0"
 dependencies = [
  "alloy-primitives",
- "app",
  "app-evm-execution",
  "app-evm-state",
+ "app-primitives",
+ "app-traits",
  "bytes",
  "chainspec",
  "clap",

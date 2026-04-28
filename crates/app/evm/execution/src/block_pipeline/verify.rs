@@ -2,7 +2,10 @@ use alloy_consensus::TxReceipt;
 use alloy_eips::eip2718::Encodable2718;
 use alloy_primitives::{Bytes, B256};
 use alloy_trie::root::ordered_trie_root_with_encoder;
-use app::{ExecutionResult, Receipt};
+use app_primitives::{
+    header_extra_data::{decode_strict_extra_data, proposer_public_key_from_raw_eth_section},
+    ExecutionResult, Receipt,
+};
 use evm_precompiles::{
     apply_epoch_boundary_effect, apply_post_block_accounting,
     execute_epoch_boundary_system_call_if_required, load_epoch_boundary_state,
@@ -15,15 +18,11 @@ use reth_evm::{
 use revm::database::states::bundle_state::BundleRetention;
 use revm::database::State;
 use validators_dkg::{
-    decode_extra_data, latest_committed_full_dkg, validate_dkg_extra_data, DkgHistory,
-    DkgVerifyInput,
+    latest_committed_full_dkg, validate_dkg_extra_data, DkgHistory, DkgVerifyInput,
 };
 
 use crate::block_pipeline::build_sealed_header;
-use crate::block_pipeline::state_helpers::block_extra_data::{
-    extra_data_decode_mode_for_height, proposer_public_key_from_raw_eth_section,
-    validate_or_recover_fee_recipient,
-};
+use crate::block_pipeline::state_helpers::block_extra_data::validate_or_recover_fee_recipient;
 use crate::block_pipeline::state_helpers::fee_accounting::aggregate_priority_fees;
 use crate::block_pipeline::state_helpers::receipt_accounting::gas_deltas_and_used;
 use crate::block_pipeline::{
@@ -40,8 +39,8 @@ where
 {
     pub fn verify_evm_transactions(
         &self,
-        parent: &app::EvmBlock,
-        block: &app::EvmBlock,
+        parent: &app_primitives::EvmBlock,
+        block: &app_primitives::EvmBlock,
         raw_txs: &[Vec<u8>],
     ) -> Result<ExecutionResult, EvmAppError>
     where
@@ -69,15 +68,15 @@ where
                 block.base_fee_per_gas
             )));
         }
-        let decoded_extra_data = decode_extra_data(
-            &block.extra_data,
-            extra_data_decode_mode_for_height(&self.evm_config, block.height),
-        )
-        .map_err(|err| {
+        let decoded_extra_data = decode_strict_extra_data(&block.extra_data).map_err(|err| {
             EvmAppError::InvalidBlock(format!("failed to decode block extra_data: {err}"))
         })?;
         let decoded_proposer_public_key =
-            proposer_public_key_from_raw_eth_section(&decoded_extra_data)?;
+            proposer_public_key_from_raw_eth_section(&decoded_extra_data).map_err(|err| {
+                EvmAppError::InvalidBlock(format!(
+                    "failed to decode proposer public key from block extra_data: {err}"
+                ))
+            })?;
         if decoded_proposer_public_key != block.proposer_public_key {
             return Err(EvmAppError::InvalidBlock(format!(
                 "block proposer key mismatch between block field and extra_data: field={:?}, extra_data={:?}",

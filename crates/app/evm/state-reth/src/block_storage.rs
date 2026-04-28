@@ -1,7 +1,8 @@
 use alloy_consensus::{Header, TxType, Typed2718};
 use alloy_eips::eip2718::{Decodable2718, Encodable2718};
 use alloy_primitives::Address;
-use app::{EvmBlock, Receipt as AppReceipt};
+use app_primitives::header_extra_data::proposer_public_key_from_extra_data;
+use app_primitives::{EvmBlock, Receipt as AppReceipt};
 use reth_db::Database;
 use reth_db_api::cursor::DbCursorRO;
 use reth_db_api::transaction::{DbTx, DbTxMut};
@@ -9,7 +10,6 @@ use reth_db_models::blocks::StoredBlockBodyIndices;
 use reth_ethereum_primitives::{Receipt as RethReceipt, TransactionSigned};
 use revm::primitives::B256;
 use state::{BlockStorage, BlockStorageError};
-use validators_dkg::proposer_public_key_from_extra_data;
 
 use crate::db::RethStateDb;
 use crate::tables::{
@@ -167,9 +167,9 @@ impl BlockStorage for RethStateDb {
 
         let extra_data: Vec<u8> = header.extra_data.to_vec();
         let proposer_public_key =
-            proposer_public_key_from_extra_data(&extra_data).ok_or_else(|| {
+            proposer_public_key_from_extra_data(&extra_data).map_err(|err| {
                 BlockStorageError::Codec(format!(
-                    "failed to decode proposer public key from block {number} extra_data"
+                    "failed to decode proposer public key from block {number} extra_data: {err}"
                 ))
             })?;
         Ok(Some(EvmBlock {

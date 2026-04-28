@@ -10,6 +10,7 @@
 - `chainspec`: Sahara chain-spec builders + chain-id + validator-registry reader seam.
 - `app-evm-execution`: EVM runtime/config/execution (`WhirlpoolEvmConfig`, `EvmApplication`).
 - `consensus` / `consensus-simplex`: consensus traits + adapter/engine.
+- `app-traits` / `app-primitives`: app adapter traits and concrete block primitives.
 - `state` / `app-evm-state` / `mempool-mdbx`: persistence and tx source.
 - `network-commonware`: networking.
 - `rpc-eth`: Ethereum JSON-RPC server.
@@ -32,7 +33,7 @@
 - Normal startup optionally loads local bundle material from `genesis_dkg_session_dir`; on load/validation failure startup hard-fails before engine start.
 - Startup rejects `--genesis-dkg-dealer-pubkey` when no `--genesis-dkg-session-dir` is configured.
 - When BLS material is loaded, node derives `FullDkgOutputV1` (`dealers`, `players`, encoded `public_polynomial`) and wires it into `WhirlpoolEvmConfig` via `with_current_full_dkg_output(...)`.
-- `full_dkg_strict_height` is wired from `NodeConfig.consensus.full_dkg_strict_height` into `WhirlpoolEvmConfig`, with CLI/TOML surface `--full-dkg-strict-height` / `full_dkg_strict_height`.
+- Header `extra_data` is strict canonical from genesis; there is no CLI/TOML migration-height gate.
 - `EvmApplication` is wired through `ApplicationAdapter` + `PersistingFinalizationSink`.
 - Node no longer routes any epoch-boundary hook selection through chainspec; the boundary path is the single built-in `app-evm-execution`/`evm-precompiles` integration.
 - Config parsing helpers in `src/config/parse.rs` use plain `pub` visibility inside the private `config::parse` module (no scoped `pub(super)` / `pub(crate)` modifiers), with parent-module imports controlling the crate-visible surface.

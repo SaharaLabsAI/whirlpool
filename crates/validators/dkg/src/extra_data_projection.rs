@@ -1,23 +1,25 @@
-use super::{decode_extra_data, ExtraDataDecodeMode, LEGACY_PROPOSER_EXTRA_DATA_LEN};
-
-pub fn legacy_proposer_extra_data_bytes(proposer_public_key: [u8; 32]) -> Vec<u8> {
-    proposer_public_key.to_vec()
-}
+use super::{decode_extra_data, ExtraDataError, RAW_ETH_PROPOSER_PUBLIC_KEY_LEN};
 
 pub fn proposer_public_key_from_extra_data(extra_data: &[u8]) -> Option<[u8; 32]> {
-    let decoded = decode_extra_data(extra_data, ExtraDataDecodeMode::Legacy).ok()?;
+    let decoded = decode_extra_data(extra_data).ok()?;
     let raw_eth = decoded.raw_eth?;
-    if raw_eth.len() != LEGACY_PROPOSER_EXTRA_DATA_LEN {
-        return None;
-    }
-    let mut out = [0u8; 32];
-    out.copy_from_slice(&raw_eth);
-    Some(out)
+    proposer_public_key_from_raw_eth(&raw_eth).ok()
 }
 
 pub fn project_raw_eth_extra_data(extra_data: &[u8]) -> Vec<u8> {
-    match decode_extra_data(extra_data, ExtraDataDecodeMode::RpcProjection) {
-        Ok(decoded) => decoded.raw_eth.unwrap_or_default(),
-        Err(_) => Vec::new(),
+    decode_extra_data(extra_data)
+        .ok()
+        .and_then(|decoded| decoded.raw_eth)
+        .unwrap_or_default()
+}
+
+fn proposer_public_key_from_raw_eth(raw_eth: &[u8]) -> Result<[u8; 32], ExtraDataError> {
+    if raw_eth.len() != RAW_ETH_PROPOSER_PUBLIC_KEY_LEN {
+        return Err(ExtraDataError::InvalidRawEthLen {
+            found: raw_eth.len(),
+        });
     }
+    let mut out = [0u8; 32];
+    out.copy_from_slice(raw_eth);
+    Ok(out)
 }

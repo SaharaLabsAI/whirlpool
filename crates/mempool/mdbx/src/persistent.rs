@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use app::traits::TxSource;
+use app_traits::traits::TxSource;
 use mempool::MempoolError;
 
 use crate::MdbxMempoolStore;

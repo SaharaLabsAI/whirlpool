@@ -1,7 +1,7 @@
 use super::{
-    decode_extra_data, encode_canonical_extra_data, project_raw_eth_extra_data,
-    CanonicalExtraDataV1, ExtraDataDecodeMode, ExtraDataError, FullDkgOutputV1, FullDkgV1,
-    ReshareV1,
+    build_canonical_dkg_extra_data, decode_extra_data, encode_canonical_extra_data,
+    project_raw_eth_extra_data, CanonicalExtraDataV1, DkgProposalInput, ExtraDataError,
+    FullDkgOutputV1, FullDkgV1, ReshareV1, ValidatorActivationSchedule,
 };
 
 #[test]
@@ -23,7 +23,7 @@ fn test_canonical_extra_data_roundtrip_with_raw_eth_and_full_dkg() {
     };
 
     let encoded = encode_canonical_extra_data(&original).expect("encode");
-    let decoded = decode_extra_data(&encoded, ExtraDataDecodeMode::Strict).expect("decode");
+    let decoded = decode_extra_data(&encoded).expect("decode");
     assert_eq!(decoded, original);
 
     let projected = project_raw_eth_extra_data(&encoded);
@@ -31,18 +31,66 @@ fn test_canonical_extra_data_roundtrip_with_raw_eth_and_full_dkg() {
 }
 
 #[test]
-fn test_legacy_extra_data_decode_and_projection() {
-    let legacy = vec![0x55; 32];
-    let decoded = decode_extra_data(&legacy, ExtraDataDecodeMode::Legacy).expect("legacy");
-    assert_eq!(decoded.raw_eth, Some(legacy.clone()));
-    assert_eq!(decoded.full_dkg, None);
-    assert_eq!(project_raw_eth_extra_data(&legacy), legacy);
+fn raw_32_byte_extra_data_is_rejected() {
+    let legacy = vec![0x11; 32];
+    assert!(decode_extra_data(&legacy).is_err());
 }
 
 #[test]
-fn test_strict_mode_rejects_legacy_bytes() {
-    let legacy = vec![0x11; 32];
-    assert!(decode_extra_data(&legacy, ExtraDataDecodeMode::Strict).is_err());
+fn canonical_raw_eth_only_extra_data_roundtrips_and_projects() {
+    let raw_eth = vec![0x42; 32];
+    let canonical = CanonicalExtraDataV1 {
+        raw_eth: Some(raw_eth.clone()),
+        full_dkg: None,
+        reshare: None,
+    };
+
+    let encoded = encode_canonical_extra_data(&canonical).expect("encode raw_eth-only envelope");
+    assert_ne!(
+        encoded, raw_eth,
+        "canonical carrier must not be the legacy raw proposer bytes"
+    );
+    assert_eq!(decode_extra_data(&encoded).expect("decode"), canonical);
+    assert_eq!(project_raw_eth_extra_data(&encoded), raw_eth);
+}
+
+#[test]
+fn raw_32_byte_extra_data_projects_to_empty_instead_of_valid_raw_eth() {
+    let legacy = vec![0x55; 32];
+    assert_eq!(
+        project_raw_eth_extra_data(&legacy),
+        Vec::<u8>::new(),
+        "projection must not treat legacy raw bytes as canonical input"
+    );
+}
+
+#[test]
+fn build_canonical_dkg_extra_data_feature_disabled_returns_raw_eth_only_envelope() {
+    let default_players = vec![[0x11; 32]];
+    let activation_schedule = ValidatorActivationSchedule::new(default_players.clone());
+    let candidate_output = FullDkgOutputV1 {
+        dealers: vec![[0x22; 32]],
+        players: default_players.clone(),
+        public_polynomial: vec![0xaa, 0xbb],
+    };
+    let proposer_public_key = [0x77; 32];
+
+    let encoded = build_canonical_dkg_extra_data(DkgProposalInput {
+        feature_enabled: false,
+        activation_schedule: &activation_schedule,
+        default_players: &default_players,
+        previous_full_dkg: None,
+        candidate_output: Some(&candidate_output),
+        proposer_public_key,
+        boundary_required: false,
+        post_advance_epoch: 9,
+    })
+    .expect("disabled feature should still build canonical RawEth envelope");
+    let decoded = decode_extra_data(&encoded).expect("decode raw_eth-only envelope");
+
+    assert_eq!(decoded.raw_eth, Some(proposer_public_key.to_vec()));
+    assert_eq!(decoded.full_dkg, None);
+    assert_eq!(decoded.reshare, None);
 }
 
 #[test]
@@ -55,7 +103,7 @@ fn test_unknown_section_rejected() {
     encoded.extend_from_slice(&1u32.to_le_bytes());
     encoded.push(0xaa);
 
-    assert!(decode_extra_data(&encoded, ExtraDataDecodeMode::Legacy).is_err());
+    assert!(decode_extra_data(&encoded).is_err());
 }
 
 #[test]
@@ -102,8 +150,7 @@ fn test_section_order_rejected_when_raw_eth_after_full_dkg() {
     reordered.extend_from_slice(&(section1_payload.len() as u32).to_le_bytes());
     reordered.extend_from_slice(&section1_payload);
 
-    let err = decode_extra_data(&reordered, ExtraDataDecodeMode::Strict)
-        .expect_err("raw_eth after full_dkg must be rejected");
+    let err = decode_extra_data(&reordered).expect_err("raw_eth after full_dkg must be rejected");
     assert!(matches!(
         err,
         ExtraDataError::InvalidSectionOrder { section } if section == 1
@@ -161,8 +208,7 @@ fn test_section_order_rejected_when_reshare_before_full_dkg() {
     reordered.extend_from_slice(&(full_dkg_payload.len() as u32).to_le_bytes());
     reordered.extend_from_slice(&full_dkg_payload);
 
-    let err = decode_extra_data(&reordered, ExtraDataDecodeMode::Strict)
-        .expect_err("reshare before full_dkg must be rejected");
+    let err = decode_extra_data(&reordered).expect_err("reshare before full_dkg must be rejected");
     assert!(matches!(
         err,
         ExtraDataError::InvalidSectionOrder { section } if section == 3
@@ -238,6 +284,20 @@ fn latest_committed_full_dkg_fails_closed_on_malformed_historical_bytes() {
 }
 
 #[test]
+fn latest_committed_full_dkg_fails_closed_on_raw_32_byte_historical_carrier() {
+    let mut history = TestHistory::default();
+    history.blocks.insert(2, vec![0x55; 32]);
+
+    let err = super::latest_committed_full_dkg(&history, 2)
+        .expect_err("legacy raw historical carrier bytes must fail closed");
+
+    assert!(matches!(
+        err,
+        super::DkgMetadataError::HistoricalExtraDataDecode { height: 2, .. }
+    ));
+}
+
+#[test]
 fn latest_committed_full_dkg_scans_past_raw_only_intermediate_blocks() {
     let full_dkg = FullDkgV1 {
         epoch: 3,
@@ -279,18 +339,11 @@ fn bytes_from_hex(hex: &str) -> Vec<u8> {
 }
 
 #[test]
-fn fixed_legacy_raw_extra_data_fixture_is_stable() {
+fn fixed_raw_32_byte_extra_data_fixture_is_rejected() {
     let expected =
         bytes_from_hex("5555555555555555555555555555555555555555555555555555555555555555");
-    let decoded = decode_extra_data(&expected, ExtraDataDecodeMode::Legacy).expect("legacy decode");
-
-    assert_eq!(decoded.raw_eth, Some(expected.clone()));
-    assert_eq!(
-        super::legacy_proposer_extra_data_bytes([0x55; 32]),
-        expected
-    );
     assert!(matches!(
-        decode_extra_data(&expected, ExtraDataDecodeMode::Strict),
+        decode_extra_data(&expected),
         Err(ExtraDataError::InvalidMagic)
     ));
 }
@@ -321,7 +374,7 @@ fn fixed_wdx1_full_dkg_and_reshare_fixture_is_stable() {
         expected
     );
     assert_eq!(
-        decode_extra_data(&expected, ExtraDataDecodeMode::Strict).expect("decode fixture"),
+        decode_extra_data(&expected).expect("decode fixture"),
         fixture
     );
 }

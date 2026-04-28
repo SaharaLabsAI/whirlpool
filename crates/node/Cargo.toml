@@ -4,7 +4,8 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-app = { path = "../app/traits" }
+app-traits = { path = "../app/traits" }
+app-primitives = { path = "../app/primitives" }
 app-evm-execution = { path = "../app/evm/execution" }
 chainspec = { path = "../chainspec" }
 mempool-mdbx = { path = "../mempool/mdbx" }

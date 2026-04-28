@@ -1,9 +1,9 @@
 use alloy_eips::eip2718::{Decodable2718, Eip2718Error};
 use alloy_primitives::{Address, B256};
-use app::types::EvmBlock;
+use app_primitives::header_extra_data::project_raw_eth_extra_data;
+use app_primitives::EvmBlock;
 use reth_ethereum_primitives::{Block, BlockBody, TransactionSigned};
 use reth_primitives_traits::Header;
-use validators_dkg::project_raw_eth_extra_data;
 
 /// Decode raw EIP-2718 transaction bytes into a signed transaction.
 pub fn decode_transaction(bytes: &[u8]) -> Result<TransactionSigned, Eip2718Error> {

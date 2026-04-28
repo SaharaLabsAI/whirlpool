@@ -28,21 +28,20 @@ Those live in `chainspec`.
 
 ## Key Runtime Notes
 - `WhirlpoolEvmConfig` still derives proposer fee recipients from genesis storage at `VALIDATOR_FEE_RECIPIENTS_REGISTRY`.
-- `WhirlpoolEvmConfig` now carries FullDkg envelope knobs:
+- `WhirlpoolEvmConfig` carries FullDkg envelope knobs:
   - `full_dkg_feature_enabled`
-  - `full_dkg_strict_height`
   - optional `current_full_dkg_output` (`dealers`, `players`, `public_polynomial`)
 - `WhirlpoolEvmConfig` carries epoch-scoped activation override data via `with_activation_players_for_epoch(epoch, players)`, but activation resolution is delegated to `validators_dkg::ValidatorActivationSchedule`.
 - Precompile injection remains in `WhirlpoolEvmConfig::evm_with_env(...)` via `evm_precompiles::whirlpool_precompiles_with_validators(...)`.
-- Block header `extra_data` now uses `validators-dkg` canonical envelope bytes (`RawEth` + optional `FullDkgV1`/`ReshareV1`) instead of app-owned DKG schema.
-- Verify path decodes `extra_data` with a height gate (`Legacy` before strict height, `Strict` at/after strict height), enforces proposer-key parity against `RawEth`, and enforces boundary-aware FullDkg/Reshare invariants.
+- Block header `extra_data` uses strict canonical envelope bytes (`RawEth` + optional `FullDkgV1`/`ReshareV1`). `app-primitives` owns carrier helper wrappers; `validators-dkg` owns DKG schema/validation semantics.
+- Verify path decodes `extra_data` strictly from genesis, rejects raw 32-byte legacy carriers, enforces proposer-key parity against `RawEth`, and enforces boundary-aware FullDkg/Reshare invariants.
 - Propose/verify now share one block-pipeline-local next-block base-fee seam:
   - propose derives `base_fee_per_gas` through the shared helper,
   - verify rejects blocks whose `block.base_fee_per_gas` does not match the protocol-derived next-block fee before fee accounting,
   - verify-side burned-fee / priority-fee accounting now uses the derived canonical fee after the mismatch guard.
 - EVM tx decode helpers now use exact EIP-2718 decoding, so padded tx bytes fail closed during both proposal pre-decode and verify decoding.
 - Boundary extra-data semantics are delegated to `validators-dkg`: `EpochActivationTargets` supplies `E`, `E+1`, and `E+2`; `ValidatorActivationSchedule` resolves FullDkg/Reshare players. Non-boundary blocks must not carry `ReshareV1`, and boundary verify remains fail-closed for missing/mismatched required `ReshareV1` fields when FullDkg candidate data is configured.
-- `app-evm-execution` is now only the DKG pipeline call site: propose calls `validators_dkg::latest_committed_full_dkg` and `build_canonical_dkg_extra_data`, verify calls `latest_committed_full_dkg` and `validate_dkg_extra_data`. Historical carrier-byte lookup is supplied by the DB through `validators_dkg::DkgHistory`; execution keeps only DKG error translation.
+- `app-evm-execution` is only the DKG pipeline call site: propose calls `validators_dkg::latest_committed_full_dkg` and `build_canonical_dkg_extra_data`; verify calls `latest_committed_full_dkg` and `validate_dkg_extra_data`. Strict header carrier decode/proposer extraction routes through `app_primitives::header_extra_data`. Historical carrier-byte lookup is supplied by the DB through `validators_dkg::DkgHistory`; execution keeps only DKG error translation.
 - Reviewer entrypoints are now named by pipeline ownership zone:
   - `src/ingress.rs` — candidate transaction sources: proposal reads `TxSource::pending()`, verification borrows `block.transactions`.
   - `src/codec/` — EIP-2718 transaction decode/recovery plus EVM header projection. Prefer `app_evm_execution::codec::decode_evm_transaction` and `decode_evm_transactions` for reviewer-facing decode APIs; root re-exports remain for compatibility.
@@ -51,12 +50,11 @@ Those live in `chainspec`.
   - `block_pipeline/tests/mod.rs` + `block_pipeline/tests/*.rs` — source-adjacent unit tests split by topic with shared fixtures in the parent module.
 - The former `app_evm_execution::executor::*` compatibility shim was intentionally removed after the ownership-zone modules became the public review map; use root exports or `codec`/`block_pipeline` paths instead.
 - The discoverability refactor is behavior-preserving: no shared generic propose/verify pipeline abstraction was added, and deeper ownership issues should be tracked as remaining risks rather than repaired in this layout pass.
-- `full_dkg_strict_height` defaults to `0` (strict from genesis) and can be explicitly overridden via config builders for migration/testing scenarios.
 - `WhirlpoolEvmConfig` is now split across directory-backed `config/` submodules so builder/accessor APIs stay grouped by concern while preserving the same external type and behavior.
 - `codec/` and `block_pipeline/state_helpers/` are directory-backed modules that split decode/header and state-helper surfaces into focused files with smaller public API sets.
 - Non-boundary FullDkg candidate validation is fail-closed in both propose and verify paths: candidate `output.players` must match activation-resolved players for the candidate epoch before include/omit decisions.
 - FullDkg inclusion trigger compares candidate output against the **latest committed FullDkg from `DkgHistory`** (validators-dkg backward scan over raw carrier bytes) so raw-only intermediate blocks do not cause include/omit oscillation.
-- When `full_dkg_feature_enabled == false`, verify now rejects **both** `full_dkg` and `reshare` sections instead of rejecting `reshare` alone, preventing disabled-feature metadata from entering historical scans.
+- When `full_dkg_feature_enabled == false`, propose still emits a canonical RawEth envelope, and verify rejects **both** `full_dkg` and `reshare` sections, preventing disabled-feature metadata from entering historical scans.
 - Epoch-boundary helper ownership now lives in `evm_precompiles::epoch`; `app-evm-execution` no longer has a dedicated `epoch_boundary/` module tree.
 - `app-evm-execution` keeps a **tiny pipeline call site** for epoch boundaries inside `block_pipeline/`:
   - propose/verify load boundary state through `evm_precompiles::load_epoch_boundary_state(...)`

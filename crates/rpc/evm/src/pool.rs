@@ -8,7 +8,7 @@ use alloy_eips::{
     eip7594::BlobTransactionSidecarVariant,
 };
 use alloy_primitives::{map::AddressSet, Address, TxHash, B256};
-use app::traits::TxSource;
+use app_traits::traits::TxSource;
 use reth_eth_wire_types::HandleMempoolData;
 use reth_primitives_traits::Recovered;
 use reth_transaction_pool::{

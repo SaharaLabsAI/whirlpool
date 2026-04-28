@@ -1,7 +1,7 @@
 use std::sync::{Arc, RwLock};
 
 use super::*;
-use app::{traits::Application, InMemoryTxPool};
+use app_traits::{traits::Application, InMemoryTxPool};
 
 #[tokio::test]
 async fn test_propose_with_in_memory_pool() {

@@ -1,4 +1,4 @@
-use app::EvmBlock;
+use app_primitives::EvmBlock;
 use state::BlockStorage;
 use validators_dkg::DkgHistory;
 

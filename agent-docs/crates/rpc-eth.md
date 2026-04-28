@@ -6,7 +6,8 @@
 Location: `crates/rpc/evm/`
 
 ## Dependency Boundaries
-- `app`: `TxSource` trait (`app::traits`) — transaction submission bridge.
+- `app-traits`: `TxSource` trait (`app_traits::traits`) — transaction submission bridge.
+- `app-primitives`: `EvmBlock` carrier and header `extra_data` RawEth projection helper.
 - `app-evm-state`: `RethStateDb` — persistent MDBX-backed state and block storage.
 - `reth-rpc-builder`: `RpcModuleBuilder`, `TransportRpcModuleConfig`, `RpcServerConfig` — server assembly.
 - `reth-rpc`: `EthApi` implementation wired through the builder.
@@ -57,7 +58,7 @@ RpcModuleBuilder::default()
 
 ### Conversion Helpers (`convert.rs`)
 - `decode_transaction(bytes) -> TransactionSigned`: RLP decode raw transaction bytes.
-- `evmblock_to_header(EvmBlock) -> Header`: Maps internal `EvmBlock` fields to reth `Header`; projects canonical app `extra_data` back to RawEth bytes via `app::project_raw_eth_extra_data`.
+- `evmblock_to_header(EvmBlock) -> Header`: Maps internal `EvmBlock` fields to reth `Header`; projects strict canonical app `extra_data` back to RawEth bytes via `app_primitives::header_extra_data::project_raw_eth_extra_data`.
 - `evmblock_to_block(EvmBlock) -> SealedBlock`: Full block conversion with decoded transactions.
 
 ## Public API

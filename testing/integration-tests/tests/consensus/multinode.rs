@@ -81,7 +81,6 @@ async fn test_four_node_consensus() {
             consensus: ConsensusStartupConfig {
                 namespace: b"whirlpool-multinode-consensus".to_vec(),
                 block_interval: Duration::from_secs(1),
-                full_dkg_strict_height: 0,
             },
             bootstrap_validators: Some(validator_pubkeys.clone()),
             bootstrap: Default::default(),
@@ -177,7 +176,6 @@ async fn test_single_node_consensus_with_bls_bootstrap_bundle() {
         consensus: ConsensusStartupConfig {
             namespace: b"whirlpool-single-bls-consensus".to_vec(),
             block_interval: Duration::from_secs(1),
-            full_dkg_strict_height: 0,
         },
         bootstrap_validators: Some(vec![pubkey]),
         bootstrap: whirlpool_node::config::BootstrapConfig {
@@ -278,7 +276,6 @@ async fn test_four_node_consensus_with_bls_bootstrap_bundle() {
             consensus: ConsensusStartupConfig {
                 namespace: b"whirlpool-multinode-bls-consensus".to_vec(),
                 block_interval: Duration::from_secs(1),
-                full_dkg_strict_height: 0,
             },
             bootstrap_validators: Some(validator_pubkeys.clone()),
             bootstrap: whirlpool_node::config::BootstrapConfig {

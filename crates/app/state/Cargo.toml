@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-app = { path = "../traits" }
+app-primitives = { path = "../primitives" }
 revm = "36"
 thiserror = "2"
 alloy-genesis = "1.5"

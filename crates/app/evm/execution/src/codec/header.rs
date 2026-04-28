@@ -1,5 +1,5 @@
 use alloy_primitives::{Address, Bytes, B256, U256};
-use app::EvmBlock;
+use app_primitives::EvmBlock;
 use reth_primitives_traits::Header;
 
 pub fn build_header_from_evm_block(block: &EvmBlock) -> Header {

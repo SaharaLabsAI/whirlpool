@@ -160,7 +160,6 @@ fn start_funded_node(
         consensus: ConsensusStartupConfig {
             namespace: format!("community-pool-{seed}").into_bytes(),
             block_interval: Duration::from_secs(1),
-            full_dkg_strict_height: 0,
         },
         bootstrap_validators: Some(vec![public_key.clone()]),
         bootstrap: Default::default(),
@@ -256,7 +255,6 @@ fn start_multinode_fee_network(
             consensus: ConsensusStartupConfig {
                 namespace: b"community-pool-multinode-consensus".to_vec(),
                 block_interval: Duration::from_secs(1),
-                full_dkg_strict_height: 0,
             },
             bootstrap_validators: Some(validator_pubkeys.clone()),
             bootstrap: Default::default(),

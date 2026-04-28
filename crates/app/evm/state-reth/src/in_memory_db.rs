@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use alloy_genesis::GenesisAccount;
-use app::{EvmBlock, Receipt};
+use app_primitives::{EvmBlock, Receipt};
 use revm::database::BundleState;
 use revm::primitives::{keccak256, Address, B256, KECCAK_EMPTY, U256};
 use revm::state::{AccountInfo, Bytecode};
