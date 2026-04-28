@@ -1,4 +1,4 @@
-use validators::ValidatorEntry;
+use validators_reader::ValidatorEntry;
 
 use crate::config::WhirlpoolEvmConfig;
 

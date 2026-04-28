@@ -1,7 +1,7 @@
 use alloy_consensus::{Header, TxType, Typed2718};
 use alloy_eips::eip2718::{Decodable2718, Encodable2718};
 use alloy_primitives::Address;
-use app::{proposer_public_key_from_extra_data, EvmBlock, Receipt as AppReceipt};
+use app::{EvmBlock, Receipt as AppReceipt};
 use reth_db::Database;
 use reth_db_api::cursor::DbCursorRO;
 use reth_db_api::transaction::{DbTx, DbTxMut};
@@ -9,6 +9,7 @@ use reth_db_models::blocks::StoredBlockBodyIndices;
 use reth_ethereum_primitives::{Receipt as RethReceipt, TransactionSigned};
 use revm::primitives::B256;
 use state::{BlockStorage, BlockStorageError};
+use validators_dkg::proposer_public_key_from_extra_data;
 
 use crate::db::RethStateDb;
 use crate::tables::{

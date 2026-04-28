@@ -9,7 +9,8 @@ doctest = false
 [dependencies]
 app = { path = "../../traits" }
 evm-precompiles = { path = "../../../precompiles/evm" }
-validators = { path = "../../../validators" }
+validators-reader = { path = "../../../validators/reader" }
+validators-dkg = { path = "../../../validators/dkg" }
 state = { path = "../../state" }
 app-evm-state = { path = "../state-reth" }
 consensus = { path = "../../../consensus/traits" }

@@ -1,4 +1,3 @@
-use crate::validators::ValidatorEntry as RegistryValidatorEntry;
 use alloy_primitives::{Address, Bytes};
 use alloy_sol_types::{sol, SolError};
 use reth_evm::revm::{
@@ -13,6 +12,7 @@ use reth_evm::{
     EvmEnv, EvmFactory,
 };
 use std::collections::HashSet;
+use validators_reader::ValidatorEntry as RegistryValidatorEntry;
 
 mod factory_api;
 mod registered_precompile_api;
@@ -25,12 +25,7 @@ pub mod fee_pool;
 pub mod validators;
 
 pub use crate::validators::{
-    decode_validator_registry_storage, decode_validator_registry_storage_opt,
-    decode_validators_output, encode_ethereum_address_storage_value,
-    encode_validator_registry_storage, ordered_consensus_pubkeys, validators_calldata,
-    BoundaryValidatorActivation, ValidatorActivationError, ValidatorActivationSchedule,
-    ValidatorEntry, ValidatorRegistryError, SIMPLEX_VALIDATORS_REGISTRY,
-    VALIDATORS_PRECOMPILE_ADDRESS,
+    decode_validators_output, validators_calldata, VALIDATORS_PRECOMPILE_ADDRESS,
 };
 pub use community_pool::{
     apply_post_block_accounting, build_post_block_accounting_effect,
@@ -54,8 +49,7 @@ pub use epoch::{
     execute_epoch_boundary_system_call_if_required, extract_epoch_boundary_effect,
     is_advance_epoch_calldata, load_epoch_boundary_state, next_epoch_block_calldata,
     next_epoch_block_slot, next_epoch_block_storage_slot, reserved_advance_epoch_call_matches,
-    EpochActivationTargetError, EpochActivationTargets, EpochBoundaryEffect,
-    EpochBoundaryEffectError, EpochBoundaryRuntimeError, EpochBoundaryState,
+    EpochBoundaryEffect, EpochBoundaryEffectError, EpochBoundaryRuntimeError, EpochBoundaryState,
     EpochBoundaryStorageWrite, EPOCH_BLOCKS_DEFAULT, EPOCH_PRECOMPILE_ADDRESS,
     EPOCH_SYSTEM_TX_GAS_LIMIT, EPOCH_SYSTEM_TX_INITIAL_BALANCE_WEI, EPOCH_SYSTEM_TX_PRIVATE_KEY,
 };

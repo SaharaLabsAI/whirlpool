@@ -8,7 +8,8 @@ app = { path = "../app/traits" }
 app-evm-execution = { path = "../app/evm/execution" }
 chainspec = { path = "../chainspec" }
 mempool-mdbx = { path = "../mempool/mdbx" }
-validators = { path = "../validators" }
+validators-reader = { path = "../validators/reader" }
+validators-dkg = { path = "../validators/dkg" }
 rpc-eth = { path = "../rpc/evm" }
 reth-chainspec = { path = "../../vendor/reth/crates/chainspec" }
 state = { path = "../app/state" }

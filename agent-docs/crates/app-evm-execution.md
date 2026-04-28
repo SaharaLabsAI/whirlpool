@@ -32,17 +32,17 @@ Those live in `chainspec`.
   - `full_dkg_feature_enabled`
   - `full_dkg_strict_height`
   - optional `current_full_dkg_output` (`dealers`, `players`, `public_polynomial`)
-- `WhirlpoolEvmConfig` carries epoch-scoped activation override data via `with_activation_players_for_epoch(epoch, players)`, but activation resolution is delegated to `evm_precompiles::validators::ValidatorActivationSchedule`.
+- `WhirlpoolEvmConfig` carries epoch-scoped activation override data via `with_activation_players_for_epoch(epoch, players)`, but activation resolution is delegated to `validators_dkg::ValidatorActivationSchedule`.
 - Precompile injection remains in `WhirlpoolEvmConfig::evm_with_env(...)` via `evm_precompiles::whirlpool_precompiles_with_validators(...)`.
-- Block header `extra_data` now uses app-shared canonical envelope bytes (`RawEth` + optional `FullDkgV1`) instead of raw proposer key bytes.
+- Block header `extra_data` now uses `validators-dkg` canonical envelope bytes (`RawEth` + optional `FullDkgV1`/`ReshareV1`) instead of app-owned DKG schema.
 - Verify path decodes `extra_data` with a height gate (`Legacy` before strict height, `Strict` at/after strict height), enforces proposer-key parity against `RawEth`, and enforces boundary-aware FullDkg/Reshare invariants.
 - Propose/verify now share one block-pipeline-local next-block base-fee seam:
   - propose derives `base_fee_per_gas` through the shared helper,
   - verify rejects blocks whose `block.base_fee_per_gas` does not match the protocol-derived next-block fee before fee accounting,
   - verify-side burned-fee / priority-fee accounting now uses the derived canonical fee after the mismatch guard.
 - EVM tx decode helpers now use exact EIP-2718 decoding, so padded tx bytes fail closed during both proposal pre-decode and verify decoding.
-- Boundary extra-data semantics are orchestrated here but target derivation is lower-layer-owned: `evm_precompiles::epoch::EpochActivationTargets` supplies `E`, `E+1`, and `E+2`; `evm_precompiles::validators::ValidatorActivationSchedule` resolves FullDkg/Reshare players. Non-boundary blocks must not carry `ReshareV1`, and boundary verify remains fail-closed for missing/mismatched required `ReshareV1` fields when FullDkg candidate data is configured.
-- Canonical extra-data composition and include/omit predicates are centralized in `canonical_extra_data.rs` (`build_canonical_extra_data`, `full_dkg_should_be_included`, activation-parity guard) and reused by propose/verify paths through `block_pipeline/`.
+- Boundary extra-data semantics are delegated to `validators-dkg`: `EpochActivationTargets` supplies `E`, `E+1`, and `E+2`; `ValidatorActivationSchedule` resolves FullDkg/Reshare players. Non-boundary blocks must not carry `ReshareV1`, and boundary verify remains fail-closed for missing/mismatched required `ReshareV1` fields when FullDkg candidate data is configured.
+- `app-evm-execution` is now only the DKG call-site/adapter: propose calls `validators_dkg::build_canonical_dkg_extra_data`, verify calls `validators_dkg::validate_dkg_extra_data`, and `state_helpers/full_dkg_history.rs` adapts `state::BlockStorage` to `DkgExtraDataHistory`.
 - Reviewer entrypoints are now named by pipeline ownership zone:
   - `src/ingress.rs` — candidate transaction sources: proposal reads `TxSource::pending()`, verification borrows `block.transactions`.
   - `src/codec/` — EIP-2718 transaction decode/recovery plus EVM header projection. Prefer `app_evm_execution::codec::decode_evm_transaction` and `decode_evm_transactions` for reviewer-facing decode APIs; root re-exports remain for compatibility.
@@ -71,7 +71,7 @@ Those live in `chainspec`.
   - `evm-precompiles` owns the new internal post-block accounting boundary (`PostBlockAccountingInputs`, `PostBlockAccountingEffect`, `PostBlockAccountingOutcome`, `apply_post_block_accounting`, `PostBlockAccountingRuntimeError`) and the fee/community-pool write logic previously housed in local pipeline helpers.
   - `app-evm-execution` keeps only pipeline-native input derivation (`aggregate_priority_fees`) plus propose/verify ordering and runtime-error translation.
   - propose/verify both call the same lower-layer accounting entrypoint after bundle commit and epoch effect application.
-- Validator activation semantics are no longer app-owned: `validator_activation/` was removed. Propose/verify call `evm_precompiles::epoch::EpochActivationTargets` for boundary target facts and `evm_precompiles::validators::ValidatorActivationSchedule` for player resolution, mapping lower-layer errors into `EvmAppError::InvalidBlock`.
+- Validator activation and DKG metadata semantics are no longer execution-owned. Propose/verify call `validators-dkg` and only map DKG errors into `EvmAppError::InvalidBlock`.
 - Boundary unlock flow:
   - after a successful boundary `advanceEpoch()` call, runtime may unlock community-pool funds
   - cadence is keyed to post-boundary `currentEpoch`

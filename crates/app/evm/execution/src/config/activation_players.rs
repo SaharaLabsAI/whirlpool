@@ -1,4 +1,4 @@
-use evm_precompiles::validators::ValidatorActivationSchedule;
+use validators_dkg::ValidatorActivationSchedule;
 
 use crate::config::WhirlpoolEvmConfig;
 

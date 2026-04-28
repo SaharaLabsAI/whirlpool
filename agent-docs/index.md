@@ -38,7 +38,9 @@ Structured reference docs optimized for fast LLM lookup. Each contains type sign
 | [crates/whirlpool-node.md](crates/whirlpool-node.md) | EVM binary entrypoint and node configuration | `whirlpool-node` (bin) |
 | [crates/chainspec.md](crates/chainspec.md) | Sahara chain-spec ownership crate (builders, chain-id, validator-registry reader seam) | `chainspec` |
 | [crates/evm-precompiles.md](crates/evm-precompiles.md) | Workspace-owned registry/factory crate for Whirlpool custom EVM precompiles, including canonical community-pool address + read-only balance ABI | `evm-precompiles` |
-| [crates/validators.md](crates/validators.md) | Thin compatibility facade that re-exports canonical validator registry/query APIs from `evm-precompiles::validators` | `validators` |
+| [crates/validators-reader.md](crates/validators-reader.md) | Canonical validator registry reader types/codecs | `validators-reader` |
+| [crates/validators-dkg.md](crates/validators-dkg.md) | Canonical DKG metadata/schema, activation targets/schedules, extra-data codec, proposal/verify helpers | `validators-dkg` |
+| [crates/validators.md](crates/validators.md) | Removed compatibility facade; points to `validators-reader` and `validators-dkg` replacements | `validators` (removed) |
 | [crates/consensus-manager.md](crates/consensus-manager.md) | Trusted-dealer bootstrap artifact manager for BLS threshold startup material | `consensus-manager` |
 | [crates/rpc-eth.md](crates/rpc-eth.md) | Ethereum JSON-RPC server: reth-backed adapters (WhirlpoolProvider, WhirlpoolTxPool, WhirlpoolNetwork), RpcConfig API, blob exclusion | `rpc-eth` |
 | [crates/app-evm-state.md](crates/app-evm-state.md) | Persistent state implementation: RethStateDb, MDBX, state root | `app-evm-state` |
@@ -99,7 +101,8 @@ Step-by-step instructions for common tasks and workflows.
 | `chainspec` | `crates/chainspec/src/` | `crates/chainspec.md` | — |
 | `app-evm-execution` | `crates/app/evm/execution/src/` | `crates/app-evm-execution.md` | — |
 | `evm-precompiles` | `crates/precompiles/evm/src/` | `crates/evm-precompiles.md` | — |
-| `validators` | `crates/validators/src/` | `crates/validators.md` | — |
+| `validators-reader` | `crates/validators/reader/src/` | `crates/validators-reader.md` | — |
+| `validators-dkg` | `crates/validators/dkg/src/` | `crates/validators-dkg.md` | — |
 | `mempool` | `crates/mempool/traits/src/` | `crates/mempool.md` | — |
 | `whirlpool-node` | `crates/node/src/` | `architecture/whirlpool-node.md` (lib) + `crates/whirlpool-node.md` (EVM bin) | `guides/whirlpool-node-components.md` |
 | `rpc-eth` | `crates/rpc/evm/src/` | `crates/rpc-eth.md` | — |

@@ -2,8 +2,8 @@ use std::collections::{BTreeMap, HashMap};
 
 use alloy_genesis::GenesisAccount;
 use alloy_primitives::{address, b256, U256};
-use state::StateDb;
 use app_evm_state::RethStateDb;
+use state::StateDb;
 
 #[test]
 fn test_with_genesis_populates() {

@@ -1,5 +1,5 @@
 use alloy_primitives::Address;
-use app::{CanonicalExtraDataV1, ExtraDataDecodeMode};
+use validators_dkg::{CanonicalExtraDataV1, ExtraDataDecodeMode};
 
 use crate::{config::WhirlpoolEvmConfig, error::EvmAppError};
 

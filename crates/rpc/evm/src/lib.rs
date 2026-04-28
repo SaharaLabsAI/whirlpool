@@ -3,9 +3,9 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+use app_evm_state::db::RethStateDb;
 use reth_chainspec::ChainSpec;
 use reth_rpc_builder::RpcServerHandle;
-use app_evm_state::db::RethStateDb;
 
 // Internal modules (adapter types, not part of public API).
 #[path = "convert.rs"]

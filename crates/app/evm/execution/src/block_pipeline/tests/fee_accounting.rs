@@ -93,7 +93,7 @@ async fn propose_uses_final_cumulative_gas_used_for_block_gas_and_burned_fee_cre
 
 #[tokio::test]
 async fn burned_fee_credit_preserves_community_pool_unlock_storage() {
-    let validators = vec![validators::ValidatorEntry {
+    let validators = vec![validators_reader::ValidatorEntry {
         consensus_pubkey: [0x11; 32],
         ethereum_address: Address::repeat_byte(0x11),
     }];

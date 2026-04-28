@@ -1,60 +1,15 @@
-use alloy_primitives::{address, Address, Bytes, B256, U256};
+use alloy_primitives::{Address, Bytes};
 use alloy_sol_types::{sol, SolCall};
 use reth_evm::precompiles::PrecompileInput;
 use reth_evm::revm::precompile::{PrecompileError, PrecompileOutput, PrecompileResult};
-
-use std::collections::BTreeMap;
+use validators_reader::ValidatorEntry;
 
 use crate::RegisteredPrecompile;
 
-mod activation;
-mod address_storage;
 pub mod gas;
-mod registry_codec;
-
-pub use activation::{
-    BoundaryValidatorActivation, ValidatorActivationError, ValidatorActivationSchedule,
-};
-pub use address_storage::encode_ethereum_address_storage_value;
-pub use registry_codec::{
-    decode_validator_registry_storage, encode_validator_registry_storage, ordered_consensus_pubkeys,
-};
 
 pub const VALIDATORS_PRECOMPILE_ADDRESS: Address =
-    address!("0x0000000000000000000000000000000000000101");
-
-/// Dedicated genesis account storing ordered simplex validator entries.
-pub const SIMPLEX_VALIDATORS_REGISTRY: Address = Address::new([
-    0x76, 0x61, 0x6c, 0x69, 0x64, 0x61, 0x74, 0x6f, 0x72, 0x2d, 0x73, 0x65, 0x74, 0x2d, 0x30, 0x31,
-    0x2d, 0x6f, 0x72, 0x64,
-]);
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatorEntry {
-    pub consensus_pubkey: [u8; 32],
-    pub ethereum_address: Address,
-}
-
-#[derive(Debug, thiserror::Error, PartialEq, Eq)]
-pub enum ValidatorRegistryError {
-    #[error("validator registry length {length} does not fit in usize")]
-    RegistryLengthOverflow { length: U256 },
-    #[error("missing consensus pubkey storage slot for validator index {index}")]
-    MissingConsensusPubkey { index: usize },
-    #[error("missing ethereum address storage slot for validator index {index}")]
-    MissingEthereumAddress { index: usize },
-    #[error("invalid ethereum address storage value for validator index {index}")]
-    InvalidEthereumAddressValue { index: usize },
-}
-
-pub fn decode_validator_registry_storage_opt(
-    storage: Option<&BTreeMap<B256, B256>>,
-) -> Result<Vec<ValidatorEntry>, ValidatorRegistryError> {
-    match storage {
-        Some(storage) => decode_validator_registry_storage(storage),
-        None => Ok(Vec::new()),
-    }
-}
+    alloy_primitives::address!("0x0000000000000000000000000000000000000101");
 
 sol! {
     struct ValidatorRecord {
@@ -159,6 +114,7 @@ mod tests {
         Context,
     };
     use reth_evm::{eth::EthEvmContext, precompiles::Precompile, traits::EvmInternals};
+    use validators_reader::{decode_validator_registry_storage, encode_validator_registry_storage};
 
     fn call_validators_precompile(
         simplex_validators: Vec<ValidatorEntry>,
@@ -219,22 +175,27 @@ mod tests {
             decode_validator_registry_storage(&encode_validator_registry_storage(&source_entries))
                 .expect("decode rust registry representation");
 
-        let result = call_validators_precompile(rust_reader_output.clone(), gas::validators_gas(2));
-        let abi_output = decode_validators_output(&result.bytes).expect("decode precompile output");
+        let precompile_output = call_validators_precompile(source_entries, gas::validators_gas(2));
+        let decoded_precompile =
+            decode_validators_output(&precompile_output.bytes).expect("decode precompile output");
 
-        assert_eq!(abi_output, rust_reader_output);
+        assert_eq!(decoded_precompile, rust_reader_output);
     }
 
     #[test]
-    fn validators_precompile_rejects_bad_selector() {
-        let precompile = register(Vec::new()).precompile();
+    fn validators_precompile_rejects_underpriced_calls() {
+        let precompile = register(vec![ValidatorEntry {
+            consensus_pubkey: [0x11; 32],
+            ethereum_address: address!("0x0000000000000000000000000000000000000011"),
+        }]);
         let mut context: Context<BlockEnv, TxEnv, reth_evm::revm::context::CfgEnv, EmptyDB> =
             EthEvmContext::new(EmptyDB::default(), Default::default());
 
-        let result = precompile
+        let err = precompile
+            .precompile()
             .call(PrecompileInput {
-                data: &[0xde, 0xad, 0xbe, 0xef],
-                gas: gas::validators_gas(0),
+                data: validators_calldata().as_ref(),
+                gas: gas::validators_gas(1) - 1,
                 caller: Address::ZERO,
                 value: U256::ZERO,
                 target_address: VALIDATORS_PRECOMPILE_ADDRESS,
@@ -242,10 +203,8 @@ mod tests {
                 is_static: true,
                 internals: EvmInternals::from_context(&mut context),
             })
-            .expect_err("unsupported selector should error");
+            .expect_err("underpriced call should fail");
 
-        assert!(result
-            .to_string()
-            .contains("unsupported validators selector"));
+        assert!(matches!(err, PrecompileError::OutOfGas));
     }
 }

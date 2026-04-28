@@ -9,6 +9,13 @@ use alloy_eips::{BlockHashOrNumber, BlockId, BlockNumberOrTag};
 use alloy_primitives::{
     Address, BlockHash, BlockNumber, Bytes, StorageKey, StorageValue, TxHash, TxNumber, B256, U256,
 };
+use app_evm_state::{
+    tables::{
+        BlockBodyIndices, CanonicalHeaders, HeaderNumbers, Headers, PlainAccountState, Receipts,
+        TransactionBlocks, TransactionHashNumbers, Transactions,
+    },
+    RethStateDb,
+};
 use reth_chain_state::{
     CanonStateNotification, CanonStateNotifications, CanonStateSubscriptions,
     ForkChoiceNotifications, ForkChoiceSubscriptions, PersistedBlockNotifications,
@@ -40,13 +47,6 @@ use reth_storage_errors::provider::{ProviderError, ProviderResult};
 use reth_trie::{
     updates::TrieUpdates, AccountProof, HashedPostState, HashedStorage, MultiProof,
     MultiProofTargets, StorageMultiProof, StorageProof, TrieInput,
-};
-use app_evm_state::{
-    tables::{
-        BlockBodyIndices, CanonicalHeaders, HeaderNumbers, Headers, PlainAccountState, Receipts,
-        TransactionBlocks, TransactionHashNumbers, Transactions,
-    },
-    RethStateDb,
 };
 use tokio::sync::{broadcast, watch};
 

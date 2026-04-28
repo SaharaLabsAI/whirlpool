@@ -1,12 +1,38 @@
-use super::{encode_ethereum_address_storage_value, ValidatorEntry, ValidatorRegistryError};
-use alloy_primitives::{Address, B256, U256};
+use alloy_primitives::{address, Address, B256, U256};
 use std::collections::BTreeMap;
+
+pub const SIMPLEX_VALIDATORS_REGISTRY: Address =
+    address!("0x76616c696461746f722d7365742d30312d6f7264");
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatorEntry {
+    pub consensus_pubkey: [u8; 32],
+    pub ethereum_address: Address,
+}
+
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+pub enum ValidatorRegistryError {
+    #[error("validator registry length {length} does not fit in usize")]
+    RegistryLengthOverflow { length: U256 },
+    #[error("missing consensus pubkey storage slot for validator index {index}")]
+    MissingConsensusPubkey { index: usize },
+    #[error("missing ethereum address storage slot for validator index {index}")]
+    MissingEthereumAddress { index: usize },
+    #[error("invalid ethereum address storage value for validator index {index}")]
+    InvalidEthereumAddressValue { index: usize },
+}
 
 pub fn ordered_consensus_pubkeys(entries: &[ValidatorEntry]) -> Vec<[u8; 32]> {
     entries
         .iter()
         .map(|entry| entry.consensus_pubkey)
         .collect::<Vec<_>>()
+}
+
+pub fn encode_ethereum_address_storage_value(address: Address) -> B256 {
+    let mut bytes = [0u8; 32];
+    bytes[12..].copy_from_slice(address.as_slice());
+    B256::from(bytes)
 }
 
 pub fn encode_validator_registry_storage(entries: &[ValidatorEntry]) -> BTreeMap<B256, B256> {
@@ -25,6 +51,15 @@ pub fn encode_validator_registry_storage(entries: &[ValidatorEntry]) -> BTreeMap
     }
 
     storage
+}
+
+pub fn decode_validator_registry_storage_opt(
+    storage: Option<&BTreeMap<B256, B256>>,
+) -> Result<Vec<ValidatorEntry>, ValidatorRegistryError> {
+    match storage {
+        Some(storage) => decode_validator_registry_storage(storage),
+        None => Ok(Vec::new()),
+    }
 }
 
 pub fn decode_validator_registry_storage(
@@ -119,6 +154,10 @@ mod tests {
         let decoded = decode_validator_registry_storage(&storage).expect("decode registry");
 
         assert_eq!(decoded, entries);
+        assert_eq!(
+            ordered_consensus_pubkeys(&entries),
+            vec![[0x33; 32], [0x11; 32], [0x22; 32]]
+        );
     }
 
     #[test]
@@ -127,6 +166,7 @@ mod tests {
             decode_validator_registry_storage(&BTreeMap::new()),
             Ok(vec![])
         );
+        assert_eq!(decode_validator_registry_storage_opt(None), Ok(vec![]));
     }
 
     #[test]

@@ -1,5 +1,4 @@
 pub mod block_pipeline;
-mod canonical_extra_data;
 pub mod codec;
 pub mod config;
 pub mod error;

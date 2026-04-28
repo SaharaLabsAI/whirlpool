@@ -60,7 +60,7 @@ fn latest_committed_full_dkg_scans_backwards_past_raw_eth_only_blocks() {
     let players = config.simplex_consensus_public_keys();
     let full_dkg = FullDkgV1 {
         epoch: 1,
-        output: app::FullDkgOutputV1 {
+        output: validators_dkg::FullDkgOutputV1 {
             dealers: players.clone(),
             players: players.clone(),
             public_polynomial: vec![1, 2, 3, 4],
@@ -91,13 +91,17 @@ fn latest_committed_full_dkg_scans_backwards_past_raw_eth_only_blocks() {
         .blocks
         .insert(2, block_with_extra_data(2, extra_raw_only));
 
-    let resolved = latest_committed_full_dkg(&storage, 2)
+    let resolved = latest_committed_full_dkg_from_storage(&storage, 2)
         .expect("scan should succeed")
         .expect("full_dkg should resolve from earlier block");
     assert_eq!(resolved, full_dkg);
 
     assert!(
-        !full_dkg_should_be_included(&config, Some(&resolved), &full_dkg),
+        !full_dkg_should_be_included(
+            &config.simplex_consensus_public_keys(),
+            Some(&resolved),
+            &full_dkg
+        ),
         "unchanged baseline must not force redundant FullDkg inclusion"
     );
 }
@@ -110,7 +114,7 @@ fn full_dkg_trigger_includes_when_only_dealers_change() {
 
     let previous = FullDkgV1 {
         epoch: 3,
-        output: app::FullDkgOutputV1 {
+        output: validators_dkg::FullDkgOutputV1 {
             dealers: vec![[0x11; 32]],
             players: players.clone(),
             public_polynomial: vec![0xaa, 0xbb],
@@ -118,7 +122,7 @@ fn full_dkg_trigger_includes_when_only_dealers_change() {
     };
     let candidate = FullDkgV1 {
         epoch: 3,
-        output: app::FullDkgOutputV1 {
+        output: validators_dkg::FullDkgOutputV1 {
             dealers: vec![[0x22; 32]],
             players,
             public_polynomial: vec![0xaa, 0xbb],
@@ -126,7 +130,11 @@ fn full_dkg_trigger_includes_when_only_dealers_change() {
     };
 
     assert!(
-        full_dkg_should_be_included(&config, Some(&previous), &candidate),
+        full_dkg_should_be_included(
+            &config.simplex_consensus_public_keys(),
+            Some(&previous),
+            &candidate
+        ),
         "dealer-only changes must trigger FullDkg inclusion"
     );
 }
@@ -137,7 +145,7 @@ async fn verify_rejects_full_dkg_payload_mismatch_against_candidate() {
     let chain_spec = Arc::new(build_sahara_chain_spec());
     let base_config = WhirlpoolEvmConfig::new(chain_spec.clone());
     let players = base_config.simplex_consensus_public_keys();
-    let candidate_output = app::FullDkgOutputV1 {
+    let candidate_output = validators_dkg::FullDkgOutputV1 {
         dealers: players.clone(),
         players: players.clone(),
         public_polynomial: vec![0xaa, 0xbb, 0xcc],
@@ -221,7 +229,7 @@ async fn verify_rejects_full_dkg_when_candidate_is_not_configured() {
         raw_eth: Some(block.proposer_public_key.to_vec()),
         full_dkg: Some(FullDkgV1 {
             epoch: 0,
-            output: app::FullDkgOutputV1 {
+            output: validators_dkg::FullDkgOutputV1 {
                 dealers: players.clone(),
                 players,
                 public_polynomial: vec![0x01],

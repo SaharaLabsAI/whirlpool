@@ -1,5 +1,5 @@
-use crate::validators::ValidatorEntry;
 use alloy_primitives::{Address, U256};
+use validators_reader::ValidatorEntry;
 
 use crate::fee_pool::ClaimCredit;
 

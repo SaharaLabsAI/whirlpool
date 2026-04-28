@@ -289,9 +289,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::validators::ValidatorEntry;
     use alloy_primitives::Address;
     use app_evm_state::InMemoryStateDb;
+    use validators_reader::ValidatorEntry;
 
     use super::*;
     use crate::{

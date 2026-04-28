@@ -1,6 +1,6 @@
-use crate::validators::ValidatorEntry as RegistryValidatorEntry;
 use reth_evm::precompiles::PrecompilesMap;
 use reth_evm::revm::primitives::hardfork::SpecId;
+use validators_reader::ValidatorEntry as RegistryValidatorEntry;
 
 use super::{build_precompiles, community_pool, epoch, fee_pool, validators, RegistryError};
 

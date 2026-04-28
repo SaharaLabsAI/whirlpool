@@ -1,5 +1,5 @@
 use reth_chainspec::ChainSpec;
-use validators::{
+use validators_reader::{
     decode_validator_registry_storage_opt, ValidatorEntry, ValidatorRegistryError,
     SIMPLEX_VALIDATORS_REGISTRY,
 };

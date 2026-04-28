@@ -1,5 +1,4 @@
 use alloy_primitives::{Address, B256};
-use app::FullDkgOutputV1;
 use core::convert::Infallible;
 use evm_precompiles::{whirlpool_precompiles_with_validators, WhirlpoolEvmFactory};
 use reth_chainspec::ChainSpec;
@@ -11,7 +10,8 @@ use reth_evm_ethereum::EthEvmConfig;
 use reth_primitives_traits::{BlockTy, HeaderTy, SealedBlock, SealedHeader};
 use std::collections::BTreeMap;
 use std::sync::Arc;
-use validators::{
+use validators_dkg::FullDkgOutputV1;
+use validators_reader::{
     decode_validator_registry_storage_opt, ValidatorEntry, ValidatorRegistryError,
     SIMPLEX_VALIDATORS_REGISTRY,
 };

@@ -2,10 +2,10 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::{Arc, Mutex};
 
 use app::traits::TxSource;
+use app_evm_state::RethStateDb;
 use jsonrpsee::core::{client::ClientT, rpc_params};
 use reth_chainspec::ChainSpec;
 use rpc_eth::server::start_rpc_server;
-use app_evm_state::RethStateDb;
 
 #[derive(Debug, Default)]
 struct RecordingTxSource {

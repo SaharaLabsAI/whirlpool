@@ -33,8 +33,7 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
 - `VALIDATORS_PRECOMPILE_ADDRESS`
 - `validators_calldata()`
 - `decode_validators_output(bytes)`
-- canonical validator registry/query exports: `ValidatorEntry`, `SIMPLEX_VALIDATORS_REGISTRY`, `encode_validator_registry_storage`, `decode_validator_registry_storage`, `decode_validator_registry_storage_opt`, `ordered_consensus_pubkeys`, `encode_ethereum_address_storage_value`, `ValidatorRegistryError`
-- validator activation exports: `ValidatorActivationSchedule`, `BoundaryValidatorActivation`, `ValidatorActivationError`
+- validators precompile ABI helpers: `VALIDATORS_PRECOMPILE_ADDRESS`, `validators_calldata()`, `decode_validators_output(bytes)`; canonical registry reader types/codecs live in `validators-reader`.
 - `EPOCH_PRECOMPILE_ADDRESS`: stateful epoch metadata precompile endpoint.
 - `current_epoch_calldata()`
 - `next_epoch_block_calldata()`
@@ -44,7 +43,6 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
 - `epoch_system_tx_sender()`
 - `is_advance_epoch_calldata(bytes)`
 - `EpochBoundaryState { next_epoch_block }`
-- `EpochActivationTargets { boundary_epoch_e, full_dkg_epoch, reshare_target_epoch }` and `EpochActivationTargetError`
 - `EpochBoundaryEffect { writes: [EpochBoundaryStorageWrite; 3] }`
 - `EpochBoundaryStorageWrite { slot, value }`
 - `EpochBoundaryEffectError`
@@ -64,9 +62,7 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
 - `src/fee_pool/impl.rs`: stateful fee-pool logic (balance query, claim query, withdraw transfer, claim reset) with `execute` kept as plain `pub` inside a private module boundary.
 - `src/fee_pool/storage.rs`: deterministic slot derivation for `mapping(address => uint256) claimable`.
 - `src/fee_pool/gas.rs`: fee-pool gas schedule.
-- `src/validators/mod.rs`: canonical validator domain surface: ordered simplex-validator precompile ABI, validator registry model/codec re-exports, and activation schedule API.
-- `src/validators/activation.rs`: validator activation schedule resolution and boundary FullDkg/Reshare player resolution; consumes epoch-owned `EpochActivationTargets`.
-- `src/validators/registry_codec.rs` + `address_storage.rs`: canonical validator registry storage codec and address storage-word helper.
+- `src/validators/mod.rs`: validators precompile ABI/runtime only; consumes `validators_reader::ValidatorEntry`.
 - `src/validators/gas.rs`: standalone validators gas scheduler helper module.
 - `src/epoch/mod.rs`: epoch constants, sender derivation, ABI/helper exports, activation target handoff exports, and epoch tests.
 - `src/epoch/boundary_effect.rs`: typed epoch-boundary canonical-apply contract extracted from the lower-layer transition (`EpochBoundaryEffect`, `EpochBoundaryStorageWrite`, `EpochBoundaryEffectError`, `extract_epoch_boundary_effect`).
@@ -81,7 +77,7 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
 - Reth v2 alignment: this crate uses `reth_evm::revm::*` types everywhere (no direct `revm` crate import) to avoid mixed-REVM type graphs during factory wiring.
 - Custom precompiles are installed through `PrecompilesMap` dynamic entries, not vendor edits.
 - Canonical runtime wiring is validator-aware: `whirlpool_precompiles_with_validators(...)`, `build_whirlpool_precompiles_with_validators(...)`, and `WhirlpoolEvmFactory::with_validators(...)`. The zero-validator convenience helpers/default factory remain exported only for compatibility and bootstrap/test scenarios.
-- `evm-precompiles::validators` is the canonical owner of validator registry codec/types and validator activation resolution. The `validators` crate is only a downstream compatibility facade over this module.
+- `validators-reader` is the canonical owner of validator registry codec/types. `validators-dkg` owns activation schedules/targets and DKG metadata. `evm-precompiles::validators` is precompile ABI/runtime only.
 - The validators precompile is read-only and returns the ordered list captured by runtime wiring from the canonical validator entry model.
 - The community-pool precompile is read-only and returns the balance of `COMMUNITY_POOL_ADDRESS`.
 - Community-pool unlock schedule state remains anchored at `COMMUNITY_POOL_ADDRESS` storage (configured by chainspec/runtime), but the mutable runtime ownership now lives in the internal `accounting` runtime-adapter surface rather than in `app-evm-execution` or a new public precompile selector.
@@ -99,7 +95,7 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
   - read selectors: `currentEpoch`, `nextEpochBlock`, `epochBlocks`, `epochStartBlock(epoch)`
   - write selector: `advanceEpoch()` (restricted to `epoch_system_tx_sender()`, non-static)
   - append-only epoch start map uses plus-one storage encoding so epoch 0 start block can be stored unambiguously.
-- The epoch module now also owns the pure boundary semantics consumed by `app-evm-execution`: the boundary snapshot type, `block_height == next_epoch_block` predicate, activation target handoff (`E`, `E+1`, `E+2`), and the canonical reserved-call matcher that includes the app-visible zero-value invariant for reserved `advanceEpoch()` namespace filtering.
+- The epoch module owns pure epoch boundary mechanics consumed by `app-evm-execution`: boundary snapshot type, `block_height == next_epoch_block` predicate, and the canonical reserved-call matcher. DKG activation target handoff (`E`, `E+1`, `E+2`) lives in `validators-dkg`.
 - The epoch module also owns the typed boundary-effect handoff used for canonical state application:
   - effect is limited to epoch-precompile storage writes,
   - `epochStartBlock(next_epoch)` stays storage-ready with plus-one encoding,

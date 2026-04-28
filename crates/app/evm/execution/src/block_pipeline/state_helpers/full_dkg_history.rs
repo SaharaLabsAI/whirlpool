@@ -1,37 +1,36 @@
-use app::{decode_extra_data, ExtraDataDecodeMode, FullDkgV1};
 use state::BlockStorage;
+use validators_dkg::{DkgExtraDataHistory, DkgMetadataError, FullDkgV1};
 
 use crate::error::EvmAppError;
 
-pub fn latest_committed_full_dkg<Storage>(
+struct BlockStorageDkgHistory<'a, Storage> {
+    storage: &'a Storage,
+}
+
+impl<Storage> DkgExtraDataHistory for BlockStorageDkgHistory<'_, Storage>
+where
+    Storage: BlockStorage,
+{
+    type Error = String;
+
+    fn extra_data_at_height(&self, height: u64) -> Result<Option<Vec<u8>>, Self::Error> {
+        self.storage
+            .get_block_by_number(height)
+            .map(|maybe_block| maybe_block.map(|block| block.extra_data))
+            .map_err(|err| err.to_string())
+    }
+}
+
+pub fn latest_committed_full_dkg_from_storage<Storage>(
     storage: &Storage,
     start_height: u64,
 ) -> Result<Option<FullDkgV1>, EvmAppError>
 where
     Storage: BlockStorage,
 {
-    let mut height = start_height;
-    loop {
-        let maybe_block = storage
-            .get_block_by_number(height)
-            .map_err(|err| EvmAppError::State(err.to_string()))?;
-        if let Some(block) = maybe_block {
-            let decoded = decode_extra_data(&block.extra_data, ExtraDataDecodeMode::Legacy)
-                .map_err(|err| {
-                    EvmAppError::InvalidBlock(format!(
-                        "failed to decode historical block {height} extra_data: {err}"
-                    ))
-                })?;
-            if let Some(full_dkg) = decoded.full_dkg {
-                return Ok(Some(full_dkg));
-            }
-        }
-
-        if height == 0 {
-            break;
-        }
-        height -= 1;
-    }
-
-    Ok(None)
+    validators_dkg::latest_committed_full_dkg(&BlockStorageDkgHistory { storage }, start_height)
+        .map_err(|err| match err {
+            DkgMetadataError::History(message) => EvmAppError::State(message),
+            other => EvmAppError::InvalidBlock(other.to_string()),
+        })
 }

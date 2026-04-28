@@ -15,7 +15,7 @@ use chainspec::{
 use commonware_cryptography::{ed25519, Signer as CwSigner};
 use serde_json::json;
 use tempfile::TempDir;
-use validators::ValidatorEntry;
+use validators_reader::ValidatorEntry;
 use whirlpool_node::config::{
     ConsensusStartupConfig, IdentityConfig, NetworkConfig, NodeConfig, RpcConfig as NodeRpcConfig,
     StorageConfig, DEFAULT_MAX_MESSAGE_SIZE,

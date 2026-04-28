@@ -1,11 +1,12 @@
 use alloy_consensus::TxEip1559;
 use alloy_eips::eip2718::Encodable2718;
 use alloy_primitives::{Address, Signature, TxKind, B256, U256};
-use app::{
-    encode_canonical_extra_data, types::EvmBlock, CanonicalExtraDataV1, FullDkgOutputV1, FullDkgV1,
-};
+use app::types::EvmBlock;
 use reth_ethereum_primitives::{Transaction, TransactionSigned};
 use rpc_eth::convert::{decode_transaction, evmblock_to_block, evmblock_to_header};
+use validators_dkg::{
+    encode_canonical_extra_data, CanonicalExtraDataV1, FullDkgOutputV1, FullDkgV1,
+};
 
 fn sample_signed_tx(nonce: u64, to: Address, value: u64) -> TransactionSigned {
     TransactionSigned::new_unhashed(

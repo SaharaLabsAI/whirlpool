@@ -95,9 +95,9 @@ where
 #[cfg(test)]
 mod tests {
     use alloy_primitives::U256;
+    use app_evm_state::InMemoryStateDb;
     use reth_evm::revm::database::{CacheDB, EmptyDB};
     use reth_evm::{EvmEnv, EvmFactory};
-    use app_evm_state::InMemoryStateDb;
 
     use super::super::{current_epoch_slot, epoch_start_block_slot, EpochBoundaryStorageWrite};
     use super::*;
@@ -151,8 +151,14 @@ mod tests {
         apply_epoch_boundary_effect(&mut db, &effect).expect("apply effect");
 
         assert_eq!(storage_value(&db, current_epoch_slot()), U256::from(1_u64));
-        assert_eq!(storage_value(&db, next_epoch_block_slot()), U256::from(20_u64));
-        assert_eq!(storage_value(&db, epoch_start_block_slot(1)), U256::from(11_u64));
+        assert_eq!(
+            storage_value(&db, next_epoch_block_slot()),
+            U256::from(20_u64)
+        );
+        assert_eq!(
+            storage_value(&db, epoch_start_block_slot(1)),
+            U256::from(11_u64)
+        );
     }
 
     #[test]

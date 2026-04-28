@@ -2,7 +2,7 @@ use alloy_genesis::GenesisAccount;
 use alloy_primitives::Address;
 use reth_chainspec::ChainSpec;
 use std::collections::BTreeMap;
-use validators::ValidatorEntry;
+use validators_reader::ValidatorEntry;
 
 use crate::{
     try_build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators_and_community_pool_unlock_config,

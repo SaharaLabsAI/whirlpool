@@ -12,7 +12,7 @@ use evm_precompiles::{
 };
 use reth_chainspec::{Chain, ChainSpec, ChainSpecBuilder};
 use std::collections::BTreeMap;
-use validators::{
+use validators_reader::{
     encode_ethereum_address_storage_value, encode_validator_registry_storage, ValidatorEntry,
     SIMPLEX_VALIDATORS_REGISTRY,
 };

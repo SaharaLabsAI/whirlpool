@@ -1,7 +1,6 @@
 use alloy_primitives::{address, Address, Bytes, B256, U256};
 use reth_evm::revm::precompile::PrecompileResult;
 
-mod activation_targets;
 mod boundary_effect;
 mod boundary_semantics;
 mod decode_primary;
@@ -13,7 +12,6 @@ mod registration;
 mod runtime_adapter;
 pub mod storage;
 
-pub use activation_targets::{EpochActivationTargetError, EpochActivationTargets};
 pub use boundary_effect::{
     extract_epoch_boundary_effect, EpochBoundaryEffect, EpochBoundaryEffectError,
     EpochBoundaryStorageWrite,

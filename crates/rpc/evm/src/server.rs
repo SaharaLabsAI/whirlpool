@@ -2,6 +2,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use app_evm_execution::WhirlpoolEvmConfig;
+use app_evm_state::db::RethStateDb;
 use reth_chainspec::ChainSpec;
 use reth_consensus::noop::NoopConsensus;
 use reth_rpc_builder::{
@@ -10,7 +11,6 @@ use reth_rpc_builder::{
 use reth_rpc_server_types::RpcModuleSelection;
 use reth_tasks::TaskExecutor;
 use reth_tokio_util::EventSender;
-use app_evm_state::db::RethStateDb;
 use tracing::info;
 
 use crate::network::WhirlpoolNetwork;

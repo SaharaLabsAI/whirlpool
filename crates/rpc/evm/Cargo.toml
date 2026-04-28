@@ -7,6 +7,7 @@ edition.workspace = true
 # --- Whirlpool crates ---
 app = { path = "../../app/traits" }
 app-evm-execution = { path = "../../app/evm/execution" }
+validators-dkg = { path = "../../validators/dkg" }
 state = { path = "../../app/state" }
 app-evm-state = { path = "../../app/evm/state-reth" }
 

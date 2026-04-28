@@ -74,12 +74,12 @@ mod tests {
     use app::traits::TxSource;
     use app::{EvmBlock, Receipt};
     use app_evm_execution::{EvmApplication, WhirlpoolEvmConfig};
+    use app_evm_state::InMemoryStateDb;
     use chainspec::build_sahara_chain_spec;
     use consensus::event::{ConsensusEvent, EventSink};
     use consensus_simplex::FinalizationSink;
     use revm::primitives::B256;
     use state::{BlockStorage, BlockStorageError};
-    use app_evm_state::InMemoryStateDb;
     use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
     use std::sync::{Arc, Mutex, RwLock};
 

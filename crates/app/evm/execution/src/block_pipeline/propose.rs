@@ -18,7 +18,7 @@ use state::BlockStorage;
 
 use crate::block_pipeline::build_sealed_header;
 use crate::block_pipeline::state_helpers::fee_accounting::aggregate_priority_fees;
-use crate::block_pipeline::state_helpers::full_dkg_history::latest_committed_full_dkg;
+use crate::block_pipeline::state_helpers::full_dkg_history::latest_committed_full_dkg_from_storage;
 use crate::block_pipeline::state_helpers::receipt_accounting::gas_deltas_and_used;
 use crate::block_pipeline::{
     classify_tx_execution_error, expected_next_block_base_fee, map_epoch_boundary_runtime_error,
@@ -26,9 +26,9 @@ use crate::block_pipeline::{
     BoundaryCallFailureMode, EvmApplication, ProposedEvmPayload, TxExecutionErrorDisposition,
     BLOCK_GAS_LIMIT,
 };
-use crate::canonical_extra_data::build_canonical_extra_data;
 use crate::error::EvmAppError;
 use crate::traits::StateDb;
+use validators_dkg::{build_canonical_dkg_extra_data, DkgProposalInput};
 
 impl<DB> EvmApplication<DB>
 where
@@ -176,15 +176,19 @@ where
 
         let latest_committed_full_dkg = {
             let db = self.state_db.read().unwrap();
-            latest_committed_full_dkg(&*db, parent.height)?
+            latest_committed_full_dkg_from_storage(&*db, parent.height)?
         };
-        let extra_data = build_canonical_extra_data(
-            &self.evm_config,
-            latest_committed_full_dkg.as_ref(),
-            self.evm_config.local_proposer_public_key(),
+        let extra_data = build_canonical_dkg_extra_data(DkgProposalInput {
+            feature_enabled: self.evm_config.full_dkg_feature_enabled(),
+            activation_schedule: &self.evm_config.validator_activation_schedule(),
+            default_players: &self.evm_config.simplex_consensus_public_keys(),
+            previous_full_dkg: latest_committed_full_dkg.as_ref(),
+            candidate_output: self.evm_config.current_full_dkg_output(),
+            proposer_public_key: self.evm_config.local_proposer_public_key(),
             boundary_required,
-            current_epoch,
-        )?;
+            post_advance_epoch: current_epoch,
+        })
+        .map_err(|err| EvmAppError::InvalidBlock(format!("invalid canonical extra_data: {err}")))?;
 
         Ok(ProposedEvmPayload {
             included_user_transactions,

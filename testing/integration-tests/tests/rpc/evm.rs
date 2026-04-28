@@ -27,7 +27,7 @@ use reqwest::Client;
 use reth_chainspec::ChainSpec;
 use rpc_eth::{start_rpc_server, RpcConfig};
 use tempfile::TempDir;
-use validators::ValidatorEntry;
+use validators_reader::ValidatorEntry;
 use whirlpool_node::config::{
     ConsensusStartupConfig, IdentityConfig, NetworkConfig, NodeConfig, RpcConfig as NodeRpcConfig,
     StorageConfig, DEFAULT_MAX_MESSAGE_SIZE,
@@ -72,8 +72,9 @@ async fn start_test_rpc() -> TestRpcServer {
 
 async fn start_test_rpc_with_tx_source() -> (TestRpcServer, Arc<RecordingTxSource>) {
     let tmp_dir = TempDir::new().expect("failed to create temp dir");
-    let state_db =
-        Arc::new(app_evm_state::open_state_db(tmp_dir.path()).expect("failed to open reth state db"));
+    let state_db = Arc::new(
+        app_evm_state::open_state_db(tmp_dir.path()).expect("failed to open reth state db"),
+    );
     let chain_spec = Arc::new(build_sahara_chain_spec());
     let tx_source = Arc::new(RecordingTxSource::new());
 

@@ -1,6 +1,6 @@
 use alloy_primitives::Address;
 use app::traits::TxSource;
-use app::{ApplicationAdapter, FullDkgOutputV1};
+use app::ApplicationAdapter;
 use app_evm_execution::{EvmApplication, WhirlpoolEvmConfig};
 use chainspec::{
     build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators,
@@ -30,7 +30,8 @@ use std::sync::{mpsc, Arc, RwLock};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 use tracing::info;
-use validators::{ordered_consensus_pubkeys, ValidatorEntry};
+use validators_dkg::FullDkgOutputV1;
+use validators_reader::{ordered_consensus_pubkeys, ValidatorEntry};
 
 use crate::config::NodeConfig;
 use crate::persisting_sink::PersistingFinalizationSink;

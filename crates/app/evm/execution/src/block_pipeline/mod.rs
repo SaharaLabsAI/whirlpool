@@ -5,7 +5,6 @@ use alloy_eips::eip1559::{calc_next_block_base_fee, BaseFeeParams};
 use alloy_primitives::{bytes::BufMut, Address, TxKind};
 use alloy_trie::{root::ordered_trie_root_with_encoder, EMPTY_ROOT_HASH};
 use app::{
-    legacy_proposer_extra_data_bytes,
     traits::{Application, TxSource},
     EvmBlock, ExecutionResult, Receipt,
 };
@@ -16,12 +15,14 @@ use reth_ethereum_primitives::TransactionSigned;
 use reth_primitives_traits::SealedHeader;
 use state::BlockStorage;
 
-use crate::canonical_extra_data::build_canonical_extra_data;
 pub use crate::codec::RecoveredTx;
 use crate::config::WhirlpoolEvmConfig;
 use crate::error::EvmAppError;
 use crate::post_handle::ReceiptStore;
 pub use crate::traits::StateDb;
+use validators_dkg::{
+    build_canonical_dkg_extra_data, legacy_proposer_extra_data_bytes, DkgProposalInput,
+};
 
 mod propose;
 mod state_helpers;
@@ -200,13 +201,16 @@ where
                     .map_err(Into::into)
                     .expect("genesis state root should not fail")
             };
-            let genesis_extra_data = build_canonical_extra_data(
-                &self.evm_config,
-                None,
-                self.evm_config.local_proposer_public_key(),
-                false,
-                0,
-            )
+            let genesis_extra_data = build_canonical_dkg_extra_data(DkgProposalInput {
+                feature_enabled: self.evm_config.full_dkg_feature_enabled(),
+                activation_schedule: &self.evm_config.validator_activation_schedule(),
+                default_players: &self.evm_config.simplex_consensus_public_keys(),
+                previous_full_dkg: None,
+                candidate_output: self.evm_config.current_full_dkg_output(),
+                proposer_public_key: self.evm_config.local_proposer_public_key(),
+                boundary_required: false,
+                post_advance_epoch: 0,
+            })
             .unwrap_or_else(|_| {
                 legacy_proposer_extra_data_bytes(self.evm_config.local_proposer_public_key())
             });

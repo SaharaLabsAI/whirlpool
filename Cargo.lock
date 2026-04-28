@@ -1004,7 +1004,8 @@ dependencies = [
  "state",
  "thiserror 2.0.18",
  "tokio",
- "validators",
+ "validators-dkg",
+ "validators-reader",
 ]
 
 [[package]]
@@ -1031,6 +1032,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.18",
  "tracing",
+ "validators-dkg",
 ]
 
 [[package]]
@@ -1949,7 +1951,7 @@ dependencies = [
  "evm-precompiles",
  "reth-chainspec",
  "thiserror 2.0.18",
- "validators",
+ "validators-reader",
 ]
 
 [[package]]
@@ -3397,6 +3399,7 @@ dependencies = [
  "reth-primitives-traits",
  "state",
  "thiserror 2.0.18",
+ "validators-reader",
 ]
 
 [[package]]
@@ -4449,7 +4452,8 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber 0.3.22",
- "validators",
+ "validators-dkg",
+ "validators-reader",
  "whirlpool-node",
 ]
 
@@ -8531,6 +8535,7 @@ dependencies = [
  "thiserror 2.0.18",
  "tokio",
  "tracing",
+ "validators-dkg",
 ]
 
 [[package]]
@@ -10232,11 +10237,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "validators"
+name = "validators-dkg"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "validators-reader"
 version = "0.1.0"
 dependencies = [
  "alloy-primitives",
- "evm-precompiles",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -10568,7 +10581,8 @@ dependencies = [
  "toml 0.8.23",
  "tracing",
  "tracing-subscriber 0.3.22",
- "validators",
+ "validators-dkg",
+ "validators-reader",
 ]
 
 [[package]]

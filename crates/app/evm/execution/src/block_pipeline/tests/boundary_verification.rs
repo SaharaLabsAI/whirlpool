@@ -3,11 +3,11 @@ use super::*;
 #[tokio::test]
 async fn verify_boundary_unlock_matches_propose_state() {
     let validators = vec![
-        validators::ValidatorEntry {
+        validators_reader::ValidatorEntry {
             consensus_pubkey: [0x01; 32],
             ethereum_address: Address::repeat_byte(0x01),
         },
-        validators::ValidatorEntry {
+        validators_reader::ValidatorEntry {
             consensus_pubkey: [0x02; 32],
             ethereum_address: Address::repeat_byte(0x02),
         },

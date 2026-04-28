@@ -10,7 +10,8 @@ app = { path = "../../crates/app/traits" }
 app-evm-execution = { path = "../../crates/app/evm/execution" }
 chainspec = { path = "../../crates/chainspec" }
 evm-precompiles = { path = "../../crates/precompiles/evm" }
-validators = { path = "../../crates/validators" }
+validators-reader = { path = "../../crates/validators/reader" }
+validators-dkg = { path = "../../crates/validators/dkg" }
 rpc-eth = { path = "../../crates/rpc/evm" }
 state = { path = "../../crates/app/state" }
 app-evm-state = { path = "../../crates/app/evm/state-reth" }

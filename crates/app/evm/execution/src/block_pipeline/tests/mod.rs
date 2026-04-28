@@ -1,14 +1,9 @@
 use super::*;
-use crate::block_pipeline::state_helpers::full_dkg_history::latest_committed_full_dkg;
-use crate::canonical_extra_data::full_dkg_should_be_included;
+use crate::block_pipeline::state_helpers::full_dkg_history::latest_committed_full_dkg_from_storage;
 use crate::config::DEFAULT_PROPOSER_FEE_RECIPIENT;
 use alloy_consensus::{SignableTransaction, TxLegacy};
 use alloy_eips::eip2718::Encodable2718;
 use alloy_primitives::{Address, Bytes, Signature, TxKind, B256, U256};
-use app::{
-    decode_extra_data, encode_canonical_extra_data, CanonicalExtraDataV1, ExtraDataDecodeMode,
-    FullDkgV1,
-};
 use app_evm_state::InMemoryStateDb;
 use chainspec::{
     build_sahara_chain_spec, build_sahara_chain_spec_with_alloc_and_fee_recipients,
@@ -31,6 +26,10 @@ use reth_primitives_traits::crypto::secp256k1::sign_message;
 use reth_primitives_traits::SignerRecoverable;
 use revm::state::Bytecode;
 use std::collections::BTreeMap;
+use validators_dkg::{
+    decode_extra_data, encode_canonical_extra_data, full_dkg_should_be_included,
+    legacy_proposer_extra_data_bytes, CanonicalExtraDataV1, ExtraDataDecodeMode, FullDkgV1,
+};
 
 struct MockTxSource {
     txs: Vec<Vec<u8>>,
@@ -87,7 +86,7 @@ async fn setup_app_with_config(
 fn setup_app_with_unlock_config(
     txs: Vec<Vec<u8>>,
     unlock_config: CommunityPoolUnlockConfig,
-    simplex_validators: Vec<validators::ValidatorEntry>,
+    simplex_validators: Vec<validators_reader::ValidatorEntry>,
 ) -> (
     EvmApplication<InMemoryStateDb>,
     Arc<RwLock<InMemoryStateDb>>,

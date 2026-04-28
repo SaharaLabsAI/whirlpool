@@ -3,15 +3,15 @@ use super::*;
 #[tokio::test]
 async fn boundary_unlock_credits_simplex_validator_addresses_and_conserves_balance() {
     let validators = vec![
-        validators::ValidatorEntry {
+        validators_reader::ValidatorEntry {
             consensus_pubkey: [0x11; 32],
             ethereum_address: Address::repeat_byte(0x11),
         },
-        validators::ValidatorEntry {
+        validators_reader::ValidatorEntry {
             consensus_pubkey: [0x22; 32],
             ethereum_address: Address::repeat_byte(0x22),
         },
-        validators::ValidatorEntry {
+        validators_reader::ValidatorEntry {
             consensus_pubkey: [0x33; 32],
             ethereum_address: Address::repeat_byte(0x33),
         },
@@ -83,7 +83,7 @@ async fn boundary_unlock_credits_simplex_validator_addresses_and_conserves_balan
 #[tokio::test]
 async fn boundary_unlock_final_tranche_distributes_top_k_remainder() {
     let validators: Vec<_> = (1_u8..=5_u8)
-        .map(|idx| validators::ValidatorEntry {
+        .map(|idx| validators_reader::ValidatorEntry {
             consensus_pubkey: [idx; 32],
             ethereum_address: Address::repeat_byte(idx),
         })
@@ -143,11 +143,11 @@ async fn boundary_unlock_final_tranche_distributes_top_k_remainder() {
 #[tokio::test]
 async fn boundary_unlock_skips_non_multiple_epoch() {
     let validators = vec![
-        validators::ValidatorEntry {
+        validators_reader::ValidatorEntry {
             consensus_pubkey: [0x11; 32],
             ethereum_address: Address::repeat_byte(0x11),
         },
-        validators::ValidatorEntry {
+        validators_reader::ValidatorEntry {
             consensus_pubkey: [0x22; 32],
             ethereum_address: Address::repeat_byte(0x22),
         },
@@ -213,11 +213,11 @@ async fn boundary_unlock_skips_non_multiple_epoch() {
 #[tokio::test]
 async fn boundary_unlock_applies_once_on_matching_epoch() {
     let validators = vec![
-        validators::ValidatorEntry {
+        validators_reader::ValidatorEntry {
             consensus_pubkey: [0x11; 32],
             ethereum_address: Address::repeat_byte(0x11),
         },
-        validators::ValidatorEntry {
+        validators_reader::ValidatorEntry {
             consensus_pubkey: [0x22; 32],
             ethereum_address: Address::repeat_byte(0x22),
         },

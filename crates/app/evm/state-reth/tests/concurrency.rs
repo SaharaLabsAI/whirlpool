@@ -2,9 +2,9 @@ use std::sync::{Arc, RwLock};
 use std::thread;
 
 use alloy_primitives::{address, U256};
+use app_evm_state::RethStateDb;
 use revm::state::AccountInfo;
 use state::StateDb;
-use app_evm_state::RethStateDb;
 
 #[test]
 fn test_concurrent_reads() {

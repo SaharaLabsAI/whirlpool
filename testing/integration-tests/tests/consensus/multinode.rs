@@ -9,7 +9,7 @@ use std::error::Error;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
-use validators::ValidatorEntry;
+use validators_reader::ValidatorEntry;
 use whirlpool_node::config::{
     parse_bootstrap_peer, ConsensusStartupConfig, IdentityConfig, NetworkConfig, NodeConfig,
     RpcConfig, StorageConfig,

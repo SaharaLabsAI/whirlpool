@@ -22,7 +22,7 @@ use evm_precompiles::{
 };
 use reth_chainspec::ChainSpec;
 use tempfile::TempDir;
-use validators::ValidatorEntry;
+use validators_reader::ValidatorEntry;
 use whirlpool_node::config::{
     parse_bootstrap_peer, ConsensusStartupConfig, IdentityConfig, NetworkConfig, NodeConfig,
     RpcConfig as NodeRpcConfig, StorageConfig, DEFAULT_MAX_MESSAGE_SIZE,

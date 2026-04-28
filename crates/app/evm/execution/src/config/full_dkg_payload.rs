@@ -1,4 +1,4 @@
-use app::{FullDkgOutputV1, FullDkgV1};
+use validators_dkg::FullDkgOutputV1;
 
 use crate::config::WhirlpoolEvmConfig;
 
@@ -12,8 +12,7 @@ impl WhirlpoolEvmConfig {
         self
     }
 
-    pub fn current_full_dkg_payload(&self, epoch: u64) -> Option<FullDkgV1> {
-        let output = self.current_full_dkg_output.clone()?;
-        Some(FullDkgV1 { epoch, output })
+    pub fn current_full_dkg_output(&self) -> Option<&FullDkgOutputV1> {
+        self.current_full_dkg_output.as_ref()
     }
 }

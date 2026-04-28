@@ -2,12 +2,11 @@ use alloy_consensus::TxReceipt;
 use alloy_eips::eip2718::Encodable2718;
 use alloy_primitives::{Bytes, B256};
 use alloy_trie::root::ordered_trie_root_with_encoder;
-use app::{decode_extra_data, ExecutionResult, Receipt};
+use app::{ExecutionResult, Receipt};
 use evm_precompiles::{
     apply_epoch_boundary_effect, apply_post_block_accounting,
     execute_epoch_boundary_system_call_if_required, load_epoch_boundary_state,
-    EpochActivationTargetError, EpochActivationTargets, PostBlockAccountingInputs,
-    FEE_POOL_PRECOMPILE_ADDRESS,
+    PostBlockAccountingInputs, FEE_POOL_PRECOMPILE_ADDRESS,
 };
 use reth_evm::{
     execute::{BlockBuilder, BlockExecutor},
@@ -16,6 +15,7 @@ use reth_evm::{
 use revm::database::states::bundle_state::BundleRetention;
 use revm::database::State;
 use state::BlockStorage;
+use validators_dkg::{decode_extra_data, validate_dkg_extra_data, DkgVerifyInput};
 
 use crate::block_pipeline::build_sealed_header;
 use crate::block_pipeline::state_helpers::block_extra_data::{
@@ -23,27 +23,15 @@ use crate::block_pipeline::state_helpers::block_extra_data::{
     validate_or_recover_fee_recipient,
 };
 use crate::block_pipeline::state_helpers::fee_accounting::aggregate_priority_fees;
-use crate::block_pipeline::state_helpers::full_dkg_history::latest_committed_full_dkg;
+use crate::block_pipeline::state_helpers::full_dkg_history::latest_committed_full_dkg_from_storage;
 use crate::block_pipeline::state_helpers::receipt_accounting::gas_deltas_and_used;
 use crate::block_pipeline::{
     classify_tx_execution_error, expected_next_block_base_fee, map_epoch_boundary_runtime_error,
     map_post_block_accounting_runtime_error, tx_is_reserved_epoch_namespace,
     BoundaryCallFailureMode, EvmApplication, TxExecutionErrorDisposition, BLOCK_GAS_LIMIT,
 };
-use crate::canonical_extra_data::{
-    ensure_full_dkg_players_match_activation, full_dkg_should_be_included,
-};
 use crate::error::EvmAppError;
 use crate::traits::StateDb;
-use evm_precompiles::validators::ValidatorActivationError;
-
-fn map_epoch_activation_target_error(err: EpochActivationTargetError) -> EvmAppError {
-    EvmAppError::InvalidBlock(err.to_string())
-}
-
-fn map_validator_activation_error(err: ValidatorActivationError) -> EvmAppError {
-    EvmAppError::InvalidBlock(err.to_string())
-}
 
 impl<DB> EvmApplication<DB>
 where
@@ -216,134 +204,23 @@ where
             )));
         }
 
-        let boundary_epoch_context = if boundary_required {
-            Some(
-                EpochActivationTargets::from_post_advance_epoch(current_epoch)
-                    .map_err(map_epoch_activation_target_error)?,
-            )
-        } else {
-            None
+        let latest_committed_full_dkg = {
+            let db = self.state_db.read().unwrap();
+            latest_committed_full_dkg_from_storage(&*db, parent.height)?
         };
-        let activation_schedule = self.evm_config.validator_activation_schedule();
-
-        if !boundary_required && decoded_extra_data.reshare.is_some() {
-            return Err(EvmAppError::InvalidBlock(
-                "reshare section is forbidden on non-boundary blocks".into(),
-            ));
-        }
-
-        if self.evm_config.full_dkg_feature_enabled() {
-            let candidate_epoch = boundary_epoch_context
-                .map(|ctx| ctx.full_dkg_epoch)
-                .unwrap_or(current_epoch);
-            let candidate_full_dkg = self.evm_config.current_full_dkg_payload(candidate_epoch);
-            let latest_committed_full_dkg = {
-                let db = self.state_db.read().unwrap();
-                latest_committed_full_dkg(&*db, parent.height)?
-            };
-
-            match candidate_full_dkg {
-                Some(candidate_full_dkg) => {
-                    ensure_full_dkg_players_match_activation(
-                        &activation_schedule,
-                        &candidate_full_dkg,
-                    )?;
-
-                    if boundary_required {
-                        let boundary_epoch_context =
-                            boundary_epoch_context.expect("context exists for boundary");
-                        let observed_full_dkg =
-                            decoded_extra_data.full_dkg.as_ref().ok_or_else(|| {
-                                EvmAppError::InvalidBlock(
-                                    "full_dkg section must be present for boundary block".into(),
-                                )
-                            })?;
-                        if observed_full_dkg.epoch != boundary_epoch_context.full_dkg_epoch {
-                            return Err(EvmAppError::InvalidBlock(format!(
-                                "full_dkg epoch mismatch on boundary: expected {}, found {}",
-                                boundary_epoch_context.full_dkg_epoch, observed_full_dkg.epoch
-                            )));
-                        }
-                        if observed_full_dkg != &candidate_full_dkg {
-                            return Err(EvmAppError::InvalidBlock(
-                                "full_dkg payload mismatch with configured candidate".into(),
-                            ));
-                        }
-
-                        let observed_reshare =
-                            decoded_extra_data.reshare.as_ref().ok_or_else(|| {
-                                EvmAppError::InvalidBlock(
-                                    "reshare section must be present for boundary block".into(),
-                                )
-                            })?;
-                        if observed_reshare.target_epoch
-                            != boundary_epoch_context.reshare_target_epoch
-                        {
-                            return Err(EvmAppError::InvalidBlock(format!(
-                                "reshare target epoch mismatch on boundary: expected {}, found {}",
-                                boundary_epoch_context.reshare_target_epoch,
-                                observed_reshare.target_epoch
-                            )));
-                        }
-                        let expected_reshare_players = activation_schedule
-                            .resolve_players_for_epoch(boundary_epoch_context.reshare_target_epoch)
-                            .map_err(map_validator_activation_error)?;
-                        if observed_reshare.players != expected_reshare_players {
-                            return Err(EvmAppError::InvalidBlock(
-                                "reshare players do not match activation-resolved player set"
-                                    .into(),
-                            ));
-                        }
-                    } else {
-                        let should_include = full_dkg_should_be_included(
-                            &self.evm_config,
-                            latest_committed_full_dkg.as_ref(),
-                            &candidate_full_dkg,
-                        );
-                        match (should_include, decoded_extra_data.full_dkg.as_ref()) {
-                            (true, Some(observed)) => {
-                                if observed != &candidate_full_dkg {
-                                    return Err(EvmAppError::InvalidBlock(
-                                        "full_dkg payload mismatch with configured candidate"
-                                            .into(),
-                                    ));
-                                }
-                            }
-                            (true, None) => {
-                                return Err(EvmAppError::InvalidBlock(
-                                    "full_dkg section must be present for this block".into(),
-                                ))
-                            }
-                            (false, Some(_)) => {
-                                return Err(EvmAppError::InvalidBlock(
-                                    "full_dkg section must be omitted for this block".into(),
-                                ))
-                            }
-                            (false, None) => {}
-                        }
-                    }
-                }
-                None => {
-                    if decoded_extra_data.full_dkg.is_some() {
-                        return Err(EvmAppError::InvalidBlock(
-                            "full_dkg section must be omitted when no full_dkg candidate is configured"
-                                .into(),
-                        ));
-                    }
-                    if decoded_extra_data.reshare.is_some() {
-                        return Err(EvmAppError::InvalidBlock(
-                            "reshare section must be omitted when no full_dkg candidate is configured"
-                                .into(),
-                        ));
-                    }
-                }
-            }
-        } else if decoded_extra_data.full_dkg.is_some() || decoded_extra_data.reshare.is_some() {
-            return Err(EvmAppError::InvalidBlock(
-                "full_dkg and reshare sections must be omitted when full_dkg feature is disabled"
-                    .into(),
-            ));
-        }
+        validate_dkg_extra_data(
+            &decoded_extra_data,
+            DkgVerifyInput {
+                feature_enabled: self.evm_config.full_dkg_feature_enabled(),
+                activation_schedule: &self.evm_config.validator_activation_schedule(),
+                default_players: &self.evm_config.simplex_consensus_public_keys(),
+                previous_full_dkg: latest_committed_full_dkg.as_ref(),
+                candidate_output: self.evm_config.current_full_dkg_output(),
+                boundary_required,
+                post_advance_epoch: current_epoch,
+            },
+        )
+        .map_err(|err| EvmAppError::InvalidBlock(err.to_string()))?;
 
         let receipts: Vec<Receipt> = execution_result
             .receipts

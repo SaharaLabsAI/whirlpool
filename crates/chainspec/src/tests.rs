@@ -19,7 +19,7 @@ use evm_precompiles::{
 };
 use reth_chainspec::EthereumHardforks;
 use std::collections::BTreeMap;
-use validators::{ValidatorEntry, SIMPLEX_VALIDATORS_REGISTRY};
+use validators_reader::{ValidatorEntry, SIMPLEX_VALIDATORS_REGISTRY};
 
 #[test]
 fn test_build_sahara_chain_spec_values() {
