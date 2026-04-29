@@ -58,7 +58,7 @@ fn seed_epoch_boundary_state(db: &mut InMemoryStateDb, next_epoch_block: u64) {
 #[tokio::test]
 async fn non_boundary_dkg_candidate_is_included_and_verifies() {
     let base_config = WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec()));
-    let players = base_config.simplex_consensus_public_keys();
+    let players = base_config.validator_consensus_public_keys();
     let output = FullDkgOutputV1 {
         dealers: vec![[0x44; 32]],
         players,
@@ -80,7 +80,7 @@ async fn non_boundary_dkg_candidate_is_included_and_verifies() {
 #[tokio::test]
 async fn non_boundary_unchanged_baseline_dkg_candidate_is_omitted_and_verifies() {
     let base_config = WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec()));
-    let players = base_config.simplex_consensus_public_keys();
+    let players = base_config.validator_consensus_public_keys();
     let output = FullDkgOutputV1 {
         dealers: players.clone(),
         players,
@@ -102,7 +102,7 @@ async fn non_boundary_unchanged_baseline_dkg_candidate_is_omitted_and_verifies()
 #[tokio::test]
 async fn non_boundary_omit_uses_latest_committed_history_across_raw_only_intermediate_block() {
     let base_config = WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec()));
-    let players = base_config.simplex_consensus_public_keys();
+    let players = base_config.validator_consensus_public_keys();
     let output = FullDkgOutputV1 {
         dealers: vec![[0x44; 32]],
         players,
@@ -149,7 +149,7 @@ async fn non_boundary_omit_uses_latest_committed_history_across_raw_only_interme
 #[tokio::test]
 async fn boundary_dkg_candidate_includes_full_dkg_and_reshare_and_verifies() {
     let base_config = WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec()));
-    let players = base_config.simplex_consensus_public_keys();
+    let players = base_config.validator_consensus_public_keys();
     let output = FullDkgOutputV1 {
         dealers: players.clone(),
         players: players.clone(),
@@ -188,7 +188,7 @@ async fn boundary_dkg_candidate_includes_full_dkg_and_reshare_and_verifies() {
 #[tokio::test]
 async fn disabled_feature_rejects_dkg_metadata() {
     let base_config = WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec()));
-    let players = base_config.simplex_consensus_public_keys();
+    let players = base_config.validator_consensus_public_keys();
     let output = FullDkgOutputV1 {
         dealers: vec![[0x44; 32]],
         players,
@@ -223,7 +223,7 @@ async fn disabled_feature_rejects_dkg_metadata() {
 #[tokio::test]
 async fn verify_rejects_mismatched_dkg_candidate_payload() {
     let base_config = WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec()));
-    let players = base_config.simplex_consensus_public_keys();
+    let players = base_config.validator_consensus_public_keys();
     let output = FullDkgOutputV1 {
         dealers: vec![[0x44; 32]],
         players,

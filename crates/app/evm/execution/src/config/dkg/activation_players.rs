@@ -10,7 +10,7 @@ impl WhirlpoolEvmConfig {
 
     pub fn validator_activation_schedule(&self) -> ValidatorActivationSchedule {
         ValidatorActivationSchedule::from_parts(
-            self.simplex_consensus_public_keys(),
+            self.validator_consensus_public_keys(),
             self.activation_players_by_epoch.clone(),
         )
     }

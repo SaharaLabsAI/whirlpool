@@ -157,7 +157,7 @@ where
                     base_fee_per_gas,
                     priority_fees,
                     claim_recipient,
-                    simplex_validators: self.evm_config.simplex_validators().to_vec(),
+                    simplex_validators: self.evm_config.validator_registry_entries().to_vec(),
                 },
             )
             .map_err(map_post_block_accounting_runtime_error)?;
@@ -182,7 +182,7 @@ where
         let extra_data = build_canonical_dkg_extra_data(DkgProposalInput {
             feature_enabled: self.evm_config.full_dkg_feature_enabled(),
             activation_schedule: &self.evm_config.validator_activation_schedule(),
-            default_players: &self.evm_config.simplex_consensus_public_keys(),
+            default_players: &self.evm_config.validator_consensus_public_keys(),
             previous_full_dkg: latest_committed_full_dkg.as_ref(),
             candidate_output: self.evm_config.current_full_dkg_output(),
             proposer_public_key: self.evm_config.local_proposer_public_key(),

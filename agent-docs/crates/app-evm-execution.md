@@ -27,7 +27,8 @@ Pure EVM runtime/config/execution crate for Whirlpool.
 Those live in `chainspec`.
 
 ## Key Runtime Notes
-- `WhirlpoolEvmConfig` still derives proposer fee recipients from genesis storage at `VALIDATOR_FEE_RECIPIENTS_REGISTRY`.
+- `WhirlpoolEvmConfig` still derives proposer fee recipients from genesis storage at `VALIDATOR_FEE_RECIPIENTS_REGISTRY`. Fee-recipient fallback remains fail-open for now and is a known remaining risk for a later semantic cleanup.
+- `WhirlpoolEvmConfig` carries ordered genesis validator-registry entries for EVM precompile wiring, post-block accounting, and DKG default-player inputs. App config accessors use validator-registry wording (`validator_registry_entries()`, `validator_consensus_public_keys()`) because this crate does not own Simplex consensus membership.
 - `WhirlpoolEvmConfig` carries FullDkg envelope knobs:
   - `full_dkg_feature_enabled`
   - optional `current_full_dkg_output` (`dealers`, `players`, `public_polynomial`)
@@ -50,7 +51,7 @@ Those live in `chainspec`.
   - `block_pipeline/tests/mod.rs` + `block_pipeline/tests/*.rs` — source-adjacent unit tests split by topic with shared fixtures in the parent module.
 - The former `app_evm_execution::executor::*` compatibility shim was intentionally removed after the ownership-zone modules became the public review map; use root exports or `codec`/`block_pipeline` paths instead.
 - The discoverability refactor is behavior-preserving: no shared generic propose/verify pipeline abstraction was added, and deeper ownership issues should be tracked as remaining risks rather than repaired in this layout pass.
-- `WhirlpoolEvmConfig` is now split across directory-backed `config/` submodules so builder/accessor APIs stay grouped by concern while preserving the same external type and behavior.
+- `WhirlpoolEvmConfig` is now split across directory-backed `config/` submodules so builder/accessor APIs stay grouped by concern while preserving the same external type and behavior. Validator-registry snapshot access lives in `config/validator_registry.rs`; DKG call-site config lives under `config/dkg/`.
 - `codec/` remains directory-backed for decode/header surfaces; `block_pipeline/accounting/` groups fee-recipient validation, fee accounting, and receipt accounting as a concern-specific private module rather than a generic helper bucket.
 - Non-boundary FullDkg candidate validation is fail-closed in both propose and verify paths: candidate `output.players` must match activation-resolved players for the candidate epoch before include/omit decisions.
 - FullDkg inclusion trigger compares candidate output against the **latest committed FullDkg from `DkgHistory`** (validators-dkg backward scan over raw carrier bytes) so raw-only intermediate blocks do not cause include/omit oscillation.
@@ -75,7 +76,7 @@ Those live in `chainspec`.
   - cadence is keyed to post-boundary `currentEpoch`
   - unlock cadence regression coverage includes `unlock_every_epochs > 1` with explicit non-multiple-epoch skip + matching-epoch single-application assertions
   - tranche moves from `COMMUNITY_POOL_ADDRESS` -> `FEE_POOL_PRECOMPILE_ADDRESS`
-  - tranche is credited into existing fee-pool claim slots by ordered `simplex_validators` addresses with top-k remainder assignment
+  - tranche is credited into existing fee-pool claim slots by ordered validator-registry addresses with top-k remainder assignment
   - unlock progress is tracked by `lockedRemaining` + `lastProcessedEpoch` slots at the community-pool account
 - Fee routing behavior:
   - burned base fees are credited to `evm_precompiles::COMMUNITY_POOL_ADDRESS`

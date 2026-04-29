@@ -16,12 +16,10 @@ use validators_reader::{
     SIMPLEX_VALIDATORS_REGISTRY,
 };
 
-mod activation_players;
 mod chain_spec_access;
+mod dkg;
 mod fee_recipients;
-mod full_dkg_flags;
-mod full_dkg_payload;
-mod simplex;
+mod validator_registry;
 
 pub const DEFAULT_PROPOSER_FEE_RECIPIENT: Address = Address::new([
     0x70, 0x72, 0x6f, 0x70, 0x6f, 0x73, 0x65, 0x72, 0x2d, 0x66, 0x65, 0x65, 0x2d, 0x73, 0x65, 0x61,
@@ -39,7 +37,7 @@ pub struct WhirlpoolEvmConfig {
     inner: WhirlpoolInnerEvmConfig,
     local_proposer_public_key: [u8; 32],
     validator_fee_recipients: BTreeMap<[u8; 32], Address>,
-    simplex_validators: Vec<ValidatorEntry>,
+    validator_registry_entries: Vec<ValidatorEntry>,
     activation_players_by_epoch: BTreeMap<u64, Vec<[u8; 32]>>,
     full_dkg_feature_enabled: bool,
     current_full_dkg_output: Option<FullDkgOutputV1>,
@@ -48,16 +46,16 @@ pub struct WhirlpoolEvmConfig {
 impl WhirlpoolEvmConfig {
     pub fn new(chain_spec: Arc<ChainSpec>) -> Self {
         let validator_fee_recipients = validator_fee_recipients_from_chain_spec(&chain_spec);
-        let simplex_validators = simplex_validators_from_chain_spec(&chain_spec)
-            .expect("simplex validators registry encoding should decode");
+        let validator_registry_entries = validator_registry_entries_from_chain_spec(&chain_spec)
+            .expect("validator registry encoding should decode");
         Self {
             inner: EthEvmConfig::new_with_evm_factory(
                 chain_spec,
-                WhirlpoolEvmFactory::with_validators(simplex_validators.clone()),
+                WhirlpoolEvmFactory::with_validators(validator_registry_entries.clone()),
             ),
             local_proposer_public_key: [0u8; 32],
             validator_fee_recipients,
-            simplex_validators,
+            validator_registry_entries,
             activation_players_by_epoch: BTreeMap::new(),
             full_dkg_feature_enabled: true,
             current_full_dkg_output: None,
@@ -94,7 +92,7 @@ fn validator_fee_recipients_from_chain_spec(chain_spec: &ChainSpec) -> BTreeMap<
         .unwrap_or_default()
 }
 
-fn simplex_validators_from_chain_spec(
+fn validator_registry_entries_from_chain_spec(
     chain_spec: &ChainSpec,
 ) -> Result<Vec<ValidatorEntry>, ValidatorRegistryError> {
     decode_validator_registry_storage_opt(
@@ -142,7 +140,7 @@ impl ConfigureEvm for WhirlpoolEvmConfig {
         EthEvmBuilder::new(db, evm_env)
             .precompiles(whirlpool_precompiles_with_validators(
                 spec,
-                self.simplex_validators.clone(),
+                self.validator_registry_entries.clone(),
             ))
             .build()
     }

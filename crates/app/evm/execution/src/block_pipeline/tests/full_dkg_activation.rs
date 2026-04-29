@@ -1,11 +1,11 @@
-use super::*;
+use crate::block_pipeline::tests::*;
 
 #[tokio::test]
 async fn propose_rejects_non_boundary_full_dkg_players_mismatch_with_activation_schedule() {
     let chain_spec = Arc::new(build_sahara_chain_spec());
     let base_config =
         WhirlpoolEvmConfig::new(chain_spec.clone()).with_local_proposer_public_key([0x77; 32]);
-    let candidate_players = base_config.simplex_consensus_public_keys();
+    let candidate_players = base_config.validator_consensus_public_keys();
     let proposer_config = base_config
         .with_current_full_dkg_output(validators_dkg::FullDkgOutputV1 {
             dealers: candidate_players.clone(),
@@ -31,7 +31,7 @@ async fn verify_rejects_non_boundary_full_dkg_players_mismatch_with_activation_s
     let chain_spec = Arc::new(build_sahara_chain_spec());
     let base_config =
         WhirlpoolEvmConfig::new(chain_spec.clone()).with_local_proposer_public_key([0x77; 32]);
-    let candidate_players = base_config.simplex_consensus_public_keys();
+    let candidate_players = base_config.validator_consensus_public_keys();
     let candidate_output = validators_dkg::FullDkgOutputV1 {
         dealers: candidate_players.clone(),
         players: candidate_players,
@@ -70,7 +70,7 @@ async fn propose_boundary_block_emits_forward_full_dkg_and_reshare_sections_when
     let chain_spec = Arc::new(build_sahara_chain_spec());
     let base_config =
         WhirlpoolEvmConfig::new(chain_spec.clone()).with_local_proposer_public_key([0x77; 32]);
-    let players = base_config.simplex_consensus_public_keys();
+    let players = base_config.validator_consensus_public_keys();
     let proposer_config =
         base_config.with_current_full_dkg_output(validators_dkg::FullDkgOutputV1 {
             dealers: players.clone(),
@@ -114,7 +114,7 @@ async fn verify_rejects_missing_reshare_section_on_boundary_when_candidate_confi
     let chain_spec = Arc::new(build_sahara_chain_spec());
     let base_config =
         WhirlpoolEvmConfig::new(chain_spec.clone()).with_local_proposer_public_key([0x77; 32]);
-    let players = base_config.simplex_consensus_public_keys();
+    let players = base_config.validator_consensus_public_keys();
     let proposer_config =
         base_config.with_current_full_dkg_output(validators_dkg::FullDkgOutputV1 {
             dealers: players.clone(),
@@ -161,7 +161,7 @@ async fn verify_rejects_reshare_section_on_non_boundary_block() {
     let chain_spec = Arc::new(build_sahara_chain_spec());
     let base_config =
         WhirlpoolEvmConfig::new(chain_spec.clone()).with_local_proposer_public_key([0x77; 32]);
-    let players = base_config.simplex_consensus_public_keys();
+    let players = base_config.validator_consensus_public_keys();
     let proposer_config =
         base_config.with_current_full_dkg_output(validators_dkg::FullDkgOutputV1 {
             dealers: players.clone(),
@@ -207,7 +207,7 @@ async fn verify_rejects_full_dkg_section_when_feature_is_disabled() {
     let base_config = WhirlpoolEvmConfig::new(chain_spec.clone())
         .with_local_proposer_public_key([0x77; 32])
         .with_full_dkg_feature_enabled(false);
-    let players = base_config.simplex_consensus_public_keys();
+    let players = base_config.validator_consensus_public_keys();
     let candidate_full_dkg = validators_dkg::FullDkgV1 {
         epoch: 1,
         output: validators_dkg::FullDkgOutputV1 {
@@ -254,7 +254,7 @@ async fn boundary_reshare_can_follow_epoch_pipeline_lag_from_activation_schedule
     let base_config =
         WhirlpoolEvmConfig::new(chain_spec.clone()).with_local_proposer_public_key([0x77; 32]);
 
-    let next_epoch_players = base_config.simplex_consensus_public_keys();
+    let next_epoch_players = base_config.validator_consensus_public_keys();
     let next_next_epoch_players = vec![[0x41; 32], [0x42; 32]];
     let proposer_config = base_config
         .with_current_full_dkg_output(validators_dkg::FullDkgOutputV1 {
@@ -313,7 +313,7 @@ async fn propose_rejects_boundary_when_activation_schedule_missing_reshare_epoch
     let chain_spec = Arc::new(build_sahara_chain_spec());
     let base_config =
         WhirlpoolEvmConfig::new(chain_spec.clone()).with_local_proposer_public_key([0x77; 32]);
-    let next_epoch_players = base_config.simplex_consensus_public_keys();
+    let next_epoch_players = base_config.validator_consensus_public_keys();
     let proposer_config = base_config
         .with_current_full_dkg_output(validators_dkg::FullDkgOutputV1 {
             dealers: next_epoch_players.clone(),

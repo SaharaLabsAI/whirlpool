@@ -1,4 +1,4 @@
-use super::{
+use crate::config::{
     WhirlpoolEvmConfig, DEFAULT_PROPOSER_FEE_RECIPIENT, VALIDATOR_FEE_RECIPIENTS_REGISTRY,
 };
 use alloy_primitives::Address;
@@ -98,9 +98,9 @@ fn test_fee_recipient_mapping_roundtrip_in_genesis_registry() {
 }
 
 #[test]
-fn activation_players_default_to_simplex_registry() {
+fn activation_players_default_to_validator_consensus_public_keys() {
     let config = WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec()));
-    let expected = config.simplex_consensus_public_keys();
+    let expected = config.validator_consensus_public_keys();
     let resolved = config
         .activation_players_for_epoch(42)
         .expect("default activation players should resolve");
