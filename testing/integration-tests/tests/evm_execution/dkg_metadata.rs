@@ -1,9 +1,13 @@
-use std::sync::{Arc, RwLock};
+use std::{
+    collections::BTreeMap,
+    sync::{Arc, RwLock},
+};
 
+use alloy_primitives::Address;
 use app_evm_execution::{EvmAppError, EvmApplication, WhirlpoolEvmConfig};
 use app_evm_state::InMemoryStateDb;
 use app_traits::{traits::Application, NoopTxSource};
-use chainspec::build_sahara_chain_spec;
+use chainspec::build_sahara_chain_spec_with_alloc_and_validators;
 use evm_precompiles::{
     current_epoch_slot, epoch_blocks_slot, epoch_system_tx_sender, next_epoch_block_slot,
     EPOCH_BLOCKS_DEFAULT, EPOCH_PRECOMPILE_ADDRESS, EPOCH_SYSTEM_TX_INITIAL_BALANCE_WEI,
@@ -12,10 +16,38 @@ use revm::primitives::U256;
 use validators_dkg::{
     decode_extra_data, encode_canonical_extra_data, CanonicalExtraDataV1, FullDkgOutputV1,
 };
+use validators_reader::{
+    encode_validator_registry_storage, ValidatorEntry, SIMPLEX_VALIDATORS_REGISTRY,
+};
+
+const TEST_PROPOSER_FEE_RECIPIENT: Address = Address::new([
+    0x70, 0x72, 0x6f, 0x70, 0x6f, 0x73, 0x65, 0x72, 0x2d, 0x66, 0x65, 0x65, 0x2d, 0x73, 0x65, 0x61,
+    0x6d, 0x2d, 0x30, 0x31,
+]);
+
+fn build_test_chain_spec() -> reth_chainspec::ChainSpec {
+    build_sahara_chain_spec_with_alloc_and_validators(BTreeMap::new(), test_validator_entries())
+}
+
+fn test_validator_entries() -> Vec<ValidatorEntry> {
+    vec![ValidatorEntry {
+        consensus_pubkey: [0x11; 32],
+        ethereum_address: TEST_PROPOSER_FEE_RECIPIENT,
+    }]
+}
+
+fn seed_validator_registry(db: &mut InMemoryStateDb, entries: &[ValidatorEntry]) {
+    for (slot, value) in encode_validator_registry_storage(entries) {
+        db.insert_storage(
+            SIMPLEX_VALIDATORS_REGISTRY,
+            U256::from_be_bytes(slot.0),
+            U256::from_be_bytes(value.0),
+        );
+    }
+}
 
 fn dkg_config_with_output(output: FullDkgOutputV1) -> WhirlpoolEvmConfig {
-    WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec()))
-        .with_current_full_dkg_output(output)
+    WhirlpoolEvmConfig::new(Arc::new(build_test_chain_spec())).with_current_full_dkg_output(output)
 }
 
 fn dkg_app_with_config(
@@ -25,6 +57,10 @@ fn dkg_app_with_config(
     Arc<RwLock<InMemoryStateDb>>,
 ) {
     let db = Arc::new(RwLock::new(InMemoryStateDb::new()));
+    seed_validator_registry(
+        &mut db.write().unwrap(),
+        config.validator_registry_entries(),
+    );
     let app = EvmApplication::new(config, db.clone(), Arc::new(NoopTxSource));
     (app, db)
 }
@@ -57,7 +93,7 @@ fn seed_epoch_boundary_state(db: &mut InMemoryStateDb, next_epoch_block: u64) {
 
 #[tokio::test]
 async fn non_boundary_dkg_candidate_is_included_and_verifies() {
-    let base_config = WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec()));
+    let base_config = WhirlpoolEvmConfig::new(Arc::new(build_test_chain_spec()));
     let players = base_config.validator_consensus_public_keys();
     let output = FullDkgOutputV1 {
         dealers: vec![[0x44; 32]],
@@ -79,7 +115,7 @@ async fn non_boundary_dkg_candidate_is_included_and_verifies() {
 
 #[tokio::test]
 async fn non_boundary_unchanged_baseline_dkg_candidate_is_omitted_and_verifies() {
-    let base_config = WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec()));
+    let base_config = WhirlpoolEvmConfig::new(Arc::new(build_test_chain_spec()));
     let players = base_config.validator_consensus_public_keys();
     let output = FullDkgOutputV1 {
         dealers: players.clone(),
@@ -101,7 +137,7 @@ async fn non_boundary_unchanged_baseline_dkg_candidate_is_omitted_and_verifies()
 
 #[tokio::test]
 async fn non_boundary_omit_uses_latest_committed_history_across_raw_only_intermediate_block() {
-    let base_config = WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec()));
+    let base_config = WhirlpoolEvmConfig::new(Arc::new(build_test_chain_spec()));
     let players = base_config.validator_consensus_public_keys();
     let output = FullDkgOutputV1 {
         dealers: vec![[0x44; 32]],
@@ -148,7 +184,7 @@ async fn non_boundary_omit_uses_latest_committed_history_across_raw_only_interme
 
 #[tokio::test]
 async fn boundary_dkg_candidate_includes_full_dkg_and_reshare_and_verifies() {
-    let base_config = WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec()));
+    let base_config = WhirlpoolEvmConfig::new(Arc::new(build_test_chain_spec()));
     let players = base_config.validator_consensus_public_keys();
     let output = FullDkgOutputV1 {
         dealers: players.clone(),
@@ -187,7 +223,7 @@ async fn boundary_dkg_candidate_includes_full_dkg_and_reshare_and_verifies() {
 
 #[tokio::test]
 async fn disabled_feature_rejects_dkg_metadata() {
-    let base_config = WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec()));
+    let base_config = WhirlpoolEvmConfig::new(Arc::new(build_test_chain_spec()));
     let players = base_config.validator_consensus_public_keys();
     let output = FullDkgOutputV1 {
         dealers: vec![[0x44; 32]],
@@ -222,7 +258,7 @@ async fn disabled_feature_rejects_dkg_metadata() {
 
 #[tokio::test]
 async fn verify_rejects_mismatched_dkg_candidate_payload() {
-    let base_config = WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec()));
+    let base_config = WhirlpoolEvmConfig::new(Arc::new(build_test_chain_spec()));
     let players = base_config.validator_consensus_public_keys();
     let output = FullDkgOutputV1 {
         dealers: vec![[0x44; 32]],

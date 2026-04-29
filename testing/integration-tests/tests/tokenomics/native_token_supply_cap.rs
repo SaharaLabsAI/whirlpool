@@ -12,9 +12,8 @@ use alloy_genesis::{Genesis, GenesisAccount};
 use alloy_primitives::{Address, Bytes, FixedBytes, TxKind, B256, U256};
 use alloy_signer::Signer as AlloySigner;
 use alloy_signer_local::PrivateKeySigner;
-use app_evm_execution::DEFAULT_PROPOSER_FEE_RECIPIENT;
 use chainspec::{
-    build_sahara_chain_spec_with_alloc, build_sahara_chain_spec_with_alloc_and_fee_recipients,
+    build_sahara_chain_spec_with_alloc, build_sahara_chain_spec_with_alloc_and_validators,
     sahara_hard_cap_base_units, SAHARA_CHAIN_ID,
 };
 use commonware_cryptography::{ed25519, Signer as CwSigner};
@@ -32,6 +31,11 @@ use whirlpool_node::config::{
     StorageConfig, DEFAULT_MAX_MESSAGE_SIZE,
 };
 use whirlpool_node::node::{start_node_with_chain_spec, NodeHandle};
+
+const TEST_PROPOSER_FEE_RECIPIENT: Address = Address::new([
+    0x70, 0x72, 0x6f, 0x70, 0x6f, 0x73, 0x65, 0x72, 0x2d, 0x66, 0x65, 0x65, 0x2d, 0x73, 0x65, 0x61,
+    0x6d, 0x2d, 0x30, 0x31,
+]);
 
 const MAX_PRIORITY_FEE_PER_GAS: u128 = 1_000_000_000;
 const MAX_FEE_PER_GAS: u128 = 20_000_000_000;
@@ -106,7 +110,7 @@ fn start_node_for_chain_spec(
             balance: U256::ZERO,
             storage: Some(encode_validator_registry_storage(&[ValidatorEntry {
                 consensus_pubkey: validator_public_key_bytes(&public_key),
-                ethereum_address: Address::ZERO,
+                ethereum_address: Address::repeat_byte(1),
             }])),
             ..GenesisAccount::default()
         });
@@ -460,14 +464,14 @@ async fn test_post_genesis_transfer_conserves_supply() {
     let tracked_addresses = [
         sender,
         recipient,
-        DEFAULT_PROPOSER_FEE_RECIPIENT,
+        TEST_PROPOSER_FEE_RECIPIENT,
         FEE_POOL_PRECOMPILE_ADDRESS,
         COMMUNITY_POOL_ADDRESS,
     ];
     let before = [
         query_balance(rpc_addr, sender).await,
         query_balance(rpc_addr, recipient).await,
-        query_balance(rpc_addr, DEFAULT_PROPOSER_FEE_RECIPIENT).await,
+        query_balance(rpc_addr, TEST_PROPOSER_FEE_RECIPIENT).await,
         query_balance(rpc_addr, FEE_POOL_PRECOMPILE_ADDRESS).await,
         query_balance(rpc_addr, COMMUNITY_POOL_ADDRESS).await,
     ];
@@ -519,9 +523,13 @@ async fn test_community_pool_credit_is_supply_conserving() {
             ..GenesisAccount::default()
         },
     );
-    let mut fee_recipients = BTreeMap::new();
-    fee_recipients.insert(validator_public_key_bytes(&public_key), fee_recipient);
-    let chain_spec = build_sahara_chain_spec_with_alloc_and_fee_recipients(alloc, fee_recipients);
+    let chain_spec = build_sahara_chain_spec_with_alloc_and_validators(
+        alloc,
+        vec![ValidatorEntry {
+            consensus_pubkey: validator_public_key_bytes(&public_key),
+            ethereum_address: fee_recipient,
+        }],
+    );
     let (handle, _tempdir) =
         start_node_for_chain_spec(404, chain_spec).expect("funded node should start");
     let rpc_addr = handle.rpc_addr;

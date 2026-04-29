@@ -7,11 +7,11 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
 `crates/precompiles/evm/`
 
 ## Key exports
-- `WhirlpoolEvmFactory`: custom EVM factory that injects Whirlpool precompiles into `EthEvmBuilder`; `with_validators(...)` is the canonical runtime constructor, while `Default::default()` is a zero-validator bootstrap/test path.
+- `WhirlpoolEvmFactory`: custom EVM factory that injects Whirlpool precompiles into `EthEvmBuilder`; `with_validators(...)` is a compatibility constructor for existing validator-aware call sites, but validator data is read from runtime EVM state.
 - `whirlpool_precompiles(spec) -> PrecompilesMap`: compatibility helper for a zero-validator bootstrap/test registry; not the canonical runtime path.
-- `whirlpool_precompiles_with_validators(spec, validators) -> PrecompilesMap`: builds builtin+Whirlpool precompile map with a captured ordered simplex-validator list.
+- `whirlpool_precompiles_with_validators(spec, validators) -> PrecompilesMap`: compatibility constructor for builtin+Whirlpool precompile maps; validators runtime reads now come from EVM state.
 - `build_whirlpool_precompiles(spec) -> Result<PrecompilesMap, RegistryError>`: compatibility helper for a zero-validator bootstrap/test registry; not the canonical runtime path.
-- `build_whirlpool_precompiles_with_validators(spec, validators) -> Result<PrecompilesMap, RegistryError>`: canonical validator-aware registry builder.
+- `build_whirlpool_precompiles_with_validators(spec, validators) -> Result<PrecompilesMap, RegistryError>`: compatibility builder for validator-aware call sites; validator data is read from runtime EVM state.
 - `NonDirectCall`: shared ABI-visible framework error for non-direct Whirlpool precompile execution.
 - `COMMUNITY_POOL_ADDRESS`: canonical single-address business sink and read-only precompile endpoint for community-pool balance.
 - `community_pool_balance_calldata()`
@@ -34,6 +34,7 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
 - `validators_calldata()`
 - `decode_validators_output(bytes)`
 - validators precompile ABI helpers: `VALIDATORS_PRECOMPILE_ADDRESS`, `validators_calldata()`, `decode_validators_output(bytes)`; canonical registry reader types/codecs live in `validators-reader`.
+- validators runtime-state helpers: `load_active_validator_registry`, `resolve_active_validator_fee_recipient`, `validate_active_validator_fee_recipient`, `ValidatorsRuntimeError`.
 - `EPOCH_PRECOMPILE_ADDRESS`: stateful epoch metadata precompile endpoint.
 - `current_epoch_calldata()`
 - `next_epoch_block_calldata()`
@@ -76,9 +77,9 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
 ## Design notes
 - Reth v2 alignment: this crate uses `reth_evm::revm::*` types everywhere (no direct `revm` crate import) to avoid mixed-REVM type graphs during factory wiring.
 - Custom precompiles are installed through `PrecompilesMap` dynamic entries, not vendor edits.
-- Canonical runtime wiring is validator-aware: `whirlpool_precompiles_with_validators(...)`, `build_whirlpool_precompiles_with_validators(...)`, and `WhirlpoolEvmFactory::with_validators(...)`. The zero-validator convenience helpers/default factory remain exported only for compatibility and bootstrap/test scenarios.
-- `validators-reader` is the canonical owner of validator registry codec/types. `validators-dkg` owns activation schedules/targets and DKG metadata. `evm-precompiles::validators` is precompile ABI/runtime only.
-- The validators precompile is read-only and returns the ordered list captured by runtime wiring from the canonical validator entry model.
+- Canonical runtime wiring still exposes validator-aware constructors for compatibility, but `validators()` now reads `SIMPLEX_VALIDATORS_REGISTRY` from runtime EVM state rather than a captured constructor snapshot.
+- `validators-reader` is the canonical owner of validator registry codec/types and slot arithmetic. `validators-dkg` owns activation schedules/targets and DKG metadata. `evm-precompiles::validators` owns runtime validator-state reads, active-registry loading, proposer fee-recipient resolution, malformed-registry classification, and the public validators ABI.
+- Current active-set semantics: runtime `SIMPLEX_VALIDATORS_REGISTRY` membership is the active proof for fee-recipient resolution. Missing proposer, duplicate pubkey, zero pubkey/address under nonzero count, invalid address padding, and carried-recipient mismatch fail closed.
 - The community-pool precompile is read-only and returns the balance of `COMMUNITY_POOL_ADDRESS`.
 - Community-pool unlock schedule state remains anchored at `COMMUNITY_POOL_ADDRESS` storage (configured by chainspec/runtime), but the mutable runtime ownership now lives in the internal `accounting` runtime-adapter surface rather than in `app-evm-execution` or a new public precompile selector.
 - Fee routing model:

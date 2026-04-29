@@ -1,6 +1,5 @@
 use alloy_genesis::{Genesis, GenesisAccount};
-use alloy_primitives::{Address, B256, U256};
-use app_evm_execution::VALIDATOR_FEE_RECIPIENTS_REGISTRY;
+use alloy_primitives::{Address, U256};
 use evm_precompiles::{
     community_pool_last_processed_epoch_storage_slot, community_pool_locked_remaining_storage_slot,
     community_pool_unlock_amount_per_cycle_storage_slot,
@@ -13,35 +12,16 @@ use evm_precompiles::{
 use reth_chainspec::{Chain, ChainSpec, ChainSpecBuilder};
 use std::collections::BTreeMap;
 use validators_reader::{
-    encode_ethereum_address_storage_value, encode_validator_registry_storage, ValidatorEntry,
-    SIMPLEX_VALIDATORS_REGISTRY,
+    encode_validator_registry_storage, ValidatorEntry, SIMPLEX_VALIDATORS_REGISTRY,
 };
 
 use crate::{validate_genesis_alloc, CommunityPoolUnlockConfig, NativeTokenError, SAHARA_CHAIN_ID};
 
-pub fn try_build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators_and_community_pool_unlock_config(
+pub fn try_build_sahara_chain_spec_with_alloc_and_validators_and_community_pool_unlock_config(
     mut alloc: BTreeMap<Address, GenesisAccount>,
-    validator_fee_recipients: BTreeMap<[u8; 32], Address>,
     simplex_validators: Vec<ValidatorEntry>,
     community_pool_unlock_config: CommunityPoolUnlockConfig,
 ) -> Result<ChainSpec, NativeTokenError> {
-    if !validator_fee_recipients.is_empty() {
-        let account = alloc
-            .entry(VALIDATOR_FEE_RECIPIENTS_REGISTRY)
-            .or_insert_with(|| GenesisAccount {
-                balance: U256::ZERO,
-                ..GenesisAccount::default()
-            });
-
-        let storage = account.storage.get_or_insert_with(BTreeMap::new);
-        for (validator_public_key, fee_recipient) in validator_fee_recipients {
-            storage.insert(
-                B256::from(validator_public_key),
-                encode_ethereum_address_storage_value(fee_recipient),
-            );
-        }
-    }
-
     if !simplex_validators.is_empty() {
         let account = alloc
             .entry(SIMPLEX_VALIDATORS_REGISTRY)

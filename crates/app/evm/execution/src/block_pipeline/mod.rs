@@ -9,7 +9,8 @@ use app_primitives::{
 };
 use app_traits::traits::{Application, TxSource};
 use evm_precompiles::{
-    reserved_advance_epoch_call_matches, EpochBoundaryRuntimeError, PostBlockAccountingRuntimeError,
+    reserved_advance_epoch_call_matches, EpochBoundaryRuntimeError,
+    PostBlockAccountingRuntimeError, ValidatorsRuntimeError,
 };
 use reth_ethereum_primitives::TransactionSigned;
 use reth_primitives_traits::SealedHeader;
@@ -159,6 +160,27 @@ fn map_post_block_accounting_runtime_error(err: PostBlockAccountingRuntimeError)
     }
 }
 
+fn map_validators_runtime_error(err: ValidatorsRuntimeError) -> EvmAppError {
+    match err {
+        ValidatorsRuntimeError::StateAccess(message) => EvmAppError::State(message),
+        ValidatorsRuntimeError::MalformedRegistry(message) => {
+            EvmAppError::InvalidBlock(format!("malformed active validator registry: {message}"))
+        }
+        ValidatorsRuntimeError::MissingProposer { proposer_public_key } => {
+            EvmAppError::InvalidBlock(format!(
+                "missing active validator for proposer {proposer_public_key:?}"
+            ))
+        }
+        ValidatorsRuntimeError::FeeRecipientMismatch {
+            proposer_public_key,
+            expected,
+            carried,
+        } => EvmAppError::InvalidBlock(format!(
+            "proposer fee recipient mismatch for proposer {proposer_public_key:?}: expected {expected}, got {carried}"
+        )),
+    }
+}
+
 fn classify_tx_execution_error(
     err: reth_evm::execute::BlockExecutionError,
 ) -> TxExecutionErrorDisposition {
@@ -218,7 +240,15 @@ where
                 transactions_root: EMPTY_ROOT_HASH.0,
                 receipts_root: EMPTY_ROOT_HASH.0,
                 proposer_public_key: self.evm_config.local_proposer_public_key(),
-                proposer_fee_recipient: self.evm_config.fee_recipient().into_array(),
+                proposer_fee_recipient: {
+                    let db = self.state_db.read().unwrap();
+                    evm_precompiles::resolve_active_validator_fee_recipient(
+                        &*db,
+                        self.evm_config.local_proposer_public_key(),
+                    )
+                    .expect("genesis proposer fee recipient must resolve from runtime validator registry")
+                    .into_array()
+                },
                 extra_data: genesis_extra_data,
                 gas_used: 0,
                 base_fee_per_gas: 1_000_000_000,

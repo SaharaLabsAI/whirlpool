@@ -13,18 +13,15 @@ pub use native_token::{
 };
 pub use simplex_validator_reader::try_simplex_validators_from_chain_spec;
 pub use spec_builders_alloc::{
-    build_sahara_chain_spec_with_alloc_and_fee_recipients,
-    build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators,
-    try_build_sahara_chain_spec_with_alloc,
+    build_sahara_chain_spec_with_alloc_and_validators, try_build_sahara_chain_spec_with_alloc,
 };
 pub use spec_builders_base::{
     build_sahara_chain_spec, build_sahara_chain_spec_with_alloc, try_build_sahara_chain_spec,
 };
-pub use spec_builders_core::try_build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators_and_community_pool_unlock_config;
+pub use spec_builders_core::try_build_sahara_chain_spec_with_alloc_and_validators_and_community_pool_unlock_config;
 pub use spec_builders_try::{
-    build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators_and_community_pool_unlock_config,
-    try_build_sahara_chain_spec_with_alloc_and_fee_recipients,
-    try_build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators,
+    build_sahara_chain_spec_with_alloc_and_validators_and_community_pool_unlock_config,
+    try_build_sahara_chain_spec_with_alloc_and_validators,
 };
 
 pub const SAHARA_CHAIN_ID: u64 = 313_371;

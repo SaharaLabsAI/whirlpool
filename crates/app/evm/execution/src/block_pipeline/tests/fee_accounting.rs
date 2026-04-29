@@ -20,12 +20,12 @@ async fn propose_routes_priority_fees_to_fee_pool_not_proposer() {
     let burned_amount = U256::from(block.gas_used) * U256::from(block.base_fee_per_gas);
     let expected_priority_fees =
         U256::from(block.gas_used) * U256::from(2_000_000_000u64 - block.base_fee_per_gas);
-    let claim_slot = claimable_balance_slot(DEFAULT_PROPOSER_FEE_RECIPIENT);
+    let claim_slot = claimable_balance_slot(TEST_PROPOSER_FEE_RECIPIENT);
 
     let db = db.read().unwrap();
     let community_pool_balance = account_balance(&db, COMMUNITY_POOL_ADDRESS);
     let fee_pool_balance = account_balance(&db, FEE_POOL_PRECOMPILE_ADDRESS);
-    let fee_recipient_balance = account_balance(&db, DEFAULT_PROPOSER_FEE_RECIPIENT);
+    let fee_recipient_balance = account_balance(&db, TEST_PROPOSER_FEE_RECIPIENT);
     let claimable = storage_value(&db, FEE_POOL_PRECOMPILE_ADDRESS, claim_slot);
 
     assert_eq!(community_pool_balance, burned_amount);
@@ -34,7 +34,7 @@ async fn propose_routes_priority_fees_to_fee_pool_not_proposer() {
     assert_eq!(fee_recipient_balance, U256::ZERO);
     assert_eq!(
         block.proposer_fee_recipient,
-        DEFAULT_PROPOSER_FEE_RECIPIENT.into_array()
+        TEST_PROPOSER_FEE_RECIPIENT.into_array()
     );
 }
 
@@ -73,7 +73,7 @@ async fn propose_uses_final_cumulative_gas_used_for_block_gas_and_burned_fee_cre
     let burned_amount = U256::from(block.gas_used) * U256::from(block.base_fee_per_gas);
     let expected_priority_fees =
         U256::from(block.gas_used) * U256::from(2_000_000_000u64 - block.base_fee_per_gas);
-    let claim_slot = claimable_balance_slot(DEFAULT_PROPOSER_FEE_RECIPIENT);
+    let claim_slot = claimable_balance_slot(TEST_PROPOSER_FEE_RECIPIENT);
 
     let db = db.read().unwrap();
     let community_pool_balance = account_balance(&db, COMMUNITY_POOL_ADDRESS);

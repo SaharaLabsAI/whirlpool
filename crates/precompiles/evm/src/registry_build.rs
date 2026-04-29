@@ -4,20 +4,19 @@ use validators_reader::ValidatorEntry as RegistryValidatorEntry;
 
 use super::{build_precompiles, community_pool, epoch, fee_pool, validators, RegistryError};
 
-/// Builds a Whirlpool registry with an empty validator snapshot.
+/// Builds a Whirlpool registry.
 ///
 /// This helper is kept for compatibility and minimal bootstrap/test scenarios.
-/// It is **not** the canonical runtime path because the validators precompile
-/// will expose an empty registry. Runtime callers should prefer
-/// [`build_whirlpool_precompiles_with_validators`].
+/// Validator reads come from runtime EVM state.
 pub fn build_whirlpool_precompiles(spec: SpecId) -> Result<PrecompilesMap, RegistryError> {
     build_whirlpool_precompiles_with_validators(spec, Vec::new())
 }
 
-/// Builds the canonical validator-aware Whirlpool registry definition.
+/// Compatibility constructor for callers that still pass validator entries.
+/// Validators runtime reads come from EVM state, not this argument.
 pub fn build_whirlpool_precompiles_with_validators(
     spec: SpecId,
-    simplex_validators: Vec<RegistryValidatorEntry>,
+    _simplex_validators: Vec<RegistryValidatorEntry>,
 ) -> Result<PrecompilesMap, RegistryError> {
     build_precompiles(
         spec,
@@ -25,7 +24,7 @@ pub fn build_whirlpool_precompiles_with_validators(
             community_pool::register(),
             epoch::register(),
             fee_pool::register(),
-            validators::register(simplex_validators),
+            validators::register(Vec::new()),
         ],
     )
 }

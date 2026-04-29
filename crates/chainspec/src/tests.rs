@@ -1,8 +1,8 @@
 use crate::{
-    build_sahara_chain_spec, build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators,
-    build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators_and_community_pool_unlock_config,
+    build_sahara_chain_spec, build_sahara_chain_spec_with_alloc_and_validators,
+    build_sahara_chain_spec_with_alloc_and_validators_and_community_pool_unlock_config,
     sahara_hard_cap_base_units, try_build_sahara_chain_spec_with_alloc,
-    try_build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators_and_community_pool_unlock_config,
+    try_build_sahara_chain_spec_with_alloc_and_validators_and_community_pool_unlock_config,
     try_simplex_validators_from_chain_spec, CommunityPoolUnlockConfig, NativeTokenError,
     SAHARA_CHAIN_ID,
 };
@@ -86,11 +86,7 @@ fn chain_spec_builder_writes_validator_registry() {
             ethereum_address: address!("0x0000000000000000000000000000000000000022"),
         },
     ];
-    let spec = build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators(
-        BTreeMap::new(),
-        BTreeMap::new(),
-        validators,
-    );
+    let spec = build_sahara_chain_spec_with_alloc_and_validators(BTreeMap::new(), validators);
 
     assert!(spec
         .genesis
@@ -110,45 +106,11 @@ fn chain_spec_reader_matches_written_validator_registry() {
             ethereum_address: address!("0x0000000000000000000000000000000000000011"),
         },
     ];
-    let spec = build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators(
-        BTreeMap::new(),
-        BTreeMap::new(),
-        validators.clone(),
-    );
+    let spec =
+        build_sahara_chain_spec_with_alloc_and_validators(BTreeMap::new(), validators.clone());
 
     let decoded = try_simplex_validators_from_chain_spec(&spec).expect("decode validators");
     assert_eq!(decoded, validators);
-}
-
-#[test]
-fn validator_registry_encoding_is_independent_of_fee_recipient_registry() {
-    let validator_key = [0xaa; 32];
-    let fee_recipient = address!("0x00000000000000000000000000000000000000aa");
-    let simplex_validators = vec![ValidatorEntry {
-        consensus_pubkey: validator_key,
-        ethereum_address: address!("0x00000000000000000000000000000000000000bb"),
-    }];
-    let mut fee_recipients = BTreeMap::new();
-    fee_recipients.insert(validator_key, fee_recipient);
-
-    let spec = build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators(
-        BTreeMap::new(),
-        fee_recipients,
-        simplex_validators,
-    );
-
-    assert!(spec
-        .genesis
-        .alloc
-        .contains_key(&app_evm_execution::VALIDATOR_FEE_RECIPIENTS_REGISTRY));
-    assert!(spec
-        .genesis
-        .alloc
-        .contains_key(&SIMPLEX_VALIDATORS_REGISTRY));
-    assert_ne!(
-        app_evm_execution::VALIDATOR_FEE_RECIPIENTS_REGISTRY,
-        SIMPLEX_VALIDATORS_REGISTRY
-    );
 }
 
 #[test]
@@ -163,8 +125,7 @@ fn chain_spec_builder_prefunds_community_pool_and_seeds_unlock_state() {
         ethereum_address: address!("0x0000000000000000000000000000000000000011"),
     }];
 
-    let spec = build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators_and_community_pool_unlock_config(
-        BTreeMap::new(),
+    let spec = build_sahara_chain_spec_with_alloc_and_validators_and_community_pool_unlock_config(
         BTreeMap::new(),
         validators,
         unlock_config,
@@ -209,8 +170,7 @@ fn unlock_enabled_without_simplex_validators_is_rejected() {
     };
 
     assert_eq!(
-        try_build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators_and_community_pool_unlock_config(
-            BTreeMap::new(),
+        try_build_sahara_chain_spec_with_alloc_and_validators_and_community_pool_unlock_config(
             BTreeMap::new(),
             Vec::new(),
             unlock_config,

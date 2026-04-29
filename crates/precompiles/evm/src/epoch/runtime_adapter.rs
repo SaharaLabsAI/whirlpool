@@ -187,7 +187,7 @@ mod tests {
         .expect("seed epoch zero start");
 
         let evm_env = EvmEnv::default().with_block_number(U256::from(5_u64));
-        let mut evm = WhirlpoolEvmFactory::default().create_evm(db, evm_env);
+        let mut evm = WhirlpoolEvmFactory.create_evm(db, evm_env);
 
         let effect = execute_epoch_boundary_system_call_if_required(&mut evm, true)
             .expect("first boundary system call should succeed")

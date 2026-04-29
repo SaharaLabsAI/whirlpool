@@ -1,12 +1,11 @@
 use super::*;
-use crate::config::DEFAULT_PROPOSER_FEE_RECIPIENT;
 use alloy_consensus::{SignableTransaction, TxLegacy};
 use alloy_eips::eip2718::Encodable2718;
 use alloy_primitives::{Address, Bytes, Signature, TxKind, B256, U256};
 use app_evm_state::InMemoryStateDb;
 use chainspec::{
-    build_sahara_chain_spec, build_sahara_chain_spec_with_alloc_and_fee_recipients,
-    build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators_and_community_pool_unlock_config,
+    build_sahara_chain_spec_with_alloc_and_validators,
+    build_sahara_chain_spec_with_alloc_and_validators_and_community_pool_unlock_config,
     CommunityPoolUnlockConfig, SAHARA_CHAIN_ID,
 };
 use evm_precompiles::{
@@ -29,6 +28,14 @@ use validators_dkg::{
     decode_extra_data, encode_canonical_extra_data, full_dkg_should_be_included,
     CanonicalExtraDataV1, FullDkgV1,
 };
+use validators_reader::{
+    encode_validator_registry_storage, ValidatorEntry, SIMPLEX_VALIDATORS_REGISTRY,
+};
+
+const TEST_PROPOSER_FEE_RECIPIENT: Address = Address::new([
+    0x70, 0x72, 0x6f, 0x70, 0x6f, 0x73, 0x65, 0x72, 0x2d, 0x66, 0x65, 0x65, 0x2d, 0x73, 0x65, 0x61,
+    0x6d, 0x2d, 0x30, 0x31,
+]);
 
 struct MockTxSource {
     txs: Vec<Vec<u8>>,
@@ -54,15 +61,49 @@ fn state_root_value(db: &InMemoryStateDb) -> [u8; 32] {
     db.state_root().0
 }
 
+fn default_validator_registry_entries() -> Vec<ValidatorEntry> {
+    vec![
+        ValidatorEntry {
+            consensus_pubkey: [0x77; 32],
+            ethereum_address: TEST_PROPOSER_FEE_RECIPIENT,
+        },
+        ValidatorEntry {
+            consensus_pubkey: [0x11; 32],
+            ethereum_address: TEST_PROPOSER_FEE_RECIPIENT,
+        },
+    ]
+}
+
+fn build_test_chain_spec() -> reth_chainspec::ChainSpec {
+    build_sahara_chain_spec_with_alloc_and_validators(
+        BTreeMap::new(),
+        default_validator_registry_entries(),
+    )
+}
+
+fn seed_validator_registry(db: &mut InMemoryStateDb, entries: &[ValidatorEntry]) {
+    for (slot, value) in encode_validator_registry_storage(entries) {
+        db.insert_storage(
+            SIMPLEX_VALIDATORS_REGISTRY,
+            U256::from_be_bytes(slot.0),
+            U256::from_be_bytes(value.0),
+        );
+    }
+}
+
 async fn setup_app(
     txs: Vec<Vec<u8>>,
 ) -> (
     EvmApplication<InMemoryStateDb>,
     Arc<RwLock<InMemoryStateDb>>,
 ) {
-    let chain_spec = Arc::new(build_sahara_chain_spec());
+    let chain_spec = Arc::new(build_test_chain_spec());
     let config = WhirlpoolEvmConfig::new(chain_spec);
     let db = Arc::new(RwLock::new(InMemoryStateDb::new()));
+    seed_validator_registry(
+        &mut db.write().unwrap(),
+        config.validator_registry_entries(),
+    );
     let source = Arc::new(MockTxSource { txs });
 
     let app = EvmApplication::new(config, db.clone(), source);
@@ -77,6 +118,10 @@ async fn setup_app_with_config(
     Arc<RwLock<InMemoryStateDb>>,
 ) {
     let db = Arc::new(RwLock::new(InMemoryStateDb::new()));
+    seed_validator_registry(
+        &mut db.write().unwrap(),
+        config.validator_registry_entries(),
+    );
     let source = Arc::new(MockTxSource { txs });
     let app = EvmApplication::new(config, db.clone(), source);
     (app, db)
@@ -91,15 +136,18 @@ fn setup_app_with_unlock_config(
     Arc<RwLock<InMemoryStateDb>>,
 ) {
     let chain_spec = Arc::new(
-            build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators_and_community_pool_unlock_config(
-                BTreeMap::new(),
-                BTreeMap::new(),
-                simplex_validators,
-                unlock_config,
-            ),
-        );
+        build_sahara_chain_spec_with_alloc_and_validators_and_community_pool_unlock_config(
+            BTreeMap::new(),
+            simplex_validators,
+            unlock_config,
+        ),
+    );
     let config = WhirlpoolEvmConfig::new(chain_spec);
     let db = Arc::new(RwLock::new(InMemoryStateDb::new()));
+    seed_validator_registry(
+        &mut db.write().unwrap(),
+        config.validator_registry_entries(),
+    );
     let source = Arc::new(MockTxSource { txs });
 
     let app = EvmApplication::new(config, db.clone(), source);

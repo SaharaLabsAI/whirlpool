@@ -21,7 +21,7 @@
 - Startup validates supplied genesis alloc against Sahara hard cap via `chainspec::validate_genesis_alloc`.
 
 ## Runtime Wiring
-- Default chainspec construction uses `chainspec::build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators(...)`.
+- Default chainspec construction uses `chainspec::build_sahara_chain_spec_with_alloc_and_validators(...)`.
 - Simplex membership is decoded via `chainspec::try_simplex_validators_from_chain_spec(...)`.
 - Node startup still fails early when the local signer is not present in the resolved simplex validator set.
 - Optional genesis bootstrap mode:

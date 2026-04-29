@@ -12,6 +12,8 @@ Canonical Whirlpool validator registry reader crate.
 - `encode_validator_registry_storage(entries)`
 - `decode_validator_registry_storage(storage)`
 - `decode_validator_registry_storage_opt(storage)`
+- registry slot helpers: `registry_len_slot()`, `consensus_pubkey_slot(index)`, `ethereum_address_slot(index)`
+- `decode_ethereum_address_storage_value(value, index)`
 - `ordered_consensus_pubkeys(entries)`
 - `encode_ethereum_address_storage_value(address)`
 - `ValidatorRegistryError`
@@ -22,7 +24,7 @@ This crate owns registry storage representation and Rust reader semantics only. 
 ## Consumers
 - `chainspec` writes genesis validator registry storage.
 - `whirlpool-node`, RPC/integration tests, and `app-evm-execution` consume ordered validator entries.
-- `evm-precompiles` consumes `ValidatorEntry` for the validators precompile ABI output, but no longer defines registry reader semantics.
+- `evm-precompiles` consumes the slot helpers and address decoder for runtime-state validator reads and proposer fee-recipient resolution; this prevents duplicate slot math outside the reader crate.
 
 ## Verification
 - `cargo test -p validators-reader`

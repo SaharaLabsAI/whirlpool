@@ -11,10 +11,7 @@ use alloy_genesis::GenesisAccount;
 use alloy_primitives::{Address, Bytes, FixedBytes, B256, U256};
 use alloy_signer::Signer as AlloySigner;
 use alloy_signer_local::PrivateKeySigner;
-use app_evm_execution::DEFAULT_PROPOSER_FEE_RECIPIENT;
-use chainspec::{
-    build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators, SAHARA_CHAIN_ID,
-};
+use chainspec::{build_sahara_chain_spec_with_alloc_and_validators, SAHARA_CHAIN_ID};
 use commonware_cryptography::{ed25519, Signer as CwSigner};
 use evm_precompiles::{
     claimable_balance_calldata, community_pool_balance_calldata, fee_pool_balance_calldata,
@@ -28,6 +25,11 @@ use whirlpool_node::config::{
     RpcConfig as NodeRpcConfig, StorageConfig, DEFAULT_MAX_MESSAGE_SIZE,
 };
 use whirlpool_node::node::{start_node_with_chain_spec, NodeHandle};
+
+const TEST_PROPOSER_FEE_RECIPIENT: Address = Address::new([
+    0x70, 0x72, 0x6f, 0x70, 0x6f, 0x73, 0x65, 0x72, 0x2d, 0x66, 0x65, 0x65, 0x2d, 0x73, 0x65, 0x61,
+    0x6d, 0x2d, 0x30, 0x31,
+]);
 
 const MAX_PRIORITY_FEE_PER_GAS: u128 = 1_000_000_000;
 const MAX_FEE_PER_GAS: u128 = 20_000_000_000;
@@ -81,17 +83,6 @@ fn validator_public_key_bytes(public_key: &ed25519::PublicKey) -> [u8; 32] {
     bytes
 }
 
-fn validator_entries(pubkeys: &[ed25519::PublicKey]) -> Vec<ValidatorEntry> {
-    pubkeys
-        .iter()
-        .enumerate()
-        .map(|(i, public_key)| ValidatorEntry {
-            consensus_pubkey: validator_public_key_bytes(public_key),
-            ethereum_address: Address::repeat_byte((i + 1) as u8),
-        })
-        .collect()
-}
-
 fn block_reward_recipient(block: &serde_json::Value) -> Address {
     block
         .get("miner")
@@ -120,18 +111,13 @@ fn start_funded_node(
         },
     );
 
-    let mut validator_fee_recipients = BTreeMap::new();
-    validator_fee_recipients.insert(
-        validator_public_key_bytes(&public_key),
-        validator_fee_recipient,
+    let chain_spec: ChainSpec = build_sahara_chain_spec_with_alloc_and_validators(
+        alloc,
+        vec![ValidatorEntry {
+            consensus_pubkey: validator_public_key_bytes(&public_key),
+            ethereum_address: validator_fee_recipient,
+        }],
     );
-
-    let chain_spec: ChainSpec =
-        build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators(
-            alloc,
-            validator_fee_recipients,
-            validator_entries(std::slice::from_ref(&public_key)),
-        );
     let p2p_port = allocate_port();
     let rpc_port = allocate_port();
     let p2p_addr: SocketAddr = format!("127.0.0.1:{p2p_port}")
@@ -202,18 +188,18 @@ fn start_multinode_fee_network(
         },
     );
 
-    let validator_fee_recipients = validator_pubkeys
+    let validator_registry_entries = validator_pubkeys
         .iter()
         .zip(fee_recipients.iter().copied())
-        .map(|(public_key, fee_recipient)| (validator_public_key_bytes(public_key), fee_recipient))
+        .map(|(public_key, fee_recipient)| ValidatorEntry {
+            consensus_pubkey: validator_public_key_bytes(public_key),
+            ethereum_address: fee_recipient,
+        })
         .collect();
-    let chain_spec = std::sync::Arc::new(
-        build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators(
-            alloc,
-            validator_fee_recipients,
-            validator_entries(&validator_pubkeys),
-        ),
-    );
+    let chain_spec = std::sync::Arc::new(build_sahara_chain_spec_with_alloc_and_validators(
+        alloc,
+        validator_registry_entries,
+    ));
 
     let p2p_ports: Vec<u16> = (0..seeds_and_fee_recipients.len())
         .map(|_| allocate_port())
@@ -710,7 +696,7 @@ async fn test_proposer_fee_recipient_metadata_survives_while_priority_fees_accru
 
     let initial_fee_recipient_balance = query_balance(rpc_addr, configured_fee_recipient).await;
     let initial_legacy_fee_recipient_balance =
-        query_balance(rpc_addr, DEFAULT_PROPOSER_FEE_RECIPIENT).await;
+        query_balance(rpc_addr, TEST_PROPOSER_FEE_RECIPIENT).await;
     let initial_fee_pool_balance = query_balance(rpc_addr, FEE_POOL_PRECOMPILE_ADDRESS).await;
     let initial_fee_pool_precompile_balance = query_fee_pool_balance_via_precompile(rpc_addr).await;
     let initial_claimable =
@@ -718,7 +704,7 @@ async fn test_proposer_fee_recipient_metadata_survives_while_priority_fees_accru
     let (_tx_hash, receipt, block) = submit_fee_only_transfer(rpc_addr, &signer).await;
     let final_fee_recipient_balance = query_balance(rpc_addr, configured_fee_recipient).await;
     let final_legacy_fee_recipient_balance =
-        query_balance(rpc_addr, DEFAULT_PROPOSER_FEE_RECIPIENT).await;
+        query_balance(rpc_addr, TEST_PROPOSER_FEE_RECIPIENT).await;
     let final_fee_pool_balance = query_balance(rpc_addr, FEE_POOL_PRECOMPILE_ADDRESS).await;
     let final_fee_pool_precompile_balance = query_fee_pool_balance_via_precompile(rpc_addr).await;
     let final_claimable =
@@ -861,7 +847,7 @@ async fn test_multivalidator_priority_fee_follows_actual_proposer() {
         initial_fee_pool_balances
             .push(query_balance(handle.rpc_addr, FEE_POOL_PRECOMPILE_ADDRESS).await);
         initial_legacy_fee_recipient_balances
-            .push(query_balance(handle.rpc_addr, DEFAULT_PROPOSER_FEE_RECIPIENT).await);
+            .push(query_balance(handle.rpc_addr, TEST_PROPOSER_FEE_RECIPIENT).await);
 
         let mut balances = Vec::with_capacity(network.fee_recipients.len());
         for fee_recipient in &network.fee_recipients {
@@ -918,7 +904,7 @@ async fn test_multivalidator_priority_fee_follows_actual_proposer() {
     let final_precompile_balance =
         query_community_pool_balance_via_precompile(proposer_rpc_addr).await;
     let final_legacy_fee_recipient_balance =
-        query_balance(proposer_rpc_addr, DEFAULT_PROPOSER_FEE_RECIPIENT).await;
+        query_balance(proposer_rpc_addr, TEST_PROPOSER_FEE_RECIPIENT).await;
     let mut final_fee_recipient_balances = Vec::with_capacity(network.fee_recipients.len());
     for fee_recipient in &network.fee_recipients {
         final_fee_recipient_balances.push(query_balance(proposer_rpc_addr, *fee_recipient).await);

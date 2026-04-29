@@ -19,8 +19,7 @@ use alloy_signer::Signer as AlloySigner;
 use alloy_signer_local::PrivateKeySigner;
 use app_traits::traits::TxSource;
 use chainspec::{
-    build_sahara_chain_spec, build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators,
-    SAHARA_CHAIN_ID,
+    build_sahara_chain_spec, build_sahara_chain_spec_with_alloc_and_validators, SAHARA_CHAIN_ID,
 };
 use commonware_cryptography::{ed25519, Signer as CwSigner};
 use reqwest::Client;
@@ -1303,15 +1302,13 @@ fn start_funded_node(seed: u64, funded_address: Address, balance: U256) -> (Node
         },
     );
 
-    let chain_spec: ChainSpec =
-        build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators(
-            alloc,
-            BTreeMap::new(),
-            vec![ValidatorEntry {
-                consensus_pubkey: public_key.as_ref().try_into().expect("ed25519 key length"),
-                ethereum_address: Address::ZERO,
-            }],
-        );
+    let chain_spec: ChainSpec = build_sahara_chain_spec_with_alloc_and_validators(
+        alloc,
+        vec![ValidatorEntry {
+            consensus_pubkey: public_key.as_ref().try_into().expect("ed25519 key length"),
+            ethereum_address: Address::repeat_byte(1),
+        }],
+    );
     let p2p_port = allocate_port();
     let rpc_port = allocate_port();
     let p2p_addr: SocketAddr = format!("127.0.0.1:{p2p_port}")

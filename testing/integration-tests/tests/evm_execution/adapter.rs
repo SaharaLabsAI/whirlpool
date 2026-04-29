@@ -1,18 +1,53 @@
-use std::sync::{Arc, RwLock};
+use std::{
+    collections::BTreeMap,
+    sync::{Arc, RwLock},
+};
 
-use app_evm_execution::EvmApplication;
-use app_evm_execution::WhirlpoolEvmConfig;
+use alloy_primitives::Address;
+use app_evm_execution::{EvmApplication, WhirlpoolEvmConfig};
 use app_evm_state::InMemoryStateDb;
 use app_primitives::EvmBlock;
 use app_traits::{traits::Application, ApplicationAdapter, NoopTxSource};
-use chainspec::build_sahara_chain_spec;
+use chainspec::build_sahara_chain_spec_with_alloc_and_validators;
 use consensus::{traits::ConsensusApp, ConsensusError};
+use revm::primitives::U256;
+use validators_reader::{
+    encode_validator_registry_storage, ValidatorEntry, SIMPLEX_VALIDATORS_REGISTRY,
+};
+
+const TEST_PROPOSER_FEE_RECIPIENT: Address = Address::new([
+    0x70, 0x72, 0x6f, 0x70, 0x6f, 0x73, 0x65, 0x72, 0x2d, 0x66, 0x65, 0x65, 0x2d, 0x73, 0x65, 0x61,
+    0x6d, 0x2d, 0x30, 0x31,
+]);
 
 fn assert_application_impl<A: Application<Block = EvmBlock>>(_app: &A) {}
 
+fn build_test_chain_spec() -> reth_chainspec::ChainSpec {
+    build_sahara_chain_spec_with_alloc_and_validators(BTreeMap::new(), test_validator_entries())
+}
+
+fn test_validator_entries() -> Vec<ValidatorEntry> {
+    vec![ValidatorEntry {
+        consensus_pubkey: [0x11; 32],
+        ethereum_address: TEST_PROPOSER_FEE_RECIPIENT,
+    }]
+}
+
+fn seed_validator_registry(db: &mut InMemoryStateDb, entries: &[ValidatorEntry]) {
+    for (slot, value) in encode_validator_registry_storage(entries) {
+        db.insert_storage(
+            SIMPLEX_VALIDATORS_REGISTRY,
+            U256::from_be_bytes(slot.0),
+            U256::from_be_bytes(value.0),
+        );
+    }
+}
+
 fn build_adapter() -> ApplicationAdapter<EvmApplication<InMemoryStateDb>> {
+    let entries = test_validator_entries();
     let state_db = Arc::new(RwLock::new(InMemoryStateDb::new()));
-    let evm_config = WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec()));
+    seed_validator_registry(&mut state_db.write().unwrap(), &entries);
+    let evm_config = WhirlpoolEvmConfig::new(Arc::new(build_test_chain_spec()));
     let tx_source = Arc::new(NoopTxSource);
     let evm_app = EvmApplication::new(evm_config, state_db, tx_source);
     assert_application_impl(&evm_app);

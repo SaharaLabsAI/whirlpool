@@ -3,8 +3,8 @@ use app_evm_execution::{EvmApplication, WhirlpoolEvmConfig};
 use app_traits::traits::TxSource;
 use app_traits::ApplicationAdapter;
 use chainspec::{
-    build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators,
-    try_simplex_validators_from_chain_spec, validate_genesis_alloc,
+    build_sahara_chain_spec_with_alloc_and_validators, try_simplex_validators_from_chain_spec,
+    validate_genesis_alloc,
 };
 use commonware_codec::{Encode, Read};
 use commonware_cryptography::ed25519;
@@ -253,15 +253,12 @@ pub fn start_node_with_chain_spec(
                     .as_ref()
                     .try_into()
                     .expect("ed25519 key length"),
-                ethereum_address: Address::ZERO,
+                ethereum_address: Address::repeat_byte(1),
             };
-            Arc::new(
-                build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators(
-                    std::collections::BTreeMap::new(),
-                    std::collections::BTreeMap::new(),
-                    vec![validator_entry],
-                ),
-            )
+            Arc::new(build_sahara_chain_spec_with_alloc_and_validators(
+                std::collections::BTreeMap::new(),
+                vec![validator_entry],
+            ))
         }
     };
     let genesis_simplex_validators = simplex_validators_from_chain_spec(&chain_spec)?;

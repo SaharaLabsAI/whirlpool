@@ -3,11 +3,9 @@ use validators_reader::ValidatorEntry as RegistryValidatorEntry;
 use super::WhirlpoolEvmFactory;
 
 impl WhirlpoolEvmFactory {
-    /// Creates the canonical validator-aware Whirlpool EVM factory.
-    ///
-    /// Prefer this over [`Default::default`] for runtime wiring so the
-    /// validators precompile exposes the ordered simplex-validator list.
-    pub fn with_validators(simplex_validators: Vec<RegistryValidatorEntry>) -> Self {
-        Self { simplex_validators }
+    /// Compatibility constructor retained for callers that already pass genesis
+    /// validator entries. The validators precompile reads runtime state.
+    pub fn with_validators(_simplex_validators: Vec<RegistryValidatorEntry>) -> Self {
+        Self
     }
 }

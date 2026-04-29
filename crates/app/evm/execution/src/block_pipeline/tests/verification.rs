@@ -19,7 +19,7 @@ async fn verify_accepts_valid_block() {
     let parent = app.genesis().await;
     let (block, _) = app.propose(&parent, 1).await.unwrap();
 
-    let chain_spec = Arc::new(build_sahara_chain_spec());
+    let chain_spec = Arc::new(build_test_chain_spec());
     let config = WhirlpoolEvmConfig::new(chain_spec).with_local_proposer_public_key([0x77; 32]);
     let pre_db = Arc::new(RwLock::new(pre_state));
     let source = Arc::new(MockTxSource { txs: vec![] });
@@ -48,7 +48,7 @@ async fn verify_rejects_block_with_mismatched_base_fee_per_gas() {
     let (mut block, _) = app.propose(&parent, 1).await.unwrap();
     block.base_fee_per_gas += 1;
 
-    let chain_spec = Arc::new(build_sahara_chain_spec());
+    let chain_spec = Arc::new(build_test_chain_spec());
     let config = WhirlpoolEvmConfig::new(chain_spec).with_local_proposer_public_key([0x77; 32]);
     let verifier = EvmApplication::new(
         config,
@@ -68,7 +68,7 @@ async fn verify_rejects_block_with_mismatched_base_fee_per_gas() {
 
 #[tokio::test]
 async fn verify_rejects_raw_32_byte_extra_data() {
-    let chain_spec = Arc::new(build_sahara_chain_spec());
+    let chain_spec = Arc::new(build_test_chain_spec());
     let proposer_config =
         WhirlpoolEvmConfig::new(chain_spec.clone()).with_local_proposer_public_key([0x77; 32]);
     let (app, db) = setup_app_with_config(vec![], proposer_config.clone()).await;
@@ -98,7 +98,7 @@ async fn verify_rejects_raw_32_byte_extra_data() {
 #[tokio::test]
 async fn genesis_and_propose_emit_canonical_raw_eth_extra_data() {
     let proposer_public_key = [0x77; 32];
-    let chain_spec = Arc::new(build_sahara_chain_spec());
+    let chain_spec = Arc::new(build_test_chain_spec());
     let proposer_config =
         WhirlpoolEvmConfig::new(chain_spec).with_local_proposer_public_key(proposer_public_key);
     let (app, _) = setup_app_with_config(vec![], proposer_config).await;
@@ -121,9 +121,27 @@ async fn genesis_and_propose_emit_canonical_raw_eth_extra_data() {
 }
 
 #[tokio::test]
+async fn genesis_rejects_missing_runtime_validator_for_local_proposer() {
+    let chain_spec = Arc::new(build_test_chain_spec());
+    let config = WhirlpoolEvmConfig::new(chain_spec).with_local_proposer_public_key([0x99; 32]);
+    let (app, _) = setup_app_with_config(vec![], config).await;
+
+    let join = tokio::spawn(async move {
+        let _ = app.genesis().await;
+    })
+    .await;
+
+    assert!(
+        join.expect_err("genesis should panic without runtime validator registry entry")
+            .is_panic(),
+        "genesis must fail closed instead of falling back to a default fee recipient"
+    );
+}
+
+#[tokio::test]
 async fn verify_rejects_canonical_extra_data_proposer_mismatch() {
     let proposer_public_key = [0x77; 32];
-    let chain_spec = Arc::new(build_sahara_chain_spec());
+    let chain_spec = Arc::new(build_test_chain_spec());
     let proposer_config = WhirlpoolEvmConfig::new(chain_spec.clone())
         .with_local_proposer_public_key(proposer_public_key);
     let (app, db) = setup_app_with_config(vec![], proposer_config).await;
@@ -195,7 +213,7 @@ async fn verify_accepts_block_with_precompile_proxy_transaction() {
     let current_balance = account_balance(&db.read().unwrap(), proxy_address);
     assert_eq!(current_balance, claimable);
 
-    let chain_spec = Arc::new(build_sahara_chain_spec());
+    let chain_spec = Arc::new(build_test_chain_spec());
     let config = WhirlpoolEvmConfig::new(chain_spec).with_local_proposer_public_key([0x77; 32]);
     let pre_db = Arc::new(RwLock::new(pre_state));
     let source = Arc::new(MockTxSource { txs: vec![] });
@@ -205,15 +223,68 @@ async fn verify_accepts_block_with_precompile_proxy_transaction() {
 }
 
 #[tokio::test]
-async fn verify_rejects_fee_recipient_that_conflicts_with_genesis_mapping() {
+async fn verify_rejects_missing_fee_recipient_mapping_for_proposer() {
     let proposer_public_key = [0x11; 32];
     let expected_fee_recipient = Address::repeat_byte(0x22);
-    let mut validator_fee_recipients = BTreeMap::new();
-    validator_fee_recipients.insert(proposer_public_key, expected_fee_recipient);
 
-    let chain_spec = Arc::new(build_sahara_chain_spec_with_alloc_and_fee_recipients(
+    let proposer_chain_spec = Arc::new(build_sahara_chain_spec_with_alloc_and_validators(
         BTreeMap::new(),
-        validator_fee_recipients,
+        vec![ValidatorEntry {
+            consensus_pubkey: proposer_public_key,
+            ethereum_address: expected_fee_recipient,
+        }],
+    ));
+    let proposer_config = WhirlpoolEvmConfig::new(proposer_chain_spec)
+        .with_local_proposer_public_key(proposer_public_key);
+
+    let (tx, recovered) = sample_evm_tx();
+    let (app, db) = setup_app_with_config(vec![tx], proposer_config).await;
+
+    {
+        let mut db = db.write().unwrap();
+        let info = revm::state::AccountInfo {
+            balance: U256::from(1_000_000_000_000_000_000u64),
+            nonce: 0,
+            ..Default::default()
+        };
+        db.insert_account(recovered, info);
+    }
+
+    let parent = app.genesis().await;
+    let (block, _) = app.propose(&parent, 1).await.unwrap();
+
+    let verifier_chain_spec = Arc::new(build_sahara_chain_spec_with_alloc_and_validators(
+        BTreeMap::new(),
+        Vec::new(),
+    ));
+    let verifier_config = WhirlpoolEvmConfig::new(verifier_chain_spec);
+    let verifier_app = EvmApplication::new(
+        verifier_config,
+        Arc::new(RwLock::new(InMemoryStateDb::new())),
+        Arc::new(MockTxSource { txs: vec![] }),
+    );
+
+    let err = verifier_app
+        .verify(&parent, &block)
+        .await
+        .expect_err("missing runtime validator should reject proposer fee recipient");
+    assert!(
+        matches!(err, EvmAppError::InvalidBlock(ref msg) if msg.contains("missing active validator")),
+        "expected missing active validator error, got {err:?}"
+    );
+}
+
+#[tokio::test]
+async fn verify_rejects_fee_recipient_that_conflicts_with_runtime_registry() {
+    let proposer_public_key = [0x11; 32];
+    let expected_fee_recipient = Address::repeat_byte(0x22);
+
+    let chain_spec = Arc::new(build_sahara_chain_spec_with_alloc_and_validators(
+        BTreeMap::new(),
+        vec![ValidatorEntry {
+            consensus_pubkey: proposer_public_key,
+            ethereum_address: expected_fee_recipient,
+        }],
     ));
     let proposer_config = WhirlpoolEvmConfig::new(chain_spec.clone())
         .with_local_proposer_public_key(proposer_public_key);
@@ -247,7 +318,7 @@ async fn verify_rejects_fee_recipient_that_conflicts_with_genesis_mapping() {
     let err = verifier_app
         .verify(&parent, &block)
         .await
-        .expect_err("genesis mapping should reject mismatched fee recipient");
+        .expect_err("runtime validator state should reject mismatched fee recipient");
     assert!(
         matches!(err, EvmAppError::InvalidBlock(_)),
         "expected invalid block error, got {err:?}"

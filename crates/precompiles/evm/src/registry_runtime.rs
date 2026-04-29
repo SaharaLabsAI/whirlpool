@@ -4,22 +4,19 @@ use validators_reader::ValidatorEntry as RegistryValidatorEntry;
 
 use super::build_whirlpool_precompiles_with_validators;
 
-/// Builds a Whirlpool registry with an empty validator snapshot.
+/// Builds a Whirlpool registry.
 ///
 /// This helper is kept for compatibility and minimal bootstrap/test scenarios.
-/// It is **not** the canonical runtime wiring path because the validators
-/// precompile will expose an empty registry. Production EVM wiring should use
-/// [`whirlpool_precompiles_with_validators`] so the ordered simplex-validator
-/// list is captured in the registry.
+/// Validators runtime reads come from EVM state.
 pub fn whirlpool_precompiles(spec: SpecId) -> PrecompilesMap {
     whirlpool_precompiles_with_validators(spec, Vec::new())
 }
 
-/// Builds the canonical validator-aware Whirlpool registry used by runtime EVM wiring.
+/// Compatibility constructor for validator-aware callers.
 pub fn whirlpool_precompiles_with_validators(
     spec: SpecId,
-    simplex_validators: Vec<RegistryValidatorEntry>,
+    _simplex_validators: Vec<RegistryValidatorEntry>,
 ) -> PrecompilesMap {
-    build_whirlpool_precompiles_with_validators(spec, simplex_validators)
+    build_whirlpool_precompiles_with_validators(spec, Vec::new())
         .expect("Whirlpool custom precompile registry must be valid")
 }

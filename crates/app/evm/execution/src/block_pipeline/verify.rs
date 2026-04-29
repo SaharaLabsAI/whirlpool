@@ -21,14 +21,13 @@ use validators_dkg::{
     latest_committed_full_dkg, validate_dkg_extra_data, DkgHistory, DkgVerifyInput,
 };
 
-use crate::block_pipeline::accounting::{
-    aggregate_priority_fees, gas_deltas_and_used, validate_or_recover_fee_recipient,
-};
+use crate::block_pipeline::accounting::{aggregate_priority_fees, gas_deltas_and_used};
 use crate::block_pipeline::build_sealed_header;
 use crate::block_pipeline::{
     classify_tx_execution_error, expected_next_block_base_fee, map_epoch_boundary_runtime_error,
-    map_post_block_accounting_runtime_error, tx_is_reserved_epoch_namespace,
-    BoundaryCallFailureMode, EvmApplication, TxExecutionErrorDisposition, BLOCK_GAS_LIMIT,
+    map_post_block_accounting_runtime_error, map_validators_runtime_error,
+    tx_is_reserved_epoch_namespace, BoundaryCallFailureMode, EvmApplication,
+    TxExecutionErrorDisposition, BLOCK_GAS_LIMIT,
 };
 use crate::error::EvmAppError;
 use crate::traits::StateDb;
@@ -83,11 +82,12 @@ where
                 block.proposer_public_key, decoded_proposer_public_key
             )));
         }
-        let claim_recipient = validate_or_recover_fee_recipient(
-            &self.evm_config,
+        let claim_recipient = evm_precompiles::validate_active_validator_fee_recipient(
+            &exec_state,
             decoded_proposer_public_key,
             block.proposer_fee_recipient,
-        )?;
+        )
+        .map_err(map_validators_runtime_error)?;
 
         let env_attributes = NextBlockEnvAttributes {
             timestamp: block.timestamp,
@@ -162,6 +162,8 @@ where
                 map_epoch_boundary_runtime_error(err, BoundaryCallFailureMode::Verify)
             })?;
         }
+        let active_validators = evm_precompiles::load_active_validator_registry(&exec_state)
+            .map_err(map_validators_runtime_error)?;
         let current_epoch = apply_post_block_accounting(
             &mut exec_state,
             &PostBlockAccountingInputs {
@@ -170,7 +172,7 @@ where
                 base_fee_per_gas: expected_base_fee_per_gas,
                 priority_fees,
                 claim_recipient,
-                simplex_validators: self.evm_config.validator_registry_entries().to_vec(),
+                simplex_validators: active_validators,
             },
         )
         .map_err(map_post_block_accounting_runtime_error)?

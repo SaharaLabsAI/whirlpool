@@ -19,9 +19,9 @@ use crate::block_pipeline::accounting::{aggregate_priority_fees, gas_deltas_and_
 use crate::block_pipeline::build_sealed_header;
 use crate::block_pipeline::{
     classify_tx_execution_error, expected_next_block_base_fee, map_epoch_boundary_runtime_error,
-    map_post_block_accounting_runtime_error, tx_is_reserved_epoch_namespace,
-    BoundaryCallFailureMode, EvmApplication, ProposedEvmPayload, TxExecutionErrorDisposition,
-    BLOCK_GAS_LIMIT,
+    map_post_block_accounting_runtime_error, map_validators_runtime_error,
+    tx_is_reserved_epoch_namespace, BoundaryCallFailureMode, EvmApplication, ProposedEvmPayload,
+    TxExecutionErrorDisposition, BLOCK_GAS_LIMIT,
 };
 use crate::error::EvmAppError;
 use crate::traits::StateDb;
@@ -57,6 +57,11 @@ where
         let base_fee_per_gas = expected_next_block_base_fee(parent);
         let boundary_required =
             evm_precompiles::boundary_required_for_height(boundary_state, block_height);
+        let claim_recipient = evm_precompiles::resolve_active_validator_fee_recipient(
+            &state_snapshot,
+            self.evm_config.local_proposer_public_key(),
+        )
+        .map_err(map_validators_runtime_error)?;
         let decoded_txs = crate::codec::decode_evm_transactions(raw_txs)?;
 
         let env_attributes = NextBlockEnvAttributes {
@@ -139,8 +144,6 @@ where
         let (gas_deltas, gas_used) = gas_deltas_and_used(&execution_result.receipts)?;
         let priority_fees =
             aggregate_priority_fees(&executed_decoded_txs, &gas_deltas, base_fee_per_gas)?;
-        let claim_recipient = self.evm_config.fee_recipient();
-
         let (state_root, current_epoch) = {
             let mut canonical_db = self.state_db.write().unwrap();
             canonical_db.commit(&bundle).map_err(Into::into)?;
@@ -149,6 +152,8 @@ where
                     |err| map_epoch_boundary_runtime_error(err, BoundaryCallFailureMode::Propose),
                 )?;
             }
+            let active_validators = evm_precompiles::load_active_validator_registry(&*canonical_db)
+                .map_err(map_validators_runtime_error)?;
             let accounting_outcome = apply_post_block_accounting(
                 &mut *canonical_db,
                 &PostBlockAccountingInputs {
@@ -157,7 +162,7 @@ where
                     base_fee_per_gas,
                     priority_fees,
                     claim_recipient,
-                    simplex_validators: self.evm_config.validator_registry_entries().to_vec(),
+                    simplex_validators: active_validators,
                 },
             )
             .map_err(map_post_block_accounting_runtime_error)?;
@@ -202,7 +207,7 @@ where
             },
             base_fee_per_gas,
             proposer_public_key: self.evm_config.local_proposer_public_key(),
-            proposer_fee_recipient: self.evm_config.fee_recipient(),
+            proposer_fee_recipient: claim_recipient,
             extra_data,
             receipts,
         })

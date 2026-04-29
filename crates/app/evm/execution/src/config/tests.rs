@@ -1,10 +1,6 @@
-use crate::config::{
-    WhirlpoolEvmConfig, DEFAULT_PROPOSER_FEE_RECIPIENT, VALIDATOR_FEE_RECIPIENTS_REGISTRY,
-};
+use crate::config::WhirlpoolEvmConfig;
 use alloy_primitives::Address;
-use chainspec::{
-    build_sahara_chain_spec, build_sahara_chain_spec_with_alloc_and_fee_recipients, SAHARA_CHAIN_ID,
-};
+use chainspec::{build_sahara_chain_spec, SAHARA_CHAIN_ID};
 use evm_precompiles::{
     COMMUNITY_POOL_ADDRESS, EPOCH_PRECOMPILE_ADDRESS, FEE_POOL_PRECOMPILE_ADDRESS,
     VALIDATORS_PRECOMPILE_ADDRESS,
@@ -13,7 +9,6 @@ use reth_chainspec::EthereumHardforks;
 use reth_evm::{ConfigureEvm, Evm, EvmFactory, NextBlockEnvAttributes};
 use reth_primitives_traits::Header;
 use revm::{database::EmptyDB, primitives::B256};
-use std::collections::BTreeMap;
 use std::sync::Arc;
 
 #[test]
@@ -66,35 +61,6 @@ fn test_evm_config_installs_whirlpool_precompiles() {
         .get(&VALIDATORS_PRECOMPILE_ADDRESS)
         .is_some());
     assert!(evm.precompiles().get(&EPOCH_PRECOMPILE_ADDRESS).is_some());
-}
-
-#[test]
-fn test_default_fee_recipient_is_non_zero() {
-    let config = WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec()));
-
-    assert_eq!(config.fee_recipient(), DEFAULT_PROPOSER_FEE_RECIPIENT);
-    assert_ne!(config.fee_recipient(), Address::ZERO);
-}
-
-#[test]
-fn test_fee_recipient_mapping_roundtrip_in_genesis_registry() {
-    let local_proposer_public_key = [0x11; 32];
-    let custom = Address::repeat_byte(0x44);
-    let mut validator_fee_recipients = BTreeMap::new();
-    validator_fee_recipients.insert(local_proposer_public_key, custom);
-
-    let spec = Arc::new(build_sahara_chain_spec_with_alloc_and_fee_recipients(
-        BTreeMap::new(),
-        validator_fee_recipients,
-    ));
-    let config = WhirlpoolEvmConfig::new(spec.clone())
-        .with_local_proposer_public_key(local_proposer_public_key);
-
-    assert_eq!(config.fee_recipient(), custom);
-    assert!(spec
-        .genesis
-        .alloc
-        .contains_key(&VALIDATOR_FEE_RECIPIENTS_REGISTRY));
 }
 
 #[test]

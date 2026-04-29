@@ -15,7 +15,7 @@ fn latest_committed_full_dkg_scans_backwards_past_raw_eth_only_blocks() {
         }
     }
 
-    let chain_spec = Arc::new(build_sahara_chain_spec());
+    let chain_spec = Arc::new(build_test_chain_spec());
     let config = WhirlpoolEvmConfig::new(chain_spec);
     let players = config.validator_consensus_public_keys();
     let full_dkg = FullDkgV1 {
@@ -62,7 +62,7 @@ fn latest_committed_full_dkg_scans_backwards_past_raw_eth_only_blocks() {
 
 #[test]
 fn full_dkg_trigger_includes_when_only_dealers_change() {
-    let chain_spec = Arc::new(build_sahara_chain_spec());
+    let chain_spec = Arc::new(build_test_chain_spec());
     let config = WhirlpoolEvmConfig::new(chain_spec);
     let players = config.validator_consensus_public_keys();
 
@@ -96,7 +96,7 @@ fn full_dkg_trigger_includes_when_only_dealers_change() {
 #[tokio::test]
 async fn verify_rejects_full_dkg_payload_mismatch_against_candidate() {
     let (tx, recovered) = sample_evm_tx();
-    let chain_spec = Arc::new(build_sahara_chain_spec());
+    let chain_spec = Arc::new(build_test_chain_spec());
     let base_config = WhirlpoolEvmConfig::new(chain_spec.clone());
     let players = base_config.validator_consensus_public_keys();
     let candidate_output = validators_dkg::FullDkgOutputV1 {
@@ -155,7 +155,7 @@ async fn verify_rejects_full_dkg_payload_mismatch_against_candidate() {
 #[tokio::test]
 async fn verify_rejects_full_dkg_when_candidate_is_not_configured() {
     let (tx, recovered) = sample_evm_tx();
-    let chain_spec = Arc::new(build_sahara_chain_spec());
+    let chain_spec = Arc::new(build_test_chain_spec());
     let config =
         WhirlpoolEvmConfig::new(chain_spec.clone()).with_local_proposer_public_key([0x77; 32]);
     let (app, db) = setup_app_with_config(vec![tx], config.clone()).await;

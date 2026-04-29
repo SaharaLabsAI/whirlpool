@@ -1,4 +1,3 @@
-use alloy_primitives::{Address, B256};
 use core::convert::Infallible;
 use evm_precompiles::{whirlpool_precompiles_with_validators, WhirlpoolEvmFactory};
 use reth_chainspec::ChainSpec;
@@ -18,17 +17,7 @@ use validators_reader::{
 
 mod chain_spec_access;
 mod dkg;
-mod fee_recipients;
 mod validator_registry;
-
-pub const DEFAULT_PROPOSER_FEE_RECIPIENT: Address = Address::new([
-    0x70, 0x72, 0x6f, 0x70, 0x6f, 0x73, 0x65, 0x72, 0x2d, 0x66, 0x65, 0x65, 0x2d, 0x73, 0x65, 0x61,
-    0x6d, 0x2d, 0x30, 0x31,
-]);
-pub const VALIDATOR_FEE_RECIPIENTS_REGISTRY: Address = Address::new([
-    0x76, 0x61, 0x6c, 0x69, 0x64, 0x61, 0x74, 0x6f, 0x72, 0x2d, 0x66, 0x65, 0x65, 0x2d, 0x6d, 0x61,
-    0x70, 0x2d, 0x30, 0x31,
-]);
 
 type WhirlpoolInnerEvmConfig = EthEvmConfig<ChainSpec, WhirlpoolEvmFactory>;
 
@@ -36,7 +25,6 @@ type WhirlpoolInnerEvmConfig = EthEvmConfig<ChainSpec, WhirlpoolEvmFactory>;
 pub struct WhirlpoolEvmConfig {
     inner: WhirlpoolInnerEvmConfig,
     local_proposer_public_key: [u8; 32],
-    validator_fee_recipients: BTreeMap<[u8; 32], Address>,
     validator_registry_entries: Vec<ValidatorEntry>,
     activation_players_by_epoch: BTreeMap<u64, Vec<[u8; 32]>>,
     full_dkg_feature_enabled: bool,
@@ -45,16 +33,18 @@ pub struct WhirlpoolEvmConfig {
 
 impl WhirlpoolEvmConfig {
     pub fn new(chain_spec: Arc<ChainSpec>) -> Self {
-        let validator_fee_recipients = validator_fee_recipients_from_chain_spec(&chain_spec);
         let validator_registry_entries = validator_registry_entries_from_chain_spec(&chain_spec)
             .expect("validator registry encoding should decode");
+        let local_proposer_public_key = validator_registry_entries
+            .first()
+            .map(|entry| entry.consensus_pubkey)
+            .unwrap_or([0u8; 32]);
         Self {
             inner: EthEvmConfig::new_with_evm_factory(
                 chain_spec,
                 WhirlpoolEvmFactory::with_validators(validator_registry_entries.clone()),
             ),
-            local_proposer_public_key: [0u8; 32],
-            validator_fee_recipients,
+            local_proposer_public_key,
             validator_registry_entries,
             activation_players_by_epoch: BTreeMap::new(),
             full_dkg_feature_enabled: true,
@@ -66,30 +56,6 @@ impl WhirlpoolEvmConfig {
         self.local_proposer_public_key = local_proposer_public_key;
         self
     }
-}
-
-fn fee_recipient_from_storage_value(value: B256) -> Address {
-    Address::from_slice(&value.as_slice()[12..])
-}
-
-fn validator_fee_recipients_from_chain_spec(chain_spec: &ChainSpec) -> BTreeMap<[u8; 32], Address> {
-    chain_spec
-        .genesis
-        .alloc
-        .get(&VALIDATOR_FEE_RECIPIENTS_REGISTRY)
-        .and_then(|account| account.storage.as_ref())
-        .map(|storage| {
-            storage
-                .iter()
-                .map(|(validator_public_key, fee_recipient)| {
-                    (
-                        validator_public_key.0,
-                        fee_recipient_from_storage_value(*fee_recipient),
-                    )
-                })
-                .collect()
-        })
-        .unwrap_or_default()
 }
 
 fn validator_registry_entries_from_chain_spec(

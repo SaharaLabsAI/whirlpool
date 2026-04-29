@@ -96,15 +96,15 @@ pub fn decode_validator_registry_storage(
     Ok(entries)
 }
 
-fn registry_len_slot() -> B256 {
+pub fn registry_len_slot() -> B256 {
     B256::ZERO
 }
 
-fn consensus_pubkey_slot(index: usize) -> B256 {
+pub fn consensus_pubkey_slot(index: usize) -> B256 {
     b256_from_u64((index as u64) * 2 + 1)
 }
 
-fn ethereum_address_slot(index: usize) -> B256 {
+pub fn ethereum_address_slot(index: usize) -> B256 {
     b256_from_u64((index as u64) * 2 + 2)
 }
 
@@ -113,7 +113,7 @@ fn decode_registry_len(value: B256) -> Result<usize, ValidatorRegistryError> {
     usize::try_from(len).map_err(|_| ValidatorRegistryError::RegistryLengthOverflow { length: len })
 }
 
-fn decode_ethereum_address_storage_value(
+pub fn decode_ethereum_address_storage_value(
     value: B256,
     index: usize,
 ) -> Result<Address, ValidatorRegistryError> {
@@ -157,6 +157,30 @@ mod tests {
         assert_eq!(
             ordered_consensus_pubkeys(&entries),
             vec![[0x33; 32], [0x11; 32], [0x22; 32]]
+        );
+    }
+
+    #[test]
+    fn registry_slot_helpers_match_encoded_layout() {
+        let entries = vec![ValidatorEntry {
+            consensus_pubkey: [0x44; 32],
+            ethereum_address: address!("0x0000000000000000000000000000000000000044"),
+        }];
+        let storage = encode_validator_registry_storage(&entries);
+
+        assert_eq!(
+            storage.get(&registry_len_slot()),
+            Some(&b256_from_u64(entries.len() as u64))
+        );
+        assert_eq!(
+            storage.get(&consensus_pubkey_slot(0)),
+            Some(&B256::from([0x44; 32]))
+        );
+        assert_eq!(
+            storage.get(&ethereum_address_slot(0)),
+            Some(&encode_ethereum_address_storage_value(
+                entries[0].ethereum_address
+            ))
         );
     }
 

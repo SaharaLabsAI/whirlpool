@@ -12,7 +12,6 @@ use reth_evm::{
     EvmEnv, EvmFactory,
 };
 use std::collections::HashSet;
-use validators_reader::ValidatorEntry as RegistryValidatorEntry;
 
 mod factory_api;
 mod registered_precompile_api;
@@ -25,7 +24,9 @@ pub mod fee_pool;
 pub mod validators;
 
 pub use crate::validators::{
-    decode_validators_output, validators_calldata, VALIDATORS_PRECOMPILE_ADDRESS,
+    decode_validators_output, load_active_validator_registry,
+    resolve_active_validator_fee_recipient, validate_active_validator_fee_recipient,
+    validators_calldata, ValidatorsRuntimeError, VALIDATORS_PRECOMPILE_ADDRESS,
 };
 pub use community_pool::{
     apply_post_block_accounting, build_post_block_accounting_effect,
@@ -130,14 +131,11 @@ where
 
 /// Whirlpool EVM factory that injects the workspace precompile registry.
 ///
-/// `Default::default()` is retained for compatibility and bootstrap/test cases,
-/// but it carries an empty validator snapshot. Runtime wiring should prefer
-/// [`WhirlpoolEvmFactory::with_validators`] so the validators precompile
-/// exposes the canonical ordered simplex-validator list.
+/// `Default::default()` and [`WhirlpoolEvmFactory::with_validators`] are both
+/// retained for compatibility. Validator reads are runtime-state-backed, so the
+/// factory no longer carries a validator snapshot.
 #[derive(Debug, Default, Clone)]
-pub struct WhirlpoolEvmFactory {
-    simplex_validators: Vec<RegistryValidatorEntry>,
-}
+pub struct WhirlpoolEvmFactory;
 
 impl EvmFactory for WhirlpoolEvmFactory {
     type Evm<DB: reth_evm::Database, I: Inspector<Self::Context<DB>>> =
@@ -158,10 +156,7 @@ impl EvmFactory for WhirlpoolEvmFactory {
     ) -> Self::Evm<DB, NoOpInspector> {
         let spec = evm_env.cfg_env.spec;
         EthEvmBuilder::new(db, evm_env)
-            .precompiles(whirlpool_precompiles_with_validators(
-                spec,
-                self.simplex_validators.clone(),
-            ))
+            .precompiles(whirlpool_precompiles_with_validators(spec, Vec::new()))
             .build()
     }
 
@@ -174,10 +169,7 @@ impl EvmFactory for WhirlpoolEvmFactory {
         let spec = evm_env.cfg_env.spec;
         EthEvmBuilder::new(db, evm_env)
             .activate_inspector(inspector)
-            .precompiles(whirlpool_precompiles_with_validators(
-                spec,
-                self.simplex_validators.clone(),
-            ))
+            .precompiles(whirlpool_precompiles_with_validators(spec, Vec::new()))
             .build()
     }
 }

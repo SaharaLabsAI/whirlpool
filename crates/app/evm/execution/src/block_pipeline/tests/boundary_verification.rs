@@ -18,13 +18,12 @@ async fn verify_boundary_unlock_matches_propose_state() {
         unlock_amount_per_cycle: U256::from(5_u64),
     };
     let chain_spec = Arc::new(
-            build_sahara_chain_spec_with_alloc_and_fee_recipients_and_validators_and_community_pool_unlock_config(
-                BTreeMap::new(),
-                BTreeMap::new(),
-                validators.clone(),
-                unlock_config,
-            ),
-        );
+        build_sahara_chain_spec_with_alloc_and_validators_and_community_pool_unlock_config(
+            BTreeMap::new(),
+            validators.clone(),
+            unlock_config,
+        ),
+    );
     let (app, db) =
         setup_app_with_config(vec![], WhirlpoolEvmConfig::new(chain_spec.clone())).await;
 
@@ -152,7 +151,7 @@ async fn verify_accepts_boundary_block_with_user_only_transactions() {
         .expect("propose boundary block");
 
     let verifier = EvmApplication::new(
-        WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec())),
+        WhirlpoolEvmConfig::new(Arc::new(build_test_chain_spec())),
         Arc::new(RwLock::new(pre_state)),
         Arc::new(MockTxSource { txs: vec![] }),
     );
