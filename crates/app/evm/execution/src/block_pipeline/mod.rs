@@ -22,8 +22,10 @@ use crate::post_handle::ReceiptStore;
 pub use crate::traits::StateDb;
 use validators_dkg::{DkgHistory, DkgMetadataError};
 
+mod fee_accounting;
+mod fee_recipient;
 mod propose;
-mod state_helpers;
+mod receipt_accounting;
 mod verify;
 
 type ProposedCacheKey = (u64, [u8; 32]);

@@ -45,13 +45,13 @@ Those live in `chainspec`.
 - Reviewer entrypoints are now named by pipeline ownership zone:
   - `src/ingress.rs` — candidate transaction sources: proposal reads `TxSource::pending()`, verification borrows `block.transactions`.
   - `src/codec/` — EIP-2718 transaction decode/recovery plus EVM header projection. Prefer `app_evm_execution::codec::decode_evm_transaction` and `decode_evm_transactions` for reviewer-facing decode APIs; root re-exports remain for compatibility.
-  - `src/block_pipeline/` — `EvmApplication`, `Application` trait wiring, explicit `propose.rs` and `verify.rs` lanes, and pipeline-local `state_helpers/`.
+  - `src/block_pipeline/` — `EvmApplication`, `Application` trait wiring, explicit `propose.rs` and `verify.rs` lanes, plus direct private helpers for fee-recipient validation, fee accounting, and receipt accounting.
   - `src/post_handle.rs` — `ReceiptStore` owns staged/pending receipt state, finalization persistence, and `pending_receipts` visibility.
   - `block_pipeline/tests/mod.rs` + `block_pipeline/tests/*.rs` — source-adjacent unit tests split by topic with shared fixtures in the parent module.
 - The former `app_evm_execution::executor::*` compatibility shim was intentionally removed after the ownership-zone modules became the public review map; use root exports or `codec`/`block_pipeline` paths instead.
 - The discoverability refactor is behavior-preserving: no shared generic propose/verify pipeline abstraction was added, and deeper ownership issues should be tracked as remaining risks rather than repaired in this layout pass.
 - `WhirlpoolEvmConfig` is now split across directory-backed `config/` submodules so builder/accessor APIs stay grouped by concern while preserving the same external type and behavior.
-- `codec/` and `block_pipeline/state_helpers/` are directory-backed modules that split decode/header and state-helper surfaces into focused files with smaller public API sets.
+- `codec/` remains directory-backed for decode/header surfaces; `block_pipeline` keeps fee-recipient validation, fee accounting, and receipt accounting as direct private helper modules rather than a generic helper bucket.
 - Non-boundary FullDkg candidate validation is fail-closed in both propose and verify paths: candidate `output.players` must match activation-resolved players for the candidate epoch before include/omit decisions.
 - FullDkg inclusion trigger compares candidate output against the **latest committed FullDkg from `DkgHistory`** (validators-dkg backward scan over raw carrier bytes) so raw-only intermediate blocks do not cause include/omit oscillation.
 - When `full_dkg_feature_enabled == false`, propose still emits a canonical RawEth envelope, and verify rejects **both** `full_dkg` and `reshare` sections, preventing disabled-feature metadata from entering historical scans.
