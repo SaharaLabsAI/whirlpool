@@ -64,24 +64,27 @@ fn test_evm_config_installs_whirlpool_precompiles() {
 }
 
 #[test]
-fn activation_players_default_to_validator_consensus_public_keys() {
-    let config = WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec()));
-    let expected = config.validator_consensus_public_keys();
-    let resolved = config
-        .activation_players_for_epoch(42)
+fn activation_schedule_uses_supplied_state_backed_default_players() {
+    let default_players = vec![[0x11; 32], [0x22; 32]];
+    let schedule = WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec()))
+        .validator_activation_schedule_for_default_players(default_players.clone());
+    let resolved = schedule
+        .resolve_players_for_epoch(42)
         .expect("default activation players should resolve");
-    assert_eq!(resolved, expected);
+    assert_eq!(resolved, default_players);
 }
 
 #[test]
 fn activation_players_can_be_epoch_overridden() {
+    let default_players = vec![[0x11; 32], [0x22; 32]];
     let players_epoch_7 = vec![[0x77; 32], [0x78; 32]];
-    let config = WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec()))
-        .with_activation_players_for_epoch(7, players_epoch_7.clone());
+    let schedule = WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec()))
+        .with_activation_players_for_epoch(7, players_epoch_7.clone())
+        .validator_activation_schedule_for_default_players(default_players);
 
     assert_eq!(
-        config.activation_players_for_epoch(7),
+        schedule.resolve_players_for_epoch(7).ok(),
         Some(players_epoch_7)
     );
-    assert_eq!(config.activation_players_for_epoch(8), None);
+    assert!(schedule.resolve_players_for_epoch(8).is_err());
 }

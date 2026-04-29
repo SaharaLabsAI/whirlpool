@@ -26,12 +26,13 @@ Those live in `chainspec`.
 ## Key Runtime Notes
 - Proposer fee-recipient authority now comes from runtime validator state via `evm_precompiles::validators`, not from app config or a separate fee-recipient registry. Propose/verify resolve the proposer against the parent/pre-block active registry and fail closed on missing proposer, malformed registry, or carried-recipient mismatch.
 - Post-block accounting loads validator ordering from the post-execution/pre-accounting runtime registry snapshot, so fee/unlock distribution follows the same validator state being finalized.
-- `WhirlpoolEvmConfig` carries ordered genesis validator-registry entries for EVM factory wiring and DKG default-player inputs. Runtime fee recipient and accounting validator ordering are loaded from state through `evm-precompiles`.
+- DKG default-player inputs also load from the post-execution/pre-accounting runtime registry snapshot. The app rejects empty active registries before DKG metadata construction and does not fall back to chain-spec/config validator snapshots.
+- `WhirlpoolEvmConfig` no longer carries ordered genesis validator-registry entries. It carries static execution knobs plus explicit node-local proposer key configuration; tests and callers that exercise proposer paths must set `with_local_proposer_public_key(...)`.
 - `WhirlpoolEvmConfig` carries FullDkg envelope knobs:
   - `full_dkg_feature_enabled`
   - optional `current_full_dkg_output` (`dealers`, `players`, `public_polynomial`)
 - `WhirlpoolEvmConfig` carries epoch-scoped activation override data via `with_activation_players_for_epoch(epoch, players)`, but activation resolution is delegated to `validators_dkg::ValidatorActivationSchedule`.
-- Precompile injection remains in `WhirlpoolEvmConfig::evm_with_env(...)` via `evm_precompiles::whirlpool_precompiles_with_validators(...)`.
+- Precompile injection remains in `WhirlpoolEvmConfig::evm_with_env(...)` via runtime-state-backed `evm_precompiles::whirlpool_precompiles(...)`; app config does not pass validator snapshots into precompile maps.
 - Block header `extra_data` uses strict canonical envelope bytes (`RawEth` + optional `FullDkgV1`/`ReshareV1`). `app-primitives` owns carrier helper wrappers; `validators-dkg` owns DKG schema/validation semantics.
 - Verify path decodes `extra_data` strictly from genesis, rejects raw 32-byte legacy carriers, enforces proposer-key parity against `RawEth`, and enforces boundary-aware FullDkg/Reshare invariants.
 - Propose/verify now share one block-pipeline-local next-block base-fee seam:
@@ -44,12 +45,12 @@ Those live in `chainspec`.
 - Reviewer entrypoints are now named by pipeline ownership zone:
   - `src/ingress.rs` — candidate transaction sources: proposal reads `TxSource::pending()`, verification borrows `block.transactions`.
   - `src/codec/` — EIP-2718 transaction decode/recovery plus EVM header projection. Prefer `app_evm_execution::codec::decode_evm_transaction` and `decode_evm_transactions` for reviewer-facing decode APIs; root re-exports remain for compatibility.
-  - `src/block_pipeline/` — `EvmApplication`, `Application` trait wiring, explicit `propose.rs` and `verify.rs` lanes, plus private `accounting/` helpers for fee and receipt derivation.
+  - `src/block_pipeline/` — `EvmApplication`, `Application` trait wiring, explicit `propose.rs` and `verify.rs` lanes, private `accounting/` helpers for fee and receipt derivation, and private `validators.rs` for loading non-empty state-backed validator entries plus DKG default-player schedules.
   - `src/post_handle.rs` — `ReceiptStore` owns staged/pending receipt state, finalization persistence, and `pending_receipts` visibility.
   - `block_pipeline/tests/mod.rs` + `block_pipeline/tests/*.rs` — source-adjacent unit tests split by topic with shared fixtures in the parent module.
 - The former `app_evm_execution::executor::*` compatibility shim was intentionally removed after the ownership-zone modules became the public review map; use root exports or `codec`/`block_pipeline` paths instead.
 - The discoverability refactor is behavior-preserving: no shared generic propose/verify pipeline abstraction was added, and deeper ownership issues should be tracked as remaining risks rather than repaired in this layout pass.
-- `WhirlpoolEvmConfig` is now split across directory-backed `config/` submodules so builder/accessor APIs stay grouped by concern while preserving the same external type and behavior. Validator-registry snapshot access lives in `config/validator_registry.rs`; DKG call-site config lives under `config/dkg/`.
+- `WhirlpoolEvmConfig` is split across directory-backed `config/` submodules so builder/accessor APIs stay grouped by concern while preserving the same external type and behavior. Proposer key access lives in `config/proposer.rs`; DKG call-site config lives under `config/dkg/`.
 - `codec/` remains directory-backed for decode/header surfaces; `block_pipeline/accounting/` groups fee and receipt derivation as a concern-specific private module rather than a generic helper bucket.
 - Non-boundary FullDkg candidate validation is fail-closed in both propose and verify paths: candidate `output.players` must match activation-resolved players for the candidate epoch before include/omit decisions.
 - FullDkg inclusion trigger compares candidate output against the **latest committed FullDkg from `DkgHistory`** (validators-dkg backward scan over raw carrier bytes) so raw-only intermediate blocks do not cause include/omit oscillation.

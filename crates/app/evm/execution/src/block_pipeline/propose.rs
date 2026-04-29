@@ -4,9 +4,10 @@ use alloy_primitives::{Bytes, B256};
 use alloy_trie::root::ordered_trie_root_with_encoder;
 use app_primitives::{ExecutionResult, Receipt};
 use evm_precompiles::{
-    apply_epoch_boundary_effect, apply_post_block_accounting,
-    execute_epoch_boundary_system_call_if_required, load_epoch_boundary_state,
-    PostBlockAccountingInputs, FEE_POOL_PRECOMPILE_ADDRESS,
+    apply_epoch_boundary_effect, apply_post_block_accounting, current_epoch_slot,
+    decode_u64_storage_value, execute_epoch_boundary_system_call_if_required,
+    load_epoch_boundary_state, EpochBoundaryEffect, PostBlockAccountingInputs,
+    EPOCH_PRECOMPILE_ADDRESS, FEE_POOL_PRECOMPILE_ADDRESS,
 };
 use reth_evm::{
     execute::{BlockBuilder, BlockExecutor},
@@ -17,6 +18,7 @@ use revm::database::State;
 
 use crate::block_pipeline::accounting::{aggregate_priority_fees, gas_deltas_and_used};
 use crate::block_pipeline::build_sealed_header;
+use crate::block_pipeline::validators::load_active_validator_dkg_inputs;
 use crate::block_pipeline::{
     classify_tx_execution_error, expected_next_block_base_fee, map_epoch_boundary_runtime_error,
     map_post_block_accounting_runtime_error, map_validators_runtime_error,
@@ -144,40 +146,13 @@ where
         let (gas_deltas, gas_used) = gas_deltas_and_used(&execution_result.receipts)?;
         let priority_fees =
             aggregate_priority_fees(&executed_decoded_txs, &gas_deltas, base_fee_per_gas)?;
-        let (state_root, current_epoch) = {
-            let mut canonical_db = self.state_db.write().unwrap();
-            canonical_db.commit(&bundle).map_err(Into::into)?;
-            if let Some(ref boundary_effect) = boundary_effect {
-                apply_epoch_boundary_effect(&mut *canonical_db, boundary_effect).map_err(
-                    |err| map_epoch_boundary_runtime_error(err, BoundaryCallFailureMode::Propose),
-                )?;
-            }
-            let active_validators = evm_precompiles::load_active_validator_registry(&*canonical_db)
-                .map_err(map_validators_runtime_error)?;
-            let accounting_outcome = apply_post_block_accounting(
-                &mut *canonical_db,
-                &PostBlockAccountingInputs {
-                    boundary_required,
-                    gas_used,
-                    base_fee_per_gas,
-                    priority_fees,
-                    claim_recipient,
-                    simplex_validators: active_validators,
-                },
-            )
-            .map_err(map_post_block_accounting_runtime_error)?;
-            (
-                canonical_db.state_root().map_err(Into::into)?,
-                accounting_outcome.current_epoch,
-            )
-        };
-
-        let receipts_root = ordered_trie_root_with_encoder(
-            &execution_result.receipts,
-            |receipt: &reth_ethereum_primitives::Receipt, out| {
-                receipt.with_bloom_ref().encode_2718(out);
-            },
-        );
+        // Keep state-backed DKG validation before the canonical commit so a bad
+        // registry/candidate cannot partially mutate persistent state. User
+        // transactions cannot update the native validator-registry precompile
+        // storage, so the pre-execution snapshot is the active registry view for
+        // this proposal; boundary writes are handled separately below for epoch.
+        let dkg_inputs = load_active_validator_dkg_inputs(&state_snapshot, &self.evm_config)?;
+        let post_advance_epoch = post_advance_epoch(&state_snapshot, boundary_effect.as_ref())?;
 
         let latest_committed_full_dkg = {
             let db = self.state_db.read().unwrap();
@@ -186,15 +161,45 @@ where
         };
         let extra_data = build_canonical_dkg_extra_data(DkgProposalInput {
             feature_enabled: self.evm_config.full_dkg_feature_enabled(),
-            activation_schedule: &self.evm_config.validator_activation_schedule(),
-            default_players: &self.evm_config.validator_consensus_public_keys(),
+            activation_schedule: &dkg_inputs.activation_schedule,
+            default_players: &dkg_inputs.default_players,
             previous_full_dkg: latest_committed_full_dkg.as_ref(),
             candidate_output: self.evm_config.current_full_dkg_output(),
             proposer_public_key: self.evm_config.local_proposer_public_key(),
             boundary_required,
-            post_advance_epoch: current_epoch,
+            post_advance_epoch,
         })
         .map_err(|err| EvmAppError::InvalidBlock(format!("invalid canonical extra_data: {err}")))?;
+
+        let state_root = {
+            let mut canonical_db = self.state_db.write().unwrap();
+            canonical_db.commit(&bundle).map_err(Into::into)?;
+            if let Some(ref boundary_effect) = boundary_effect {
+                apply_epoch_boundary_effect(&mut *canonical_db, boundary_effect).map_err(
+                    |err| map_epoch_boundary_runtime_error(err, BoundaryCallFailureMode::Propose),
+                )?;
+            }
+            apply_post_block_accounting(
+                &mut *canonical_db,
+                &PostBlockAccountingInputs {
+                    boundary_required,
+                    gas_used,
+                    base_fee_per_gas,
+                    priority_fees,
+                    claim_recipient,
+                    simplex_validators: dkg_inputs.entries,
+                },
+            )
+            .map_err(map_post_block_accounting_runtime_error)?;
+            canonical_db.state_root().map_err(Into::into)?
+        };
+
+        let receipts_root = ordered_trie_root_with_encoder(
+            &execution_result.receipts,
+            |receipt: &reth_ethereum_primitives::Receipt, out| {
+                receipt.with_bloom_ref().encode_2718(out);
+            },
+        );
 
         Ok(ProposedEvmPayload {
             included_user_transactions,
@@ -212,4 +217,31 @@ where
             receipts,
         })
     }
+}
+
+fn post_advance_epoch<DB>(
+    db: &DB,
+    boundary_effect: Option<&EpochBoundaryEffect>,
+) -> Result<u64, EvmAppError>
+where
+    DB: StateDb,
+    <DB as StateDb>::Error: std::fmt::Display,
+{
+    let raw_epoch = boundary_effect
+        .and_then(|effect| {
+            effect
+                .writes
+                .iter()
+                .find(|write| write.slot == current_epoch_slot())
+                .map(|write| write.value)
+        })
+        .map(Ok)
+        .unwrap_or_else(|| {
+            db.get_storage(EPOCH_PRECOMPILE_ADDRESS, current_epoch_slot())
+                .map_err(|err| EvmAppError::State(err.to_string()))
+        })?;
+
+    decode_u64_storage_value(raw_epoch).ok_or_else(|| {
+        EvmAppError::InvalidBlock("epoch currentEpoch storage does not fit into u64".into())
+    })
 }

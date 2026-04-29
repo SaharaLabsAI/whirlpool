@@ -38,7 +38,7 @@ async fn verify_rejects_reserved_epoch_namespace_transaction() {
     };
 
     let verifier = EvmApplication::new(
-        WhirlpoolEvmConfig::new(Arc::new(build_test_chain_spec())),
+        test_evm_config(Arc::new(build_test_chain_spec())),
         Arc::new(RwLock::new(pre_state)),
         Arc::new(MockTxSource { txs: vec![] }),
     );

@@ -1,5 +1,5 @@
 use core::convert::Infallible;
-use evm_precompiles::{whirlpool_precompiles_with_validators, WhirlpoolEvmFactory};
+use evm_precompiles::{whirlpool_precompiles, WhirlpoolEvmFactory};
 use reth_chainspec::ChainSpec;
 use reth_ethereum_primitives::EthPrimitives;
 use reth_evm::{
@@ -10,14 +10,10 @@ use reth_primitives_traits::{BlockTy, HeaderTy, SealedBlock, SealedHeader};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use validators_dkg::FullDkgOutputV1;
-use validators_reader::{
-    decode_validator_registry_storage_opt, ValidatorEntry, ValidatorRegistryError,
-    SIMPLEX_VALIDATORS_REGISTRY,
-};
 
 mod chain_spec_access;
 mod dkg;
-mod validator_registry;
+mod proposer;
 
 type WhirlpoolInnerEvmConfig = EthEvmConfig<ChainSpec, WhirlpoolEvmFactory>;
 
@@ -25,7 +21,6 @@ type WhirlpoolInnerEvmConfig = EthEvmConfig<ChainSpec, WhirlpoolEvmFactory>;
 pub struct WhirlpoolEvmConfig {
     inner: WhirlpoolInnerEvmConfig,
     local_proposer_public_key: [u8; 32],
-    validator_registry_entries: Vec<ValidatorEntry>,
     activation_players_by_epoch: BTreeMap<u64, Vec<[u8; 32]>>,
     full_dkg_feature_enabled: bool,
     current_full_dkg_output: Option<FullDkgOutputV1>,
@@ -33,19 +28,9 @@ pub struct WhirlpoolEvmConfig {
 
 impl WhirlpoolEvmConfig {
     pub fn new(chain_spec: Arc<ChainSpec>) -> Self {
-        let validator_registry_entries = validator_registry_entries_from_chain_spec(&chain_spec)
-            .expect("validator registry encoding should decode");
-        let local_proposer_public_key = validator_registry_entries
-            .first()
-            .map(|entry| entry.consensus_pubkey)
-            .unwrap_or([0u8; 32]);
         Self {
-            inner: EthEvmConfig::new_with_evm_factory(
-                chain_spec,
-                WhirlpoolEvmFactory::with_validators(validator_registry_entries.clone()),
-            ),
-            local_proposer_public_key,
-            validator_registry_entries,
+            inner: EthEvmConfig::new_with_evm_factory(chain_spec, WhirlpoolEvmFactory),
+            local_proposer_public_key: [0u8; 32],
             activation_players_by_epoch: BTreeMap::new(),
             full_dkg_feature_enabled: true,
             current_full_dkg_output: None,
@@ -56,18 +41,6 @@ impl WhirlpoolEvmConfig {
         self.local_proposer_public_key = local_proposer_public_key;
         self
     }
-}
-
-fn validator_registry_entries_from_chain_spec(
-    chain_spec: &ChainSpec,
-) -> Result<Vec<ValidatorEntry>, ValidatorRegistryError> {
-    decode_validator_registry_storage_opt(
-        chain_spec
-            .genesis
-            .alloc
-            .get(&SIMPLEX_VALIDATORS_REGISTRY)
-            .and_then(|account| account.storage.as_ref()),
-    )
 }
 
 impl ConfigureEvm for WhirlpoolEvmConfig {
@@ -104,10 +77,7 @@ impl ConfigureEvm for WhirlpoolEvmConfig {
     ) -> EvmFor<Self, DB> {
         let spec = evm_env.cfg_env.spec;
         EthEvmBuilder::new(db, evm_env)
-            .precompiles(whirlpool_precompiles_with_validators(
-                spec,
-                self.validator_registry_entries.clone(),
-            ))
+            .precompiles(whirlpool_precompiles(spec))
             .build()
     }
 

@@ -5,7 +5,7 @@ async fn propose_rejects_non_boundary_full_dkg_players_mismatch_with_activation_
     let chain_spec = Arc::new(build_test_chain_spec());
     let base_config =
         WhirlpoolEvmConfig::new(chain_spec.clone()).with_local_proposer_public_key([0x77; 32]);
-    let candidate_players = base_config.validator_consensus_public_keys();
+    let candidate_players = default_validator_pubkeys();
     let proposer_config = base_config
         .with_current_full_dkg_output(validators_dkg::FullDkgOutputV1 {
             dealers: candidate_players.clone(),
@@ -27,11 +27,99 @@ async fn propose_rejects_non_boundary_full_dkg_players_mismatch_with_activation_
 }
 
 #[tokio::test]
+async fn propose_dkg_preflight_failure_does_not_mutate_canonical_state() {
+    let (tx, recovered) = sample_evm_tx();
+    let chain_spec = Arc::new(build_test_chain_spec());
+    let base_config =
+        WhirlpoolEvmConfig::new(chain_spec.clone()).with_local_proposer_public_key([0x77; 32]);
+    let candidate_players = default_validator_pubkeys();
+    let proposer_config = base_config
+        .with_current_full_dkg_output(validators_dkg::FullDkgOutputV1 {
+            dealers: candidate_players.clone(),
+            players: candidate_players,
+            public_polynomial: vec![0xaa, 0xbb, 0xcc],
+        })
+        .with_activation_players_for_epoch(0, vec![[0x41; 32], [0x42; 32]]);
+    let (app, db) = setup_app_with_config(vec![tx], proposer_config).await;
+
+    {
+        let mut db = db.write().unwrap();
+        db.insert_account(
+            recovered,
+            revm::state::AccountInfo {
+                balance: U256::from(1_000_000_000_000_000_000u64),
+                nonce: 0,
+                ..Default::default()
+            },
+        );
+    }
+    let pre_state = db.read().unwrap().clone();
+    let pre_root = state_root_value(&pre_state);
+
+    let parent = app.genesis().await;
+    let err = app
+        .propose(&parent, 1)
+        .await
+        .expect_err("DKG preflight must reject before canonical commit");
+    assert!(
+        matches!(err, EvmAppError::InvalidBlock(ref msg) if msg.contains("full_dkg output.players does not match activation-resolved player set")),
+        "unexpected error: {err:?}"
+    );
+
+    let post_state = db.read().unwrap().clone();
+    assert_eq!(
+        state_root_value(&post_state),
+        pre_root,
+        "canonical DB must remain unchanged when state-backed DKG preflight fails"
+    );
+}
+
+#[tokio::test]
+async fn propose_uses_runtime_registry_order_for_non_boundary_dkg_defaults() {
+    let chain_spec = Arc::new(build_test_chain_spec());
+    let runtime_entries = vec![
+        ValidatorEntry {
+            consensus_pubkey: [0x11; 32],
+            ethereum_address: TEST_PROPOSER_FEE_RECIPIENT,
+        },
+        ValidatorEntry {
+            consensus_pubkey: [0x77; 32],
+            ethereum_address: TEST_PROPOSER_FEE_RECIPIENT,
+        },
+    ];
+    let runtime_players = ordered_consensus_pubkeys(&runtime_entries);
+    let config = WhirlpoolEvmConfig::new(chain_spec)
+        .with_local_proposer_public_key([0x11; 32])
+        .with_current_full_dkg_output(validators_dkg::FullDkgOutputV1 {
+            dealers: runtime_players.clone(),
+            players: runtime_players.clone(),
+            public_polynomial: vec![],
+        });
+    let (app, db) = setup_app_with_config(vec![], config).await;
+    {
+        let mut db = db.write().unwrap();
+        seed_validator_registry(&mut db, &runtime_entries);
+    }
+
+    let parent = app.genesis().await;
+    let (block, _) = app
+        .propose(&parent, 1)
+        .await
+        .expect("runtime-order DKG defaults should propose");
+    let decoded = decode_extra_data(&block.extra_data).expect("canonical extra_data should decode");
+
+    assert!(
+        decoded.full_dkg.is_none(),
+        "candidate matching runtime registry defaults should be omitted; a config/chainspec fallback would require FullDkg"
+    );
+}
+
+#[tokio::test]
 async fn verify_rejects_non_boundary_full_dkg_players_mismatch_with_activation_schedule() {
     let chain_spec = Arc::new(build_test_chain_spec());
     let base_config =
         WhirlpoolEvmConfig::new(chain_spec.clone()).with_local_proposer_public_key([0x77; 32]);
-    let candidate_players = base_config.validator_consensus_public_keys();
+    let candidate_players = default_validator_pubkeys();
     let candidate_output = validators_dkg::FullDkgOutputV1 {
         dealers: candidate_players.clone(),
         players: candidate_players,
@@ -70,7 +158,7 @@ async fn propose_boundary_block_emits_forward_full_dkg_and_reshare_sections_when
     let chain_spec = Arc::new(build_test_chain_spec());
     let base_config =
         WhirlpoolEvmConfig::new(chain_spec.clone()).with_local_proposer_public_key([0x77; 32]);
-    let players = base_config.validator_consensus_public_keys();
+    let players = default_validator_pubkeys();
     let proposer_config =
         base_config.with_current_full_dkg_output(validators_dkg::FullDkgOutputV1 {
             dealers: players.clone(),
@@ -114,7 +202,7 @@ async fn verify_rejects_missing_reshare_section_on_boundary_when_candidate_confi
     let chain_spec = Arc::new(build_test_chain_spec());
     let base_config =
         WhirlpoolEvmConfig::new(chain_spec.clone()).with_local_proposer_public_key([0x77; 32]);
-    let players = base_config.validator_consensus_public_keys();
+    let players = default_validator_pubkeys();
     let proposer_config =
         base_config.with_current_full_dkg_output(validators_dkg::FullDkgOutputV1 {
             dealers: players.clone(),
@@ -161,7 +249,7 @@ async fn verify_rejects_reshare_section_on_non_boundary_block() {
     let chain_spec = Arc::new(build_test_chain_spec());
     let base_config =
         WhirlpoolEvmConfig::new(chain_spec.clone()).with_local_proposer_public_key([0x77; 32]);
-    let players = base_config.validator_consensus_public_keys();
+    let players = default_validator_pubkeys();
     let proposer_config =
         base_config.with_current_full_dkg_output(validators_dkg::FullDkgOutputV1 {
             dealers: players.clone(),
@@ -207,7 +295,7 @@ async fn verify_rejects_full_dkg_section_when_feature_is_disabled() {
     let base_config = WhirlpoolEvmConfig::new(chain_spec.clone())
         .with_local_proposer_public_key([0x77; 32])
         .with_full_dkg_feature_enabled(false);
-    let players = base_config.validator_consensus_public_keys();
+    let players = default_validator_pubkeys();
     let candidate_full_dkg = validators_dkg::FullDkgV1 {
         epoch: 1,
         output: validators_dkg::FullDkgOutputV1 {
@@ -254,7 +342,7 @@ async fn boundary_reshare_can_follow_epoch_pipeline_lag_from_activation_schedule
     let base_config =
         WhirlpoolEvmConfig::new(chain_spec.clone()).with_local_proposer_public_key([0x77; 32]);
 
-    let next_epoch_players = base_config.validator_consensus_public_keys();
+    let next_epoch_players = default_validator_pubkeys();
     let next_next_epoch_players = vec![[0x41; 32], [0x42; 32]];
     let proposer_config = base_config
         .with_current_full_dkg_output(validators_dkg::FullDkgOutputV1 {
@@ -313,7 +401,7 @@ async fn propose_rejects_boundary_when_activation_schedule_missing_reshare_epoch
     let chain_spec = Arc::new(build_test_chain_spec());
     let base_config =
         WhirlpoolEvmConfig::new(chain_spec.clone()).with_local_proposer_public_key([0x77; 32]);
-    let next_epoch_players = base_config.validator_consensus_public_keys();
+    let next_epoch_players = default_validator_pubkeys();
     let proposer_config = base_config
         .with_current_full_dkg_output(validators_dkg::FullDkgOutputV1 {
             dealers: next_epoch_players.clone(),

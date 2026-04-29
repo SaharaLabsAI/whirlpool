@@ -29,7 +29,8 @@ use validators_dkg::{
     CanonicalExtraDataV1, FullDkgV1,
 };
 use validators_reader::{
-    encode_validator_registry_storage, ValidatorEntry, SIMPLEX_VALIDATORS_REGISTRY,
+    decode_validator_registry_storage_opt, encode_validator_registry_storage,
+    ordered_consensus_pubkeys, ValidatorEntry, SIMPLEX_VALIDATORS_REGISTRY,
 };
 
 const TEST_PROPOSER_FEE_RECIPIENT: Address = Address::new([
@@ -61,7 +62,7 @@ fn state_root_value(db: &InMemoryStateDb) -> [u8; 32] {
     db.state_root().0
 }
 
-fn default_validator_registry_entries() -> Vec<ValidatorEntry> {
+fn default_validator_entries() -> Vec<ValidatorEntry> {
     vec![
         ValidatorEntry {
             consensus_pubkey: [0x77; 32],
@@ -75,10 +76,28 @@ fn default_validator_registry_entries() -> Vec<ValidatorEntry> {
 }
 
 fn build_test_chain_spec() -> reth_chainspec::ChainSpec {
-    build_sahara_chain_spec_with_alloc_and_validators(
-        BTreeMap::new(),
-        default_validator_registry_entries(),
+    build_sahara_chain_spec_with_alloc_and_validators(BTreeMap::new(), default_validator_entries())
+}
+
+fn default_validator_pubkeys() -> Vec<[u8; 32]> {
+    ordered_consensus_pubkeys(&default_validator_entries())
+}
+
+fn validator_entries_from_chain_spec(
+    chain_spec: &reth_chainspec::ChainSpec,
+) -> Vec<ValidatorEntry> {
+    decode_validator_registry_storage_opt(
+        chain_spec
+            .genesis
+            .alloc
+            .get(&SIMPLEX_VALIDATORS_REGISTRY)
+            .and_then(|account| account.storage.as_ref()),
     )
+    .expect("test chain spec validator registry should decode")
+}
+
+fn test_evm_config(chain_spec: Arc<reth_chainspec::ChainSpec>) -> WhirlpoolEvmConfig {
+    WhirlpoolEvmConfig::new(chain_spec).with_local_proposer_public_key([0x77; 32])
 }
 
 fn seed_validator_registry(db: &mut InMemoryStateDb, entries: &[ValidatorEntry]) {
@@ -98,11 +117,11 @@ async fn setup_app(
     Arc<RwLock<InMemoryStateDb>>,
 ) {
     let chain_spec = Arc::new(build_test_chain_spec());
-    let config = WhirlpoolEvmConfig::new(chain_spec);
+    let config = test_evm_config(chain_spec.clone());
     let db = Arc::new(RwLock::new(InMemoryStateDb::new()));
     seed_validator_registry(
         &mut db.write().unwrap(),
-        config.validator_registry_entries(),
+        &validator_entries_from_chain_spec(&chain_spec),
     );
     let source = Arc::new(MockTxSource { txs });
 
@@ -118,10 +137,8 @@ async fn setup_app_with_config(
     Arc<RwLock<InMemoryStateDb>>,
 ) {
     let db = Arc::new(RwLock::new(InMemoryStateDb::new()));
-    seed_validator_registry(
-        &mut db.write().unwrap(),
-        config.validator_registry_entries(),
-    );
+    let entries = validator_entries_from_chain_spec(config.chain_spec());
+    seed_validator_registry(&mut db.write().unwrap(), &entries);
     let source = Arc::new(MockTxSource { txs });
     let app = EvmApplication::new(config, db.clone(), source);
     (app, db)
@@ -135,6 +152,10 @@ fn setup_app_with_unlock_config(
     EvmApplication<InMemoryStateDb>,
     Arc<RwLock<InMemoryStateDb>>,
 ) {
+    let local_proposer_public_key = simplex_validators
+        .first()
+        .expect("unlock tests need at least one validator")
+        .consensus_pubkey;
     let chain_spec = Arc::new(
         build_sahara_chain_spec_with_alloc_and_validators_and_community_pool_unlock_config(
             BTreeMap::new(),
@@ -142,11 +163,12 @@ fn setup_app_with_unlock_config(
             unlock_config,
         ),
     );
-    let config = WhirlpoolEvmConfig::new(chain_spec);
+    let config = WhirlpoolEvmConfig::new(chain_spec.clone())
+        .with_local_proposer_public_key(local_proposer_public_key);
     let db = Arc::new(RwLock::new(InMemoryStateDb::new()));
     seed_validator_registry(
         &mut db.write().unwrap(),
-        config.validator_registry_entries(),
+        &validator_entries_from_chain_spec(&chain_spec),
     );
     let source = Arc::new(MockTxSource { txs });
 

@@ -24,8 +24,11 @@ async fn verify_boundary_unlock_matches_propose_state() {
             unlock_config,
         ),
     );
-    let (app, db) =
-        setup_app_with_config(vec![], WhirlpoolEvmConfig::new(chain_spec.clone())).await;
+    let (app, db) = setup_app_with_config(
+        vec![],
+        WhirlpoolEvmConfig::new(chain_spec.clone()).with_local_proposer_public_key([0x01; 32]),
+    )
+    .await;
 
     {
         let mut db = db.write().unwrap();
@@ -50,7 +53,7 @@ async fn verify_boundary_unlock_matches_propose_state() {
     let proposer_state_root = state_root_value(&proposer_state);
     let verifier_db = Arc::new(RwLock::new(pre_state));
     let verifier_app = EvmApplication::new(
-        WhirlpoolEvmConfig::new(chain_spec),
+        WhirlpoolEvmConfig::new(chain_spec).with_local_proposer_public_key([0x01; 32]),
         verifier_db.clone(),
         Arc::new(MockTxSource { txs: vec![] }),
     );
@@ -151,7 +154,7 @@ async fn verify_accepts_boundary_block_with_user_only_transactions() {
         .expect("propose boundary block");
 
     let verifier = EvmApplication::new(
-        WhirlpoolEvmConfig::new(Arc::new(build_test_chain_spec())),
+        test_evm_config(Arc::new(build_test_chain_spec())),
         Arc::new(RwLock::new(pre_state)),
         Arc::new(MockTxSource { txs: vec![] }),
     );

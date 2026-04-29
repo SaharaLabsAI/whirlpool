@@ -15,9 +15,7 @@ fn latest_committed_full_dkg_scans_backwards_past_raw_eth_only_blocks() {
         }
     }
 
-    let chain_spec = Arc::new(build_test_chain_spec());
-    let config = WhirlpoolEvmConfig::new(chain_spec);
-    let players = config.validator_consensus_public_keys();
+    let players = default_validator_pubkeys();
     let full_dkg = FullDkgV1 {
         epoch: 1,
         output: validators_dkg::FullDkgOutputV1 {
@@ -51,20 +49,14 @@ fn latest_committed_full_dkg_scans_backwards_past_raw_eth_only_blocks() {
     assert_eq!(resolved, full_dkg);
 
     assert!(
-        !full_dkg_should_be_included(
-            &config.validator_consensus_public_keys(),
-            Some(&resolved),
-            &full_dkg
-        ),
+        !full_dkg_should_be_included(&default_validator_pubkeys(), Some(&resolved), &full_dkg),
         "unchanged baseline must not force redundant FullDkg inclusion"
     );
 }
 
 #[test]
 fn full_dkg_trigger_includes_when_only_dealers_change() {
-    let chain_spec = Arc::new(build_test_chain_spec());
-    let config = WhirlpoolEvmConfig::new(chain_spec);
-    let players = config.validator_consensus_public_keys();
+    let players = default_validator_pubkeys();
 
     let previous = FullDkgV1 {
         epoch: 3,
@@ -84,11 +76,7 @@ fn full_dkg_trigger_includes_when_only_dealers_change() {
     };
 
     assert!(
-        full_dkg_should_be_included(
-            &config.validator_consensus_public_keys(),
-            Some(&previous),
-            &candidate
-        ),
+        full_dkg_should_be_included(&default_validator_pubkeys(), Some(&previous), &candidate),
         "dealer-only changes must trigger FullDkg inclusion"
     );
 }
@@ -98,7 +86,7 @@ async fn verify_rejects_full_dkg_payload_mismatch_against_candidate() {
     let (tx, recovered) = sample_evm_tx();
     let chain_spec = Arc::new(build_test_chain_spec());
     let base_config = WhirlpoolEvmConfig::new(chain_spec.clone());
-    let players = base_config.validator_consensus_public_keys();
+    let players = default_validator_pubkeys();
     let candidate_output = validators_dkg::FullDkgOutputV1 {
         dealers: players.clone(),
         players: players.clone(),
@@ -176,7 +164,7 @@ async fn verify_rejects_full_dkg_when_candidate_is_not_configured() {
     let parent = app.genesis().await;
     let (mut block, _) = app.propose(&parent, 1).await.unwrap();
 
-    let players = config.validator_consensus_public_keys();
+    let players = default_validator_pubkeys();
     block.extra_data = encode_canonical_extra_data(&CanonicalExtraDataV1 {
         raw_eth: Some(block.proposer_public_key.to_vec()),
         full_dkg: Some(FullDkgV1 {

@@ -25,6 +25,7 @@ use validators_dkg::{DkgHistory, DkgMetadataError};
 
 mod accounting;
 mod propose;
+mod validators;
 mod verify;
 
 type ProposedCacheKey = (u64, [u8; 32]);

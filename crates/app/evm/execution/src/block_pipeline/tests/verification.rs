@@ -255,7 +255,10 @@ async fn verify_rejects_missing_fee_recipient_mapping_for_proposer() {
 
     let verifier_chain_spec = Arc::new(build_sahara_chain_spec_with_alloc_and_validators(
         BTreeMap::new(),
-        Vec::new(),
+        vec![ValidatorEntry {
+            consensus_pubkey: proposer_public_key,
+            ethereum_address: expected_fee_recipient,
+        }],
     ));
     let verifier_config = WhirlpoolEvmConfig::new(verifier_chain_spec);
     let verifier_app = EvmApplication::new(

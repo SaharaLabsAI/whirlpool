@@ -17,7 +17,8 @@ use validators_dkg::{
     decode_extra_data, encode_canonical_extra_data, CanonicalExtraDataV1, FullDkgOutputV1,
 };
 use validators_reader::{
-    encode_validator_registry_storage, ValidatorEntry, SIMPLEX_VALIDATORS_REGISTRY,
+    encode_validator_registry_storage, ordered_consensus_pubkeys, ValidatorEntry,
+    SIMPLEX_VALIDATORS_REGISTRY,
 };
 
 const TEST_PROPOSER_FEE_RECIPIENT: Address = Address::new([
@@ -36,6 +37,10 @@ fn test_validator_entries() -> Vec<ValidatorEntry> {
     }]
 }
 
+fn test_validator_pubkeys() -> Vec<[u8; 32]> {
+    ordered_consensus_pubkeys(&test_validator_entries())
+}
+
 fn seed_validator_registry(db: &mut InMemoryStateDb, entries: &[ValidatorEntry]) {
     for (slot, value) in encode_validator_registry_storage(entries) {
         db.insert_storage(
@@ -47,7 +52,9 @@ fn seed_validator_registry(db: &mut InMemoryStateDb, entries: &[ValidatorEntry])
 }
 
 fn dkg_config_with_output(output: FullDkgOutputV1) -> WhirlpoolEvmConfig {
-    WhirlpoolEvmConfig::new(Arc::new(build_test_chain_spec())).with_current_full_dkg_output(output)
+    WhirlpoolEvmConfig::new(Arc::new(build_test_chain_spec()))
+        .with_local_proposer_public_key([0x11; 32])
+        .with_current_full_dkg_output(output)
 }
 
 fn dkg_app_with_config(
@@ -57,10 +64,7 @@ fn dkg_app_with_config(
     Arc<RwLock<InMemoryStateDb>>,
 ) {
     let db = Arc::new(RwLock::new(InMemoryStateDb::new()));
-    seed_validator_registry(
-        &mut db.write().unwrap(),
-        config.validator_registry_entries(),
-    );
+    seed_validator_registry(&mut db.write().unwrap(), &test_validator_entries());
     let app = EvmApplication::new(config, db.clone(), Arc::new(NoopTxSource));
     (app, db)
 }
@@ -93,8 +97,7 @@ fn seed_epoch_boundary_state(db: &mut InMemoryStateDb, next_epoch_block: u64) {
 
 #[tokio::test]
 async fn non_boundary_dkg_candidate_is_included_and_verifies() {
-    let base_config = WhirlpoolEvmConfig::new(Arc::new(build_test_chain_spec()));
-    let players = base_config.validator_consensus_public_keys();
+    let players = test_validator_pubkeys();
     let output = FullDkgOutputV1 {
         dealers: vec![[0x44; 32]],
         players,
@@ -115,8 +118,7 @@ async fn non_boundary_dkg_candidate_is_included_and_verifies() {
 
 #[tokio::test]
 async fn non_boundary_unchanged_baseline_dkg_candidate_is_omitted_and_verifies() {
-    let base_config = WhirlpoolEvmConfig::new(Arc::new(build_test_chain_spec()));
-    let players = base_config.validator_consensus_public_keys();
+    let players = test_validator_pubkeys();
     let output = FullDkgOutputV1 {
         dealers: players.clone(),
         players,
@@ -137,8 +139,7 @@ async fn non_boundary_unchanged_baseline_dkg_candidate_is_omitted_and_verifies()
 
 #[tokio::test]
 async fn non_boundary_omit_uses_latest_committed_history_across_raw_only_intermediate_block() {
-    let base_config = WhirlpoolEvmConfig::new(Arc::new(build_test_chain_spec()));
-    let players = base_config.validator_consensus_public_keys();
+    let players = test_validator_pubkeys();
     let output = FullDkgOutputV1 {
         dealers: vec![[0x44; 32]],
         players,
@@ -184,8 +185,9 @@ async fn non_boundary_omit_uses_latest_committed_history_across_raw_only_interme
 
 #[tokio::test]
 async fn boundary_dkg_candidate_includes_full_dkg_and_reshare_and_verifies() {
-    let base_config = WhirlpoolEvmConfig::new(Arc::new(build_test_chain_spec()));
-    let players = base_config.validator_consensus_public_keys();
+    let base_config = WhirlpoolEvmConfig::new(Arc::new(build_test_chain_spec()))
+        .with_local_proposer_public_key([0x11; 32]);
+    let players = test_validator_pubkeys();
     let output = FullDkgOutputV1 {
         dealers: players.clone(),
         players: players.clone(),
@@ -223,8 +225,9 @@ async fn boundary_dkg_candidate_includes_full_dkg_and_reshare_and_verifies() {
 
 #[tokio::test]
 async fn disabled_feature_rejects_dkg_metadata() {
-    let base_config = WhirlpoolEvmConfig::new(Arc::new(build_test_chain_spec()));
-    let players = base_config.validator_consensus_public_keys();
+    let base_config = WhirlpoolEvmConfig::new(Arc::new(build_test_chain_spec()))
+        .with_local_proposer_public_key([0x11; 32]);
+    let players = test_validator_pubkeys();
     let output = FullDkgOutputV1 {
         dealers: vec![[0x44; 32]],
         players,
@@ -258,8 +261,9 @@ async fn disabled_feature_rejects_dkg_metadata() {
 
 #[tokio::test]
 async fn verify_rejects_mismatched_dkg_candidate_payload() {
-    let base_config = WhirlpoolEvmConfig::new(Arc::new(build_test_chain_spec()));
-    let players = base_config.validator_consensus_public_keys();
+    let base_config = WhirlpoolEvmConfig::new(Arc::new(build_test_chain_spec()))
+        .with_local_proposer_public_key([0x11; 32]);
+    let players = test_validator_pubkeys();
     let output = FullDkgOutputV1 {
         dealers: vec![[0x44; 32]],
         players,

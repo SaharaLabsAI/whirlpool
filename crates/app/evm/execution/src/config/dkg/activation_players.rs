@@ -8,16 +8,13 @@ impl WhirlpoolEvmConfig {
         self
     }
 
-    pub fn validator_activation_schedule(&self) -> ValidatorActivationSchedule {
+    pub(crate) fn validator_activation_schedule_for_default_players(
+        &self,
+        default_players: Vec<[u8; 32]>,
+    ) -> ValidatorActivationSchedule {
         ValidatorActivationSchedule::from_parts(
-            self.validator_consensus_public_keys(),
+            default_players,
             self.activation_players_by_epoch.clone(),
         )
-    }
-
-    pub fn activation_players_for_epoch(&self, epoch: u64) -> Option<Vec<[u8; 32]>> {
-        self.validator_activation_schedule()
-            .resolve_players_for_epoch(epoch)
-            .ok()
     }
 }

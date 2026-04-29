@@ -7,12 +7,12 @@ use app_traits::{traits::Application, InMemoryTxPool};
 async fn test_propose_with_in_memory_pool() {
     let (encoded_tx, alice_addr) = sample_evm_tx();
     let chain_spec = Arc::new(build_test_chain_spec());
-    let config = WhirlpoolEvmConfig::new(chain_spec);
+    let config = test_evm_config(chain_spec.clone());
     let state_db = Arc::new(RwLock::new(InMemoryStateDb::new()));
 
     {
         let mut db = state_db.write().unwrap();
-        seed_validator_registry(&mut db, config.validator_registry_entries());
+        seed_validator_registry(&mut db, &validator_entries_from_chain_spec(&chain_spec));
         let account_info = revm::state::AccountInfo {
             balance: U256::from(1_000_000_000_000_000_000u64),
             nonce: 0,

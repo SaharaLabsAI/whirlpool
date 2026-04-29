@@ -47,7 +47,13 @@ fn build_adapter() -> ApplicationAdapter<EvmApplication<InMemoryStateDb>> {
     let entries = test_validator_entries();
     let state_db = Arc::new(RwLock::new(InMemoryStateDb::new()));
     seed_validator_registry(&mut state_db.write().unwrap(), &entries);
-    let evm_config = WhirlpoolEvmConfig::new(Arc::new(build_test_chain_spec()));
+    let evm_config = WhirlpoolEvmConfig::new(Arc::new(build_test_chain_spec()))
+        .with_local_proposer_public_key(
+            entries
+                .first()
+                .expect("test registry has a proposer")
+                .consensus_pubkey,
+        );
     let tx_source = Arc::new(NoopTxSource);
     let evm_app = EvmApplication::new(evm_config, state_db, tx_source);
     assert_application_impl(&evm_app);

@@ -23,6 +23,7 @@ use validators_dkg::{
 
 use crate::block_pipeline::accounting::{aggregate_priority_fees, gas_deltas_and_used};
 use crate::block_pipeline::build_sealed_header;
+use crate::block_pipeline::validators::load_active_validator_dkg_inputs;
 use crate::block_pipeline::{
     classify_tx_execution_error, expected_next_block_base_fee, map_epoch_boundary_runtime_error,
     map_post_block_accounting_runtime_error, map_validators_runtime_error,
@@ -162,8 +163,7 @@ where
                 map_epoch_boundary_runtime_error(err, BoundaryCallFailureMode::Verify)
             })?;
         }
-        let active_validators = evm_precompiles::load_active_validator_registry(&exec_state)
-            .map_err(map_validators_runtime_error)?;
+        let dkg_inputs = load_active_validator_dkg_inputs(&exec_state, &self.evm_config)?;
         let current_epoch = apply_post_block_accounting(
             &mut exec_state,
             &PostBlockAccountingInputs {
@@ -172,7 +172,7 @@ where
                 base_fee_per_gas: expected_base_fee_per_gas,
                 priority_fees,
                 claim_recipient,
-                simplex_validators: active_validators,
+                simplex_validators: dkg_inputs.entries.clone(),
             },
         )
         .map_err(map_post_block_accounting_runtime_error)?
@@ -216,8 +216,8 @@ where
             &decoded_extra_data,
             DkgVerifyInput {
                 feature_enabled: self.evm_config.full_dkg_feature_enabled(),
-                activation_schedule: &self.evm_config.validator_activation_schedule(),
-                default_players: &self.evm_config.validator_consensus_public_keys(),
+                activation_schedule: &dkg_inputs.activation_schedule,
+                default_players: &dkg_inputs.default_players,
                 previous_full_dkg: latest_committed_full_dkg.as_ref(),
                 candidate_output: self.evm_config.current_full_dkg_output(),
                 boundary_required,

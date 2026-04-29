@@ -7,10 +7,11 @@ use app_traits::traits::Application;
 
 fn build_noop_app() -> EvmApplication<InMemoryStateDb> {
     let state_db = Arc::new(RwLock::new(InMemoryStateDb::new()));
-    let evm_config = WhirlpoolEvmConfig::new(Arc::new(build_test_chain_spec()));
+    let chain_spec = Arc::new(build_test_chain_spec());
+    let evm_config = test_evm_config(chain_spec.clone());
     seed_validator_registry(
         &mut state_db.write().unwrap(),
-        evm_config.validator_registry_entries(),
+        &validator_entries_from_chain_spec(&chain_spec),
     );
     let tx_source = Arc::new(app_traits::NoopTxSource);
     EvmApplication::new(evm_config, state_db, tx_source)
@@ -79,7 +80,7 @@ async fn test_full_propose_verify_cycle() {
     let validator_db = Arc::new(RwLock::new(pre_state_snapshot));
     let empty_source = Arc::new(MockTxSource { txs: vec![] });
     let validator_app = EvmApplication::new(
-        WhirlpoolEvmConfig::new(Arc::new(build_test_chain_spec())),
+        test_evm_config(Arc::new(build_test_chain_spec())),
         validator_db,
         empty_source,
     );
