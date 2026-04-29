@@ -21,10 +21,10 @@ use validators_dkg::{
     latest_committed_full_dkg, validate_dkg_extra_data, DkgHistory, DkgVerifyInput,
 };
 
+use crate::block_pipeline::accounting::{
+    aggregate_priority_fees, gas_deltas_and_used, validate_or_recover_fee_recipient,
+};
 use crate::block_pipeline::build_sealed_header;
-use crate::block_pipeline::fee_accounting::aggregate_priority_fees;
-use crate::block_pipeline::fee_recipient::validate_or_recover_fee_recipient;
-use crate::block_pipeline::receipt_accounting::gas_deltas_and_used;
 use crate::block_pipeline::{
     classify_tx_execution_error, expected_next_block_base_fee, map_epoch_boundary_runtime_error,
     map_post_block_accounting_runtime_error, tx_is_reserved_epoch_namespace,
