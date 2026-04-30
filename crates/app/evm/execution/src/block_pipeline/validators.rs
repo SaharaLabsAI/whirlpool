@@ -9,13 +9,13 @@ use crate::error::EvmAppError;
 use crate::traits::StateDb;
 
 #[derive(Debug)]
-pub(super) struct ActiveValidatorDkgInputs {
+pub struct ActiveValidatorDkgInputs {
     pub entries: Vec<ValidatorEntry>,
     pub default_players: Vec<[u8; 32]>,
     pub activation_schedule: ValidatorActivationSchedule,
 }
 
-pub(super) fn load_active_validator_dkg_inputs<DB>(
+pub fn load_active_validator_dkg_inputs<DB>(
     db: &DB,
     evm_config: &WhirlpoolEvmConfig,
 ) -> Result<ActiveValidatorDkgInputs, EvmAppError>

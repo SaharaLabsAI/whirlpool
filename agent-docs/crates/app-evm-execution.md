@@ -28,6 +28,7 @@ Those live in `chainspec`.
 - Post-block accounting loads validator ordering from the post-execution/pre-accounting runtime registry snapshot, so fee/unlock distribution follows the same validator state being finalized.
 - DKG default-player inputs also load from the post-execution/pre-accounting runtime registry snapshot. The app rejects empty active registries before DKG metadata construction and does not fall back to chain-spec/config validator snapshots.
 - `WhirlpoolEvmConfig` no longer carries ordered genesis validator-registry entries. It carries static execution knobs plus explicit node-local proposer key configuration; tests and callers that exercise proposer paths must set `with_local_proposer_public_key(...)`.
+- `WhirlpoolEvmConfig` derives activation schedules only from caller-supplied default players plus explicit epoch overrides; default players are supplied from state-backed validator entries, not config-owned registry snapshots.
 - `WhirlpoolEvmConfig` carries FullDkg envelope knobs:
   - `full_dkg_feature_enabled`
   - optional `current_full_dkg_output` (`dealers`, `players`, `public_polynomial`)

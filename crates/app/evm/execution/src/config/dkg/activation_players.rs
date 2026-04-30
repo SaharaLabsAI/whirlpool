@@ -8,7 +8,7 @@ impl WhirlpoolEvmConfig {
         self
     }
 
-    pub(crate) fn validator_activation_schedule_for_default_players(
+    pub fn validator_activation_schedule_for_default_players(
         &self,
         default_players: Vec<[u8; 32]>,
     ) -> ValidatorActivationSchedule {

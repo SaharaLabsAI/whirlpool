@@ -21,10 +21,6 @@ pub struct ReceiptStore {
 }
 
 impl ReceiptStore {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     pub fn stage_for_block(&self, block: &EvmBlock, receipts: Vec<Receipt>) {
         {
             let mut guard = self.pending_receipts.lock().unwrap();

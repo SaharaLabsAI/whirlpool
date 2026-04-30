@@ -78,7 +78,7 @@ where
             evm_config,
             state_db,
             tx_source,
-            receipt_store: ReceiptStore::new(),
+            receipt_store: ReceiptStore::default(),
             last_proposed: Arc::new(Mutex::new(None)),
         }
     }
