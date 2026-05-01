@@ -163,7 +163,8 @@ where
                 map_epoch_boundary_runtime_error(err, BoundaryCallFailureMode::Verify)
             })?;
         }
-        let dkg_inputs = load_active_validator_dkg_inputs(&exec_state, &self.evm_config)?;
+        let dkg_inputs =
+            load_active_validator_dkg_inputs(&exec_state, self.evm_config.dkg_transition())?;
         let current_epoch = apply_post_block_accounting(
             &mut exec_state,
             &PostBlockAccountingInputs {
@@ -215,11 +216,15 @@ where
         validate_dkg_extra_data(
             &decoded_extra_data,
             DkgVerifyInput {
-                feature_enabled: self.evm_config.full_dkg_feature_enabled(),
+                feature_enabled: self.evm_config.dkg_transition().feature_gate().enabled(),
                 activation_schedule: &dkg_inputs.activation_schedule,
                 default_players: &dkg_inputs.default_players,
                 previous_full_dkg: latest_committed_full_dkg.as_ref(),
-                candidate_output: self.evm_config.current_full_dkg_output(),
+                candidate_output: self
+                    .evm_config
+                    .dkg_transition()
+                    .current_candidate()
+                    .output(),
                 boundary_required,
                 post_advance_epoch: current_epoch,
             },

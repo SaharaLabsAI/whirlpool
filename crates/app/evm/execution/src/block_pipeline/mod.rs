@@ -231,7 +231,7 @@ where
                     .expect("genesis state root should not fail")
             };
             let genesis_extra_data =
-                build_raw_eth_envelope(self.evm_config.local_proposer_public_key())
+                build_raw_eth_envelope(self.evm_config.proposer_context().local_public_key())
                     .expect("genesis raw_eth extra_data envelope should encode");
 
             EvmBlock {
@@ -240,12 +240,12 @@ where
                 state_root: state_root.0,
                 transactions_root: EMPTY_ROOT_HASH.0,
                 receipts_root: EMPTY_ROOT_HASH.0,
-                proposer_public_key: self.evm_config.local_proposer_public_key(),
+                proposer_public_key: self.evm_config.proposer_context().local_public_key(),
                 proposer_fee_recipient: {
                     let db = self.state_db.read().unwrap();
                     evm_precompiles::resolve_active_validator_fee_recipient(
                         &*db,
-                        self.evm_config.local_proposer_public_key(),
+                        self.evm_config.proposer_context().local_public_key(),
                     )
                     .expect("genesis proposer fee recipient must resolve from runtime validator registry")
                     .into_array()

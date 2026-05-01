@@ -88,3 +88,74 @@ fn activation_players_can_be_epoch_overridden() {
     );
     assert!(schedule.resolve_players_for_epoch(8).is_err());
 }
+
+#[test]
+fn proposer_context_delegate_preserves_local_key() {
+    let local_key = [0x42; 32];
+    let config = WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec()))
+        .with_local_proposer_public_key(local_key);
+
+    assert_eq!(config.local_proposer_public_key(), local_key);
+    assert_eq!(config.proposer_context().local_public_key(), local_key);
+}
+
+#[test]
+fn full_dkg_feature_gate_delegate_preserves_default_and_override() {
+    let default_config = WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec()));
+    assert!(default_config.full_dkg_feature_enabled());
+    assert!(default_config.dkg_transition().feature_gate().enabled());
+
+    let disabled = default_config.with_full_dkg_feature_enabled(false);
+    assert!(!disabled.full_dkg_feature_enabled());
+    assert!(!disabled.dkg_transition().feature_gate().enabled());
+}
+
+#[test]
+fn current_full_dkg_candidate_delegate_preserves_candidate_input() {
+    let candidate = validators_dkg::FullDkgOutputV1 {
+        dealers: vec![[0x11; 32]],
+        players: vec![[0x22; 32], [0x23; 32]],
+        public_polynomial: vec![0xaa, 0xbb],
+    };
+    let config = WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec()))
+        .with_current_full_dkg_output(candidate.clone());
+
+    assert_eq!(config.current_full_dkg_output(), Some(&candidate));
+    assert_eq!(
+        config.dkg_transition().current_candidate().output(),
+        Some(&candidate)
+    );
+}
+
+#[test]
+fn dkg_activation_overrides_delegate_keeps_state_backed_defaults_as_input() {
+    let default_players = vec![[0x11; 32], [0x22; 32]];
+    let override_players = vec![[0x33; 32], [0x44; 32]];
+
+    let default_schedule = WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec()))
+        .dkg_transition()
+        .activation_schedule_for_default_players(default_players.clone());
+    assert_eq!(
+        default_schedule.resolve_players_for_epoch(1).ok(),
+        Some(default_players.clone())
+    );
+
+    let config = WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec()))
+        .with_activation_players_for_epoch(9, override_players.clone());
+    let schedule_from_facade =
+        config.validator_activation_schedule_for_default_players(default_players.clone());
+    let schedule_from_owner = config
+        .dkg_transition()
+        .activation_schedule_for_default_players(default_players);
+
+    assert_eq!(
+        schedule_from_facade.resolve_players_for_epoch(9).ok(),
+        Some(override_players.clone())
+    );
+    assert_eq!(
+        schedule_from_owner.resolve_players_for_epoch(9).ok(),
+        Some(override_players)
+    );
+    assert!(schedule_from_facade.resolve_players_for_epoch(10).is_err());
+    assert!(schedule_from_owner.resolve_players_for_epoch(10).is_err());
+}

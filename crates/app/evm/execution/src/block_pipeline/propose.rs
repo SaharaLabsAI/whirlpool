@@ -61,7 +61,7 @@ where
             evm_precompiles::boundary_required_for_height(boundary_state, block_height);
         let claim_recipient = evm_precompiles::resolve_active_validator_fee_recipient(
             &state_snapshot,
-            self.evm_config.local_proposer_public_key(),
+            self.evm_config.proposer_context().local_public_key(),
         )
         .map_err(map_validators_runtime_error)?;
         let decoded_txs = crate::codec::decode_evm_transactions(raw_txs)?;
@@ -151,7 +151,8 @@ where
         // transactions cannot update the native validator-registry precompile
         // storage, so the pre-execution snapshot is the active registry view for
         // this proposal; boundary writes are handled separately below for epoch.
-        let dkg_inputs = load_active_validator_dkg_inputs(&state_snapshot, &self.evm_config)?;
+        let dkg_inputs =
+            load_active_validator_dkg_inputs(&state_snapshot, self.evm_config.dkg_transition())?;
         let post_advance_epoch = post_advance_epoch(&state_snapshot, boundary_effect.as_ref())?;
 
         let latest_committed_full_dkg = {
@@ -160,12 +161,16 @@ where
                 .map_err(crate::block_pipeline::map_dkg_metadata_error)?
         };
         let extra_data = build_canonical_dkg_extra_data(DkgProposalInput {
-            feature_enabled: self.evm_config.full_dkg_feature_enabled(),
+            feature_enabled: self.evm_config.dkg_transition().feature_gate().enabled(),
             activation_schedule: &dkg_inputs.activation_schedule,
             default_players: &dkg_inputs.default_players,
             previous_full_dkg: latest_committed_full_dkg.as_ref(),
-            candidate_output: self.evm_config.current_full_dkg_output(),
-            proposer_public_key: self.evm_config.local_proposer_public_key(),
+            candidate_output: self
+                .evm_config
+                .dkg_transition()
+                .current_candidate()
+                .output(),
+            proposer_public_key: self.evm_config.proposer_context().local_public_key(),
             boundary_required,
             post_advance_epoch,
         })
@@ -211,7 +216,7 @@ where
                 receipt_count: execution_result.receipts.len(),
             },
             base_fee_per_gas,
-            proposer_public_key: self.evm_config.local_proposer_public_key(),
+            proposer_public_key: self.evm_config.proposer_context().local_public_key(),
             proposer_fee_recipient: claim_recipient,
             extra_data,
             receipts,

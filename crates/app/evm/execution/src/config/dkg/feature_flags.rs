@@ -1,12 +1,21 @@
-use crate::config::WhirlpoolEvmConfig;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FullDkgFeatureGate {
+    enabled: bool,
+}
 
-impl WhirlpoolEvmConfig {
-    pub fn with_full_dkg_feature_enabled(mut self, enabled: bool) -> Self {
-        self.full_dkg_feature_enabled = enabled;
+impl Default for FullDkgFeatureGate {
+    fn default() -> Self {
+        Self { enabled: true }
+    }
+}
+
+impl FullDkgFeatureGate {
+    pub fn with_enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
         self
     }
 
-    pub fn full_dkg_feature_enabled(&self) -> bool {
-        self.full_dkg_feature_enabled
+    pub fn enabled(&self) -> bool {
+        self.enabled
     }
 }
