@@ -3,13 +3,14 @@ use alloy_primitives::U256;
 
 use crate::codec::RecoveredTx;
 use crate::error::EvmAppError;
+use crate::invariants::block_pipeline::accounting::tx_and_gas_delta_counts_match;
 
 pub fn aggregate_priority_fees(
     txs: &[RecoveredTx],
     gas_deltas: &[u64],
     base_fee_per_gas: u64,
 ) -> Result<U256, EvmAppError> {
-    if txs.len() != gas_deltas.len() {
+    if !tx_and_gas_delta_counts_match(txs.len(), gas_deltas.len()) {
         return Err(EvmAppError::Execution(format!(
             "priority-fee aggregation requires matching tx/receipt counts, got txs={}, gas_deltas={}",
             txs.len(),

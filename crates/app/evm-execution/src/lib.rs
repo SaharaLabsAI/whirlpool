@@ -4,6 +4,7 @@ pub mod config;
 pub mod context;
 pub mod error;
 pub mod ingress;
+mod invariants;
 pub mod post_handle;
 pub mod traits;
 

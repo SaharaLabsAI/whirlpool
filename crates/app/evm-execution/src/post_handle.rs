@@ -5,6 +5,9 @@ use app_primitives::{EvmBlock, Receipt};
 use state::BlockStorage;
 
 use crate::error::EvmAppError;
+use crate::invariants::post_handle::{
+    can_store_without_staged_receipts, staged_receipts_match_block_identity,
+};
 
 #[derive(Clone, Debug)]
 struct StagedReceipts {
@@ -48,7 +51,7 @@ impl ReceiptStore {
             guard.get(&block_id).cloned()
         };
         let Some(staged) = staged else {
-            if block.transactions.is_empty() {
+            if can_store_without_staged_receipts(block.transactions.len()) {
                 storage
                     .store_block(block, &[])
                     .map_err(|e| EvmAppError::State(e.to_string()))?;
@@ -60,7 +63,14 @@ impl ReceiptStore {
             )));
         };
 
-        if staged.height != block.height || staged.parent_id != block.parent_id {
+        if !staged_receipts_match_block_identity(
+            staged.height,
+            staged.parent_id,
+            staged.block_id,
+            block.height,
+            block.parent_id,
+            block_id,
+        ) {
             return Err(EvmAppError::InvalidBlock(format!(
                 "staged receipts do not match finalized block identity: staged(height={}, parent={:?}, id={:?}), block(height={}, parent={:?}, id={:?})",
                 staged.height, staged.parent_id, staged.block_id, block.height, block.parent_id, block_id
@@ -74,10 +84,14 @@ impl ReceiptStore {
         {
             let mut guard = self.staged_receipts.lock().unwrap();
             if let Some(current) = guard.get(&block_id) {
-                if current.height == block.height
-                    && current.parent_id == block.parent_id
-                    && current.block_id == block_id
-                {
+                if staged_receipts_match_block_identity(
+                    current.height,
+                    current.parent_id,
+                    current.block_id,
+                    block.height,
+                    block.parent_id,
+                    block_id,
+                ) {
                     guard.remove(&block_id);
                 }
             }
