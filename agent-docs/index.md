@@ -39,7 +39,7 @@ Structured reference docs optimized for fast LLM lookup. Each contains type sign
 | [crates/chainspec.md](crates/chainspec.md) | Sahara chain-spec ownership crate (builders, chain-id, validator-registry reader seam) | `chainspec` |
 | [crates/evm-precompiles.md](crates/evm-precompiles.md) | Workspace-owned registry/factory crate for Whirlpool custom EVM precompiles, including canonical community-pool address + read-only balance ABI | `evm-precompiles` |
 | [crates/validators-reader.md](crates/validators-reader.md) | Canonical validator registry reader types/codecs | `validators-reader` |
-| [crates/validators-dkg.md](crates/validators-dkg.md) | Canonical DKG metadata/schema, activation targets/schedules, extra-data codec, proposal/verify helpers | `validators-dkg` |
+| [crates/validators-dkg.md](crates/validators-dkg.md) | Canonical DKG payload/schema semantics, activation targets/schedules, proposal/verify decision helpers | `validators-dkg` |
 | [crates/validators.md](crates/validators.md) | Removed compatibility facade; points to `validators-reader` and `validators-dkg` replacements | `validators` (removed) |
 | [crates/consensus-manager.md](crates/consensus-manager.md) | Trusted-dealer bootstrap artifact manager for BLS threshold startup material | `consensus-manager` |
 | [crates/rpc-eth.md](crates/rpc-eth.md) | Ethereum JSON-RPC server: reth-backed adapters (WhirlpoolProvider, WhirlpoolTxPool, WhirlpoolNetwork), RpcConfig API, blob exclusion | `rpc-eth` |

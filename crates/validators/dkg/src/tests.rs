@@ -1,218 +1,62 @@
+use std::collections::BTreeMap;
+
 use super::{
-    build_canonical_dkg_extra_data, decode_extra_data, encode_canonical_extra_data,
-    project_raw_eth_extra_data, CanonicalExtraDataV1, DkgProposalInput, ExtraDataError,
-    FullDkgOutputV1, FullDkgV1, ReshareV1, ValidatorActivationSchedule,
+    decide_dkg_header_sections, decode_full_dkg_v1, encode_full_dkg_v1,
+    validate_dkg_header_sections, DkgHeaderDecision, DkgHeaderSectionsRef, DkgMetadataError,
+    DkgProposalInput, DkgVerifyInput, FullDkgOutputV1, FullDkgV1, ReshareV1,
+    ValidatorActivationSchedule,
 };
 
+fn sample_output(players: Vec<[u8; 32]>) -> FullDkgOutputV1 {
+    FullDkgOutputV1 {
+        dealers: vec![[0x22; 32]],
+        players,
+        public_polynomial: vec![0xaa, 0xbb],
+    }
+}
+
+fn schedule_with_overrides(
+    default_players: Vec<[u8; 32]>,
+    overrides: impl IntoIterator<Item = (u64, Vec<[u8; 32]>)>,
+) -> ValidatorActivationSchedule {
+    ValidatorActivationSchedule::from_parts(default_players, BTreeMap::from_iter(overrides))
+}
+
 #[test]
-fn test_canonical_extra_data_roundtrip_with_raw_eth_and_full_dkg() {
-    let original = CanonicalExtraDataV1 {
-        raw_eth: Some(vec![0x11; 32]),
-        full_dkg: Some(FullDkgV1 {
-            epoch: 7,
-            output: FullDkgOutputV1 {
-                dealers: vec![[0x22; 32], [0x23; 32]],
-                players: vec![[0x31; 32], [0x32; 32]],
-                public_polynomial: vec![0xaa, 0xbb, 0xcc],
-            },
-        }),
-        reshare: Some(ReshareV1 {
-            target_epoch: 9,
-            players: vec![[0x41; 32], [0x42; 32]],
-        }),
+fn full_dkg_payload_codec_roundtrips() {
+    let original = FullDkgV1 {
+        epoch: 7,
+        output: FullDkgOutputV1 {
+            dealers: vec![[0x22; 32], [0x23; 32]],
+            players: vec![[0x31; 32], [0x32; 32]],
+            public_polynomial: vec![0xaa, 0xbb, 0xcc],
+        },
     };
 
-    let encoded = encode_canonical_extra_data(&original).expect("encode");
-    let decoded = decode_extra_data(&encoded).expect("decode");
+    let encoded = encode_full_dkg_v1(&original).expect("encode payload");
+    let decoded = decode_full_dkg_v1(&encoded).expect("decode payload");
+
     assert_eq!(decoded, original);
-
-    let projected = project_raw_eth_extra_data(&encoded);
-    assert_eq!(projected, vec![0x11; 32]);
 }
 
 #[test]
-fn raw_32_byte_extra_data_is_rejected() {
-    let legacy = vec![0x11; 32];
-    assert!(decode_extra_data(&legacy).is_err());
-}
-
-#[test]
-fn canonical_raw_eth_only_extra_data_roundtrips_and_projects() {
-    let raw_eth = vec![0x42; 32];
-    let canonical = CanonicalExtraDataV1 {
-        raw_eth: Some(raw_eth.clone()),
-        full_dkg: None,
-        reshare: None,
-    };
-
-    let encoded = encode_canonical_extra_data(&canonical).expect("encode raw_eth-only envelope");
-    assert_ne!(
-        encoded, raw_eth,
-        "canonical carrier must not be the legacy raw proposer bytes"
-    );
-    assert_eq!(decode_extra_data(&encoded).expect("decode"), canonical);
-    assert_eq!(project_raw_eth_extra_data(&encoded), raw_eth);
-}
-
-#[test]
-fn raw_32_byte_extra_data_projects_to_empty_instead_of_valid_raw_eth() {
-    let legacy = vec![0x55; 32];
-    assert_eq!(
-        project_raw_eth_extra_data(&legacy),
-        Vec::<u8>::new(),
-        "projection must not treat legacy raw bytes as canonical input"
-    );
-}
-
-#[test]
-fn build_canonical_dkg_extra_data_feature_disabled_returns_raw_eth_only_envelope() {
+fn feature_disabled_returns_empty_dkg_decision() {
     let default_players = vec![[0x11; 32]];
     let activation_schedule = ValidatorActivationSchedule::new(default_players.clone());
-    let candidate_output = FullDkgOutputV1 {
-        dealers: vec![[0x22; 32]],
-        players: default_players.clone(),
-        public_polynomial: vec![0xaa, 0xbb],
-    };
-    let proposer_public_key = [0x77; 32];
+    let candidate_output = sample_output(default_players.clone());
 
-    let encoded = build_canonical_dkg_extra_data(DkgProposalInput {
+    let decision = decide_dkg_header_sections(DkgProposalInput {
         feature_enabled: false,
         activation_schedule: &activation_schedule,
         default_players: &default_players,
         previous_full_dkg: None,
         candidate_output: Some(&candidate_output),
-        proposer_public_key,
         boundary_required: false,
         post_advance_epoch: 9,
     })
-    .expect("disabled feature should still build canonical RawEth envelope");
-    let decoded = decode_extra_data(&encoded).expect("decode raw_eth-only envelope");
+    .expect("disabled feature should omit DKG sections");
 
-    assert_eq!(decoded.raw_eth, Some(proposer_public_key.to_vec()));
-    assert_eq!(decoded.full_dkg, None);
-    assert_eq!(decoded.reshare, None);
-}
-
-#[test]
-fn test_unknown_section_rejected() {
-    let mut encoded = vec![];
-    encoded.extend_from_slice(b"WDX1");
-    encoded.push(1); // version
-    encoded.push(1); // section count
-    encoded.push(9); // unknown section id
-    encoded.extend_from_slice(&1u32.to_le_bytes());
-    encoded.push(0xaa);
-
-    assert!(decode_extra_data(&encoded).is_err());
-}
-
-#[test]
-fn test_section_order_rejected_when_raw_eth_after_full_dkg() {
-    let canonical = encode_canonical_extra_data(&CanonicalExtraDataV1 {
-        raw_eth: Some(vec![0x11; 32]),
-        full_dkg: Some(FullDkgV1 {
-            epoch: 2,
-            output: FullDkgOutputV1 {
-                dealers: vec![[0x21; 32]],
-                players: vec![[0x31; 32]],
-                public_polynomial: vec![0xaa, 0xbb],
-            },
-        }),
-        reshare: None,
-    })
-    .expect("canonical envelope should encode");
-
-    let mut cursor = &canonical[6..];
-    let section1_id = cursor[0];
-    let section1_len = u32::from_le_bytes(cursor[1..5].try_into().expect("len bytes")) as usize;
-    let section1_payload = cursor[5..5 + section1_len].to_vec();
-    cursor = &cursor[5 + section1_len..];
-
-    let section2_id = cursor[0];
-    let section2_len = u32::from_le_bytes(cursor[1..5].try_into().expect("len bytes")) as usize;
-    let section2_payload = cursor[5..5 + section2_len].to_vec();
-    assert_eq!(section1_id, 1, "first canonical section should be raw_eth");
-    assert_eq!(
-        section2_id, 2,
-        "second canonical section should be full_dkg"
-    );
-
-    let mut reordered = Vec::new();
-    reordered.extend_from_slice(b"WDX1");
-    reordered.push(1);
-    reordered.push(2);
-
-    reordered.push(section2_id);
-    reordered.extend_from_slice(&(section2_payload.len() as u32).to_le_bytes());
-    reordered.extend_from_slice(&section2_payload);
-
-    reordered.push(section1_id);
-    reordered.extend_from_slice(&(section1_payload.len() as u32).to_le_bytes());
-    reordered.extend_from_slice(&section1_payload);
-
-    let err = decode_extra_data(&reordered).expect_err("raw_eth after full_dkg must be rejected");
-    assert!(matches!(
-        err,
-        ExtraDataError::InvalidSectionOrder { section } if section == 1
-    ));
-}
-
-#[test]
-fn test_section_order_rejected_when_reshare_before_full_dkg() {
-    let canonical = encode_canonical_extra_data(&CanonicalExtraDataV1 {
-        raw_eth: Some(vec![0x11; 32]),
-        full_dkg: Some(FullDkgV1 {
-            epoch: 2,
-            output: FullDkgOutputV1 {
-                dealers: vec![[0x21; 32]],
-                players: vec![[0x31; 32]],
-                public_polynomial: vec![0xaa, 0xbb],
-            },
-        }),
-        reshare: Some(ReshareV1 {
-            target_epoch: 3,
-            players: vec![[0x41; 32]],
-        }),
-    })
-    .expect("canonical envelope should encode");
-
-    let mut cursor = &canonical[6..];
-    let raw_id = cursor[0];
-    let raw_len = u32::from_le_bytes(cursor[1..5].try_into().expect("len bytes")) as usize;
-    let raw_payload = cursor[5..5 + raw_len].to_vec();
-    cursor = &cursor[5 + raw_len..];
-
-    let full_dkg_id = cursor[0];
-    let full_dkg_len = u32::from_le_bytes(cursor[1..5].try_into().expect("len bytes")) as usize;
-    let full_dkg_payload = cursor[5..5 + full_dkg_len].to_vec();
-    cursor = &cursor[5 + full_dkg_len..];
-
-    let reshare_id = cursor[0];
-    let reshare_len = u32::from_le_bytes(cursor[1..5].try_into().expect("len bytes")) as usize;
-    let reshare_payload = cursor[5..5 + reshare_len].to_vec();
-
-    let mut reordered = Vec::new();
-    reordered.extend_from_slice(b"WDX1");
-    reordered.push(1);
-    reordered.push(3);
-
-    reordered.push(raw_id);
-    reordered.extend_from_slice(&(raw_payload.len() as u32).to_le_bytes());
-    reordered.extend_from_slice(&raw_payload);
-
-    reordered.push(reshare_id);
-    reordered.extend_from_slice(&(reshare_payload.len() as u32).to_le_bytes());
-    reordered.extend_from_slice(&reshare_payload);
-
-    reordered.push(full_dkg_id);
-    reordered.extend_from_slice(&(full_dkg_payload.len() as u32).to_le_bytes());
-    reordered.extend_from_slice(&full_dkg_payload);
-
-    let err = decode_extra_data(&reordered).expect_err("reshare before full_dkg must be rejected");
-    assert!(matches!(
-        err,
-        ExtraDataError::InvalidSectionOrder { section } if section == 3
-    ));
+    assert_eq!(decision, DkgHeaderDecision::default());
 }
 
 #[test]
@@ -239,142 +83,190 @@ fn activation_targets_fail_closed_on_overflow() {
 #[test]
 fn override_schedule_is_strict_and_boundary_activation_resolves_targets() {
     let targets = super::EpochActivationTargets::from_post_advance_epoch(7).expect("targets");
-    let schedule = super::ValidatorActivationSchedule::new(vec![[0x11; 32]])
-        .with_epoch_players(targets.full_dkg_epoch, vec![[0x81; 32]])
-        .with_epoch_players(targets.reshare_target_epoch, vec![[0x91; 32]]);
+    let schedule = schedule_with_overrides(
+        vec![[0x11; 32]],
+        [
+            (targets.full_dkg_epoch, vec![[0x81; 32]]),
+            (targets.reshare_target_epoch, vec![[0x91; 32]]),
+        ],
+    );
 
     assert_eq!(
         schedule.resolve_players_for_epoch(42),
         Err(super::ValidatorActivationError::MissingPlayers { epoch: 42 })
     );
-    let activation = schedule
-        .resolve_boundary_activation(targets)
-        .expect("boundary activation");
-
-    assert_eq!(activation.targets, targets);
-    assert_eq!(activation.full_dkg_players, vec![[0x81; 32]]);
-    assert_eq!(activation.reshare_players, vec![[0x91; 32]]);
-}
-
-#[derive(Default)]
-struct TestHistory {
-    blocks: std::collections::BTreeMap<u64, Vec<u8>>,
-}
-
-impl super::DkgHistory for TestHistory {
-    type Error = String;
-
-    fn full_dkg_at_height(&self, height: u64) -> Result<Option<Vec<u8>>, Self::Error> {
-        Ok(self.blocks.get(&height).cloned())
-    }
+    assert_eq!(
+        schedule.resolve_players_for_epoch(targets.full_dkg_epoch),
+        Ok(vec![[0x81; 32]])
+    );
+    assert_eq!(
+        schedule.resolve_players_for_epoch(targets.reshare_target_epoch),
+        Ok(vec![[0x91; 32]])
+    );
 }
 
 #[test]
-fn latest_committed_full_dkg_fails_closed_on_malformed_historical_bytes() {
-    let mut history = TestHistory::default();
-    history.blocks.insert(2, vec![0x01, 0x02, 0x03]);
+fn decision_includes_boundary_full_dkg_and_reshare() {
+    let targets = super::EpochActivationTargets::from_post_advance_epoch(7).expect("targets");
+    let default_players = vec![[0x11; 32]];
+    let full_players = vec![[0x81; 32]];
+    let reshare_players = vec![[0x91; 32]];
+    let activation_schedule = schedule_with_overrides(
+        default_players.clone(),
+        [
+            (targets.full_dkg_epoch, full_players.clone()),
+            (targets.reshare_target_epoch, reshare_players.clone()),
+        ],
+    );
+    let candidate_output = sample_output(full_players.clone());
 
-    let err = super::latest_committed_full_dkg(&history, 2)
-        .expect_err("malformed historical bytes must fail closed");
+    let decision = decide_dkg_header_sections(DkgProposalInput {
+        feature_enabled: true,
+        activation_schedule: &activation_schedule,
+        default_players: &default_players,
+        previous_full_dkg: None,
+        candidate_output: Some(&candidate_output),
+        boundary_required: true,
+        post_advance_epoch: targets.boundary_epoch_e,
+    })
+    .expect("boundary decision");
 
-    assert!(matches!(
-        err,
-        super::DkgMetadataError::HistoricalExtraDataDecode { height: 2, .. }
-    ));
+    assert_eq!(
+        decision.full_dkg,
+        Some(FullDkgV1 {
+            epoch: targets.full_dkg_epoch,
+            output: candidate_output,
+        })
+    );
+    assert_eq!(
+        decision.reshare,
+        Some(ReshareV1 {
+            target_epoch: targets.reshare_target_epoch,
+            players: reshare_players,
+        })
+    );
 }
 
 #[test]
-fn latest_committed_full_dkg_fails_closed_on_raw_32_byte_historical_carrier() {
-    let mut history = TestHistory::default();
-    history.blocks.insert(2, vec![0x55; 32]);
+fn decision_omits_unchanged_non_boundary_candidate() {
+    let default_players = vec![[0x11; 32]];
+    let activation_schedule = ValidatorActivationSchedule::new(default_players.clone());
+    let previous = FullDkgV1 {
+        epoch: 3,
+        output: sample_output(default_players.clone()),
+    };
+    let candidate_output = previous.output.clone();
 
-    let err = super::latest_committed_full_dkg(&history, 2)
-        .expect_err("legacy raw historical carrier bytes must fail closed");
+    let decision = decide_dkg_header_sections(DkgProposalInput {
+        feature_enabled: true,
+        activation_schedule: &activation_schedule,
+        default_players: &default_players,
+        previous_full_dkg: Some(&previous),
+        candidate_output: Some(&candidate_output),
+        boundary_required: false,
+        post_advance_epoch: previous.epoch,
+    })
+    .expect("unchanged candidate decision");
 
-    assert!(matches!(
-        err,
-        super::DkgMetadataError::HistoricalExtraDataDecode { height: 2, .. }
-    ));
+    assert_eq!(decision, DkgHeaderDecision::default());
 }
 
 #[test]
-fn latest_committed_full_dkg_scans_past_raw_only_intermediate_blocks() {
-    let full_dkg = FullDkgV1 {
+fn full_dkg_should_be_included_when_candidate_changes() {
+    let default_players = vec![[0x11; 32]];
+    let activation_schedule = ValidatorActivationSchedule::new(default_players.clone());
+    let previous = FullDkgV1 {
         epoch: 3,
         output: FullDkgOutputV1 {
-            dealers: vec![[0x11; 32]],
-            players: vec![[0x21; 32]],
-            public_polynomial: vec![0xaa],
+            dealers: vec![[0x22; 32]],
+            players: default_players.clone(),
+            public_polynomial: vec![0xaa, 0xbb],
         },
     };
-    let full_dkg_extra = encode_canonical_extra_data(&CanonicalExtraDataV1 {
-        raw_eth: Some(vec![0x33; 32]),
-        full_dkg: Some(full_dkg.clone()),
-        reshare: None,
-    })
-    .expect("full dkg extra_data");
-    let raw_extra = encode_canonical_extra_data(&CanonicalExtraDataV1 {
-        raw_eth: Some(vec![0x44; 32]),
-        full_dkg: None,
-        reshare: None,
-    })
-    .expect("raw extra_data");
-    let mut history = TestHistory::default();
-    history.blocks.insert(0, full_dkg_extra);
-    history.blocks.insert(1, raw_extra.clone());
-    history.blocks.insert(2, raw_extra);
-
-    assert_eq!(
-        super::latest_committed_full_dkg(&history, 2).expect("scan"),
-        Some(full_dkg)
-    );
-}
-
-fn bytes_from_hex(hex: &str) -> Vec<u8> {
-    assert_eq!(hex.len() % 2, 0, "hex string must contain byte pairs");
-    (0..hex.len())
-        .step_by(2)
-        .map(|idx| u8::from_str_radix(&hex[idx..idx + 2], 16).expect("valid hex byte"))
-        .collect()
-}
-
-#[test]
-fn fixed_raw_32_byte_extra_data_fixture_is_rejected() {
-    let expected =
-        bytes_from_hex("5555555555555555555555555555555555555555555555555555555555555555");
-    assert!(matches!(
-        decode_extra_data(&expected),
-        Err(ExtraDataError::InvalidMagic)
-    ));
-}
-
-#[test]
-fn fixed_wdx1_full_dkg_and_reshare_fixture_is_stable() {
-    let expected = bytes_from_hex(
-        "57445831010301200000001111111111111111111111111111111111111111111111111111111111111111029700000007000000000000000200000022222222222222222222222222222222222222222222222222222222222222222323232323232323232323232323232323232323232323232323232323232323020000003131313131313131313131313131313131313131313131313131313131313131323232323232323232323232323232323232323232323232323232323232323203000000aabbcc034c00000009000000000000000200000041414141414141414141414141414141414141414141414141414141414141414242424242424242424242424242424242424242424242424242424242424242",
-    );
-    let fixture = CanonicalExtraDataV1 {
-        raw_eth: Some(vec![0x11; 32]),
-        full_dkg: Some(FullDkgV1 {
-            epoch: 7,
-            output: FullDkgOutputV1 {
-                dealers: vec![[0x22; 32], [0x23; 32]],
-                players: vec![[0x31; 32], [0x32; 32]],
-                public_polynomial: vec![0xaa, 0xbb, 0xcc],
-            },
-        }),
-        reshare: Some(ReshareV1 {
-            target_epoch: 9,
-            players: vec![[0x41; 32], [0x42; 32]],
-        }),
+    let candidate_output = FullDkgOutputV1 {
+        dealers: vec![[0x44; 32]],
+        players: default_players.clone(),
+        public_polynomial: vec![0xaa, 0xbb],
     };
 
+    let decision = decide_dkg_header_sections(DkgProposalInput {
+        feature_enabled: true,
+        activation_schedule: &activation_schedule,
+        default_players: &default_players,
+        previous_full_dkg: Some(&previous),
+        candidate_output: Some(&candidate_output),
+        boundary_required: false,
+        post_advance_epoch: 4,
+    })
+    .expect("changed candidate should decide");
+
     assert_eq!(
-        encode_canonical_extra_data(&fixture).expect("encode fixture"),
-        expected
+        decision.full_dkg,
+        Some(FullDkgV1 {
+            epoch: 4,
+            output: candidate_output,
+        })
     );
-    assert_eq!(
-        decode_extra_data(&expected).expect("decode fixture"),
-        fixture
+}
+
+#[test]
+fn validate_rejects_non_boundary_reshare() {
+    let default_players = vec![[0x11; 32]];
+    let activation_schedule = ValidatorActivationSchedule::new(default_players.clone());
+    let reshare = ReshareV1 {
+        target_epoch: 9,
+        players: default_players.clone(),
+    };
+
+    let err = validate_dkg_header_sections(
+        DkgHeaderSectionsRef {
+            full_dkg: None,
+            reshare: Some(&reshare),
+        },
+        DkgVerifyInput {
+            feature_enabled: true,
+            activation_schedule: &activation_schedule,
+            default_players: &default_players,
+            previous_full_dkg: None,
+            candidate_output: None,
+            boundary_required: false,
+            post_advance_epoch: 7,
+        },
+    )
+    .expect_err("non-boundary reshare must reject");
+
+    assert!(matches!(err, DkgMetadataError::NonBoundaryReshare));
+}
+
+#[test]
+fn validate_rejects_missing_boundary_sections() {
+    let default_players = vec![[0x11; 32]];
+    let targets = super::EpochActivationTargets::from_post_advance_epoch(7).expect("targets");
+    let activation_schedule = schedule_with_overrides(
+        default_players.clone(),
+        [
+            (targets.full_dkg_epoch, default_players.clone()),
+            (targets.reshare_target_epoch, default_players.clone()),
+        ],
     );
+    let candidate_output = sample_output(default_players.clone());
+
+    let err = validate_dkg_header_sections(
+        DkgHeaderSectionsRef {
+            full_dkg: None,
+            reshare: None,
+        },
+        DkgVerifyInput {
+            feature_enabled: true,
+            activation_schedule: &activation_schedule,
+            default_players: &default_players,
+            previous_full_dkg: None,
+            candidate_output: Some(&candidate_output),
+            boundary_required: true,
+            post_advance_epoch: targets.boundary_epoch_e,
+        },
+    )
+    .expect_err("boundary DKG metadata is required");
+
+    assert!(matches!(err, DkgMetadataError::MissingBoundaryFullDkg));
 }

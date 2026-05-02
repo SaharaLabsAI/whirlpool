@@ -104,19 +104,19 @@ async fn genesis_and_propose_emit_canonical_raw_eth_extra_data() {
     let (app, _) = setup_app_with_config(vec![], proposer_config).await;
 
     let genesis = app.genesis().await;
-    let decoded_genesis =
-        decode_extra_data(&genesis.extra_data).expect("genesis extra_data must be canonical");
+    let decoded_genesis = decode_header_extra_data(&genesis.extra_data)
+        .expect("genesis extra_data must be canonical");
     assert_eq!(decoded_genesis.raw_eth, Some(proposer_public_key.to_vec()));
-    assert!(decoded_genesis.full_dkg.is_none());
-    assert!(decoded_genesis.reshare.is_none());
+    assert!(decoded_genesis.dkg.full_dkg.is_none());
+    assert!(decoded_genesis.dkg.reshare.is_none());
     assert_ne!(genesis.extra_data, proposer_public_key.to_vec());
 
     let (block, _) = app.propose(&genesis, 1).await.unwrap();
     let decoded_block =
-        decode_extra_data(&block.extra_data).expect("proposed extra_data must be canonical");
+        decode_header_extra_data(&block.extra_data).expect("proposed extra_data must be canonical");
     assert_eq!(decoded_block.raw_eth, Some(proposer_public_key.to_vec()));
-    assert!(decoded_block.full_dkg.is_none());
-    assert!(decoded_block.reshare.is_none());
+    assert!(decoded_block.dkg.full_dkg.is_none());
+    assert!(decoded_block.dkg.reshare.is_none());
     assert_ne!(block.extra_data, proposer_public_key.to_vec());
 }
 
@@ -150,10 +150,9 @@ async fn verify_rejects_canonical_extra_data_proposer_mismatch() {
     let (parent, _) = app.propose(&genesis, 1).await.unwrap();
     let pre_state = db.read().unwrap().clone();
     let (mut block, _) = app.propose(&parent, 2).await.unwrap();
-    block.extra_data = encode_canonical_extra_data(&CanonicalExtraDataV1 {
+    block.extra_data = encode_header_extra_data(&CanonicalHeaderExtraDataV1 {
         raw_eth: Some([0x88; 32].to_vec()),
-        full_dkg: None,
-        reshare: None,
+        dkg: DkgHeaderSections::default(),
     })
     .expect("canonical mismatched extra_data should encode");
 

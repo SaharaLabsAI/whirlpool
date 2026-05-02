@@ -106,10 +106,11 @@ async fn propose_uses_runtime_registry_order_for_non_boundary_dkg_defaults() {
         .propose(&parent, 1)
         .await
         .expect("runtime-order DKG defaults should propose");
-    let decoded = decode_extra_data(&block.extra_data).expect("canonical extra_data should decode");
+    let decoded =
+        decode_header_extra_data(&block.extra_data).expect("canonical extra_data should decode");
 
     assert!(
-        decoded.full_dkg.is_none(),
+        decoded.dkg.full_dkg.is_none(),
         "candidate matching runtime registry defaults should be omitted; a config/chainspec fallback would require FullDkg"
     );
 }
@@ -177,9 +178,11 @@ async fn propose_boundary_block_emits_forward_full_dkg_and_reshare_sections_when
         .propose(&parent, 1)
         .await
         .expect("boundary block should propose");
-    let decoded = decode_extra_data(&block.extra_data).expect("canonical extra_data should decode");
+    let decoded =
+        decode_header_extra_data(&block.extra_data).expect("canonical extra_data should decode");
 
     let full_dkg = decoded
+        .dkg
         .full_dkg
         .as_ref()
         .expect("boundary block should include full_dkg");
@@ -187,6 +190,7 @@ async fn propose_boundary_block_emits_forward_full_dkg_and_reshare_sections_when
     assert_eq!(full_dkg.output.players, players);
 
     let reshare = decoded
+        .dkg
         .reshare
         .as_ref()
         .expect("boundary block should include reshare");
@@ -224,10 +228,10 @@ async fn verify_rejects_missing_reshare_section_on_boundary_when_candidate_confi
         .expect("boundary block should propose");
 
     let mut decoded =
-        decode_extra_data(&block.extra_data).expect("canonical extra_data must decode");
-    decoded.reshare = None;
+        decode_header_extra_data(&block.extra_data).expect("canonical extra_data must decode");
+    decoded.dkg.reshare = None;
     block.extra_data =
-        encode_canonical_extra_data(&decoded).expect("mutated canonical extra_data encodes");
+        encode_header_extra_data(&decoded).expect("mutated canonical extra_data encodes");
 
     let verifier = EvmApplication::new(
         proposer_config,
@@ -266,13 +270,13 @@ async fn verify_rejects_reshare_section_on_non_boundary_block() {
         .expect("non-boundary block should propose");
 
     let mut decoded =
-        decode_extra_data(&block.extra_data).expect("canonical extra_data must decode");
-    decoded.reshare = Some(validators_dkg::ReshareV1 {
+        decode_header_extra_data(&block.extra_data).expect("canonical extra_data must decode");
+    decoded.dkg.reshare = Some(validators_dkg::ReshareV1 {
         target_epoch: 1,
         players: players.clone(),
     });
     block.extra_data =
-        encode_canonical_extra_data(&decoded).expect("mutated canonical extra_data encodes");
+        encode_header_extra_data(&decoded).expect("mutated canonical extra_data encodes");
 
     let verifier = EvmApplication::new(
         proposer_config,
@@ -313,10 +317,12 @@ async fn verify_rejects_full_dkg_section_when_feature_is_disabled() {
         .await
         .expect("non-boundary block should propose");
 
-    block.extra_data = encode_canonical_extra_data(&CanonicalExtraDataV1 {
+    block.extra_data = encode_header_extra_data(&CanonicalHeaderExtraDataV1 {
         raw_eth: Some(block.proposer_public_key.to_vec()),
-        full_dkg: Some(candidate_full_dkg),
-        reshare: None,
+        dkg: DkgHeaderSections {
+            full_dkg: Some(candidate_full_dkg),
+            reshare: None,
+        },
     })
     .expect("canonical extra_data with forbidden full_dkg should encode");
 
@@ -366,12 +372,15 @@ async fn boundary_reshare_can_follow_epoch_pipeline_lag_from_activation_schedule
         .propose(&parent, 1)
         .await
         .expect("boundary block should propose");
-    let decoded = decode_extra_data(&block.extra_data).expect("canonical extra_data should decode");
+    let decoded =
+        decode_header_extra_data(&block.extra_data).expect("canonical extra_data should decode");
     let full_dkg = decoded
+        .dkg
         .full_dkg
         .as_ref()
         .expect("boundary block should include full_dkg");
     let reshare = decoded
+        .dkg
         .reshare
         .as_ref()
         .expect("boundary block should include reshare");

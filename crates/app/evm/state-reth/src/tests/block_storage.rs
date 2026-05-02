@@ -1,7 +1,10 @@
 use alloy_consensus::{SignableTransaction, TxLegacy};
 use alloy_eips::eip2718::Encodable2718;
 use alloy_primitives::{Address, Bytes, Signature, TxKind, U256};
-use app_primitives::{header_extra_data::build_raw_eth_envelope, Receipt as AppReceipt};
+use app_primitives::{
+    header_extra_data::{build_header_extra_data, DkgHeaderSections},
+    Receipt as AppReceipt,
+};
 use reth_db::Database;
 use reth_db_api::transaction::DbTx;
 use reth_ethereum_primitives::TransactionSigned;
@@ -38,7 +41,8 @@ fn make_block(height: u64, tx_count: usize) -> app_primitives::EvmBlock {
         receipts_root: [4u8.wrapping_add(height as u8); 32],
         proposer_public_key,
         proposer_fee_recipient: [height as u8; 20],
-        extra_data: build_raw_eth_envelope(proposer_public_key).expect("canonical extra_data"),
+        extra_data: build_header_extra_data(proposer_public_key, DkgHeaderSections::default())
+            .expect("canonical extra_data"),
         gas_used: 21_000 * tx_count as u64,
         base_fee_per_gas: 1_000_000_000,
         timestamp: 1_700_000_000 + height,

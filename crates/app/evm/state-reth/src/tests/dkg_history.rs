@@ -1,6 +1,6 @@
+use app_primitives::header_extra_data::HeaderExtraDataHistory;
 use app_primitives::EvmBlock;
 use state::BlockStorage;
-use validators_dkg::DkgHistory;
 
 use crate::{open_state_db, InMemoryStateDb};
 
@@ -32,7 +32,8 @@ fn reth_state_db_returns_raw_header_extra_data_for_dkg_history() {
     db.store_block(&block, &[]).expect("store block");
 
     assert_eq!(
-        DkgHistory::full_dkg_at_height(&db, 7).expect("read dkg carrier"),
+        HeaderExtraDataHistory::header_extra_data_at_height(&db, 7)
+            .expect("read header extra_data"),
         Some(raw_carrier)
     );
 }
@@ -44,7 +45,8 @@ fn reth_state_db_returns_none_for_missing_dkg_history_height() {
     let db = open_state_db(dir.path()).expect("open db");
 
     assert_eq!(
-        DkgHistory::full_dkg_at_height(&db, 999).expect("read missing dkg carrier"),
+        HeaderExtraDataHistory::header_extra_data_at_height(&db, 999)
+            .expect("read missing dkg carrier"),
         None
     );
 }
@@ -58,11 +60,13 @@ fn in_memory_state_db_returns_raw_block_extra_data_for_dkg_history() {
     db.store_block(&block, &[]).expect("store block");
 
     assert_eq!(
-        DkgHistory::full_dkg_at_height(&db, 3).expect("read dkg carrier"),
+        HeaderExtraDataHistory::header_extra_data_at_height(&db, 3)
+            .expect("read header extra_data"),
         Some(raw_carrier)
     );
     assert_eq!(
-        DkgHistory::full_dkg_at_height(&db, 4).expect("read missing dkg carrier"),
+        HeaderExtraDataHistory::header_extra_data_at_height(&db, 4)
+            .expect("read missing dkg carrier"),
         None
     );
 }

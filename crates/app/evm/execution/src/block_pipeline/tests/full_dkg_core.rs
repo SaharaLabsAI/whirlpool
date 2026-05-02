@@ -7,10 +7,10 @@ fn latest_committed_full_dkg_scans_backwards_past_raw_eth_only_blocks() {
         blocks: BTreeMap<u64, Vec<u8>>,
     }
 
-    impl validators_dkg::DkgHistory for MockHistory {
+    impl HeaderExtraDataHistory for MockHistory {
         type Error = String;
 
-        fn full_dkg_at_height(&self, height: u64) -> Result<Option<Vec<u8>>, Self::Error> {
+        fn header_extra_data_at_height(&self, height: u64) -> Result<Option<Vec<u8>>, Self::Error> {
             Ok(self.blocks.get(&height).cloned())
         }
     }
@@ -25,16 +25,17 @@ fn latest_committed_full_dkg_scans_backwards_past_raw_eth_only_blocks() {
         },
     };
 
-    let extra_with_full_dkg = encode_canonical_extra_data(&CanonicalExtraDataV1 {
+    let extra_with_full_dkg = encode_header_extra_data(&CanonicalHeaderExtraDataV1 {
         raw_eth: Some(vec![0x11; 32]),
-        full_dkg: Some(full_dkg.clone()),
-        reshare: None,
+        dkg: DkgHeaderSections {
+            full_dkg: Some(full_dkg.clone()),
+            reshare: None,
+        },
     })
     .expect("encode full_dkg");
-    let extra_raw_only = encode_canonical_extra_data(&CanonicalExtraDataV1 {
+    let extra_raw_only = encode_header_extra_data(&CanonicalHeaderExtraDataV1 {
         raw_eth: Some(vec![0x11; 32]),
-        full_dkg: None,
-        reshare: None,
+        dkg: DkgHeaderSections::default(),
     })
     .expect("encode raw only");
 
@@ -43,42 +44,10 @@ fn latest_committed_full_dkg_scans_backwards_past_raw_eth_only_blocks() {
     history.blocks.insert(1, extra_raw_only.clone());
     history.blocks.insert(2, extra_raw_only);
 
-    let resolved = validators_dkg::latest_committed_full_dkg(&history, 2)
+    let resolved = super::super::latest_committed_full_dkg(&history, 2)
         .expect("scan should succeed")
         .expect("full_dkg should resolve from earlier block");
     assert_eq!(resolved, full_dkg);
-
-    assert!(
-        !full_dkg_should_be_included(&default_validator_pubkeys(), Some(&resolved), &full_dkg),
-        "unchanged baseline must not force redundant FullDkg inclusion"
-    );
-}
-
-#[test]
-fn full_dkg_trigger_includes_when_only_dealers_change() {
-    let players = default_validator_pubkeys();
-
-    let previous = FullDkgV1 {
-        epoch: 3,
-        output: validators_dkg::FullDkgOutputV1 {
-            dealers: vec![[0x11; 32]],
-            players: players.clone(),
-            public_polynomial: vec![0xaa, 0xbb],
-        },
-    };
-    let candidate = FullDkgV1 {
-        epoch: 3,
-        output: validators_dkg::FullDkgOutputV1 {
-            dealers: vec![[0x22; 32]],
-            players,
-            public_polynomial: vec![0xaa, 0xbb],
-        },
-    };
-
-    assert!(
-        full_dkg_should_be_included(&default_validator_pubkeys(), Some(&previous), &candidate),
-        "dealer-only changes must trigger FullDkg inclusion"
-    );
 }
 
 #[tokio::test]
@@ -114,8 +83,9 @@ async fn verify_rejects_full_dkg_payload_mismatch_against_candidate() {
     let (mut block, _) = app.propose(&parent, 1).await.unwrap();
 
     let mut decoded =
-        decode_extra_data(&block.extra_data).expect("canonical extra_data must decode");
+        decode_header_extra_data(&block.extra_data).expect("canonical extra_data must decode");
     decoded
+        .dkg
         .full_dkg
         .as_mut()
         .expect("proposed block should include full_dkg")
@@ -123,7 +93,7 @@ async fn verify_rejects_full_dkg_payload_mismatch_against_candidate() {
         .public_polynomial
         .push(0xff);
     block.extra_data =
-        encode_canonical_extra_data(&decoded).expect("mutated canonical extra_data encodes");
+        encode_header_extra_data(&decoded).expect("mutated canonical extra_data encodes");
 
     let verifier = EvmApplication::new(
         proposer_config,
@@ -165,17 +135,19 @@ async fn verify_rejects_full_dkg_when_candidate_is_not_configured() {
     let (mut block, _) = app.propose(&parent, 1).await.unwrap();
 
     let players = default_validator_pubkeys();
-    block.extra_data = encode_canonical_extra_data(&CanonicalExtraDataV1 {
+    block.extra_data = encode_header_extra_data(&CanonicalHeaderExtraDataV1 {
         raw_eth: Some(block.proposer_public_key.to_vec()),
-        full_dkg: Some(FullDkgV1 {
-            epoch: 0,
-            output: validators_dkg::FullDkgOutputV1 {
-                dealers: players.clone(),
-                players,
-                public_polynomial: vec![0x01],
-            },
-        }),
-        reshare: None,
+        dkg: DkgHeaderSections {
+            full_dkg: Some(FullDkgV1 {
+                epoch: 0,
+                output: validators_dkg::FullDkgOutputV1 {
+                    dealers: players.clone(),
+                    players,
+                    public_polynomial: vec![0x01],
+                },
+            }),
+            reshare: None,
+        },
     })
     .expect("canonical extra_data with full_dkg");
 

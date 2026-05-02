@@ -2,7 +2,10 @@ use alloy_consensus::TxReceipt;
 use alloy_eips::eip2718::Encodable2718;
 use alloy_primitives::{Bytes, B256};
 use alloy_trie::root::ordered_trie_root_with_encoder;
-use app_primitives::{ExecutionResult, Receipt};
+use app_primitives::{
+    header_extra_data::{build_header_extra_data, DkgHeaderSections, HeaderExtraDataHistory},
+    ExecutionResult, Receipt,
+};
 use evm_precompiles::{
     apply_epoch_boundary_effect, apply_post_block_accounting, current_epoch_slot,
     decode_u64_storage_value, execute_epoch_boundary_system_call_if_required,
@@ -20,16 +23,14 @@ use crate::block_pipeline::accounting::{aggregate_priority_fees, gas_deltas_and_
 use crate::block_pipeline::build_sealed_header;
 use crate::block_pipeline::validators::load_active_validator_dkg_inputs;
 use crate::block_pipeline::{
-    classify_tx_execution_error, expected_next_block_base_fee, map_epoch_boundary_runtime_error,
-    map_post_block_accounting_runtime_error, map_validators_runtime_error,
-    tx_is_reserved_epoch_namespace, BoundaryCallFailureMode, EvmApplication, ProposedEvmPayload,
-    TxExecutionErrorDisposition, BLOCK_GAS_LIMIT,
+    classify_tx_execution_error, expected_next_block_base_fee, latest_committed_full_dkg,
+    map_epoch_boundary_runtime_error, map_post_block_accounting_runtime_error,
+    map_validators_runtime_error, tx_is_reserved_epoch_namespace, BoundaryCallFailureMode,
+    EvmApplication, ProposedEvmPayload, TxExecutionErrorDisposition, BLOCK_GAS_LIMIT,
 };
 use crate::error::EvmAppError;
 use crate::traits::StateDb;
-use validators_dkg::{
-    build_canonical_dkg_extra_data, latest_committed_full_dkg, DkgHistory, DkgProposalInput,
-};
+use validators_dkg::{decide_dkg_header_sections, DkgProposalInput};
 
 impl<DB> EvmApplication<DB>
 where
@@ -43,9 +44,9 @@ where
         block_height: u64,
     ) -> Result<ProposedEvmPayload, EvmAppError>
     where
-        DB: StateDb + DkgHistory + Clone + revm::Database,
+        DB: StateDb + HeaderExtraDataHistory + Clone + revm::Database,
         <DB as StateDb>::Error: Into<EvmAppError>,
-        <DB as DkgHistory>::Error: std::fmt::Display,
+        <DB as HeaderExtraDataHistory>::Error: std::fmt::Display,
     {
         let parent_header = build_sealed_header(parent);
 
@@ -157,10 +158,9 @@ where
 
         let latest_committed_full_dkg = {
             let db = self.state_db.read().unwrap();
-            latest_committed_full_dkg(&*db, parent.height)
-                .map_err(crate::block_pipeline::map_dkg_metadata_error)?
+            latest_committed_full_dkg(&*db, parent.height)?
         };
-        let extra_data = build_canonical_dkg_extra_data(DkgProposalInput {
+        let dkg_sections = decide_dkg_header_sections(DkgProposalInput {
             feature_enabled: self.evm_config.dkg_transition().feature_gate().enabled(),
             activation_schedule: &dkg_inputs.activation_schedule,
             default_players: &dkg_inputs.default_players,
@@ -170,11 +170,17 @@ where
                 .dkg_transition()
                 .current_candidate()
                 .output(),
-            proposer_public_key: self.evm_config.proposer_context().local_public_key(),
             boundary_required,
             post_advance_epoch,
         })
-        .map_err(|err| EvmAppError::InvalidBlock(format!("invalid canonical extra_data: {err}")))?;
+        .map_err(crate::block_pipeline::map_dkg_metadata_error)?;
+        let extra_data = build_header_extra_data(
+            self.evm_config.proposer_context().local_public_key(),
+            DkgHeaderSections::from(dkg_sections),
+        )
+        .map_err(|err| {
+            EvmAppError::InvalidBlock(format!("invalid canonical header extra_data: {err}"))
+        })?;
 
         let state_root = {
             let mut canonical_db = self.state_db.write().unwrap();

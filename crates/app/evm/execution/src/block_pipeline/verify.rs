@@ -3,7 +3,9 @@ use alloy_eips::eip2718::Encodable2718;
 use alloy_primitives::{Bytes, B256};
 use alloy_trie::root::ordered_trie_root_with_encoder;
 use app_primitives::{
-    header_extra_data::{decode_strict_extra_data, proposer_public_key_from_raw_eth_section},
+    header_extra_data::{
+        decode_header_extra_data, proposer_public_key_from_raw_eth_section, HeaderExtraDataHistory,
+    },
     ExecutionResult, Receipt,
 };
 use evm_precompiles::{
@@ -17,18 +19,16 @@ use reth_evm::{
 };
 use revm::database::states::bundle_state::BundleRetention;
 use revm::database::State;
-use validators_dkg::{
-    latest_committed_full_dkg, validate_dkg_extra_data, DkgHistory, DkgVerifyInput,
-};
+use validators_dkg::{validate_dkg_header_sections, DkgVerifyInput};
 
 use crate::block_pipeline::accounting::{aggregate_priority_fees, gas_deltas_and_used};
 use crate::block_pipeline::build_sealed_header;
 use crate::block_pipeline::validators::load_active_validator_dkg_inputs;
 use crate::block_pipeline::{
-    classify_tx_execution_error, expected_next_block_base_fee, map_epoch_boundary_runtime_error,
-    map_post_block_accounting_runtime_error, map_validators_runtime_error,
-    tx_is_reserved_epoch_namespace, BoundaryCallFailureMode, EvmApplication,
-    TxExecutionErrorDisposition, BLOCK_GAS_LIMIT,
+    classify_tx_execution_error, expected_next_block_base_fee, latest_committed_full_dkg,
+    map_epoch_boundary_runtime_error, map_post_block_accounting_runtime_error,
+    map_validators_runtime_error, tx_is_reserved_epoch_namespace, BoundaryCallFailureMode,
+    EvmApplication, TxExecutionErrorDisposition, BLOCK_GAS_LIMIT,
 };
 use crate::error::EvmAppError;
 use crate::traits::StateDb;
@@ -44,9 +44,9 @@ where
         raw_txs: &[Vec<u8>],
     ) -> Result<ExecutionResult, EvmAppError>
     where
-        DB: StateDb + DkgHistory + Clone + revm::Database,
+        DB: StateDb + HeaderExtraDataHistory + Clone + revm::Database,
         <DB as StateDb>::Error: Into<EvmAppError>,
-        <DB as DkgHistory>::Error: std::fmt::Display,
+        <DB as HeaderExtraDataHistory>::Error: std::fmt::Display,
     {
         let decoded_txs = crate::codec::decode_evm_transactions(raw_txs)?;
 
@@ -68,7 +68,7 @@ where
                 block.base_fee_per_gas
             )));
         }
-        let decoded_extra_data = decode_strict_extra_data(&block.extra_data).map_err(|err| {
+        let decoded_extra_data = decode_header_extra_data(&block.extra_data).map_err(|err| {
             EvmAppError::InvalidBlock(format!("failed to decode block extra_data: {err}"))
         })?;
         let decoded_proposer_public_key =
@@ -210,11 +210,10 @@ where
 
         let latest_committed_full_dkg = {
             let db = self.state_db.read().unwrap();
-            latest_committed_full_dkg(&*db, parent.height)
-                .map_err(crate::block_pipeline::map_dkg_metadata_error)?
+            latest_committed_full_dkg(&*db, parent.height)?
         };
-        validate_dkg_extra_data(
-            &decoded_extra_data,
+        validate_dkg_header_sections(
+            decoded_extra_data.dkg.as_ref(),
             DkgVerifyInput {
                 feature_enabled: self.evm_config.dkg_transition().feature_gate().enabled(),
                 activation_schedule: &dkg_inputs.activation_schedule,

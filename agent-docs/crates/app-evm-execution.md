@@ -34,15 +34,15 @@ Those live in `chainspec`.
 - DKG transition inputs are split into explicit subowners: `FullDkgFeatureGate` for the feature flag, `DkgActivationOverrides` for epoch-scoped override seeds, and `CurrentFullDkgCandidate` for the local candidate output (`dealers`, `players`, `public_polynomial`).
 - Activation schedules are derived from caller-supplied default players plus explicit epoch overrides; default players are supplied from state-backed validator entries, not config-owned registry snapshots.
 - Precompile injection remains in `WhirlpoolEvmConfig::evm_with_env(...)` through the static Reth/EVM adapter and `evm_precompiles::whirlpool_precompiles(...)`; app config does not pass validator snapshots into precompile maps.
-- Block header `extra_data` uses strict canonical envelope bytes (`RawEth` + optional `FullDkgV1`/`ReshareV1`). `app-primitives` owns carrier helper wrappers; `validators-dkg` owns DKG schema/validation semantics.
+- Block header `extra_data` uses strict canonical envelope bytes (`RawEth` + optional `FullDkgV1`/`ReshareV1`). `app-primitives` owns the outer WDX1 carrier schema/codec and RawEth projection; `validators-dkg` owns only DKG payload schema/validation semantics.
 - Verify path decodes `extra_data` strictly from genesis, rejects raw 32-byte legacy carriers, enforces proposer-key parity against `RawEth`, and enforces boundary-aware FullDkg/Reshare invariants.
 - Propose/verify now share one block-pipeline-local next-block base-fee seam:
   - propose derives `base_fee_per_gas` through the shared helper,
   - verify rejects blocks whose `block.base_fee_per_gas` does not match the protocol-derived next-block fee before fee accounting,
   - verify-side burned-fee / priority-fee accounting now uses the derived canonical fee after the mismatch guard.
 - EVM tx decode helpers now use exact EIP-2718 decoding, so padded tx bytes fail closed during both proposal pre-decode and verify decoding.
-- Boundary extra-data semantics are delegated to `validators-dkg`: `EpochActivationTargets` supplies `E`, `E+1`, and `E+2`; `ValidatorActivationSchedule` resolves FullDkg/Reshare players. Non-boundary blocks must not carry `ReshareV1`, and boundary verify remains fail-closed for missing/mismatched required `ReshareV1` fields when FullDkg candidate data is configured.
-- `app-evm-execution` is only the DKG pipeline call site: propose calls `validators_dkg::latest_committed_full_dkg` and `build_canonical_dkg_extra_data`; verify calls `latest_committed_full_dkg` and `validate_dkg_extra_data`. Strict header carrier decode/proposer extraction routes through `app_primitives::header_extra_data`. Historical carrier-byte lookup is supplied by the DB through `validators_dkg::DkgHistory`; execution keeps only DKG error translation.
+- Boundary DKG semantics are delegated to `validators-dkg`: `EpochActivationTargets` supplies `E`, `E+1`, and `E+2`; `ValidatorActivationSchedule` resolves FullDkg/Reshare players. Non-boundary blocks must not carry `ReshareV1`, and boundary verify remains fail-closed for missing/mismatched required `ReshareV1` fields when FullDkg candidate data is configured.
+- `app-evm-execution` owns the DKG pipeline call site and historical scan loop: propose calls `validators_dkg::decide_dkg_header_sections` then `app_primitives::header_extra_data::build_header_extra_data`; verify decodes via `app_primitives::header_extra_data::decode_header_extra_data` and calls `validators_dkg::validate_dkg_header_sections`. Historical raw bytes are supplied by `HeaderExtraDataHistory`; execution scans heights and passes decoded DKG payloads to validators-dkg.
 - Reviewer entrypoints are now named by pipeline ownership zone:
   - `src/ingress.rs` — candidate transaction sources: proposal reads `TxSource::pending()`, verification borrows `block.transactions`.
   - `src/codec/` — EIP-2718 transaction decode/recovery plus EVM header projection. Prefer `app_evm_execution::codec::decode_evm_transaction` and `decode_evm_transactions` for reviewer-facing decode APIs; root re-exports remain for compatibility.
@@ -54,7 +54,7 @@ Those live in `chainspec`.
 - `WhirlpoolEvmConfig` keeps builder/accessor compatibility while canonical ownership is split by role: static Reth/EVM adapter forwarding lives in `config/evm_adapter.rs`, proposer runtime context lives in `context/proposer.rs`, and DKG transition-input subowners live under `context/dkg/`. The old `config::proposer` and `config::dkg` compatibility import paths are removed; use `context::proposer` and `context::dkg` directly for context types.
 - `codec/` remains directory-backed for decode/header surfaces; `block_pipeline/accounting/` groups fee and receipt derivation as a concern-specific private module rather than a generic helper bucket.
 - Non-boundary FullDkg candidate validation is fail-closed in both propose and verify paths: candidate `output.players` must match activation-resolved players for the candidate epoch before include/omit decisions.
-- FullDkg inclusion trigger compares candidate output against the **latest committed FullDkg from `DkgHistory`** (validators-dkg backward scan over raw carrier bytes) so raw-only intermediate blocks do not cause include/omit oscillation.
+- FullDkg inclusion trigger compares candidate output against the **latest committed FullDkg from execution-owned historical scan** over `HeaderExtraDataHistory`; raw-only intermediate blocks do not cause include/omit oscillation.
 - When `full_dkg_feature_enabled == false`, propose still emits a canonical RawEth envelope, and verify rejects **both** `full_dkg` and `reshare` sections, preventing disabled-feature metadata from entering historical scans.
 - Epoch-boundary helper ownership now lives in `evm_precompiles::epoch`; `app-evm-execution` no longer has a dedicated `epoch_boundary/` module tree.
 - `app-evm-execution` keeps a **tiny pipeline call site** for epoch boundaries inside `block_pipeline/`:
@@ -70,7 +70,7 @@ Those live in `chainspec`.
   - `evm-precompiles` owns the new internal post-block accounting boundary (`PostBlockAccountingInputs`, `PostBlockAccountingEffect`, `PostBlockAccountingOutcome`, `apply_post_block_accounting`, `PostBlockAccountingRuntimeError`) and the fee/community-pool write logic previously housed in local pipeline helpers.
   - `app-evm-execution` keeps only pipeline-native input derivation (`aggregate_priority_fees`) plus propose/verify ordering and runtime-error translation.
   - propose/verify both call the same lower-layer accounting entrypoint after bundle commit and epoch effect application.
-- Validator activation and DKG metadata semantics are no longer execution-owned. Propose/verify call `validators-dkg` and only map DKG errors into `EvmAppError::InvalidBlock`.
+- Validator activation and DKG metadata semantics are not execution-owned. Propose/verify call `validators-dkg` for DKG decisions/validation and map DKG errors into `EvmAppError::InvalidBlock`; execution owns only stage order and historical lookup orchestration.
 - Boundary unlock flow:
   - after a successful boundary `advanceEpoch()` call, runtime may unlock community-pool funds
   - cadence is keyed to post-boundary `currentEpoch`

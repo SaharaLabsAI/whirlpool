@@ -6,6 +6,10 @@ use std::{
 use alloy_primitives::Address;
 use app_evm_execution::{EvmAppError, EvmApplication, WhirlpoolEvmConfig};
 use app_evm_state::InMemoryStateDb;
+use app_primitives::header_extra_data::{
+    decode_header_extra_data, encode_header_extra_data, CanonicalHeaderExtraDataV1,
+    DkgHeaderSections,
+};
 use app_traits::{traits::Application, NoopTxSource};
 use chainspec::build_sahara_chain_spec_with_alloc_and_validators;
 use evm_precompiles::{
@@ -13,9 +17,7 @@ use evm_precompiles::{
     EPOCH_BLOCKS_DEFAULT, EPOCH_PRECOMPILE_ADDRESS, EPOCH_SYSTEM_TX_INITIAL_BALANCE_WEI,
 };
 use revm::primitives::U256;
-use validators_dkg::{
-    decode_extra_data, encode_canonical_extra_data, CanonicalExtraDataV1, FullDkgOutputV1,
-};
+use validators_dkg::FullDkgOutputV1;
 use validators_reader::{
     encode_validator_registry_storage, ordered_consensus_pubkeys, ValidatorEntry,
     SIMPLEX_VALIDATORS_REGISTRY,
@@ -107,10 +109,14 @@ async fn non_boundary_dkg_candidate_is_included_and_verifies() {
 
     let genesis = app.genesis().await;
     let (block, _) = app.propose(&genesis, 1).await.expect("propose");
-    let decoded = decode_extra_data(&block.extra_data).expect("canonical extra_data decodes");
+    let decoded =
+        decode_header_extra_data(&block.extra_data).expect("canonical extra_data decodes");
 
-    assert_eq!(decoded.full_dkg.expect("full_dkg included").output, output);
-    assert!(decoded.reshare.is_none());
+    assert_eq!(
+        decoded.dkg.full_dkg.expect("full_dkg included").output,
+        output
+    );
+    assert!(decoded.dkg.reshare.is_none());
     app.verify(&genesis, &block)
         .await
         .expect("matching non-boundary dkg block verifies");
@@ -128,10 +134,11 @@ async fn non_boundary_unchanged_baseline_dkg_candidate_is_omitted_and_verifies()
 
     let genesis = app.genesis().await;
     let (block, _) = app.propose(&genesis, 1).await.expect("propose");
-    let decoded = decode_extra_data(&block.extra_data).expect("canonical extra_data decodes");
+    let decoded =
+        decode_header_extra_data(&block.extra_data).expect("canonical extra_data decodes");
 
-    assert!(decoded.full_dkg.is_none());
-    assert!(decoded.reshare.is_none());
+    assert!(decoded.dkg.full_dkg.is_none());
+    assert!(decoded.dkg.reshare.is_none());
     app.verify(&genesis, &block)
         .await
         .expect("omitted unchanged non-boundary dkg block verifies");
@@ -149,9 +156,9 @@ async fn non_boundary_omit_uses_latest_committed_history_across_raw_only_interme
 
     let genesis = app.genesis().await;
     let (block1, _) = app.propose(&genesis, 1).await.expect("block1 propose");
-    let decoded1 = decode_extra_data(&block1.extra_data).expect("block1 extra_data decodes");
+    let decoded1 = decode_header_extra_data(&block1.extra_data).expect("block1 extra_data decodes");
     assert!(
-        decoded1.full_dkg.is_some(),
+        decoded1.dkg.full_dkg.is_some(),
         "block1 establishes DKG history"
     );
     {
@@ -161,9 +168,9 @@ async fn non_boundary_omit_uses_latest_committed_history_across_raw_only_interme
     }
 
     let (block2, _) = app.propose(&block1, 2).await.expect("block2 propose");
-    let decoded2 = decode_extra_data(&block2.extra_data).expect("block2 extra_data decodes");
+    let decoded2 = decode_header_extra_data(&block2.extra_data).expect("block2 extra_data decodes");
     assert!(
-        decoded2.full_dkg.is_none(),
+        decoded2.dkg.full_dkg.is_none(),
         "block2 is raw-only intermediate"
     );
     {
@@ -173,9 +180,9 @@ async fn non_boundary_omit_uses_latest_committed_history_across_raw_only_interme
     }
 
     let (block3, _) = app.propose(&block2, 3).await.expect("block3 propose");
-    let decoded3 = decode_extra_data(&block3.extra_data).expect("block3 extra_data decodes");
+    let decoded3 = decode_header_extra_data(&block3.extra_data).expect("block3 extra_data decodes");
     assert!(
-        decoded3.full_dkg.is_none(),
+        decoded3.dkg.full_dkg.is_none(),
         "block3 must scan past raw-only block2 and omit unchanged FullDKG"
     );
     app.verify(&block2, &block3)
@@ -203,9 +210,10 @@ async fn boundary_dkg_candidate_includes_full_dkg_and_reshare_and_verifies() {
 
     let parent = app.genesis().await;
     let (block, _) = app.propose(&parent, 1).await.expect("boundary propose");
-    let decoded = decode_extra_data(&block.extra_data).expect("canonical extra_data decodes");
-    let full_dkg = decoded.full_dkg.expect("boundary full_dkg included");
-    let reshare = decoded.reshare.expect("boundary reshare included");
+    let decoded =
+        decode_header_extra_data(&block.extra_data).expect("canonical extra_data decodes");
+    let full_dkg = decoded.dkg.full_dkg.expect("boundary full_dkg included");
+    let reshare = decoded.dkg.reshare.expect("boundary reshare included");
 
     assert_eq!(full_dkg.epoch, 2);
     assert_eq!(full_dkg.output.players, players);
@@ -275,18 +283,22 @@ async fn verify_rejects_mismatched_dkg_candidate_payload() {
     let parent = app.genesis().await;
     let (mut block, _) = app.propose(&parent, 1).await.expect("propose");
 
-    let mut decoded = decode_extra_data(&block.extra_data).expect("canonical extra_data decodes");
+    let mut decoded =
+        decode_header_extra_data(&block.extra_data).expect("canonical extra_data decodes");
     decoded
+        .dkg
         .full_dkg
         .as_mut()
         .expect("full_dkg included")
         .output
         .public_polynomial
         .push(0xee);
-    block.extra_data = encode_canonical_extra_data(&CanonicalExtraDataV1 {
+    block.extra_data = encode_header_extra_data(&CanonicalHeaderExtraDataV1 {
         raw_eth: decoded.raw_eth,
-        full_dkg: decoded.full_dkg,
-        reshare: decoded.reshare,
+        dkg: DkgHeaderSections {
+            full_dkg: decoded.dkg.full_dkg,
+            reshare: decoded.dkg.reshare,
+        },
     })
     .expect("mutated extra_data encodes");
 

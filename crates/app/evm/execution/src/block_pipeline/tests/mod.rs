@@ -3,6 +3,10 @@ use alloy_consensus::{SignableTransaction, TxLegacy};
 use alloy_eips::eip2718::Encodable2718;
 use alloy_primitives::{Address, Bytes, Signature, TxKind, B256, U256};
 use app_evm_state::InMemoryStateDb;
+use app_primitives::header_extra_data::{
+    decode_header_extra_data, encode_header_extra_data, CanonicalHeaderExtraDataV1,
+    DkgHeaderSections, HeaderExtraDataHistory,
+};
 use chainspec::{
     build_sahara_chain_spec_with_alloc_and_validators,
     build_sahara_chain_spec_with_alloc_and_validators_and_community_pool_unlock_config,
@@ -24,10 +28,7 @@ use reth_primitives_traits::crypto::secp256k1::sign_message;
 use reth_primitives_traits::SignerRecoverable;
 use revm::state::Bytecode;
 use std::collections::BTreeMap;
-use validators_dkg::{
-    decode_extra_data, encode_canonical_extra_data, full_dkg_should_be_included,
-    CanonicalExtraDataV1, FullDkgV1,
-};
+use validators_dkg::FullDkgV1;
 use validators_reader::{
     decode_validator_registry_storage_opt, encode_validator_registry_storage,
     ordered_consensus_pubkeys, ValidatorEntry, SIMPLEX_VALIDATORS_REGISTRY,

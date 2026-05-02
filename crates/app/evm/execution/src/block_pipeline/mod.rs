@@ -5,7 +5,11 @@ use alloy_eips::eip1559::{calc_next_block_base_fee, BaseFeeParams};
 use alloy_primitives::{bytes::BufMut, Address, TxKind};
 use alloy_trie::{root::ordered_trie_root_with_encoder, EMPTY_ROOT_HASH};
 use app_primitives::{
-    header_extra_data::build_raw_eth_envelope, EvmBlock, ExecutionResult, Receipt,
+    header_extra_data::{
+        build_header_extra_data, decode_header_extra_data, DkgHeaderSections,
+        HeaderExtraDataHistory,
+    },
+    EvmBlock, ExecutionResult, Receipt,
 };
 use app_traits::traits::{Application, TxSource};
 use evm_precompiles::{
@@ -21,7 +25,7 @@ use crate::config::WhirlpoolEvmConfig;
 use crate::error::EvmAppError;
 use crate::post_handle::ReceiptStore;
 pub use crate::traits::StateDb;
-use validators_dkg::{DkgHistory, DkgMetadataError};
+use validators_dkg::{DkgMetadataError, FullDkgV1};
 
 mod accounting;
 mod propose;
@@ -145,10 +149,40 @@ fn boundary_call_failure(mode: BoundaryCallFailureMode, message: String) -> EvmA
 }
 
 fn map_dkg_metadata_error(err: DkgMetadataError) -> EvmAppError {
-    match err {
-        DkgMetadataError::History(message) => EvmAppError::State(message),
-        other => EvmAppError::InvalidBlock(other.to_string()),
+    EvmAppError::InvalidBlock(err.to_string())
+}
+
+fn latest_committed_full_dkg<History>(
+    history: &History,
+    start_height: u64,
+) -> Result<Option<FullDkgV1>, EvmAppError>
+where
+    History: HeaderExtraDataHistory,
+    History::Error: std::fmt::Display,
+{
+    let mut height = start_height;
+    loop {
+        let maybe_extra_data = history
+            .header_extra_data_at_height(height)
+            .map_err(|err| EvmAppError::State(err.to_string()))?;
+        if let Some(extra_data) = maybe_extra_data {
+            let decoded = decode_header_extra_data(&extra_data).map_err(|source| {
+                EvmAppError::InvalidBlock(format!(
+                    "failed to decode historical block {height} header extra_data: {source}"
+                ))
+            })?;
+            if let Some(full_dkg) = decoded.dkg.full_dkg {
+                return Ok(Some(full_dkg));
+            }
+        }
+
+        if height == 0 {
+            break;
+        }
+        height -= 1;
     }
+
+    Ok(None)
 }
 
 fn map_post_block_accounting_runtime_error(err: PostBlockAccountingRuntimeError) -> EvmAppError {
@@ -214,9 +248,16 @@ fn build_sealed_header(block: &EvmBlock) -> SealedHeader {
 #[allow(clippy::manual_async_fn)]
 impl<DB> Application for EvmApplication<DB>
 where
-    DB: StateDb + DkgHistory + Clone + Send + Sync + 'static + revm::Database + std::fmt::Debug,
+    DB: StateDb
+        + HeaderExtraDataHistory
+        + Clone
+        + Send
+        + Sync
+        + 'static
+        + revm::Database
+        + std::fmt::Debug,
     <DB as StateDb>::Error: Into<EvmAppError>,
-    <DB as DkgHistory>::Error: std::fmt::Display,
+    <DB as HeaderExtraDataHistory>::Error: std::fmt::Display,
 {
     type Block = EvmBlock;
     type Result = ExecutionResult;
@@ -230,9 +271,11 @@ where
                     .map_err(Into::into)
                     .expect("genesis state root should not fail")
             };
-            let genesis_extra_data =
-                build_raw_eth_envelope(self.evm_config.proposer_context().local_public_key())
-                    .expect("genesis raw_eth extra_data envelope should encode");
+            let genesis_extra_data = build_header_extra_data(
+                self.evm_config.proposer_context().local_public_key(),
+                DkgHeaderSections::default(),
+            )
+            .expect("genesis raw_eth extra_data envelope should encode");
 
             EvmBlock {
                 height: 0,

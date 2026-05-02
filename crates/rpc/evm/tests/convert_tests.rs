@@ -1,12 +1,13 @@
 use alloy_consensus::TxEip1559;
 use alloy_eips::eip2718::Encodable2718;
 use alloy_primitives::{Address, Signature, TxKind, B256, U256};
+use app_primitives::header_extra_data::{
+    encode_header_extra_data, CanonicalHeaderExtraDataV1, DkgHeaderSections,
+};
 use app_primitives::EvmBlock;
 use reth_ethereum_primitives::{Transaction, TransactionSigned};
 use rpc_eth::convert::{decode_transaction, evmblock_to_block, evmblock_to_header};
-use validators_dkg::{
-    encode_canonical_extra_data, CanonicalExtraDataV1, FullDkgOutputV1, FullDkgV1,
-};
+use validators_dkg::{FullDkgOutputV1, FullDkgV1};
 
 fn sample_signed_tx(nonce: u64, to: Address, value: u64) -> TransactionSigned {
     TransactionSigned::new_unhashed(
@@ -115,17 +116,19 @@ fn evmblock_to_block_supports_empty_transactions() {
 
 #[test]
 fn evmblock_to_header_projects_raw_eth_from_canonical_extra_data() {
-    let canonical = encode_canonical_extra_data(&CanonicalExtraDataV1 {
+    let canonical = encode_header_extra_data(&CanonicalHeaderExtraDataV1 {
         raw_eth: Some(vec![0x99; 32]),
-        full_dkg: Some(FullDkgV1 {
-            epoch: 3,
-            output: FullDkgOutputV1 {
-                dealers: vec![[0x11; 32]],
-                players: vec![[0x22; 32]],
-                public_polynomial: vec![0xaa, 0xbb, 0xcc],
-            },
-        }),
-        reshare: None,
+        dkg: DkgHeaderSections {
+            full_dkg: Some(FullDkgV1 {
+                epoch: 3,
+                output: FullDkgOutputV1 {
+                    dealers: vec![[0x11; 32]],
+                    players: vec![[0x22; 32]],
+                    public_polynomial: vec![0xaa, 0xbb, 0xcc],
+                },
+            }),
+            reshare: None,
+        },
     })
     .expect("canonical extra_data should encode");
 

@@ -9,7 +9,7 @@ Persistent state storage implementation backed by reth-db (MDBX/libmdbx), plus t
 - `crates/app/evm/state-reth/src/db_failure_injection.rs` — deterministic delete-failure injection seam used by db tests
 - `crates/app/evm/state-reth/src/tests/db.rs` — file-separated `db.rs` unit tests (wired via `#[path = "tests/db.rs"] mod tests;`)
 - `crates/app/evm/state-reth/src/block_storage.rs` — `BlockStorage` persistence for finalized blocks + receipts
-- `crates/app/evm/state-reth/src/dkg_history.rs` — `validators_dkg::DkgHistory` implementations for raw historical DKG carrier bytes
+- `crates/app/evm/state-reth/src/dkg_history.rs` — `app_primitives::header_extra_data::HeaderExtraDataHistory` implementations for raw historical header `extra_data` bytes
 - `crates/app/evm/state-reth/src/tests/block_storage.rs` — file-separated block-storage unit tests (wired via `#[path = "tests/block_storage.rs"] mod tests;`)
 - `crates/app/evm/state-reth/src/init.rs` — `open_state_db` helper
 - `crates/app/evm/state-reth/src/error.rs` — `RethStateError` enum
@@ -31,7 +31,7 @@ Persistent state storage implementation backed by reth-db (MDBX/libmdbx), plus t
 ## Trait Implementations
 - `state::traits::StateDb`: persistent implementation with dual-writes (Plain + Hashed tables).
 - `state::block_storage::BlockStorage`: finalized block/receipt persistence and recovery (`store_block`, `get_latest_block_number`, `get_block_by_number`, `get_block_by_hash`, `get_receipts_by_block`).
-- `validators_dkg::DkgHistory`: raw historical DKG carrier-byte lookup. `RethStateDb` reads `Headers.extra_data` directly without reconstructing `EvmBlock`; `InMemoryStateDb` clones stored `EvmBlock.extra_data`. Neither implementation decodes or validates DKG metadata.
+- `app_primitives::header_extra_data::HeaderExtraDataHistory`: raw historical header-byte lookup. `RethStateDb` reads `Headers.extra_data` directly without reconstructing `EvmBlock`; `InMemoryStateDb` clones stored `EvmBlock.extra_data`. Neither implementation decodes header bytes or validates DKG metadata.
 - `revm::Database`: mutable EVM database access (per-call transactions).
 - `revm::DatabaseRef`: read-only EVM database access.
 
@@ -40,7 +40,7 @@ Persistent state storage implementation backed by reth-db (MDBX/libmdbx), plus t
 - **Dual-Writes**: state is written to both Plain and Hashed tables to support both direct lookups and Merkle trie generation.
 - **Storage writer seam**: `insert_storage` writes/deletes storage slots in both Plain and Hashed tables, creating an empty account row when needed so slot ownership is canonical.
 - **Block Storage**: `store_block` validates tx/receipt length before opening a write tx, decodes 2718 txs once, writes canonical header/body/tx/receipt records atomically, and treats identical `(number, hash)` re-inserts as idempotent no-ops. Stored headers include `base_fee_per_gas`, proposer fee recipient in `beneficiary`, proposer public key in `extra_data`, and post-Cancun blob gas fields (`excess_blob_gas: Some(0)`, `blob_gas_used: Some(0)`). `get_latest_block_number` uses `cursor_read::<CanonicalHeaders>().last()` for O(log N) tip recovery.
-- **Block reconstruction strictness**: `get_block_by_number` now fails with `BlockStorageError::Codec` when proposer pubkey cannot be decoded from persisted `extra_data` (no silent zero-key fallback). `DkgHistory` intentionally bypasses this reconstruction path and returns raw header `extra_data` bytes so `validators-dkg` remains the only DKG decoder/interpreter.
+- **Block reconstruction strictness**: `get_block_by_number` now fails with `BlockStorageError::Codec` when proposer pubkey cannot be decoded from persisted `extra_data` (no silent zero-key fallback). `HeaderExtraDataHistory` intentionally bypasses this reconstruction path and returns raw header `extra_data` bytes so execution can run the bounded historical scan while app-primitives decodes the carrier and validators-dkg interprets only DKG payload semantics.
 - **Trie**: state root computation uses explicit `LegacyKeyAdapter` wiring for `StateRoot::from_tx(...)` compatibility with reth v2 trie-db generics.
 - **Delete error propagation**: commit and `insert_storage` delete paths now propagate MDBX delete errors instead of ignoring them; regression coverage includes injected delete-failure tests for commit and `insert_storage`.
 - **Failure-injection seam**: delete-failure test hooks are consolidated behind a single target enum to keep the helper module under public API policy limits while preserving commit/storage failure coverage.
