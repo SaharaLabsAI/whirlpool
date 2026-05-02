@@ -4,7 +4,7 @@ use validators_dkg::ValidatorActivationSchedule;
 use validators_reader::{ordered_consensus_pubkeys, ValidatorEntry};
 
 use crate::block_pipeline::map_validators_runtime_error;
-use crate::config::dkg::DkgTransitionConfig;
+use crate::context::dkg::DkgTransitionConfig;
 use crate::error::EvmAppError;
 use crate::traits::StateDb;
 

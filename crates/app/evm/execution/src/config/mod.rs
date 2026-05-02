@@ -1,3 +1,10 @@
+//! Static EVM configuration and adapter composition.
+//!
+//! This module keeps `WhirlpoolEvmConfig` and the static Reth/EVM adapter
+//! surface. Node-local/runtime inputs live under `crate::context`; runtime
+//! validator state is loaded by the block pipeline at proposal/verification
+//! timing.
+
 use std::sync::Arc;
 
 use reth_chainspec::ChainSpec;
@@ -8,9 +15,9 @@ mod evm_adapter;
 pub mod proposer;
 mod proposer_facade;
 
-use dkg::DkgTransitionConfig;
+use crate::context::dkg::DkgTransitionConfig;
+use crate::context::proposer::ProposerRuntimeContext;
 use evm_adapter::WhirlpoolRethEvmAdapter;
-use proposer::ProposerRuntimeContext;
 
 #[derive(Debug, Clone)]
 pub struct WhirlpoolEvmConfig {
