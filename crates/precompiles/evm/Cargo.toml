@@ -14,4 +14,4 @@ validators-reader = { path = "../../validators/reader" }
 
 
 [dev-dependencies]
-app-evm-state = { path = "../../app/evm/state-reth" }
+app-evm-state = { path = "../../app/evm-state" }

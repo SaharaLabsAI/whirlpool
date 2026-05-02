@@ -8,14 +8,14 @@ edition.workspace = true
 [dependencies]
 app-traits = { path = "../../crates/app/traits" }
 app-primitives = { path = "../../crates/app/primitives" }
-app-evm-execution = { path = "../../crates/app/evm/execution" }
+app-evm-execution = { path = "../../crates/app/evm-execution" }
 chainspec = { path = "../../crates/chainspec" }
 evm-precompiles = { path = "../../crates/precompiles/evm" }
 validators-reader = { path = "../../crates/validators/reader" }
 validators-dkg = { path = "../../crates/validators/dkg" }
 rpc-eth = { path = "../../crates/rpc/evm" }
 state = { path = "../../crates/app/state" }
-app-evm-state = { path = "../../crates/app/evm/state-reth" }
+app-evm-state = { path = "../../crates/app/evm-state" }
 whirlpool-node = { path = "../../crates/node" }
 consensus-manager = { path = "../../crates/consensus/manager" }
 consensus = { path = "../../crates/consensus/traits" }
