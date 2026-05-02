@@ -24,9 +24,8 @@ pub struct DkgTransitionConfig {
 }
 
 // The crate-visible mutation helpers below are intentionally narrow: the
-// public builder API remains on `WhirlpoolEvmConfig`, while compatibility
-// facade modules in `config/dkg` need to update this private context without
-// exposing extra public `DkgTransitionConfig` mutators.
+// public builder API remains on `WhirlpoolEvmConfig` without exposing extra
+// public `DkgTransitionConfig` mutators.
 
 impl DkgTransitionConfig {
     pub fn feature_gate(&self) -> &FullDkgFeatureGate {

@@ -142,38 +142,20 @@ fn dkg_activation_overrides_delegate_keeps_state_backed_defaults_as_input() {
 
     let config = WhirlpoolEvmConfig::new(Arc::new(build_sahara_chain_spec()))
         .with_activation_players_for_epoch(9, override_players.clone());
-    let schedule_from_facade =
+    let schedule_from_config =
         config.validator_activation_schedule_for_default_players(default_players.clone());
     let schedule_from_owner = config
         .dkg_transition()
         .activation_schedule_for_default_players(default_players);
 
     assert_eq!(
-        schedule_from_facade.resolve_players_for_epoch(9).ok(),
+        schedule_from_config.resolve_players_for_epoch(9).ok(),
         Some(override_players.clone())
     );
     assert_eq!(
         schedule_from_owner.resolve_players_for_epoch(9).ok(),
         Some(override_players)
     );
-    assert!(schedule_from_facade.resolve_players_for_epoch(10).is_err());
+    assert!(schedule_from_config.resolve_players_for_epoch(10).is_err());
     assert!(schedule_from_owner.resolve_players_for_epoch(10).is_err());
-}
-
-#[test]
-fn context_modules_are_canonical_with_config_compatibility_paths() {
-    use crate::config::{dkg as compat_dkg, proposer as compat_proposer};
-
-    let local_key = [0x24; 32];
-    let proposer = crate::context::proposer::ProposerRuntimeContext::default()
-        .with_local_public_key(local_key);
-    let compat_proposer: compat_proposer::ProposerRuntimeContext = proposer;
-    assert_eq!(compat_proposer.local_public_key(), local_key);
-
-    let canonical_dkg = crate::context::dkg::DkgTransitionConfig::default();
-    let compat_dkg: compat_dkg::DkgTransitionConfig = canonical_dkg.clone();
-    assert_eq!(
-        compat_dkg.feature_gate().enabled(),
-        canonical_dkg.feature_gate().enabled()
-    );
 }
