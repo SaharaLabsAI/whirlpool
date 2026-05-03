@@ -27,4 +27,7 @@ pub use spec_builders_try::{
 pub const SAHARA_CHAIN_ID: u64 = 313_371;
 
 #[cfg(test)]
+mod native_token_tests;
+
+#[cfg(test)]
 mod tests;

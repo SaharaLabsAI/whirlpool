@@ -7,7 +7,6 @@ edition.workspace = true
 doctest = false
 
 [dependencies]
-app-evm-execution = { path = "../app/evm-execution" }
 evm-precompiles = { path = "../precompiles/evm" }
 validators-reader = { path = "../validators/reader" }
 reth-chainspec = { path = "../../vendor/reth/crates/chainspec" }
