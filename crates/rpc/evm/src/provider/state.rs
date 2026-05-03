@@ -1,9 +1,37 @@
-use super::*;
+use std::{ops::RangeBounds, sync::Arc};
+
+use ::state::StateDb as StateDbTrait;
+use alloy_eips::BlockNumberOrTag;
+use alloy_primitives::{
+    Address, BlockHash, BlockNumber, Bytes, StorageKey, StorageValue, B256, U256,
+};
+use reth_chainspec::{ChainSpec, ChainSpecProvider};
+use reth_db_api::models::AccountBeforeTx;
+use reth_ethereum_primitives::Receipt;
+use reth_execution_types::ExecutionOutcome;
+use reth_primitives_traits::{Account, Bytecode};
+use reth_prune::{PruneCheckpoint, PruneSegment};
+use reth_stages_api::{StageCheckpoint, StageId};
+use reth_storage_api::{
+    AccountReader, BlockIdReader, BlockNumReader, BytecodeReader, ChangeSetReader,
+    HashedPostStateProvider, PruneCheckpointReader, StageCheckpointReader, StateProofProvider,
+    StateProvider, StateProviderBox, StateProviderFactory, StateReader, StateRootProvider,
+    StorageRootProvider,
+};
+use reth_storage_errors::provider::{ProviderError, ProviderResult};
+use reth_trie::{
+    updates::TrieUpdates, AccountProof, HashedPostState, HashedStorage, MultiProof,
+    MultiProofTargets, StorageMultiProof, StorageProof, TrieInput,
+};
+
+use crate::provider_impl::{map_db_err, WhirlpoolProvider};
 
 impl AccountReader for WhirlpoolProvider {
     fn basic_account(&self, address: &Address) -> ProviderResult<Option<Account>> {
-        let tx = self.state_db.inner().tx().map_err(map_db_err)?;
-        tx.get::<PlainAccountState>(*address).map_err(map_db_err)
+        self.state_db
+            .rpc_reader()
+            .basic_account(*address)
+            .map_err(map_db_err)
     }
 }
 

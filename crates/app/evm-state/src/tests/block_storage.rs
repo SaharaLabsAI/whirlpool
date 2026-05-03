@@ -6,13 +6,13 @@ use app_primitives::{
     Receipt as AppReceipt,
 };
 use reth_db::Database;
-use reth_db_api::transaction::DbTx;
+use reth_db_api::transaction::{DbTx, DbTxMut};
 use reth_ethereum_primitives::TransactionSigned;
 use revm::primitives::B256;
 use state::BlockStorage;
 
 use crate::init::open_state_db;
-use crate::tables::BlockBodyIndices;
+use reth_db_api::tables::Headers;
 
 fn make_raw_tx(nonce: u64) -> Vec<u8> {
     let tx = TxLegacy {
@@ -111,8 +111,33 @@ fn tc_sr_03_get_block_by_number_round_trip() {
     assert_eq!(loaded.transactions_root, block.transactions_root);
     assert_eq!(loaded.receipts_root, block.receipts_root);
     assert_eq!(loaded.gas_used, block.gas_used);
+    assert_eq!(loaded.base_fee_per_gas, block.base_fee_per_gas);
     assert_eq!(loaded.timestamp, block.timestamp);
     assert_eq!(loaded.transactions, block.transactions);
+}
+
+#[test]
+#[serial_test::serial]
+fn get_block_by_number_errors_when_base_fee_missing() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let db = open_state_db(dir.path()).expect("open db");
+    let block = make_block(13, 1);
+    db.store_block(&block, &make_receipts(1))
+        .expect("store block");
+
+    let tx = db.db.tx_mut().expect("open write tx");
+    let mut header = tx
+        .get::<Headers>(13)
+        .expect("read header")
+        .expect("header exists");
+    header.base_fee_per_gas = None;
+    tx.put::<Headers>(13, header).expect("write header");
+    tx.commit().expect("commit header mutation");
+
+    let err = db
+        .get_block_by_number(13)
+        .expect_err("missing base_fee_per_gas should fail block reconstruction");
+    assert!(matches!(err, state::BlockStorageError::Codec(_)));
 }
 
 #[test]
@@ -189,18 +214,18 @@ fn tc_sr_07_sequential_blocks_have_monotonic_tx_numbers() {
     db.store_block(&block_two, &make_receipts(3))
         .expect("store second block");
 
-    let tx = db.inner().tx().expect("open read tx");
-    let idx_one = tx
-        .get::<BlockBodyIndices>(1)
+    let reader = db.rpc_reader();
+    let idx_one = reader
+        .block_body_indices(1)
         .expect("read first indices")
         .expect("first indices exist");
-    let idx_two = tx
-        .get::<BlockBodyIndices>(2)
+    let idx_two = reader
+        .block_body_indices(2)
         .expect("read second indices")
         .expect("second indices exist");
 
-    assert_eq!(idx_two.first_tx_num, idx_one.next_tx_num());
-    assert!(idx_two.first_tx_num >= idx_one.first_tx_num);
+    assert_eq!(idx_two.first_tx_num(), idx_one.next_tx_num());
+    assert!(idx_two.first_tx_num() >= idx_one.first_tx_num());
 }
 
 // TC-SR-08

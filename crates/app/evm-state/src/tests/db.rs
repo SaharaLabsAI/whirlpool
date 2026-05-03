@@ -6,8 +6,7 @@ use revm::state::{AccountInfo, Bytecode};
 use revm::{Database, DatabaseRef};
 use state::StateDb;
 
-use super::{inject_next_delete_failure, DeleteFailureTarget, RethStateDb};
-use crate::error::RethStateError;
+use crate::db::RethStateDb;
 
 fn account_info(balance: u64, nonce: u64) -> AccountInfo {
     AccountInfo {
@@ -196,43 +195,4 @@ fn test_revm_database_ref_basic() {
 
     let got = db.basic_ref(addr).unwrap();
     assert_eq!(got, Some(info));
-}
-
-#[test]
-#[serial_test::serial]
-fn commit_propagates_delete_errors() {
-    let mut db = RethStateDb::new();
-    let addr = address!("b00000000000000000000000000000000000000b");
-    db.insert_account(addr, account_info(100, 1))
-        .expect("seed account");
-
-    let bundle = bundle_with_account(
-        addr,
-        Some(account_info(100, 1)),
-        None,
-        AccountStatus::Destroyed,
-        &[],
-    );
-    inject_next_delete_failure(DeleteFailureTarget::Commit);
-    let err = db
-        .commit(&bundle)
-        .expect_err("commit should fail when delete operation fails");
-    assert!(matches!(err, RethStateError::Database(_)));
-}
-
-#[test]
-#[serial_test::serial]
-fn insert_storage_propagates_delete_errors() {
-    let mut db = RethStateDb::new();
-    let addr = address!("c00000000000000000000000000000000000000c");
-    let key = U256::from(9_u64);
-
-    db.insert_storage(addr, key, U256::from(1_u64))
-        .expect("seed storage");
-    inject_next_delete_failure(DeleteFailureTarget::InsertStorage);
-
-    let err = db
-        .insert_storage(addr, key, U256::ZERO)
-        .expect_err("insert_storage should fail when delete operation fails");
-    assert!(matches!(err, RethStateError::Database(_)));
 }

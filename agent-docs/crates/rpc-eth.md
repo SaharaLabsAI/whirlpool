@@ -8,7 +8,7 @@ Location: `crates/rpc/evm/`
 ## Dependency Boundaries
 - `app-traits`: `TxSource` trait (`app_traits::traits`) — transaction submission bridge.
 - `app-primitives`: `EvmBlock` carrier and header `extra_data` RawEth projection helper.
-- `app-evm-state`: `RethStateDb` — persistent MDBX-backed state and block storage.
+- `app-evm-state`: `RethStateDb` + `RpcStateReader` semantic projection API — persistent MDBX-backed state and block storage without downstream raw-table access.
 - `reth-rpc-builder`: `RpcModuleBuilder`, `TransportRpcModuleConfig`, `RpcServerConfig` — server assembly.
 - `reth-rpc`: `EthApi` implementation wired through the builder.
 - `reth-provider`: Provider traits (`BlockReader`, `HeaderProvider`, `TransactionsProvider`, `ReceiptProvider`, `StateProviderFactory`, `AccountReader`, `ChainSpecProvider`, `CanonStateSubscriptions`, `StageCheckpointReader`, etc.).
@@ -117,8 +117,8 @@ All standard `eth_*` methods from `RpcModuleSelection::standard_modules()` are s
 
 ## Key Design Notes
 - `WhirlpoolProvider` constructor creates internal `broadcast::channel(16)` for canon state notifications and `watch::channel(None)` for safe/finalized/persisted block subscriptions.
-- MDBX access pattern: `self.state_db.inner().tx().map_err(map_db_err)?` for read-only transactions.
-- State tables used: `CanonicalHeaders`, `HeaderNumbers`, `Headers`, `BlockBodyIndices`, `Transactions`, `TransactionHashNumbers`, `TransactionBlocks`, `Receipts`, `HeaderTerminalDifficulties`, `PlainAccountState`, `PlainStorageState`, `Bytecodes`.
+- Storage access pattern: provider code calls `self.state_db.rpc_reader()` for block/header/tx/receipt/account projections and never imports `app_evm_state::tables` or opens raw DB transactions.
+- State tables are owned privately by `app-evm-state`; `rpc-eth` consumes semantic DTO/query results and `StateDb` trait methods for storage/bytecode reads.
 - On empty DB: `eth_blockNumber` returns 0 and `eth_getBalance` returns 0.
 - RPC `eth_call` / estimation now share the same Whirlpool precompile registry as consensus execution by using `app_evm_execution::WhirlpoolEvmConfig` in `server.rs`.
 

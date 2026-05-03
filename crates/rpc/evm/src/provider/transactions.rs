@@ -1,17 +1,35 @@
-use super::*;
+use std::ops::{RangeBounds, RangeInclusive};
+
+use alloy_consensus::{transaction::TransactionMeta, BlockHeader};
+use alloy_eips::BlockHashOrNumber;
+use alloy_primitives::{Address, BlockNumber, TxHash, TxNumber};
+use reth_ethereum_primitives::{Receipt, TransactionSigned};
+use reth_primitives_traits::SignerRecoverable;
+use reth_storage_api::{
+    BlockBodyIndicesProvider, BlockNumReader, ReceiptProvider, ReceiptProviderIdExt,
+    TransactionsProvider,
+};
+use reth_storage_errors::provider::{ProviderError, ProviderResult};
+
+use crate::provider_impl::{
+    map_db_err, range_to_exclusive_bounds, tx_range_to_exclusive_bounds, WhirlpoolProvider,
+};
 
 impl TransactionsProvider for WhirlpoolProvider {
     type Transaction = TransactionSigned;
 
     fn transaction_id(&self, tx_hash: TxHash) -> ProviderResult<Option<TxNumber>> {
-        let tx = self.state_db.inner().tx().map_err(map_db_err)?;
-        tx.get::<TransactionHashNumbers>(tx_hash)
+        self.state_db
+            .rpc_reader()
+            .transaction_id(tx_hash)
             .map_err(map_db_err)
     }
 
     fn transaction_by_id(&self, id: TxNumber) -> ProviderResult<Option<Self::Transaction>> {
-        let tx = self.state_db.inner().tx().map_err(map_db_err)?;
-        tx.get::<Transactions>(id).map_err(map_db_err)
+        self.state_db
+            .rpc_reader()
+            .transaction_by_id(id)
+            .map_err(map_db_err)
     }
 
     fn transaction_by_id_unhashed(
@@ -32,39 +50,28 @@ impl TransactionsProvider for WhirlpoolProvider {
         &self,
         hash: TxHash,
     ) -> ProviderResult<Option<(Self::Transaction, TransactionMeta)>> {
-        let tx = self.state_db.inner().tx().map_err(map_db_err)?;
-        let Some(tx_num) = tx.get::<TransactionHashNumbers>(hash).map_err(map_db_err)? else {
-            return Ok(None);
-        };
-        let Some(transaction) = tx.get::<Transactions>(tx_num).map_err(map_db_err)? else {
-            return Ok(None);
-        };
-        let Some(block_number) = tx.get::<TransactionBlocks>(tx_num).map_err(map_db_err)? else {
-            return Ok(None);
-        };
-        let Some(header) = tx.get::<Headers>(block_number).map_err(map_db_err)? else {
-            return Ok(None);
-        };
-        let block_hash = tx
-            .get::<CanonicalHeaders>(block_number)
+        let Some(inputs) = self
+            .state_db
+            .rpc_reader()
+            .transaction_by_hash_with_meta_inputs(hash)
             .map_err(map_db_err)?
-            .unwrap_or_default();
-        let body_indices = tx
-            .get::<BlockBodyIndices>(block_number)
-            .map_err(map_db_err)?
-            .unwrap_or_default();
-        let tx_index = tx_num.saturating_sub(body_indices.first_tx_num());
+        else {
+            return Ok(None);
+        };
+        let tx_index = inputs
+            .tx_num
+            .saturating_sub(inputs.body_indices.first_tx_num());
 
         let meta = TransactionMeta {
             tx_hash: hash,
             index: tx_index,
-            block_hash,
-            block_number,
-            base_fee: header.base_fee_per_gas(),
-            excess_blob_gas: header.excess_blob_gas(),
-            timestamp: header.timestamp(),
+            block_hash: inputs.block_hash,
+            block_number: inputs.block_number,
+            base_fee: inputs.header.base_fee_per_gas(),
+            excess_blob_gas: inputs.header.excess_blob_gas(),
+            timestamp: inputs.header.timestamp(),
         };
-        Ok(Some((transaction, meta)))
+        Ok(Some((inputs.transaction, meta)))
     }
 
     fn transactions_by_block(
@@ -116,14 +123,10 @@ impl TransactionsProvider for WhirlpoolProvider {
             return Ok(Vec::new());
         }
 
-        let tx = self.state_db.inner().tx().map_err(map_db_err)?;
-        let mut transactions = Vec::new();
-        for tx_num in start..end {
-            if let Some(transaction) = tx.get::<Transactions>(tx_num).map_err(map_db_err)? {
-                transactions.push(transaction);
-            }
-        }
-        Ok(transactions)
+        self.state_db
+            .rpc_reader()
+            .transactions_by_tx_range(start, end)
+            .map_err(map_db_err)
     }
 
     fn senders_by_tx_range(
@@ -156,8 +159,7 @@ impl ReceiptProvider for WhirlpoolProvider {
     type Receipt = Receipt;
 
     fn receipt(&self, id: TxNumber) -> ProviderResult<Option<Self::Receipt>> {
-        let tx = self.state_db.inner().tx().map_err(map_db_err)?;
-        tx.get::<Receipts>(id).map_err(map_db_err)
+        self.state_db.rpc_reader().receipt(id).map_err(map_db_err)
     }
 
     fn receipt_by_hash(&self, hash: TxHash) -> ProviderResult<Option<Self::Receipt>> {
@@ -195,14 +197,10 @@ impl ReceiptProvider for WhirlpoolProvider {
             return Ok(Vec::new());
         }
 
-        let tx = self.state_db.inner().tx().map_err(map_db_err)?;
-        let mut receipts = Vec::new();
-        for tx_num in start..end {
-            if let Some(receipt) = tx.get::<Receipts>(tx_num).map_err(map_db_err)? {
-                receipts.push(receipt);
-            }
-        }
-        Ok(receipts)
+        self.state_db
+            .rpc_reader()
+            .receipts_by_tx_range(start, end)
+            .map_err(map_db_err)
     }
 
     fn receipts_by_block_range(

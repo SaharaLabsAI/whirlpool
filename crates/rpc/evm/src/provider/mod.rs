@@ -1,53 +1,21 @@
 use std::{
-    ops::{Bound, RangeBounds, RangeInclusive},
+    ops::{Bound, RangeBounds},
     sync::Arc,
 };
 
-use ::state::StateDb as StateDbTrait;
-use alloy_consensus::{transaction::TransactionMeta, BlockBody, BlockHeader, Header};
-use alloy_eips::{BlockHashOrNumber, BlockId, BlockNumberOrTag};
-use alloy_primitives::{
-    Address, BlockHash, BlockNumber, Bytes, StorageKey, StorageValue, TxHash, TxNumber, B256, U256,
-};
-use app_evm_state::{
-    tables::{
-        BlockBodyIndices, CanonicalHeaders, HeaderNumbers, Headers, PlainAccountState, Receipts,
-        TransactionBlocks, TransactionHashNumbers, Transactions,
-    },
-    RethStateDb,
-};
+use alloy_consensus::{BlockBody, Header};
+use alloy_primitives::{BlockNumber, TxNumber};
+use app_evm_state::RethStateDb;
 use reth_chain_state::{
     CanonStateNotification, CanonStateNotifications, CanonStateSubscriptions,
     ForkChoiceNotifications, ForkChoiceSubscriptions, PersistedBlockNotifications,
     PersistedBlockSubscriptions,
 };
-use reth_chainspec::{ChainInfo, ChainSpec, ChainSpecProvider};
-use reth_db_api::{
-    cursor::DbCursorRO,
-    models::{AccountBeforeTx, StoredBlockBodyIndices},
-    transaction::DbTx,
-    Database,
-};
-use reth_ethereum_primitives::{Block, EthPrimitives, Receipt, TransactionSigned};
-use reth_execution_types::ExecutionOutcome;
-use reth_primitives_traits::{
-    Account, Block as _, Bytecode, RecoveredBlock, SealedHeader, SignerRecoverable,
-};
-use reth_prune::{PruneCheckpoint, PruneSegment};
-use reth_stages_api::{StageCheckpoint, StageId};
-use reth_storage_api::{
-    AccountReader, BlockBodyIndicesProvider, BlockHashReader, BlockIdReader, BlockNumReader,
-    BlockReader, BlockReaderIdExt, BlockSource, BytecodeReader, ChangeSetReader,
-    HashedPostStateProvider, HeaderProvider, NodePrimitivesProvider, PruneCheckpointReader,
-    ReceiptProvider, ReceiptProviderIdExt, StageCheckpointReader, StateProofProvider,
-    StateProvider, StateProviderBox, StateProviderFactory, StateReader, StateRootProvider,
-    StorageRootProvider, TransactionVariant, TransactionsProvider,
-};
+use reth_chainspec::ChainSpec;
+use reth_ethereum_primitives::{Block, EthPrimitives};
+use reth_primitives_traits::{Block as _, RecoveredBlock, SealedHeader};
+use reth_storage_api::BlockHashReader;
 use reth_storage_errors::provider::{ProviderError, ProviderResult};
-use reth_trie::{
-    updates::TrieUpdates, AccountProof, HashedPostState, HashedStorage, MultiProof,
-    MultiProofTargets, StorageMultiProof, StorageProof, TrieInput,
-};
 use tokio::sync::{broadcast, watch};
 
 fn map_db_err(e: impl std::fmt::Display) -> ProviderError {
@@ -115,27 +83,19 @@ impl WhirlpoolProvider {
 
 impl WhirlpoolProvider {
     fn read_block_by_number(&self, number: BlockNumber) -> ProviderResult<Option<Block>> {
-        let tx = self.state_db.inner().tx().map_err(map_db_err)?;
-        let Some(header) = tx.get::<Headers>(number).map_err(map_db_err)? else {
+        let Some(block) = self
+            .state_db
+            .rpc_reader()
+            .read_block_by_number(number)
+            .map_err(map_db_err)?
+        else {
             return Ok(None);
         };
-        let body_indices = tx
-            .get::<BlockBodyIndices>(number)
-            .map_err(map_db_err)?
-            .unwrap_or_default();
-
-        let mut transactions = Vec::with_capacity(body_indices.tx_count as usize);
-        for tx_num in body_indices.tx_num_range() {
-            let Some(transaction) = tx.get::<Transactions>(tx_num).map_err(map_db_err)? else {
-                return Ok(None);
-            };
-            transactions.push(transaction);
-        }
 
         Ok(Some(Block::new(
-            header,
+            block.header,
             BlockBody {
-                transactions,
+                transactions: block.transactions,
                 ommers: vec![],
                 withdrawals: None,
             },

@@ -12,7 +12,7 @@ use revm::primitives::B256;
 use state::{BlockStorage, BlockStorageError};
 
 use crate::db::RethStateDb;
-use crate::tables::{
+use reth_db_api::tables::{
     BlockBodyIndices, CanonicalHeaders, HeaderNumbers, HeaderTerminalDifficulties, Headers,
     Receipts, TransactionBlocks, TransactionHashNumbers, Transactions,
 };
@@ -30,7 +30,7 @@ impl BlockStorage for RethStateDb {
         }
 
         let tx = self
-            .inner()
+            .db
             .tx_mut()
             .map_err(|e| BlockStorageError::Database(e.to_string()))?;
 
@@ -133,7 +133,7 @@ impl BlockStorage for RethStateDb {
 
     fn get_block_by_number(&self, number: u64) -> Result<Option<EvmBlock>, BlockStorageError> {
         let tx = self
-            .inner()
+            .db
             .tx()
             .map_err(|e| BlockStorageError::Database(e.to_string()))?;
 
@@ -172,6 +172,12 @@ impl BlockStorage for RethStateDb {
                     "failed to decode proposer public key from block {number} extra_data: {err}"
                 ))
             })?;
+        let base_fee_per_gas = header.base_fee_per_gas.ok_or_else(|| {
+            BlockStorageError::Codec(format!(
+                "missing base_fee_per_gas while reconstructing block {number}"
+            ))
+        })?;
+
         Ok(Some(EvmBlock {
             height: number,
             parent_id: header.parent_hash.into(),
@@ -182,7 +188,7 @@ impl BlockStorage for RethStateDb {
             proposer_fee_recipient: header.beneficiary.into_array(),
             extra_data,
             gas_used: header.gas_used,
-            base_fee_per_gas: header.base_fee_per_gas.unwrap_or(0),
+            base_fee_per_gas,
             timestamp: header.timestamp,
             transactions,
         }))
@@ -190,7 +196,7 @@ impl BlockStorage for RethStateDb {
 
     fn get_block_by_hash(&self, hash: B256) -> Result<Option<EvmBlock>, BlockStorageError> {
         let tx = self
-            .inner()
+            .db
             .tx()
             .map_err(|e| BlockStorageError::Database(e.to_string()))?;
 
@@ -206,7 +212,7 @@ impl BlockStorage for RethStateDb {
 
     fn get_latest_block_number(&self) -> Result<Option<u64>, BlockStorageError> {
         let tx = self
-            .inner()
+            .db
             .tx()
             .map_err(|e| BlockStorageError::Database(e.to_string()))?;
 
@@ -225,7 +231,7 @@ impl BlockStorage for RethStateDb {
         number: u64,
     ) -> Result<Option<Vec<AppReceipt>>, BlockStorageError> {
         let tx = self
-            .inner()
+            .db
             .tx()
             .map_err(|e| BlockStorageError::Database(e.to_string()))?;
 

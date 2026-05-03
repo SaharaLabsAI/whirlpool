@@ -200,7 +200,7 @@ impl StateDb for InMemoryStateDb {
 }
 
 impl InMemoryStateDb {
-    pub(crate) fn raw_dkg_carrier_at_height(&self, height: u64) -> Result<Option<Vec<u8>>, String> {
+    fn dkg_carrier_at_height(&self, height: u64) -> Result<Option<Vec<u8>>, String> {
         let blocks = self
             .blocks_by_number
             .lock()
@@ -321,5 +321,13 @@ impl BlockStorage for InMemoryStateDb {
             .lock()
             .map_err(|err| BlockStorageError::Database(err.to_string()))?;
         Ok(blocks.keys().max().copied())
+    }
+}
+
+impl app_primitives::header_extra_data::HeaderExtraDataHistory for InMemoryStateDb {
+    type Error = String;
+
+    fn header_extra_data_at_height(&self, height: u64) -> Result<Option<Vec<u8>>, Self::Error> {
+        self.dkg_carrier_at_height(height)
     }
 }
