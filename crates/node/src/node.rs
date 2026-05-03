@@ -2,10 +2,9 @@ use alloy_primitives::Address;
 use app_evm_execution::{EvmApplication, WhirlpoolEvmConfig};
 use app_traits::traits::TxSource;
 use app_traits::ApplicationAdapter;
-use chainspec::{
-    build_sahara_chain_spec_with_alloc_and_validators, try_simplex_validators_from_chain_spec,
-    validate_genesis_alloc,
-};
+use chainspec::genesis::{build_sahara_chain_spec_from, SaharaGenesisConfig};
+use chainspec::native_token::validate_genesis_alloc;
+use chainspec::validators::try_simplex_validators_from_chain_spec;
 use commonware_codec::{Encode, Read};
 use commonware_cryptography::ed25519;
 use commonware_cryptography::Signer;
@@ -255,10 +254,10 @@ pub fn start_node_with_chain_spec(
                     .expect("ed25519 key length"),
                 ethereum_address: Address::repeat_byte(1),
             };
-            Arc::new(build_sahara_chain_spec_with_alloc_and_validators(
-                std::collections::BTreeMap::new(),
-                vec![validator_entry],
-            ))
+            Arc::new(build_sahara_chain_spec_from(SaharaGenesisConfig {
+                simplex_validators: vec![validator_entry],
+                ..SaharaGenesisConfig::default()
+            }))
         }
     };
     let genesis_simplex_validators = simplex_validators_from_chain_spec(&chain_spec)?;
@@ -460,11 +459,11 @@ pub fn start_node_with_chain_spec(
 
 #[cfg(test)]
 mod tests {
-    use super::{
+    use crate::config::NodeConfig;
+    use crate::node::{
         bootstrap_participants, ensure_signer_is_simplex_member, load_bls_material_for_signer,
         resolve_validator_sets,
     };
-    use crate::config::NodeConfig;
     use commonware_cryptography::ed25519;
     use commonware_cryptography::Signer;
     use consensus_manager::{run_trusted_dealer_bootstrap, TrustedDealerBootstrapConfig};

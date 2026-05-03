@@ -1,17 +1,16 @@
 use super::*;
 use alloy_consensus::{SignableTransaction, TxLegacy};
 use alloy_eips::eip2718::Encodable2718;
+use alloy_genesis::GenesisAccount;
 use alloy_primitives::{Address, Bytes, Signature, TxKind, B256, U256};
 use app_evm_state::InMemoryStateDb;
 use app_primitives::header_extra_data::{
     decode_header_extra_data, encode_header_extra_data, CanonicalHeaderExtraDataV1,
     DkgHeaderSections, HeaderExtraDataHistory,
 };
-use chainspec::{
-    build_sahara_chain_spec_with_alloc_and_validators,
-    build_sahara_chain_spec_with_alloc_and_validators_and_community_pool_unlock_config,
-    CommunityPoolUnlockConfig, SAHARA_CHAIN_ID,
-};
+use chainspec::community_pool::CommunityPoolUnlockConfig;
+use chainspec::genesis::{build_sahara_chain_spec_from, SaharaGenesisConfig};
+use chainspec::SAHARA_CHAIN_ID;
 use evm_precompiles::{
     advance_epoch_calldata, apply_post_block_accounting, claimable_balance_slot,
     community_pool_last_processed_epoch_slot, community_pool_locked_remaining_slot,
@@ -77,7 +76,30 @@ fn default_validator_entries() -> Vec<ValidatorEntry> {
 }
 
 fn build_test_chain_spec() -> reth_chainspec::ChainSpec {
-    build_sahara_chain_spec_with_alloc_and_validators(BTreeMap::new(), default_validator_entries())
+    chain_spec_from_genesis_inputs(BTreeMap::new(), default_validator_entries())
+}
+
+fn chain_spec_from_genesis_inputs(
+    alloc: BTreeMap<Address, GenesisAccount>,
+    simplex_validators: Vec<ValidatorEntry>,
+) -> reth_chainspec::ChainSpec {
+    build_sahara_chain_spec_from(SaharaGenesisConfig {
+        alloc,
+        simplex_validators,
+        ..SaharaGenesisConfig::default()
+    })
+}
+
+fn chain_spec_from_unlock_inputs(
+    alloc: BTreeMap<Address, GenesisAccount>,
+    simplex_validators: Vec<ValidatorEntry>,
+    community_pool_unlock: CommunityPoolUnlockConfig,
+) -> reth_chainspec::ChainSpec {
+    build_sahara_chain_spec_from(SaharaGenesisConfig {
+        alloc,
+        simplex_validators,
+        community_pool_unlock,
+    })
 }
 
 fn default_validator_pubkeys() -> Vec<[u8; 32]> {
@@ -157,13 +179,11 @@ fn setup_app_with_unlock_config(
         .first()
         .expect("unlock tests need at least one validator")
         .consensus_pubkey;
-    let chain_spec = Arc::new(
-        build_sahara_chain_spec_with_alloc_and_validators_and_community_pool_unlock_config(
-            BTreeMap::new(),
-            simplex_validators,
-            unlock_config,
-        ),
-    );
+    let chain_spec = Arc::new(chain_spec_from_unlock_inputs(
+        BTreeMap::new(),
+        simplex_validators,
+        unlock_config,
+    ));
     let config = WhirlpoolEvmConfig::new(chain_spec.clone())
         .with_local_proposer_public_key(local_proposer_public_key);
     let db = Arc::new(RwLock::new(InMemoryStateDb::new()));

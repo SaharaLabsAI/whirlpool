@@ -1,7 +1,4 @@
-use std::{
-    collections::BTreeMap,
-    sync::{Arc, RwLock},
-};
+use std::sync::{Arc, RwLock};
 
 use alloy_primitives::Address;
 use app_evm_execution::{EvmAppError, EvmApplication, WhirlpoolEvmConfig};
@@ -11,7 +8,7 @@ use app_primitives::header_extra_data::{
     DkgHeaderSections,
 };
 use app_traits::{traits::Application, NoopTxSource};
-use chainspec::build_sahara_chain_spec_with_alloc_and_validators;
+use chainspec::genesis::{build_sahara_chain_spec_from, SaharaGenesisConfig};
 use evm_precompiles::{
     current_epoch_slot, epoch_blocks_slot, epoch_system_tx_sender, next_epoch_block_slot,
     EPOCH_BLOCKS_DEFAULT, EPOCH_PRECOMPILE_ADDRESS, EPOCH_SYSTEM_TX_INITIAL_BALANCE_WEI,
@@ -29,7 +26,10 @@ const TEST_PROPOSER_FEE_RECIPIENT: Address = Address::new([
 ]);
 
 fn build_test_chain_spec() -> reth_chainspec::ChainSpec {
-    build_sahara_chain_spec_with_alloc_and_validators(BTreeMap::new(), test_validator_entries())
+    build_sahara_chain_spec_from(SaharaGenesisConfig {
+        simplex_validators: test_validator_entries(),
+        ..SaharaGenesisConfig::default()
+    })
 }
 
 fn test_validator_entries() -> Vec<ValidatorEntry> {

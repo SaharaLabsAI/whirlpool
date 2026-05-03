@@ -9,7 +9,8 @@ use alloy_genesis::GenesisAccount;
 use alloy_primitives::{Address, Bytes, TxKind, B256, U256};
 use alloy_signer::Signer as AlloySigner;
 use alloy_signer_local::PrivateKeySigner;
-use chainspec::{build_sahara_chain_spec_with_alloc_and_validators, SAHARA_CHAIN_ID};
+use chainspec::genesis::{build_sahara_chain_spec_from, SaharaGenesisConfig};
+use chainspec::SAHARA_CHAIN_ID;
 use commonware_cryptography::{ed25519, Signer as CwSigner};
 use serde_json::json;
 use tempfile::TempDir;
@@ -108,13 +109,14 @@ fn start_benchmark_node(
     let validator_private_key = ed25519::PrivateKey::from_seed(seed);
     let validator_public_key = validator_private_key.public_key();
 
-    let chain_spec = build_sahara_chain_spec_with_alloc_and_validators(
+    let chain_spec = build_sahara_chain_spec_from(SaharaGenesisConfig {
         alloc,
-        vec![ValidatorEntry {
+        simplex_validators: vec![ValidatorEntry {
             consensus_pubkey: validator_public_key_bytes(&validator_public_key),
             ethereum_address: Address::repeat_byte(1),
         }],
-    );
+        ..SaharaGenesisConfig::default()
+    });
 
     let tempdir = TempDir::new()?;
     let p2p_addr: SocketAddr = format!("127.0.0.1:{}", allocate_port()).parse()?;

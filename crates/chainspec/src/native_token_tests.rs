@@ -3,7 +3,7 @@ use alloy_primitives::{Address, U256};
 use evm_precompiles::{epoch_system_tx_sender, EPOCH_SYSTEM_TX_INITIAL_BALANCE_WEI};
 use std::collections::BTreeMap;
 
-use crate::{
+use crate::native_token::{
     sahara_hard_cap_base_units, total_allocated_supply, validate_genesis_alloc, NativeTokenError,
     SAHARA_DECIMALS, SAHARA_HARD_CAP_TOKENS,
 };

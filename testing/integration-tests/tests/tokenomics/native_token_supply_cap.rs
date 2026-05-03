@@ -12,10 +12,9 @@ use alloy_genesis::{Genesis, GenesisAccount};
 use alloy_primitives::{Address, Bytes, FixedBytes, TxKind, B256, U256};
 use alloy_signer::Signer as AlloySigner;
 use alloy_signer_local::PrivateKeySigner;
-use chainspec::{
-    build_sahara_chain_spec_with_alloc, build_sahara_chain_spec_with_alloc_and_validators,
-    sahara_hard_cap_base_units, SAHARA_CHAIN_ID,
-};
+use chainspec::genesis::{build_sahara_chain_spec_from, SaharaGenesisConfig};
+use chainspec::native_token::sahara_hard_cap_base_units;
+use chainspec::SAHARA_CHAIN_ID;
 use commonware_cryptography::{ed25519, Signer as CwSigner};
 use evm_precompiles::{
     community_pool_balance_calldata, fee_pool_balance_calldata, COMMUNITY_POOL_ADDRESS,
@@ -40,6 +39,24 @@ const TEST_PROPOSER_FEE_RECIPIENT: Address = Address::new([
 const MAX_PRIORITY_FEE_PER_GAS: u128 = 1_000_000_000;
 const MAX_FEE_PER_GAS: u128 = 20_000_000_000;
 const TRANSFER_GAS_LIMIT: u64 = 21_000;
+
+fn chain_spec_from_alloc(alloc: BTreeMap<Address, GenesisAccount>) -> ChainSpec {
+    build_sahara_chain_spec_from(SaharaGenesisConfig {
+        alloc,
+        ..SaharaGenesisConfig::default()
+    })
+}
+
+fn chain_spec_from_alloc_and_validators(
+    alloc: BTreeMap<Address, GenesisAccount>,
+    simplex_validators: Vec<ValidatorEntry>,
+) -> ChainSpec {
+    build_sahara_chain_spec_from(SaharaGenesisConfig {
+        alloc,
+        simplex_validators,
+        ..SaharaGenesisConfig::default()
+    })
+}
 
 fn parse_rpc_u64(value: &serde_json::Value, field: &str) -> u64 {
     let hex = value
@@ -391,7 +408,7 @@ async fn test_accepts_exact_cap_genesis_allocation() {
         },
     );
 
-    let chain_spec = build_sahara_chain_spec_with_alloc(alloc);
+    let chain_spec = chain_spec_from_alloc(alloc);
     let (handle, _tempdir) =
         start_node_for_chain_spec(401, chain_spec).expect("exact-cap startup should succeed");
 
@@ -419,7 +436,7 @@ async fn test_direct_chain_spec_bypass_still_rejected() {
         },
     );
 
-    let mut chain_spec = build_sahara_chain_spec_with_alloc(alloc);
+    let mut chain_spec = chain_spec_from_alloc(alloc);
     chain_spec.genesis.alloc.insert(
         Address::repeat_byte(0xfe),
         GenesisAccount {
@@ -454,7 +471,7 @@ async fn test_post_genesis_transfer_conserves_supply() {
         },
     );
 
-    let chain_spec = build_sahara_chain_spec_with_alloc(alloc);
+    let chain_spec = chain_spec_from_alloc(alloc);
     let (handle, _tempdir) =
         start_node_for_chain_spec(403, chain_spec).expect("funded node should start");
     let rpc_addr = handle.rpc_addr;
@@ -523,7 +540,7 @@ async fn test_community_pool_credit_is_supply_conserving() {
             ..GenesisAccount::default()
         },
     );
-    let chain_spec = build_sahara_chain_spec_with_alloc_and_validators(
+    let chain_spec = chain_spec_from_alloc_and_validators(
         alloc,
         vec![ValidatorEntry {
             consensus_pubkey: validator_public_key_bytes(&public_key),

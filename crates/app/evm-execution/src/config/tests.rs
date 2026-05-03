@@ -1,6 +1,7 @@
 use crate::config::WhirlpoolEvmConfig;
 use alloy_primitives::Address;
-use chainspec::{build_sahara_chain_spec, SAHARA_CHAIN_ID};
+use chainspec::genesis::build_sahara_chain_spec;
+use chainspec::SAHARA_CHAIN_ID;
 use evm_precompiles::{
     COMMUNITY_POOL_ADDRESS, EPOCH_PRECOMPILE_ADDRESS, FEE_POOL_PRECOMPILE_ADDRESS,
     VALIDATORS_PRECOMPILE_ADDRESS,

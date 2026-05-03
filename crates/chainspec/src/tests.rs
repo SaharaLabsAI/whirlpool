@@ -1,11 +1,11 @@
-use crate::{
-    build_sahara_chain_spec, build_sahara_chain_spec_with_alloc_and_validators,
-    build_sahara_chain_spec_with_alloc_and_validators_and_community_pool_unlock_config,
-    sahara_hard_cap_base_units, try_build_sahara_chain_spec_with_alloc,
-    try_build_sahara_chain_spec_with_alloc_and_validators_and_community_pool_unlock_config,
-    try_simplex_validators_from_chain_spec, CommunityPoolUnlockConfig, NativeTokenError,
-    SAHARA_CHAIN_ID,
+use crate::community_pool::CommunityPoolUnlockConfig;
+use crate::genesis::{
+    build_sahara_chain_spec, build_sahara_chain_spec_from, try_build_sahara_chain_spec_from,
+    SaharaGenesisConfig,
 };
+use crate::native_token::{sahara_hard_cap_base_units, NativeTokenError};
+use crate::validators::try_simplex_validators_from_chain_spec;
+use crate::SAHARA_CHAIN_ID;
 use alloy_genesis::GenesisAccount;
 use alloy_primitives::{address, Address, U256};
 use evm_precompiles::{
@@ -86,7 +86,10 @@ fn chain_spec_builder_writes_validator_registry() {
             ethereum_address: address!("0x0000000000000000000000000000000000000022"),
         },
     ];
-    let spec = build_sahara_chain_spec_with_alloc_and_validators(BTreeMap::new(), validators);
+    let spec = build_sahara_chain_spec_from(SaharaGenesisConfig {
+        simplex_validators: validators,
+        ..SaharaGenesisConfig::default()
+    });
 
     assert!(spec
         .genesis
@@ -106,8 +109,10 @@ fn chain_spec_reader_matches_written_validator_registry() {
             ethereum_address: address!("0x0000000000000000000000000000000000000011"),
         },
     ];
-    let spec =
-        build_sahara_chain_spec_with_alloc_and_validators(BTreeMap::new(), validators.clone());
+    let spec = build_sahara_chain_spec_from(SaharaGenesisConfig {
+        simplex_validators: validators.clone(),
+        ..SaharaGenesisConfig::default()
+    });
 
     let decoded = try_simplex_validators_from_chain_spec(&spec).expect("decode validators");
     assert_eq!(decoded, validators);
@@ -125,11 +130,11 @@ fn chain_spec_builder_prefunds_community_pool_and_seeds_unlock_state() {
         ethereum_address: address!("0x0000000000000000000000000000000000000011"),
     }];
 
-    let spec = build_sahara_chain_spec_with_alloc_and_validators_and_community_pool_unlock_config(
-        BTreeMap::new(),
-        validators,
-        unlock_config,
-    );
+    let spec = build_sahara_chain_spec_from(SaharaGenesisConfig {
+        simplex_validators: validators,
+        community_pool_unlock: unlock_config,
+        ..SaharaGenesisConfig::default()
+    });
 
     let account = spec
         .genesis
@@ -170,17 +175,16 @@ fn unlock_enabled_without_simplex_validators_is_rejected() {
     };
 
     assert_eq!(
-        try_build_sahara_chain_spec_with_alloc_and_validators_and_community_pool_unlock_config(
-            BTreeMap::new(),
-            Vec::new(),
-            unlock_config,
-        ),
+        try_build_sahara_chain_spec_from(SaharaGenesisConfig {
+            community_pool_unlock: unlock_config,
+            ..SaharaGenesisConfig::default()
+        }),
         Err(NativeTokenError::CommunityPoolUnlockRequiresValidators)
     );
 }
 
 #[test]
-fn test_try_build_sahara_chain_spec_with_alloc_rejects_over_cap() {
+fn typed_genesis_config_rejects_over_cap_alloc() {
     let mut alloc = BTreeMap::new();
     let total = sahara_hard_cap_base_units() + U256::from(1u64);
     alloc.insert(
@@ -192,7 +196,10 @@ fn test_try_build_sahara_chain_spec_with_alloc_rejects_over_cap() {
     );
 
     assert_eq!(
-        try_build_sahara_chain_spec_with_alloc(alloc),
+        try_build_sahara_chain_spec_from(SaharaGenesisConfig {
+            alloc,
+            ..SaharaGenesisConfig::default()
+        }),
         Err(NativeTokenError::HardCapExceeded {
             total,
             hard_cap: sahara_hard_cap_base_units(),

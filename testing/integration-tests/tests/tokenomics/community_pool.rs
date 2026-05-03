@@ -11,7 +11,8 @@ use alloy_genesis::GenesisAccount;
 use alloy_primitives::{Address, Bytes, FixedBytes, B256, U256};
 use alloy_signer::Signer as AlloySigner;
 use alloy_signer_local::PrivateKeySigner;
-use chainspec::{build_sahara_chain_spec_with_alloc_and_validators, SAHARA_CHAIN_ID};
+use chainspec::genesis::{build_sahara_chain_spec_from, SaharaGenesisConfig};
+use chainspec::SAHARA_CHAIN_ID;
 use commonware_cryptography::{ed25519, Signer as CwSigner};
 use evm_precompiles::{
     claimable_balance_calldata, community_pool_balance_calldata, fee_pool_balance_calldata,
@@ -34,6 +35,17 @@ const TEST_PROPOSER_FEE_RECIPIENT: Address = Address::new([
 const MAX_PRIORITY_FEE_PER_GAS: u128 = 1_000_000_000;
 const MAX_FEE_PER_GAS: u128 = 20_000_000_000;
 const TRANSFER_GAS_LIMIT: u64 = 21_000;
+
+fn chain_spec_from_alloc_and_validators(
+    alloc: BTreeMap<Address, GenesisAccount>,
+    simplex_validators: Vec<ValidatorEntry>,
+) -> ChainSpec {
+    build_sahara_chain_spec_from(SaharaGenesisConfig {
+        alloc,
+        simplex_validators,
+        ..SaharaGenesisConfig::default()
+    })
+}
 
 fn parse_rpc_u64(value: &serde_json::Value, field: &str) -> u64 {
     let hex = value
@@ -111,7 +123,7 @@ fn start_funded_node(
         },
     );
 
-    let chain_spec: ChainSpec = build_sahara_chain_spec_with_alloc_and_validators(
+    let chain_spec: ChainSpec = chain_spec_from_alloc_and_validators(
         alloc,
         vec![ValidatorEntry {
             consensus_pubkey: validator_public_key_bytes(&public_key),
@@ -196,7 +208,7 @@ fn start_multinode_fee_network(
             ethereum_address: fee_recipient,
         })
         .collect();
-    let chain_spec = std::sync::Arc::new(build_sahara_chain_spec_with_alloc_and_validators(
+    let chain_spec = std::sync::Arc::new(chain_spec_from_alloc_and_validators(
         alloc,
         validator_registry_entries,
     ));

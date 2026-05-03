@@ -7,7 +7,7 @@
 `crates/node/`
 
 ## Dependency Boundaries
-- `chainspec`: Sahara chain-spec builders + chain-id + validator-registry reader seam.
+- `chainspec`: Sahara semantic genesis config/builders + chain-id + validator-registry reader seam.
 - `app-evm-execution`: EVM runtime/config/execution (`WhirlpoolEvmConfig`, `EvmApplication`).
 - `consensus` / `consensus-simplex`: consensus traits + adapter/engine.
 - `app-traits` / `app-primitives`: app adapter traits and concrete block primitives.
@@ -18,11 +18,11 @@
 ## node.rs Lifecycle
 - `start_node(NodeConfig) -> NodeHandle`
 - `start_node_with_chain_spec(NodeConfig, Option<Arc<ChainSpec>>) -> NodeHandle`
-- Startup validates supplied genesis alloc against Sahara hard cap via `chainspec::validate_genesis_alloc`.
+- Startup validates supplied genesis alloc against Sahara hard cap via `chainspec::native_token::validate_genesis_alloc`.
 
 ## Runtime Wiring
-- Default chainspec construction uses `chainspec::build_sahara_chain_spec_with_alloc_and_validators(...)`.
-- Simplex membership is decoded via `chainspec::try_simplex_validators_from_chain_spec(...)`.
+- Default chainspec construction uses `chainspec::genesis::build_sahara_chain_spec_from(SaharaGenesisConfig { ... })`.
+- Simplex membership is decoded via `chainspec::validators::try_simplex_validators_from_chain_spec(...)`.
 - Node startup still fails early when the local signer is not present in the resolved simplex validator set.
 - Optional genesis bootstrap mode:
   - `--genesis-bootstrap-dkg`

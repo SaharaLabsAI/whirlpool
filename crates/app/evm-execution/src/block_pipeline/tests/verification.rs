@@ -291,7 +291,7 @@ async fn verify_rejects_missing_fee_recipient_mapping_for_proposer() {
     let proposer_public_key = [0x11; 32];
     let expected_fee_recipient = Address::repeat_byte(0x22);
 
-    let proposer_chain_spec = Arc::new(build_sahara_chain_spec_with_alloc_and_validators(
+    let proposer_chain_spec = Arc::new(chain_spec_from_genesis_inputs(
         BTreeMap::new(),
         vec![ValidatorEntry {
             consensus_pubkey: proposer_public_key,
@@ -317,7 +317,7 @@ async fn verify_rejects_missing_fee_recipient_mapping_for_proposer() {
     let parent = app.genesis().await;
     let (block, _) = app.propose(&parent, 1).await.unwrap();
 
-    let verifier_chain_spec = Arc::new(build_sahara_chain_spec_with_alloc_and_validators(
+    let verifier_chain_spec = Arc::new(chain_spec_from_genesis_inputs(
         BTreeMap::new(),
         vec![ValidatorEntry {
             consensus_pubkey: proposer_public_key,
@@ -346,7 +346,7 @@ async fn verify_rejects_fee_recipient_that_conflicts_with_runtime_registry() {
     let proposer_public_key = [0x11; 32];
     let expected_fee_recipient = Address::repeat_byte(0x22);
 
-    let chain_spec = Arc::new(build_sahara_chain_spec_with_alloc_and_validators(
+    let chain_spec = Arc::new(chain_spec_from_genesis_inputs(
         BTreeMap::new(),
         vec![ValidatorEntry {
             consensus_pubkey: proposer_public_key,

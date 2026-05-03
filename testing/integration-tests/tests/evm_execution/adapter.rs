@@ -1,14 +1,11 @@
-use std::{
-    collections::BTreeMap,
-    sync::{Arc, RwLock},
-};
+use std::sync::{Arc, RwLock};
 
 use alloy_primitives::Address;
 use app_evm_execution::{EvmApplication, WhirlpoolEvmConfig};
 use app_evm_state::InMemoryStateDb;
 use app_primitives::EvmBlock;
 use app_traits::{traits::Application, ApplicationAdapter, NoopTxSource};
-use chainspec::build_sahara_chain_spec_with_alloc_and_validators;
+use chainspec::genesis::{build_sahara_chain_spec_from, SaharaGenesisConfig};
 use consensus::{traits::ConsensusApp, ConsensusError};
 use revm::primitives::U256;
 use validators_reader::{
@@ -23,7 +20,10 @@ const TEST_PROPOSER_FEE_RECIPIENT: Address = Address::new([
 fn assert_application_impl<A: Application<Block = EvmBlock>>(_app: &A) {}
 
 fn build_test_chain_spec() -> reth_chainspec::ChainSpec {
-    build_sahara_chain_spec_with_alloc_and_validators(BTreeMap::new(), test_validator_entries())
+    build_sahara_chain_spec_from(SaharaGenesisConfig {
+        simplex_validators: test_validator_entries(),
+        ..SaharaGenesisConfig::default()
+    })
 }
 
 fn test_validator_entries() -> Vec<ValidatorEntry> {

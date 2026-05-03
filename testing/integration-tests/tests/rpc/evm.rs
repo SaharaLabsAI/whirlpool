@@ -18,9 +18,10 @@ use alloy_provider::{Provider, ProviderBuilder};
 use alloy_signer::Signer as AlloySigner;
 use alloy_signer_local::PrivateKeySigner;
 use app_traits::traits::TxSource;
-use chainspec::{
-    build_sahara_chain_spec, build_sahara_chain_spec_with_alloc_and_validators, SAHARA_CHAIN_ID,
+use chainspec::genesis::{
+    build_sahara_chain_spec, build_sahara_chain_spec_from, SaharaGenesisConfig,
 };
+use chainspec::SAHARA_CHAIN_ID;
 use commonware_cryptography::{ed25519, Signer as CwSigner};
 use reqwest::Client;
 use reth_chainspec::ChainSpec;
@@ -412,6 +413,17 @@ fn assert_rpc_err(body: &serde_json::Value, method: &str) {
 
 const ZERO_ADDR: &str = "0x0000000000000000000000000000000000000000";
 const ZERO_HASH: &str = "0x0000000000000000000000000000000000000000000000000000000000000000";
+
+fn chain_spec_from_alloc_and_validators(
+    alloc: BTreeMap<Address, GenesisAccount>,
+    simplex_validators: Vec<ValidatorEntry>,
+) -> ChainSpec {
+    build_sahara_chain_spec_from(SaharaGenesisConfig {
+        alloc,
+        simplex_validators,
+        ..SaharaGenesisConfig::default()
+    })
+}
 
 // ---- Address + optional block param methods --------------------------------
 
@@ -1302,7 +1314,7 @@ fn start_funded_node(seed: u64, funded_address: Address, balance: U256) -> (Node
         },
     );
 
-    let chain_spec: ChainSpec = build_sahara_chain_spec_with_alloc_and_validators(
+    let chain_spec: ChainSpec = chain_spec_from_alloc_and_validators(
         alloc,
         vec![ValidatorEntry {
             consensus_pubkey: public_key.as_ref().try_into().expect("ed25519 key length"),

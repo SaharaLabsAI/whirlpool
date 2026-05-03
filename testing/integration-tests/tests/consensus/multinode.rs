@@ -1,10 +1,9 @@
 use alloy_primitives::Address;
-use chainspec::build_sahara_chain_spec_with_alloc_and_validators;
+use chainspec::genesis::{build_sahara_chain_spec_from, SaharaGenesisConfig};
 use commonware_cryptography::ed25519;
 use commonware_cryptography::Signer;
 use consensus_manager::{run_trusted_dealer_bootstrap, TrustedDealerBootstrapConfig};
 use serde_json::json;
-use std::collections::BTreeMap;
 use std::error::Error;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -35,10 +34,10 @@ async fn test_four_node_consensus() {
             ethereum_address: Address::repeat_byte((i + 1) as u8),
         })
         .collect::<Vec<_>>();
-    let chain_spec = Arc::new(build_sahara_chain_spec_with_alloc_and_validators(
-        BTreeMap::new(),
+    let chain_spec = Arc::new(build_sahara_chain_spec_from(SaharaGenesisConfig {
         simplex_validators,
-    ));
+        ..SaharaGenesisConfig::default()
+    }));
 
     let p2p_ports: Vec<u16> = (0..num_nodes).map(|_| allocate_port()).collect();
     let rpc_ports: Vec<u16> = (0..num_nodes).map(|_| allocate_port()).collect();
@@ -134,10 +133,10 @@ async fn test_single_node_consensus_with_bls_bootstrap_bundle() {
         consensus_pubkey: pubkey.as_ref().try_into().expect("ed25519 key length"),
         ethereum_address: Address::repeat_byte(1),
     }];
-    let chain_spec = Arc::new(build_sahara_chain_spec_with_alloc_and_validators(
-        BTreeMap::new(),
-        validator_entries,
-    ));
+    let chain_spec = Arc::new(build_sahara_chain_spec_from(SaharaGenesisConfig {
+        simplex_validators: validator_entries,
+        ..SaharaGenesisConfig::default()
+    }));
 
     let p2p_port = allocate_port();
     let rpc_port = allocate_port();
@@ -223,10 +222,10 @@ async fn test_four_node_consensus_with_bls_bootstrap_bundle() {
             ethereum_address: Address::repeat_byte((i + 1) as u8),
         })
         .collect::<Vec<_>>();
-    let chain_spec = Arc::new(build_sahara_chain_spec_with_alloc_and_validators(
-        BTreeMap::new(),
+    let chain_spec = Arc::new(build_sahara_chain_spec_from(SaharaGenesisConfig {
         simplex_validators,
-    ));
+        ..SaharaGenesisConfig::default()
+    }));
 
     let p2p_ports: Vec<u16> = (0..num_nodes).map(|_| allocate_port()).collect();
     let rpc_ports: Vec<u16> = (0..num_nodes).map(|_| allocate_port()).collect();

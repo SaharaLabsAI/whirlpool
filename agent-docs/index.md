@@ -36,7 +36,7 @@ Structured reference docs optimized for fast LLM lookup. Each contains type sign
 | [architecture/simplex-adapter.md](architecture/simplex-adapter.md) | Adapter bridge: CommonwareBlock, AppAdapter, CommonwareEngine, CommonwareConfig, Mailbox, FinalizationSink | `consensus-simplex` |
 | [architecture/whirlpool-node.md](architecture/whirlpool-node.md) | Node library exports: `config` (CLI/TOML) and `node` lifecycle | `whirlpool-node` (lib) |
 | [crates/whirlpool-node.md](crates/whirlpool-node.md) | EVM binary entrypoint and node configuration | `whirlpool-node` (bin) |
-| [crates/chainspec.md](crates/chainspec.md) | Sahara chain-spec ownership crate (builders, chain-id, validator-registry reader seam) | `chainspec` |
+| [crates/chainspec.md](crates/chainspec.md) | Sahara chain-spec ownership crate (semantic genesis config, chain-id, validator-registry reader seam) | `chainspec` |
 | [crates/evm-precompiles.md](crates/evm-precompiles.md) | Workspace-owned registry/factory crate for Whirlpool custom EVM precompiles, including canonical community-pool address + read-only balance ABI | `evm-precompiles` |
 | [crates/validators-reader.md](crates/validators-reader.md) | Canonical validator registry reader types/codecs | `validators-reader` |
 | [crates/validators-dkg.md](crates/validators-dkg.md) | Canonical DKG payload/schema semantics, activation targets/schedules, proposal/verify decision helpers | `validators-dkg` |

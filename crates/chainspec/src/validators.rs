@@ -1,8 +1,8 @@
 use reth_chainspec::ChainSpec;
-use validators_reader::{
-    decode_validator_registry_storage_opt, ValidatorEntry, ValidatorRegistryError,
-    SIMPLEX_VALIDATORS_REGISTRY,
-};
+use validators_reader::decode_validator_registry_storage_opt;
+use validators_reader::ValidatorEntry;
+use validators_reader::ValidatorRegistryError;
+use validators_reader::SIMPLEX_VALIDATORS_REGISTRY;
 
 pub fn try_simplex_validators_from_chain_spec(
     chain_spec: &ChainSpec,

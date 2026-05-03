@@ -70,12 +70,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::PersistingFinalizationSink;
+    use crate::persisting_sink::PersistingFinalizationSink;
     use app_evm_execution::{EvmApplication, WhirlpoolEvmConfig};
     use app_evm_state::InMemoryStateDb;
     use app_primitives::{EvmBlock, Receipt};
     use app_traits::traits::TxSource;
-    use chainspec::build_sahara_chain_spec;
+    use chainspec::genesis::build_sahara_chain_spec;
     use consensus::event::{ConsensusEvent, EventSink};
     use consensus_simplex::FinalizationSink;
     use revm::primitives::B256;

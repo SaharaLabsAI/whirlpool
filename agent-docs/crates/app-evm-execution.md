@@ -17,9 +17,9 @@ Pure EVM runtime/config/execution crate for Whirlpool.
 
 ### Does not own anymore
 - `SAHARA_CHAIN_ID`
-- `build_sahara_chain_spec*`
-- `try_build_sahara_chain_spec*`
-- public `try_simplex_validators_from_chain_spec`
+- `genesis::build_sahara_chain_spec*`
+- `genesis::try_build_sahara_chain_spec*`
+- public `validators::try_simplex_validators_from_chain_spec`
 
 Those live in `chainspec`.
 
@@ -118,7 +118,8 @@ Those live in `chainspec`.
 - `app_evm_execution::decode_evm_transaction` (compatibility root re-export)
 - `app_evm_execution::decode_evm_transactions` (compatibility root re-export)
 - `app_evm_execution::ProposedEvmPayload`
-- `chainspec::build_sahara_chain_spec*`
-- `chainspec::try_build_sahara_chain_spec*`
+- `chainspec::genesis::build_sahara_chain_spec*`
+- `chainspec::genesis::try_build_sahara_chain_spec*`
+- `chainspec::genesis::SaharaGenesisConfig`
 - `chainspec::SAHARA_CHAIN_ID`
-- `chainspec::try_simplex_validators_from_chain_spec`
+- `chainspec::validators::try_simplex_validators_from_chain_spec`
