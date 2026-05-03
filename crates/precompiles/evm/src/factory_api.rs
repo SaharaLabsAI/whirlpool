@@ -1,6 +1,6 @@
 use validators_reader::ValidatorEntry as RegistryValidatorEntry;
 
-use super::WhirlpoolEvmFactory;
+use crate::WhirlpoolEvmFactory;
 
 impl WhirlpoolEvmFactory {
     /// Compatibility constructor retained for callers that already pass genesis

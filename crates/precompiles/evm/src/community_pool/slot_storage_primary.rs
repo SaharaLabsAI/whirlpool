@@ -1,6 +1,6 @@
 use alloy_primitives::B256;
 
-use super::{
+use crate::community_pool::{
     COMMUNITY_POOL_LOCKED_REMAINING_SLOT, COMMUNITY_POOL_UNLOCK_AMOUNT_PER_CYCLE_SLOT,
     COMMUNITY_POOL_UNLOCK_EVERY_EPOCHS_SLOT,
 };

@@ -14,6 +14,7 @@ use reth_evm::{
 use std::collections::HashSet;
 
 mod factory_api;
+mod fee_claim_writer;
 mod registered_precompile_api;
 mod registry_build;
 mod registry_runtime;
@@ -176,10 +177,10 @@ impl EvmFactory for WhirlpoolEvmFactory {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::fee_pool::{
         fee_pool_balance_calldata, withdraw_calldata, FEE_POOL_PRECOMPILE_ADDRESS,
     };
+    use crate::*;
     use alloy_primitives::{address, Bytes, U256};
     use reth_evm::revm::Context;
     use reth_evm::revm::{database::EmptyDB, precompile::PrecompileOutput as RevmPrecompileOutput};

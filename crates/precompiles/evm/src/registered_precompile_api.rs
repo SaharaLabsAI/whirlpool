@@ -2,7 +2,7 @@ use alloy_primitives::Address;
 use reth_evm::precompiles::PrecompileInput;
 use reth_evm::revm::precompile::{PrecompileId, PrecompileResult};
 
-use super::RegisteredPrecompile;
+use crate::RegisteredPrecompile;
 
 impl RegisteredPrecompile {
     /// Registers a Whirlpool-owned stateful precompile using the safe default path.
@@ -24,7 +24,7 @@ impl RegisteredPrecompile {
                         // business logic begins. Returning a reverted output with `gas_used = 0`
                         // keeps the precompile-local charge at zero because the handler never ran;
                         // surrounding EVM call overhead is still accounted for by the caller frame.
-                        return super::non_direct_call_revert_result();
+                        return crate::non_direct_call_revert_result();
                     }
                     handler(input)
                 },

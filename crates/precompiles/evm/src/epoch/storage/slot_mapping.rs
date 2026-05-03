@@ -1,6 +1,6 @@
 use alloy_primitives::{keccak256, U256};
 
-use super::EPOCH_START_BLOCK_MAPPING_SLOT;
+use crate::epoch::storage::EPOCH_START_BLOCK_MAPPING_SLOT;
 
 /// Deterministic slot for `mapping(uint64 => uint256) epochStartBlockPlusOne`.
 pub fn epoch_start_block_slot(epoch: u64) -> U256 {

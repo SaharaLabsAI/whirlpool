@@ -1,6 +1,6 @@
 use alloy_primitives::{Bytes, U256};
 
-use super::EpochPrecompileError;
+use crate::epoch::EpochPrecompileError;
 
 pub fn decode_u64_output(payload: &Bytes) -> Result<u64, EpochPrecompileError> {
     if payload.len() != 32 {

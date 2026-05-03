@@ -1,6 +1,6 @@
 use alloy_primitives::{Address, U256};
 
-use super::{epoch_system_tx_sender, is_advance_epoch_calldata, EPOCH_PRECOMPILE_ADDRESS};
+use crate::epoch::{epoch_system_tx_sender, is_advance_epoch_calldata, EPOCH_PRECOMPILE_ADDRESS};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EpochBoundaryState {

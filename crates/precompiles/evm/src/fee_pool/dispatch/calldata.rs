@@ -1,7 +1,7 @@
 use alloy_primitives::{Address, Bytes};
 use alloy_sol_types::SolCall;
 
-use super::{claimableBalanceCall, feePoolBalanceCall, withdrawCall};
+use crate::fee_pool::dispatch::{claimableBalanceCall, feePoolBalanceCall, withdrawCall};
 
 pub fn fee_pool_balance_calldata() -> Bytes {
     Bytes::from(feePoolBalanceCall {}.abi_encode())

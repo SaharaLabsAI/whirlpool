@@ -2,7 +2,7 @@ use reth_evm::precompiles::PrecompilesMap;
 use reth_evm::revm::primitives::hardfork::SpecId;
 use validators_reader::ValidatorEntry as RegistryValidatorEntry;
 
-use super::build_whirlpool_precompiles_with_validators;
+use crate::build_whirlpool_precompiles_with_validators;
 
 /// Builds a Whirlpool registry.
 ///

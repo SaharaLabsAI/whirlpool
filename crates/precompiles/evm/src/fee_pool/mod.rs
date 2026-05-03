@@ -14,7 +14,6 @@ pub use decode_outputs::{
     decode_claimable_balance_output, decode_fee_pool_balance_output, decode_withdraw_output,
 };
 pub use dispatch::{claimable_balance_calldata, fee_pool_balance_calldata, withdraw_calldata};
-pub(crate) use runtime_accounting::credit_fee_pool_claim;
 pub use runtime_accounting::ClaimCredit;
 pub use storage::claimable_balance_slot;
 
@@ -72,7 +71,7 @@ fn revert_result(gas_used: u64, error: FeePoolPrecompileError) -> PrecompileResu
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::fee_pool::*;
     use reth_evm::revm::{
         context::{BlockEnv, TxEnv},
         database::EmptyDB,

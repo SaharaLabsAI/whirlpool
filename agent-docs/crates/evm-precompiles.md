@@ -57,7 +57,9 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
 ## Framework shape
 - `src/lib.rs`: registry, duplicate-address protection, safe-default stateful registration guard, factory wiring, crate-level tests.
 - `src/community_pool/mod.rs`: canonical community-pool address constant + read-only balance query precompile and ABI helpers.
+- `src/community_pool/runtime_accounting/mod.rs` + `runtime_accounting/tests.rs`: post-block runtime accounting adapter and source-adjacent tests kept in a directory-backed module.
 - `src/community_pool/slot_value_*.rs` + `slot_storage_*.rs`: slot getter/storage-word helper surface split into focused policy-sized files.
+- `src/fee_claim_writer.rs`: private crate-root fee-pool claim-ledger writer used by post-block/community-pool accounting; not re-exported as public API.
 - `src/fee_pool/mod.rs`: fee-pool precompile surface, ABI helpers, revert helpers, and tests.
 - `src/fee_pool/dispatch/mod.rs` + `dispatch/calldata.rs`: fee-pool selector decode and calldata helper split.
 - `src/fee_pool/impl.rs`: stateful fee-pool logic (balance query, claim query, withdraw transfer, claim reset) with `execute` kept as plain `pub` inside a private module boundary.
@@ -87,7 +89,7 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
   - priority fees -> `FEE_POOL_PRECOMPILE_ADDRESS`
   - proposer entitlement -> fee-pool claim ledger keyed by recipient address
   - payout -> precompile `withdraw()` path
-- The fee-pool precompile mutates journaled EVM **account balances** and claim-ledger storage through the shared EVM internals.
+- The fee-pool precompile mutates journaled EVM **account balances** and claim-ledger storage through the shared EVM internals. Post-block accounting credits the same claim ledger through the private crate-root `fee_claim_writer` module so the writer is shared internally without becoming public API.
 - The accounting module now owns a second **two-layer boundary API** for post-block accounting:
   - **pure core**: `PostBlockAccountingInputs`, `PostBlockAccountingEffect`, `PostBlockAccountingOutcome`, community-pool unlock state/effect math
   - **runtime adapter**: `apply_post_block_accounting(...)` + `PostBlockAccountingRuntimeError`

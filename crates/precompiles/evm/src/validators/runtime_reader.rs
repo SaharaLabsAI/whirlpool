@@ -73,7 +73,7 @@ where
     Ok(expected)
 }
 
-pub(crate) fn load_active_validator_registry_from_precompile(
+pub fn load_active_validator_registry_from_precompile(
     input: &mut PrecompileInput<'_>,
 ) -> Result<Vec<ValidatorEntry>, ValidatorsRuntimeError> {
     load_active_validator_registry_from_slots(|slot| {
@@ -178,7 +178,7 @@ mod tests {
         encode_validator_registry_storage, ethereum_address_slot, registry_len_slot,
     };
 
-    use super::*;
+    use crate::validators::runtime_reader::*;
 
     fn seed_registry(db: &mut InMemoryStateDb, entries: &[ValidatorEntry]) {
         for (slot, value) in encode_validator_registry_storage(entries) {

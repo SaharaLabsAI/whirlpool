@@ -1,6 +1,6 @@
 use alloy_sol_types::{sol, SolCall};
 
-use super::EpochPrecompileError;
+use crate::epoch::EpochPrecompileError;
 
 mod read_calldata;
 mod write_calldata;

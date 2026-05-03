@@ -1,7 +1,7 @@
 use alloy_primitives::Address;
 use alloy_sol_types::{sol, SolCall};
 
-use super::FeePoolPrecompileError;
+use crate::fee_pool::FeePoolPrecompileError;
 
 mod calldata;
 

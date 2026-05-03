@@ -4,7 +4,7 @@ use reth_evm::revm::DatabaseCommit;
 use reth_evm::Evm;
 use state::StateDb;
 
-use super::{
+use crate::epoch::{
     advance_epoch_calldata, decode_u64_storage_value, epoch_system_tx_sender,
     extract_epoch_boundary_effect, next_epoch_block_slot, EpochBoundaryEffect, EpochBoundaryState,
     EPOCH_PRECOMPILE_ADDRESS,
@@ -99,8 +99,8 @@ mod tests {
     use reth_evm::revm::database::{CacheDB, EmptyDB};
     use reth_evm::{EvmEnv, EvmFactory};
 
-    use super::super::{current_epoch_slot, epoch_start_block_slot, EpochBoundaryStorageWrite};
-    use super::*;
+    use crate::epoch::runtime_adapter::*;
+    use crate::epoch::{current_epoch_slot, epoch_start_block_slot, EpochBoundaryStorageWrite};
     use crate::WhirlpoolEvmFactory;
 
     fn storage_value(db: &InMemoryStateDb, slot: U256) -> U256 {
@@ -169,7 +169,7 @@ mod tests {
             .expect("seed current epoch");
         db.insert_account_storage(
             EPOCH_PRECOMPILE_ADDRESS,
-            super::super::epoch_blocks_slot(),
+            crate::epoch::epoch_blocks_slot(),
             U256::from(10_u64),
         )
         .expect("seed epoch blocks");

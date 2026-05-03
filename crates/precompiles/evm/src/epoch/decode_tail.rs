@@ -1,6 +1,6 @@
 use alloy_primitives::Bytes;
 
-use super::{decode_primary::decode_u64_output, EpochPrecompileError};
+use crate::epoch::{decode_primary::decode_u64_output, EpochPrecompileError};
 
 pub fn decode_epoch_blocks_output(payload: &Bytes) -> Result<u64, EpochPrecompileError> {
     decode_u64_output(payload)

@@ -1,7 +1,7 @@
 use alloy_primitives::Bytes;
 use alloy_sol_types::SolCall;
 
-use super::{advanceEpochCall, epochStartBlockCall, ADVANCE_EPOCH_SELECTOR};
+use crate::epoch::dispatch::{advanceEpochCall, epochStartBlockCall, ADVANCE_EPOCH_SELECTOR};
 
 pub fn epoch_start_block_calldata(epoch: u64) -> Bytes {
     Bytes::from(epochStartBlockCall { epoch }.abi_encode())

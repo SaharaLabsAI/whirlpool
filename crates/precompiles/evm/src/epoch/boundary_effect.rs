@@ -1,7 +1,7 @@
 use alloy_primitives::U256;
 use reth_evm::revm::state::EvmState;
 
-use super::{
+use crate::epoch::{
     current_epoch_slot, decode_epoch_start_block_storage_value, decode_u64_storage_value,
     epoch_blocks_slot, epoch_start_block_slot, next_epoch_block_slot, EPOCH_PRECOMPILE_ADDRESS,
 };
@@ -94,24 +94,23 @@ pub fn extract_epoch_boundary_effect(
 
     for (slot, original_value, present_value) in changed_slots {
         if slot == current_epoch_slot() {
-            if current_epoch_write
-                .replace((original_value, present_value))
-                .is_some()
-            {
-                return Err(EpochBoundaryEffectError::DuplicateChangedSlot(slot));
-            }
+            record_epoch_storage_write(
+                &mut current_epoch_write,
+                (original_value, present_value),
+                slot,
+            )?;
         } else if slot == next_epoch_block_slot() {
-            if next_epoch_block_write
-                .replace((original_value, present_value))
-                .is_some()
-            {
-                return Err(EpochBoundaryEffectError::DuplicateChangedSlot(slot));
-            }
-        } else if epoch_start_block_write
-            .replace((slot, original_value, present_value))
-            .is_some()
-        {
-            return Err(EpochBoundaryEffectError::DuplicateChangedSlot(slot));
+            record_epoch_storage_write(
+                &mut next_epoch_block_write,
+                (original_value, present_value),
+                slot,
+            )?;
+        } else {
+            record_epoch_storage_write(
+                &mut epoch_start_block_write,
+                (slot, original_value, present_value),
+                slot,
+            )?;
         }
     }
 
@@ -181,12 +180,25 @@ pub fn extract_epoch_boundary_effect(
     })
 }
 
+fn record_epoch_storage_write<T>(
+    target: &mut Option<T>,
+    value: T,
+    slot: U256,
+) -> Result<(), EpochBoundaryEffectError> {
+    if target.replace(value).is_some() {
+        return Err(EpochBoundaryEffectError::DuplicateChangedSlot(slot));
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use alloy_primitives::{Address, U256};
     use reth_evm::revm::state::{Account, AccountInfo, EvmState, EvmStorageSlot};
 
-    use super::*;
+    use crate::epoch::boundary_effect::*;
+    use crate::epoch::{current_epoch_slot, epoch_start_block_slot, next_epoch_block_slot};
 
     fn changed_slot(original: u64, present: U256) -> EvmStorageSlot {
         EvmStorageSlot::new_changed(U256::from(original), present, 0)

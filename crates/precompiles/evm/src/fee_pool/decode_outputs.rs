@@ -1,6 +1,6 @@
 use alloy_primitives::{Bytes, U256};
 
-use super::FeePoolPrecompileError;
+use crate::fee_pool::FeePoolPrecompileError;
 
 pub fn decode_fee_pool_balance_output(payload: &Bytes) -> Result<U256, FeePoolPrecompileError> {
     decode_u256_output(payload)

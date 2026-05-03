@@ -1,6 +1,6 @@
 use alloy_primitives::U256;
 
-use super::{CURRENT_EPOCH_SLOT, EPOCH_BLOCKS_SLOT, NEXT_EPOCH_BLOCK_SLOT};
+use crate::epoch::storage::{CURRENT_EPOCH_SLOT, EPOCH_BLOCKS_SLOT, NEXT_EPOCH_BLOCK_SLOT};
 
 pub fn current_epoch_slot() -> U256 {
     CURRENT_EPOCH_SLOT

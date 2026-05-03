@@ -1,6 +1,6 @@
 use alloy_primitives::{B256, U256};
 
-use super::epoch_start_block_slot;
+use crate::epoch::storage::epoch_start_block_slot;
 
 pub fn epoch_start_block_storage_slot(epoch: u64) -> B256 {
     B256::from(epoch_start_block_slot(epoch).to_be_bytes::<32>())

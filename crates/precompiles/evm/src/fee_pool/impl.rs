@@ -2,7 +2,7 @@ use alloy_primitives::{Address, U256};
 use reth_evm::precompiles::PrecompileInput;
 use reth_evm::revm::precompile::{PrecompileError, PrecompileOutput, PrecompileResult};
 
-use super::{
+use crate::fee_pool::{
     dispatch::{decode_call, FeePoolCall},
     encode_u256_word, gas, revert_result, storage, FeePoolPrecompileError,
     FEE_POOL_PRECOMPILE_ADDRESS,

@@ -4,7 +4,7 @@ use std::sync::OnceLock;
 
 use crate::RegisteredPrecompile;
 
-use super::{r#impl, EPOCH_PRECOMPILE_ADDRESS, EPOCH_SYSTEM_TX_PRIVATE_KEY};
+use crate::epoch::{r#impl, EPOCH_PRECOMPILE_ADDRESS, EPOCH_SYSTEM_TX_PRIVATE_KEY};
 
 pub fn register() -> RegisteredPrecompile {
     RegisteredPrecompile::new_stateful("whirlpool_epoch", EPOCH_PRECOMPILE_ADDRESS, r#impl::execute)

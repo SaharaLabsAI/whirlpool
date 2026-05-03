@@ -2,7 +2,7 @@ use alloy_primitives::U256;
 use reth_evm::precompiles::PrecompileInput;
 use reth_evm::revm::precompile::{PrecompileError, PrecompileOutput, PrecompileResult};
 
-use super::{
+use crate::epoch::{
     dispatch::{decode_call, EpochCall},
     encode_u64_word, epoch_system_tx_sender, gas, revert_result, storage, EpochPrecompileError,
     EPOCH_PRECOMPILE_ADDRESS,
