@@ -1,5 +1,5 @@
+use crate::RethStateDb;
 use alloy_primitives::{address, U256};
-use app_evm_state::RethStateDb;
 use revm::state::AccountInfo;
 use state::StateDb;
 

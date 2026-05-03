@@ -28,6 +28,24 @@ pub struct InMemoryStateDb {
     receipts_by_block: Arc<Mutex<HashMap<u64, Vec<Receipt>>>>,
 }
 
+fn genesis_storage_map(
+    genesis_storage: Option<std::collections::BTreeMap<B256, B256>>,
+) -> HashMap<U256, U256> {
+    genesis_storage
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(key, value)| (U256::from_be_bytes(key.0), U256::from_be_bytes(value.0)))
+        .collect()
+}
+
+fn apply_storage_slot(storage: &mut HashMap<U256, U256>, key: U256, value: U256) {
+    if value.is_zero() {
+        storage.remove(&key);
+        return;
+    }
+    storage.insert(key, value);
+}
+
 impl Default for InMemoryStateDb {
     fn default() -> Self {
         Self::new()
@@ -65,12 +83,7 @@ impl StateDb for InMemoryStateDb {
                 db.bytecodes.insert(code_hash, code);
             }
 
-            let mut storage = HashMap::new();
-            if let Some(genesis_storage) = account.storage {
-                for (key, value) in genesis_storage {
-                    storage.insert(U256::from_be_bytes(key.0), U256::from_be_bytes(value.0));
-                }
-            }
+            let storage = genesis_storage_map(account.storage);
 
             db.accounts.insert(address, DbAccount { info, storage });
         }
@@ -125,11 +138,7 @@ impl StateDb for InMemoryStateDb {
 
             for (key, slot) in &bundle_account.storage {
                 let value = slot.present_value();
-                if value.is_zero() {
-                    account.storage.remove(key);
-                } else {
-                    account.storage.insert(*key, value);
-                }
+                apply_storage_slot(&mut account.storage, *key, value);
             }
         }
 

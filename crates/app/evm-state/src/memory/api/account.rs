@@ -3,7 +3,7 @@ use revm::state::{AccountInfo, Bytecode};
 
 use state::traits::StateDb;
 
-use crate::in_memory_db::InMemoryStateDb;
+use crate::memory::db::InMemoryStateDb;
 
 impl InMemoryStateDb {
     pub fn get_account(&self, address: Address) -> Option<AccountInfo> {

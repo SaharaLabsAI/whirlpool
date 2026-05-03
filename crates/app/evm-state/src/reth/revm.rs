@@ -4,7 +4,7 @@ use revm::state::{AccountInfo, Bytecode};
 use revm::DatabaseRef;
 use state::StateDb;
 
-use crate::db::RethStateDb;
+use crate::reth::db::RethStateDb;
 
 fn to_state_error(error: impl std::fmt::Display) -> state::StateError {
     state::StateError::Internal(error.to_string())

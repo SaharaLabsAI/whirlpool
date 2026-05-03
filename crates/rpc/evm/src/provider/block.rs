@@ -23,6 +23,8 @@ impl BlockHashReader for WhirlpoolProvider {
     fn block_hash(&self, number: u64) -> ProviderResult<Option<B256>> {
         self.state_db
             .rpc_reader()
+            .blocks()
+            .canonical()
             .block_hash(number)
             .map_err(map_db_err)
     }
@@ -34,6 +36,8 @@ impl BlockHashReader for WhirlpoolProvider {
     ) -> ProviderResult<Vec<B256>> {
         self.state_db
             .rpc_reader()
+            .blocks()
+            .canonical()
             .canonical_hashes_range(start, end)
             .map_err(map_db_err)
     }
@@ -44,6 +48,8 @@ impl BlockNumReader for WhirlpoolProvider {
         let tip = self
             .state_db
             .rpc_reader()
+            .blocks()
+            .canonical()
             .canonical_tip()
             .map_err(map_db_err)?;
         Ok(match tip {
@@ -69,6 +75,9 @@ impl BlockNumReader for WhirlpoolProvider {
     fn block_number(&self, hash: B256) -> ProviderResult<Option<BlockNumber>> {
         self.state_db
             .rpc_reader()
+            .blocks()
+            .headers()
+            .lookup()
             .block_number(hash)
             .map_err(map_db_err)
     }
@@ -94,6 +103,9 @@ impl HeaderProvider for WhirlpoolProvider {
     fn header(&self, block_hash: BlockHash) -> ProviderResult<Option<Self::Header>> {
         self.state_db
             .rpc_reader()
+            .blocks()
+            .headers()
+            .lookup()
             .header_by_hash(block_hash)
             .map_err(map_db_err)
     }
@@ -101,6 +113,9 @@ impl HeaderProvider for WhirlpoolProvider {
     fn header_by_number(&self, num: u64) -> ProviderResult<Option<Self::Header>> {
         self.state_db
             .rpc_reader()
+            .blocks()
+            .headers()
+            .lookup()
             .header_by_number(num)
             .map_err(map_db_err)
     }
@@ -116,6 +131,9 @@ impl HeaderProvider for WhirlpoolProvider {
 
         self.state_db
             .rpc_reader()
+            .blocks()
+            .headers()
+            .ranges()
             .headers_range(start, end)
             .map_err(map_db_err)
     }
@@ -127,6 +145,9 @@ impl HeaderProvider for WhirlpoolProvider {
         let Some((header, hash)) = self
             .state_db
             .rpc_reader()
+            .blocks()
+            .headers()
+            .ranges()
             .header_with_hash(number)
             .map_err(map_db_err)?
         else {
@@ -148,7 +169,13 @@ impl HeaderProvider for WhirlpoolProvider {
         let reader = self.state_db.rpc_reader();
         let mut headers = Vec::new();
         for number in start..end {
-            let Some((header, hash)) = reader.header_with_hash(number).map_err(map_db_err)? else {
+            let Some((header, hash)) = reader
+                .blocks()
+                .headers()
+                .ranges()
+                .header_with_hash(number)
+                .map_err(map_db_err)?
+            else {
                 continue;
             };
             let sealed = SealedHeader::new(header, hash);
@@ -172,6 +199,9 @@ impl BlockReader for WhirlpoolProvider {
         let Some(number) = self
             .state_db
             .rpc_reader()
+            .blocks()
+            .headers()
+            .lookup()
             .block_number(hash)
             .map_err(map_db_err)?
         else {
@@ -185,6 +215,9 @@ impl BlockReader for WhirlpoolProvider {
             BlockHashOrNumber::Hash(hash) => self
                 .state_db
                 .rpc_reader()
+                .blocks()
+                .headers()
+                .lookup()
                 .block_number(hash)
                 .map_err(map_db_err)?,
             BlockHashOrNumber::Number(number) => Some(number),
@@ -267,6 +300,8 @@ impl BlockReader for WhirlpoolProvider {
     fn block_by_transaction_id(&self, id: TxNumber) -> ProviderResult<Option<BlockNumber>> {
         self.state_db
             .rpc_reader()
+            .transactions()
+            .meta()
             .block_number_by_transaction_id(id)
             .map_err(map_db_err)
     }
@@ -302,6 +337,8 @@ impl BlockBodyIndicesProvider for WhirlpoolProvider {
     fn block_body_indices(&self, num: u64) -> ProviderResult<Option<StoredBlockBodyIndices>> {
         self.state_db
             .rpc_reader()
+            .blocks()
+            .bodies()
             .block_body_indices(num)
             .map(|indices| indices.map(Into::into))
             .map_err(map_db_err)
@@ -315,6 +352,8 @@ impl BlockBodyIndicesProvider for WhirlpoolProvider {
         let end = *range.end();
         self.state_db
             .rpc_reader()
+            .blocks()
+            .bodies()
             .block_body_indices_range(start, end)
             .map(|indices| indices.into_iter().map(Into::into).collect())
             .map_err(map_db_err)

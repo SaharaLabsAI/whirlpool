@@ -1,18 +1,23 @@
 pub mod codec;
-pub mod db;
-pub mod error;
-pub mod in_memory_db;
-mod in_memory_db_api_account;
-mod in_memory_db_api_state;
-mod in_memory_db_api_write;
-pub mod init;
-pub mod trie;
+pub mod db {
+    pub mod rpc_reader {
+        pub use crate::reth::rpc_reader::*;
+    }
 
-pub use db::rpc_reader::{
-    RpcBlockBodyIndices, RpcCanonicalTip, RpcStateReader, RpcStoredBlock, RpcTransactionMetaInputs,
-};
-pub use db::RethStateDb;
+    pub use crate::reth::RethStateDb;
+}
+pub mod error;
+pub mod in_memory_db {
+    pub use crate::memory::InMemoryStateDb;
+}
+pub mod init;
+pub mod memory;
+pub mod reth;
+
 pub use error::RethStateError;
 pub use init::open_state_db;
-
-pub use in_memory_db::InMemoryStateDb;
+pub use memory::InMemoryStateDb;
+pub use reth::rpc_reader::{
+    RpcBlockBodyIndices, RpcCanonicalTip, RpcStateReader, RpcStoredBlock, RpcTransactionMetaInputs,
+};
+pub use reth::RethStateDb;

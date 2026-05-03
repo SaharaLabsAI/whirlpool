@@ -11,7 +11,7 @@ use reth_ethereum_primitives::{Receipt as RethReceipt, TransactionSigned};
 use revm::primitives::B256;
 use state::{BlockStorage, BlockStorageError};
 
-use crate::db::RethStateDb;
+use crate::reth::db::RethStateDb;
 use reth_db_api::tables::{
     BlockBodyIndices, CanonicalHeaders, HeaderNumbers, HeaderTerminalDifficulties, Headers,
     Receipts, TransactionBlocks, TransactionHashNumbers, Transactions,
@@ -274,7 +274,3 @@ fn tx_type_from_signed(tx_signed: &TransactionSigned) -> TxType {
         _ => TxType::Legacy,
     }
 }
-
-#[path = "tests/block_storage.rs"]
-#[cfg(test)]
-mod tests;

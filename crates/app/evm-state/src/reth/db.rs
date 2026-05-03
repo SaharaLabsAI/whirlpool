@@ -7,7 +7,7 @@
 // Each method opens a short-lived MDBX transaction. The caller is responsible
 // for synchronization (typically via `Arc<RwLock<RethStateDb>>`).
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 use std::sync::{Arc, Mutex, OnceLock};
 
@@ -25,27 +25,189 @@ use state::StateDb;
 
 use crate::codec::{account_to_info, info_to_account};
 use crate::error::RethStateError;
-use crate::trie::compute_state_root;
+use crate::reth::rpc_reader::RpcStateReader;
+use crate::reth::trie::compute_state_root;
 use reth_db_api::tables::{
     Bytecodes, CanonicalHeaders, HashedAccounts, HashedStorages, PlainAccountState,
     PlainStorageState,
 };
-
-#[path = "block_storage.rs"]
-mod block_storage;
-#[path = "db_revm_impls.rs"]
-mod db_revm_impls;
-#[path = "dkg_history.rs"]
-mod dkg_history;
-#[path = "rpc_reader.rs"]
-pub mod rpc_reader;
 
 // Shared temp directories kept alive for DBs created via `StateDb::new`.
 static TEST_DB_TEMP_DIRS: OnceLock<Mutex<Vec<Arc<tempfile::TempDir>>>> = OnceLock::new();
 
 #[derive(Debug, Clone)]
 pub struct RethStateDb {
-    db: Arc<DatabaseEnv>,
+    pub(in crate::reth) db: Arc<DatabaseEnv>,
+}
+
+fn genesis_account_info(
+    tx: &impl DbTxMut,
+    account: &GenesisAccount,
+) -> Result<AccountInfo, RethStateError> {
+    let mut info = AccountInfo {
+        balance: account.balance,
+        nonce: account.nonce.unwrap_or_default(),
+        code_hash: KECCAK_EMPTY,
+        code: None,
+        account_id: None,
+    };
+
+    let Some(code_bytes) = &account.code else {
+        return Ok(info);
+    };
+
+    let code = Bytecode::new_raw(code_bytes.clone());
+    let code_hash = code.hash_slow();
+    info.code_hash = code_hash;
+    tx.put::<Bytecodes>(code_hash, reth_primitives_traits::Bytecode(code))
+        .map_err(RethStateError::Database)?;
+    Ok(info)
+}
+
+fn write_account_state(
+    tx: &impl DbTxMut,
+    address: Address,
+    info: &AccountInfo,
+) -> Result<B256, RethStateError> {
+    let reth_account = info_to_account(info);
+    tx.put::<PlainAccountState>(address, reth_account)
+        .map_err(RethStateError::Database)?;
+    let hashed_addr = keccak256(address);
+    tx.put::<HashedAccounts>(hashed_addr, reth_account)
+        .map_err(RethStateError::Database)?;
+    Ok(hashed_addr)
+}
+
+fn write_genesis_storage(
+    tx: &impl DbTxMut,
+    address: Address,
+    hashed_addr: B256,
+    genesis_storage: &BTreeMap<B256, B256>,
+) -> Result<(), RethStateError> {
+    for (key, value) in genesis_storage {
+        let slot = U256::from_be_bytes(key.0);
+        let val = U256::from_be_bytes(value.0);
+        if val.is_zero() {
+            continue;
+        }
+
+        let key_b256 = B256::from(slot.to_be_bytes::<32>());
+        let entry = StorageEntry::new(key_b256, val);
+        let mut cursor = tx
+            .cursor_dup_write::<PlainStorageState>()
+            .map_err(RethStateError::Database)?;
+        cursor
+            .upsert(address, &entry)
+            .map_err(RethStateError::Database)?;
+
+        let hashed_entry = StorageEntry::new(keccak256(key_b256), val);
+        let mut hcursor = tx
+            .cursor_dup_write::<HashedStorages>()
+            .map_err(RethStateError::Database)?;
+        hcursor
+            .upsert(hashed_addr, &hashed_entry)
+            .map_err(RethStateError::Database)?;
+    }
+    Ok(())
+}
+
+fn write_genesis_account(
+    tx: &impl DbTxMut,
+    address: Address,
+    account: &GenesisAccount,
+) -> Result<(), RethStateError> {
+    let info = genesis_account_info(tx, account)?;
+    let hashed_addr = write_account_state(tx, address, &info)?;
+    let Some(genesis_storage) = &account.storage else {
+        return Ok(());
+    };
+    write_genesis_storage(tx, address, hashed_addr, genesis_storage)
+}
+
+fn delete_account_state(
+    tx: &impl DbTxMut,
+    address: Address,
+    hashed_addr: B256,
+) -> Result<(), RethStateError> {
+    tx.delete::<PlainAccountState>(address, None)
+        .map_err(RethStateError::Database)?;
+    tx.delete::<HashedAccounts>(hashed_addr, None)
+        .map_err(RethStateError::Database)?;
+    tx.delete::<PlainStorageState>(address, None)
+        .map_err(RethStateError::Database)?;
+    tx.delete::<HashedStorages>(hashed_addr, None)
+        .map_err(RethStateError::Database)?;
+    Ok(())
+}
+
+fn delete_storage_slot(
+    tx: &impl DbTxMut,
+    address: Address,
+    hashed_addr: B256,
+    key_b256: B256,
+    hashed_slot: B256,
+) -> Result<(), RethStateError> {
+    tx.delete::<PlainStorageState>(address, Some(StorageEntry::new(key_b256, U256::ZERO)))
+        .map_err(RethStateError::Database)?;
+    tx.delete::<HashedStorages>(
+        hashed_addr,
+        Some(StorageEntry::new(hashed_slot, U256::ZERO)),
+    )
+    .map_err(RethStateError::Database)?;
+    Ok(())
+}
+
+fn upsert_storage_slot(
+    tx: &impl DbTxMut,
+    address: Address,
+    hashed_addr: B256,
+    key_b256: B256,
+    hashed_slot: B256,
+    value: U256,
+) -> Result<(), RethStateError> {
+    let mut cursor = tx
+        .cursor_dup_write::<PlainStorageState>()
+        .map_err(RethStateError::Database)?;
+    if cursor
+        .seek_by_key_subkey(address, key_b256)
+        .map_err(RethStateError::Database)?
+        .is_some()
+    {
+        cursor.delete_current().map_err(RethStateError::Database)?;
+    }
+    cursor
+        .upsert(address, &StorageEntry::new(key_b256, value))
+        .map_err(RethStateError::Database)?;
+
+    let mut hcursor = tx
+        .cursor_dup_write::<HashedStorages>()
+        .map_err(RethStateError::Database)?;
+    if hcursor
+        .seek_by_key_subkey(hashed_addr, hashed_slot)
+        .map_err(RethStateError::Database)?
+        .is_some()
+    {
+        hcursor.delete_current().map_err(RethStateError::Database)?;
+    }
+    hcursor
+        .upsert(hashed_addr, &StorageEntry::new(hashed_slot, value))
+        .map_err(RethStateError::Database)?;
+    Ok(())
+}
+
+fn write_bundle_storage_slot(
+    tx: &impl DbTxMut,
+    address: Address,
+    hashed_addr: B256,
+    key: U256,
+    value: U256,
+) -> Result<(), RethStateError> {
+    let key_b256 = B256::from(key.to_be_bytes::<32>());
+    let hashed_slot = keccak256(key_b256);
+    if value.is_zero() {
+        return delete_storage_slot(tx, address, hashed_addr, key_b256, hashed_slot);
+    }
+    upsert_storage_slot(tx, address, hashed_addr, key_b256, hashed_slot, value)
 }
 
 impl RethStateDb {
@@ -67,59 +229,14 @@ impl RethStateDb {
     ) -> Result<(), RethStateError> {
         let tx = self.db.tx_mut().map_err(RethStateError::Database)?;
         for (address, account) in alloc {
-            let nonce = account.nonce.unwrap_or_default();
-            let mut info = AccountInfo {
-                balance: account.balance,
-                nonce,
-                code_hash: KECCAK_EMPTY,
-                code: None,
-                account_id: None,
-            };
-
-            // Store bytecode if present.
-            if let Some(ref code_bytes) = account.code {
-                let code = Bytecode::new_raw(code_bytes.clone());
-                let code_hash = code.hash_slow();
-                info.code_hash = code_hash;
-                tx.put::<Bytecodes>(code_hash, reth_primitives_traits::Bytecode(code))
-                    .map_err(RethStateError::Database)?;
-            }
-
-            // Store account in plain + hashed tables.
-            let reth_account = info_to_account(&info);
-            tx.put::<PlainAccountState>(*address, reth_account)
-                .map_err(RethStateError::Database)?;
-            let hashed_addr = keccak256(address);
-            tx.put::<HashedAccounts>(hashed_addr, reth_account)
-                .map_err(RethStateError::Database)?;
-
-            // Store genesis storage if present.
-            if let Some(ref genesis_storage) = account.storage {
-                for (key, value) in genesis_storage {
-                    let slot = U256::from_be_bytes(key.0);
-                    let val = U256::from_be_bytes(value.0);
-                    if !val.is_zero() {
-                        let entry = StorageEntry::new(B256::from(slot.to_be_bytes::<32>()), val);
-                        let mut cursor = tx
-                            .cursor_dup_write::<PlainStorageState>()
-                            .map_err(RethStateError::Database)?;
-                        cursor
-                            .upsert(*address, &entry)
-                            .map_err(RethStateError::Database)?;
-                        let hashed_slot = keccak256(B256::from(slot.to_be_bytes::<32>()));
-                        let hashed_entry = StorageEntry::new(hashed_slot, val);
-                        let mut hcursor = tx
-                            .cursor_dup_write::<HashedStorages>()
-                            .map_err(RethStateError::Database)?;
-                        hcursor
-                            .upsert(hashed_addr, &hashed_entry)
-                            .map_err(RethStateError::Database)?;
-                    }
-                }
-            }
+            write_genesis_account(&tx, *address, account)?;
         }
         tx.commit().map_err(RethStateError::Database)?;
         Ok(())
+    }
+
+    pub fn rpc_reader(&self) -> RpcStateReader<'_> {
+        RpcStateReader { db: self }
     }
 }
 
@@ -158,57 +275,7 @@ impl StateDb for RethStateDb {
         {
             let tx = db.db.tx_mut().expect("failed to open write tx for genesis");
             for (address, account) in &alloc {
-                let nonce = account.nonce.unwrap_or_default();
-                let mut info = AccountInfo {
-                    balance: account.balance,
-                    nonce,
-                    code_hash: KECCAK_EMPTY,
-                    code: None,
-                    account_id: None,
-                };
-
-                // Store bytecode if present.
-                if let Some(ref code_bytes) = account.code {
-                    let code = Bytecode::new_raw(code_bytes.clone());
-                    let code_hash = code.hash_slow();
-                    info.code_hash = code_hash;
-                    tx.put::<Bytecodes>(code_hash, reth_primitives_traits::Bytecode(code))
-                        .expect("failed to write bytecode");
-                }
-
-                // Store account in plain + hashed tables.
-                let reth_account = info_to_account(&info);
-                tx.put::<PlainAccountState>(*address, reth_account)
-                    .expect("failed to write plain account");
-                let hashed_addr = keccak256(address);
-                tx.put::<HashedAccounts>(hashed_addr, reth_account)
-                    .expect("failed to write hashed account");
-
-                // Store genesis storage if present.
-                if let Some(ref genesis_storage) = account.storage {
-                    for (key, value) in genesis_storage {
-                        let slot = U256::from_be_bytes(key.0);
-                        let val = U256::from_be_bytes(value.0);
-                        if !val.is_zero() {
-                            let entry =
-                                StorageEntry::new(B256::from(slot.to_be_bytes::<32>()), val);
-                            // Plain storage
-                            let mut cursor =
-                                tx.cursor_dup_write::<PlainStorageState>().expect("cursor");
-                            cursor
-                                .upsert(*address, &entry)
-                                .expect("plain storage write");
-                            // Hashed storage
-                            let hashed_slot = keccak256(B256::from(slot.to_be_bytes::<32>()));
-                            let hashed_entry = StorageEntry::new(hashed_slot, val);
-                            let mut hcursor =
-                                tx.cursor_dup_write::<HashedStorages>().expect("cursor");
-                            hcursor
-                                .upsert(hashed_addr, &hashed_entry)
-                                .expect("hashed storage write");
-                        }
-                    }
-                }
+                write_genesis_account(&tx, *address, account).expect("failed to write genesis");
             }
             tx.commit().expect("failed to commit genesis");
         }
@@ -227,38 +294,16 @@ impl StateDb for RethStateDb {
             let hashed_addr = keccak256(address);
 
             if bundle_account.was_destroyed() {
-                // Delete account from plain + hashed tables.
-                tx.delete::<PlainAccountState>(*address, None)
-                    .map_err(RethStateError::Database)?;
-                tx.delete::<HashedAccounts>(hashed_addr, None)
-                    .map_err(RethStateError::Database)?;
-                // Delete all storage for this account.
-                tx.delete::<PlainStorageState>(*address, None)
-                    .map_err(RethStateError::Database)?;
-                tx.delete::<HashedStorages>(hashed_addr, None)
-                    .map_err(RethStateError::Database)?;
+                delete_account_state(&tx, *address, hashed_addr)?;
                 continue;
             }
 
             let Some(info) = bundle_account.account_info() else {
-                // Account no longer exists — remove.
-                tx.delete::<PlainAccountState>(*address, None)
-                    .map_err(RethStateError::Database)?;
-                tx.delete::<HashedAccounts>(hashed_addr, None)
-                    .map_err(RethStateError::Database)?;
-                tx.delete::<PlainStorageState>(*address, None)
-                    .map_err(RethStateError::Database)?;
-                tx.delete::<HashedStorages>(hashed_addr, None)
-                    .map_err(RethStateError::Database)?;
+                delete_account_state(&tx, *address, hashed_addr)?;
                 continue;
             };
 
-            // Upsert account in plain + hashed tables.
-            let reth_account = info_to_account(&info);
-            tx.put::<PlainAccountState>(*address, reth_account)
-                .map_err(RethStateError::Database)?;
-            tx.put::<HashedAccounts>(hashed_addr, reth_account)
-                .map_err(RethStateError::Database)?;
+            write_account_state(&tx, *address, &info)?;
 
             // Handle storage changes.
             if bundle_account.status.is_storage_known() {
@@ -271,50 +316,7 @@ impl StateDb for RethStateDb {
 
             for (key, slot) in &bundle_account.storage {
                 let value = slot.present_value();
-                let key_b256 = B256::from(key.to_be_bytes::<32>());
-                let hashed_slot = keccak256(key_b256);
-
-                if value.is_zero() {
-                    // Delete this specific storage slot.
-                    let entry = StorageEntry::new(key_b256, U256::ZERO);
-                    tx.delete::<PlainStorageState>(*address, Some(entry))
-                        .map_err(RethStateError::Database)?;
-                    let hashed_entry = StorageEntry::new(hashed_slot, U256::ZERO);
-                    tx.delete::<HashedStorages>(hashed_addr, Some(hashed_entry))
-                        .map_err(RethStateError::Database)?;
-                } else {
-                    // Upsert storage slot.
-                    let entry = StorageEntry::new(key_b256, value);
-                    let mut cursor = tx
-                        .cursor_dup_write::<PlainStorageState>()
-                        .map_err(RethStateError::Database)?;
-                    // Delete old entry first, then insert new.
-                    if cursor
-                        .seek_by_key_subkey(*address, key_b256)
-                        .map_err(RethStateError::Database)?
-                        .is_some()
-                    {
-                        cursor.delete_current().map_err(RethStateError::Database)?;
-                    }
-                    cursor
-                        .upsert(*address, &entry)
-                        .map_err(RethStateError::Database)?;
-
-                    let hashed_entry = StorageEntry::new(hashed_slot, value);
-                    let mut hcursor = tx
-                        .cursor_dup_write::<HashedStorages>()
-                        .map_err(RethStateError::Database)?;
-                    if hcursor
-                        .seek_by_key_subkey(hashed_addr, hashed_slot)
-                        .map_err(RethStateError::Database)?
-                        .is_some()
-                    {
-                        hcursor.delete_current().map_err(RethStateError::Database)?;
-                    }
-                    hcursor
-                        .upsert(hashed_addr, &hashed_entry)
-                        .map_err(RethStateError::Database)?;
-                }
+                write_bundle_storage_slot(&tx, *address, hashed_addr, *key, value)?;
             }
         }
 
@@ -463,7 +465,3 @@ impl StateDb for RethStateDb {
         Ok(())
     }
 }
-
-#[path = "tests/db.rs"]
-#[cfg(test)]
-mod tests;

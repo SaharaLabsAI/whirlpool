@@ -21,6 +21,8 @@ impl TransactionsProvider for WhirlpoolProvider {
     fn transaction_id(&self, tx_hash: TxHash) -> ProviderResult<Option<TxNumber>> {
         self.state_db
             .rpc_reader()
+            .transactions()
+            .lookup()
             .transaction_id(tx_hash)
             .map_err(map_db_err)
     }
@@ -28,6 +30,8 @@ impl TransactionsProvider for WhirlpoolProvider {
     fn transaction_by_id(&self, id: TxNumber) -> ProviderResult<Option<Self::Transaction>> {
         self.state_db
             .rpc_reader()
+            .transactions()
+            .lookup()
             .transaction_by_id(id)
             .map_err(map_db_err)
     }
@@ -53,6 +57,8 @@ impl TransactionsProvider for WhirlpoolProvider {
         let Some(inputs) = self
             .state_db
             .rpc_reader()
+            .transactions()
+            .meta()
             .transaction_by_hash_with_meta_inputs(hash)
             .map_err(map_db_err)?
         else {
@@ -125,6 +131,8 @@ impl TransactionsProvider for WhirlpoolProvider {
 
         self.state_db
             .rpc_reader()
+            .transactions()
+            .lookup()
             .transactions_by_tx_range(start, end)
             .map_err(map_db_err)
     }
@@ -159,7 +167,12 @@ impl ReceiptProvider for WhirlpoolProvider {
     type Receipt = Receipt;
 
     fn receipt(&self, id: TxNumber) -> ProviderResult<Option<Self::Receipt>> {
-        self.state_db.rpc_reader().receipt(id).map_err(map_db_err)
+        self.state_db
+            .rpc_reader()
+            .transactions()
+            .receipts()
+            .receipt(id)
+            .map_err(map_db_err)
     }
 
     fn receipt_by_hash(&self, hash: TxHash) -> ProviderResult<Option<Self::Receipt>> {
@@ -199,6 +212,8 @@ impl ReceiptProvider for WhirlpoolProvider {
 
         self.state_db
             .rpc_reader()
+            .transactions()
+            .receipts()
             .receipts_by_tx_range(start, end)
             .map_err(map_db_err)
     }

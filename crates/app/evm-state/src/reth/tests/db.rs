@@ -6,7 +6,7 @@ use revm::state::{AccountInfo, Bytecode};
 use revm::{Database, DatabaseRef};
 use state::StateDb;
 
-use crate::db::RethStateDb;
+use crate::reth::db::RethStateDb;
 
 fn account_info(balance: u64, nonce: u64) -> AccountInfo {
     AccountInfo {

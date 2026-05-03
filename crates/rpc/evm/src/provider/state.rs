@@ -30,6 +30,7 @@ impl AccountReader for WhirlpoolProvider {
     fn basic_account(&self, address: &Address) -> ProviderResult<Option<Account>> {
         self.state_db
             .rpc_reader()
+            .accounts()
             .basic_account(*address)
             .map_err(map_db_err)
     }

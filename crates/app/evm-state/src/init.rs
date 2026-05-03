@@ -2,8 +2,8 @@
 
 use std::path::Path;
 
-use crate::db::RethStateDb;
 use crate::error::RethStateError;
+use crate::reth::db::RethStateDb;
 
 /// Open or create a state database at the given path.
 ///

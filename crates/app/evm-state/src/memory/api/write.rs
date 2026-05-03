@@ -4,7 +4,7 @@ use revm::state::AccountInfo;
 
 use state::traits::StateDb;
 
-use crate::in_memory_db::InMemoryStateDb;
+use crate::memory::db::InMemoryStateDb;
 
 impl InMemoryStateDb {
     pub fn commit(&mut self, bundle: &BundleState) {

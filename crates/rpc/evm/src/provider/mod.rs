@@ -86,6 +86,8 @@ impl WhirlpoolProvider {
         let Some(block) = self
             .state_db
             .rpc_reader()
+            .blocks()
+            .bodies()
             .read_block_by_number(number)
             .map_err(map_db_err)?
         else {

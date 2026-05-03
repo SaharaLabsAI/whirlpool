@@ -2,8 +2,6 @@ use app_primitives::header_extra_data::HeaderExtraDataHistory;
 use app_primitives::EvmBlock;
 use state::BlockStorage;
 
-use crate::{open_state_db, InMemoryStateDb};
-
 fn block_with_extra_data(height: u64, extra_data: Vec<u8>) -> EvmBlock {
     EvmBlock {
         height,
@@ -25,7 +23,7 @@ fn block_with_extra_data(height: u64, extra_data: Vec<u8>) -> EvmBlock {
 #[serial_test::serial]
 fn reth_state_db_returns_raw_header_extra_data_for_dkg_history() {
     let dir = tempfile::tempdir().expect("create temp dir");
-    let db = open_state_db(dir.path()).expect("open db");
+    let db = crate::open_state_db(dir.path()).expect("open db");
     let raw_carrier = vec![0x01, 0x02, 0x03, 0x04];
     let block = block_with_extra_data(7, raw_carrier.clone());
 
@@ -42,30 +40,10 @@ fn reth_state_db_returns_raw_header_extra_data_for_dkg_history() {
 #[serial_test::serial]
 fn reth_state_db_returns_none_for_missing_dkg_history_height() {
     let dir = tempfile::tempdir().expect("create temp dir");
-    let db = open_state_db(dir.path()).expect("open db");
+    let db = crate::open_state_db(dir.path()).expect("open db");
 
     assert_eq!(
         HeaderExtraDataHistory::header_extra_data_at_height(&db, 999)
-            .expect("read missing dkg carrier"),
-        None
-    );
-}
-
-#[test]
-fn in_memory_state_db_returns_raw_block_extra_data_for_dkg_history() {
-    let db = InMemoryStateDb::new();
-    let raw_carrier = vec![0xaa, 0xbb, 0xcc];
-    let block = block_with_extra_data(3, raw_carrier.clone());
-
-    db.store_block(&block, &[]).expect("store block");
-
-    assert_eq!(
-        HeaderExtraDataHistory::header_extra_data_at_height(&db, 3)
-            .expect("read header extra_data"),
-        Some(raw_carrier)
-    );
-    assert_eq!(
-        HeaderExtraDataHistory::header_extra_data_at_height(&db, 4)
             .expect("read missing dkg carrier"),
         None
     );

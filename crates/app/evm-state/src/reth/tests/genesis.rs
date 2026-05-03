@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, HashMap};
 
+use crate::RethStateDb;
 use alloy_genesis::GenesisAccount;
 use alloy_primitives::{address, b256, U256};
-use app_evm_state::RethStateDb;
 use state::StateDb;
 
 #[test]

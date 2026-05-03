@@ -216,15 +216,22 @@ fn tc_sr_07_sequential_blocks_have_monotonic_tx_numbers() {
 
     let reader = db.rpc_reader();
     let idx_one = reader
+        .blocks()
+        .bodies()
         .block_body_indices(1)
         .expect("read first indices")
         .expect("first indices exist");
     let idx_two = reader
+        .blocks()
+        .bodies()
         .block_body_indices(2)
         .expect("read second indices")
         .expect("second indices exist");
 
-    assert_eq!(idx_two.first_tx_num(), idx_one.next_tx_num());
+    assert_eq!(
+        idx_two.first_tx_num(),
+        idx_one.first_tx_num().saturating_add(idx_one.tx_count())
+    );
     assert!(idx_two.first_tx_num() >= idx_one.first_tx_num());
 }
 
