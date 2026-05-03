@@ -30,9 +30,11 @@ pub enum Message {
         response: oneshot::Sender<Digest>,
     },
     Propose {
+        context: Context<Digest, PublicKey>,
         response: oneshot::Sender<Digest>,
     },
     Verify {
+        context: Context<Digest, PublicKey>,
         digest: Digest,
         response: oneshot::Sender<bool>,
     },
@@ -101,10 +103,10 @@ impl<B: Clone + Send + Sync + 'static> Automaton for Mailbox<B> {
         receiver.await.expect("Failed to receive genesis")
     }
 
-    async fn propose(&mut self, _ctx: Self::Context) -> oneshot::Receiver<Self::Digest> {
+    async fn propose(&mut self, context: Self::Context) -> oneshot::Receiver<Self::Digest> {
         let (response, receiver) = oneshot::channel();
         self.sender
-            .send(Message::Propose { response })
+            .send(Message::Propose { context, response })
             .await
             .expect("Failed to send propose");
         receiver
@@ -112,12 +114,16 @@ impl<B: Clone + Send + Sync + 'static> Automaton for Mailbox<B> {
 
     async fn verify(
         &mut self,
-        _ctx: Self::Context,
+        context: Self::Context,
         digest: Self::Digest,
     ) -> oneshot::Receiver<bool> {
         let (response, receiver) = oneshot::channel();
         self.sender
-            .send(Message::Verify { digest, response })
+            .send(Message::Verify {
+                context,
+                digest,
+                response,
+            })
             .await
             .expect("Failed to send verify");
         receiver
@@ -193,10 +199,4 @@ fn digest_to_block_id(digest: Digest) -> [u8; 32] {
     let mut id = [0u8; 32];
     id.copy_from_slice(bytes);
     id
-}
-
-fn is_valid_digest(digest: Digest) -> bool {
-    // For testing: reject all-255 digests as invalid, accept others
-    let bytes: &[u8] = digest.as_ref();
-    bytes != [255u8; 32]
 }

@@ -74,11 +74,12 @@ pub struct CommonwareConfig {
 
     /// Shared block-height tracker.
     ///
-    /// The engine shares this `Arc<AtomicU64>` between its internal mailbox
-    /// actor (which reads the current height to propose the next block) and
-    /// the user-provided `EventSink` (which is responsible for advancing the
-    /// value on finalization).  The caller should seed it from persistent
-    /// storage so restarts resume at the correct height.
+    /// The engine shares this `Arc<AtomicU64>` with the user-provided
+    /// `EventSink`, which is responsible for advancing the value on
+    /// finalization. Mailbox proposal parent/height comes from the Simplex
+    /// context and cached parent block, not from this observability counter.
+    /// The caller should seed it from persistent storage so restarts resume at
+    /// the correct height.
     pub height: Arc<AtomicU64>,
 
     /// Timeout for fetching blocks from peers.
@@ -93,7 +94,7 @@ pub struct CommonwareConfig {
 
 #[cfg(test)]
 mod tests {
-    use super::{CommonwareConfig, SigningSchemeConfig};
+    use crate::config::{CommonwareConfig, SigningSchemeConfig};
     use commonware_cryptography::ed25519::PrivateKey;
     use commonware_cryptography::Signer as _;
     use std::num::NonZeroUsize;

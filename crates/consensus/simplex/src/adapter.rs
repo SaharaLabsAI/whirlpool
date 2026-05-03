@@ -166,7 +166,12 @@ where
             Finalization(fin) => {
                 // fin.proposal.payload is a Digest (the block's commitment)
                 let commitment = fin.proposal.payload;
-                if let Some(block) = self.finalized_blocks.write().await.remove(&commitment) {
+                let block = {
+                    let store = self.finalized_blocks.read().await;
+                    store.get(&commitment).cloned()
+                };
+
+                if let Some(block) = block {
                     let height = Heightable::height(&block).get();
                     self.sink
                         .handle(ConsensusEvent::Finalized {

@@ -64,9 +64,10 @@ impl<B: Block> EventSink for FinalizationSink<B> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::sink::FinalizationSink;
     use crate::tests::TestBlock;
-    use consensus::event::ConsensusEvent;
+    use consensus::event::{ConsensusEvent, EventSink};
+    use std::sync::atomic::AtomicU64;
     use std::sync::atomic::Ordering;
     use std::sync::Arc;
 

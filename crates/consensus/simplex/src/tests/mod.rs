@@ -53,13 +53,31 @@ impl TestBlock {
     }
 
     pub fn child_with_transactions(parent: &Self, transactions: Vec<Vec<u8>>) -> Self {
+        Self::child_with_parent_digest(parent, parent.commitment(), transactions)
+    }
+
+    pub fn child_with_parent_digest(
+        parent: &Self,
+        parent_digest: TestDigest,
+        transactions: Vec<Vec<u8>>,
+    ) -> Self {
         let mut id = [0u8; 32];
         id[0] = (parent.height + 1) as u8;
         Self {
             id,
-            parent: parent.commitment(),
+            parent: parent_digest,
             height: parent.height + 1,
             transactions,
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn with_id_parent_digest(id: [u8; 32], parent_digest: TestDigest, height: u64) -> Self {
+        Self {
+            id,
+            parent: parent_digest,
+            height,
+            transactions: Vec::new(),
         }
     }
 }

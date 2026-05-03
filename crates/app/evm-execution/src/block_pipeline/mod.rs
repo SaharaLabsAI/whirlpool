@@ -245,6 +245,34 @@ fn build_sealed_header(block: &EvmBlock) -> SealedHeader {
     SealedHeader::new(header, hash)
 }
 
+fn build_genesis_block_for_proposer(
+    proposer_public_key: [u8; 32],
+    proposer_fee_recipient: [u8; 20],
+    state_root: [u8; 32],
+) -> Result<EvmBlock, EvmAppError> {
+    let extra_data = build_header_extra_data(proposer_public_key, DkgHeaderSections::default())
+        .map_err(|err| EvmAppError::InvalidBlock(err.to_string()))?;
+
+    Ok(EvmBlock {
+        height: 0,
+        parent_id: [0u8; 32],
+        state_root,
+        transactions_root: EMPTY_ROOT_HASH.0,
+        receipts_root: EMPTY_ROOT_HASH.0,
+        proposer_public_key,
+        proposer_fee_recipient,
+        extra_data,
+        gas_used: 0,
+        base_fee_per_gas: 1_000_000_000,
+        timestamp: 0,
+        transactions: vec![],
+    })
+}
+
+fn is_height_one_child_of_local_genesis(parent: &EvmBlock, block: &EvmBlock) -> bool {
+    parent.height == 0 && parent.parent_id == [0u8; 32] && block.height == 1
+}
+
 #[allow(clippy::manual_async_fn)]
 impl<DB> Application for EvmApplication<DB>
 where
@@ -270,35 +298,22 @@ where
                 db.state_root()
                     .map_err(Into::into)
                     .expect("genesis state root should not fail")
+                    .0
             };
-            let genesis_extra_data = build_header_extra_data(
-                self.evm_config.proposer_context().local_public_key(),
-                DkgHeaderSections::default(),
-            )
-            .expect("genesis raw_eth extra_data envelope should encode");
-
-            EvmBlock {
-                height: 0,
-                parent_id: [0u8; 32],
-                state_root: state_root.0,
-                transactions_root: EMPTY_ROOT_HASH.0,
-                receipts_root: EMPTY_ROOT_HASH.0,
-                proposer_public_key: self.evm_config.proposer_context().local_public_key(),
-                proposer_fee_recipient: {
-                    let db = self.state_db.read().unwrap();
-                    evm_precompiles::resolve_active_validator_fee_recipient(
-                        &*db,
-                        self.evm_config.proposer_context().local_public_key(),
-                    )
+            let proposer_public_key = self.evm_config.proposer_context().local_public_key();
+            let proposer_fee_recipient = {
+                let db = self.state_db.read().unwrap();
+                evm_precompiles::resolve_active_validator_fee_recipient(&*db, proposer_public_key)
                     .expect("genesis proposer fee recipient must resolve from runtime validator registry")
                     .into_array()
-                },
-                extra_data: genesis_extra_data,
-                gas_used: 0,
-                base_fee_per_gas: 1_000_000_000,
-                timestamp: 0,
-                transactions: vec![],
-            }
+            };
+
+            build_genesis_block_for_proposer(
+                proposer_public_key,
+                proposer_fee_recipient,
+                state_root,
+            )
+            .expect("genesis raw_eth extra_data envelope should encode")
         }
     }
 
@@ -365,7 +380,31 @@ where
     ) -> impl std::future::Future<Output = Result<Self::Result, Self::Error>> + Send {
         async move {
             let expected_parent_id = parent.compute_id();
-            if block.parent_id != expected_parent_id {
+            let mut parent_matches = block.parent_id == expected_parent_id;
+            if !parent_matches && is_height_one_child_of_local_genesis(parent, block) {
+                let state_root = {
+                    let db = self.state_db.read().unwrap();
+                    db.state_root().map_err(Into::into)?.0
+                };
+                let validators = {
+                    let db = self.state_db.read().unwrap();
+                    evm_precompiles::load_active_validator_registry(&*db)
+                        .map_err(map_validators_runtime_error)?
+                };
+                for validator in validators {
+                    let candidate = build_genesis_block_for_proposer(
+                        validator.consensus_pubkey,
+                        validator.ethereum_address.into_array(),
+                        state_root,
+                    )?;
+                    if candidate.compute_id() == block.parent_id {
+                        parent_matches = true;
+                        break;
+                    }
+                }
+            }
+
+            if !parent_matches {
                 return Err(EvmAppError::InvalidBlock(format!(
                     "Parent id mismatch: expected {:?}, found {:?}",
                     expected_parent_id, block.parent_id

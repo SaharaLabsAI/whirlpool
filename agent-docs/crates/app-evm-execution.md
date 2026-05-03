@@ -35,7 +35,7 @@ Those live in `chainspec`.
 - Activation schedules are derived from caller-supplied default players plus explicit epoch overrides; default players are supplied from state-backed validator entries, not config-owned registry snapshots.
 - Precompile injection remains in `WhirlpoolEvmConfig::evm_with_env(...)` through the static Reth/EVM adapter and `evm_precompiles::whirlpool_precompiles(...)`; app config does not pass validator snapshots into precompile maps.
 - Block header `extra_data` uses strict canonical envelope bytes (`RawEth` + optional `FullDkgV1`/`ReshareV1`). `app-primitives` owns the outer WDX1 carrier schema/codec and RawEth projection; `validators-dkg` owns only DKG payload schema/validation semantics.
-- Verify path decodes `extra_data` strictly from genesis, rejects raw 32-byte legacy carriers, enforces proposer-key parity against `RawEth`, and enforces boundary-aware FullDkg/Reshare invariants.
+- Verify path decodes `extra_data` strictly from genesis, rejects raw 32-byte legacy carriers, enforces proposer-key parity against `RawEth`, and enforces boundary-aware FullDkg/Reshare invariants. Height-1 verification accepts a local genesis parent only when `block.parent_id` matches a genesis carrier for an active validator in runtime state; unknown height-1 parent IDs and all later parent mismatches fail closed.
 - Propose/verify now share one block-pipeline-local next-block base-fee seam:
   - propose derives `base_fee_per_gas` through the shared helper,
   - verify rejects blocks whose `block.base_fee_per_gas` does not match the protocol-derived next-block fee before fee accounting,

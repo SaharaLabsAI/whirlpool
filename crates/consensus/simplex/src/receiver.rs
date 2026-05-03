@@ -83,11 +83,14 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::mailbox::PayloadRelayMessage;
+    use crate::receiver::payload_receive_loop;
     use crate::tests::TestBlock;
+    use crate::BlockStore;
     use bytes::Bytes;
     use commonware_codec::Encode;
     use commonware_cryptography::sha256::Digest;
+    use commonware_cryptography::Digestible;
     use network::mock::MockPeerId;
     use network::types::{Channel, NetworkMessage};
     use network::NetworkReceiver;

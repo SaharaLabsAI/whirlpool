@@ -29,6 +29,71 @@ async fn verify_accepts_valid_block() {
 }
 
 #[tokio::test]
+async fn verify_accepts_genesis_child_from_alternate_validator_genesis_metadata() {
+    let chain_spec = Arc::new(build_test_chain_spec());
+    let proposer_config =
+        WhirlpoolEvmConfig::new(chain_spec.clone()).with_local_proposer_public_key([0x77; 32]);
+    let (proposer_app, db) = setup_app_with_config(vec![], proposer_config).await;
+
+    let proposer_genesis = proposer_app.genesis().await;
+    let (block, _) = proposer_app
+        .propose(&proposer_genesis, 1)
+        .await
+        .expect("height-1 proposal should succeed");
+    let pre_state = db.read().unwrap().clone();
+
+    let verifier_config =
+        WhirlpoolEvmConfig::new(chain_spec).with_local_proposer_public_key([0x11; 32]);
+    let verifier_app = EvmApplication::new(
+        verifier_config,
+        Arc::new(RwLock::new(pre_state)),
+        Arc::new(MockTxSource { txs: vec![] }),
+    );
+    let verifier_genesis = verifier_app.genesis().await;
+
+    assert_ne!(
+        block.parent_id,
+        verifier_genesis.compute_id(),
+        "alternate validator genesis metadata should change the carrier id"
+    );
+    assert!(verifier_app.verify(&verifier_genesis, &block).await.is_ok());
+}
+
+#[tokio::test]
+async fn verify_rejects_unknown_genesis_child_parent_id() {
+    let chain_spec = Arc::new(build_test_chain_spec());
+    let proposer_config =
+        WhirlpoolEvmConfig::new(chain_spec.clone()).with_local_proposer_public_key([0x77; 32]);
+    let (proposer_app, db) = setup_app_with_config(vec![], proposer_config).await;
+
+    let proposer_genesis = proposer_app.genesis().await;
+    let (mut block, _) = proposer_app
+        .propose(&proposer_genesis, 1)
+        .await
+        .expect("height-1 proposal should succeed");
+    block.parent_id = [0x44; 32];
+    let pre_state = db.read().unwrap().clone();
+
+    let verifier_config =
+        WhirlpoolEvmConfig::new(chain_spec).with_local_proposer_public_key([0x11; 32]);
+    let verifier_app = EvmApplication::new(
+        verifier_config,
+        Arc::new(RwLock::new(pre_state)),
+        Arc::new(MockTxSource { txs: vec![] }),
+    );
+    let verifier_genesis = verifier_app.genesis().await;
+
+    let err = verifier_app
+        .verify(&verifier_genesis, &block)
+        .await
+        .expect_err("unknown genesis parent id must be rejected");
+    assert!(
+        matches!(err, EvmAppError::InvalidBlock(ref msg) if msg.contains("Parent id mismatch")),
+        "unexpected error: {err:?}"
+    );
+}
+
+#[tokio::test]
 async fn verify_rejects_block_with_mismatched_base_fee_per_gas() {
     let (tx, recovered) = sample_evm_tx();
     let (app, db) = setup_app(vec![tx]).await;
