@@ -1,21 +1,21 @@
 use alloy_primitives::U256;
 
-mod decode;
-mod slot_mapping;
-mod slot_storage_encoding;
-mod slot_storage_primary;
-mod slot_value_primary;
+mod codec;
+mod encoded_value;
+mod epoch_start_mapping;
+mod well_known_slots;
+mod well_known_storage;
 
-pub use decode::{decode_epoch_start_block_storage_value, decode_u64_storage_value};
-pub use slot_mapping::epoch_start_block_slot;
-pub use slot_storage_encoding::{
+pub use codec::{decode_epoch_start_block_storage_value, decode_u64_storage_value};
+pub use encoded_value::{
     encode_epoch_start_block_storage_value, encode_u64_storage_value,
     epoch_start_block_storage_slot,
 };
-pub use slot_storage_primary::{
+pub use epoch_start_mapping::epoch_start_block_slot;
+pub use well_known_slots::{current_epoch_slot, epoch_blocks_slot, next_epoch_block_slot};
+pub use well_known_storage::{
     current_epoch_storage_slot, epoch_blocks_storage_slot, next_epoch_block_storage_slot,
 };
-pub use slot_value_primary::{current_epoch_slot, epoch_blocks_slot, next_epoch_block_slot};
 
 pub const CURRENT_EPOCH_SLOT: U256 = U256::ZERO;
 pub const EPOCH_BLOCKS_SLOT: U256 = U256::from_limbs([1, 0, 0, 0]);

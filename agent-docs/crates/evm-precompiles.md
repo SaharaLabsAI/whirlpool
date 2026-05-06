@@ -55,31 +55,27 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
   - `epoch_start_block_slot(epoch)` + `encode_epoch_start_block_storage_value(...)`
 
 ## Framework shape
-- `src/lib.rs` + `src/tests.rs`: registry, duplicate-address protection, safe-default stateful registration guard, factory wiring, and source-adjacent crate-level tests.
-- `src/community_pool/mod.rs` + `community_pool/tests.rs`: canonical community-pool address constant, read-only balance query precompile, ABI helpers, and source-adjacent tests.
-- `src/community_pool/runtime_accounting/mod.rs` + `runtime_accounting/tests.rs`: post-block runtime accounting adapter and source-adjacent tests kept in a directory-backed module.
-- `src/community_pool/slot_value_*.rs` + `slot_storage_*.rs`: slot getter/storage-word helper surface split into focused policy-sized files.
-- `src/fee_claim_writer.rs`: private crate-root fee-pool claim-ledger writer used by post-block/community-pool accounting; not re-exported as public API.
-- `src/fee_pool/mod.rs` + `fee_pool/tests.rs`: fee-pool precompile surface, ABI helpers, revert helpers, and source-adjacent tests.
-- `src/fee_pool/dispatch/mod.rs` + `dispatch/calldata.rs`: fee-pool selector decode and calldata helper split.
-- `src/fee_pool/impl.rs`: fee-pool runtime adapter/handler shell for balance query, claim query, withdraw snapshot loading, non-branching withdraw-effect application, and output/error mapping; `execute` stays plain `pub` inside a private module boundary.
-- `src/fee_pool/withdraw_transition/mod.rs` + `withdraw_transition/tests.rs`: pure typed withdraw transition planner (`WithdrawInput`, `WithdrawState`, `WithdrawEffect`, `WithdrawOutcome`) that owns zero-claim no-op, checked balance arithmetic, claim-clear effect planning, and future fuzz/property-test seam.
-- `src/fee_pool/storage.rs`: deterministic slot derivation for `mapping(address => uint256) claimable`.
-- `src/fee_pool/gas.rs`: fee-pool gas schedule.
-- `src/validators/mod.rs` + `validators/tests.rs`: validators precompile ABI/runtime only; consumes `validators_reader::ValidatorEntry` and calls the private precompile reader.
-- `src/validators/runtime_reader.rs` + `runtime_reader/tests.rs`: app-facing runtime-state API with the three public behavioral helpers (`load_active_validator_registry`, `resolve_active_validator_fee_recipient`, `validate_active_validator_fee_recipient`) plus malformed-registry error classification.
-- `src/validators/precompile_reader.rs`: private `PrecompileInput` adapter for the `validators()` precompile runtime-state read path.
-- `src/validators/registry_loader.rs`: private shared slot-walking loader that keeps `validators-reader` slot math as the canonical codec/slot source while avoiding duplicated registry parsing logic.
-- `src/validators/gas.rs`: standalone validators gas scheduler helper module.
-- `src/epoch/mod.rs` + `epoch/tests.rs`: epoch constants, sender derivation, ABI/helper exports, activation target handoff exports, and source-adjacent epoch tests.
-- `src/epoch/boundary_effect.rs` + `boundary_effect/tests.rs`: typed epoch-boundary canonical-apply contract extracted from the lower-layer transition (`EpochBoundaryEffect`, `EpochBoundaryStorageWrite`, `EpochBoundaryEffectError`, `extract_epoch_boundary_effect`).
-- `src/epoch/boundary_semantics.rs`: pure epoch-boundary semantic core (`EpochBoundaryState`, boundary-required predicate, reserved-call matcher) exported for app-side adapters without app trait leakage.
-- `src/epoch/dispatch/mod.rs` + `dispatch/{read_calldata,write_calldata}.rs`: epoch selector decode and calldata helper split.
-- `src/epoch/impl.rs`: epoch runtime adapter/handler shell for read selectors, restricted `advanceEpoch()` authorization, snapshot loading, non-branching advance-effect application, and output/error mapping; `execute` stays plain `pub` inside a private module boundary.
-- `src/epoch/advance_transition/mod.rs` + `advance_transition/tests.rs`: pure typed direct `advanceEpoch()` planner (`AdvanceEpochInput`, `AdvanceEpochState`, `AdvanceEpochEffect`, `AdvanceEpochOutcome`) that owns boundary equality, overflow checks, next-boundary calculation, start-slot initialization rejection, and storage-write planning.
-- `src/epoch/storage/mod.rs` + storage submodules + `storage/tests.rs`: scalar slots + append-only epoch-start mapping slot derivation, split by helper domain with source-adjacent tests.
-- `src/epoch/gas.rs`: epoch precompile gas schedule.
-- `src/{registered_precompile_api,registry_build,registry_runtime,factory_api}.rs`: crate-root API split files that keep each production file within strict policy thresholds while preserving external exports.
+- `src/lib.rs`: thin crate facade with public compatibility re-exports only.
+- `src/factory/mod.rs`: `WhirlpoolEvmFactory`, `impl EvmFactory`, and `with_validators(...)` compatibility constructor.
+- `src/registry/{entry,direct_call_guard,installed,build,runtime}.rs`: registered-precompile metadata, direct-call rejection, canonical installed list, checked map construction, and panic-on-invalid compatibility helpers.
+- `src/tests.rs`: crate-root registry/factory/direct-call tests.
+- `src/community_pool/mod.rs` + `community_pool/tests.rs`: canonical community-pool address, read-only balance precompile shell, ABI helpers, and facade tests.
+- `src/community_pool/unlock_accounting/{transition,runtime}.rs`: pure post-block unlock/fee-accounting effect planning plus runtime apply adapter; tests stay source-adjacent as `*_tests.rs` files.
+- `src/community_pool/unlock_storage/{storage_slots,storage_encoding,value_slots,last_processed}.rs`: community-pool unlock slot/value helper ownership.
+- `src/fee_pool/mod.rs` + `fee_pool/tests.rs`: fee-pool facade, ABI compatibility exports including the legacy `fee_pool::storage::claimable_balance_slot` path, registration handoff, revert helpers, and runtime tests.
+- `src/fee_pool/codec/{dispatch,calldata,output}.rs`: fee-pool selector decode, calldata helpers, and ABI output decode helpers.
+- `src/fee_pool/transition/withdraw/mod.rs`: pure typed withdraw planner (`WithdrawInput`, `WithdrawState`, `WithdrawEffect`, `WithdrawOutcome`) and source-adjacent transition tests.
+- `src/fee_pool/runtime/{handler,state,effect_writer}.rs`: stateful precompile shell, runtime snapshot loading, and canonical withdraw effect writer.
+- `src/fee_pool/claim_ledger/{slots,credit,runtime_writer}.rs`: claimable-balance slot owner, `ClaimCredit` carrier, and shared runtime claim writer used by withdraw/post-block accounting.
+- `src/epoch/mod.rs` + `epoch/tests.rs`: epoch facade, public exports, constants, and ABI/runtime tests.
+- `src/epoch/codec/{dispatch,read_calldata,write_calldata,output_scalar,output_epoch_start}.rs`: epoch selector decode, calldata helpers, and output decoding.
+- `src/epoch/transition/{advance,boundary_effect,boundary_semantics}.rs`: pure direct-advance planner, boundary effect extraction, and primitive boundary predicates.
+- `src/epoch/runtime/{handler,state,effect_writer,boundary_adapter}.rs`: direct `advanceEpoch()` shell, storage snapshot loading, canonical direct-write apply path, and system-call boundary adapter.
+- `src/epoch/storage/{codec,encoded_value,epoch_start_mapping,well_known_slots,well_known_storage}.rs`: scalar slots, epoch-start mapping, plus-one storage encoding, and storage-ready slot conversions.
+- `src/epoch/registration/mod.rs`: epoch precompile registration and deterministic system transaction sender.
+- `src/validators/mod.rs` + `validators/tests.rs`: validators read-only precompile ABI/runtime facade.
+- `src/validators/runtime_state/{mod,precompile_adapter,registry_loader}.rs`: active validator runtime authority API, precompile input adapter, and shared slot-walking loader; source-adjacent malformed-registry tests stay in `runtime_state/tests.rs`.
+- `src/validators/gas.rs`: standalone validators gas schedule.
 
 ## Design notes
 - Reth v2 alignment: this crate uses `reth_evm::revm::*` types everywhere (no direct `revm` crate import) to avoid mixed-REVM type graphs during factory wiring.
@@ -88,13 +84,13 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
 - `validators-reader` is the canonical owner of validator registry codec/types and slot arithmetic. `validators-dkg` owns activation schedules/targets and DKG metadata. `evm-precompiles::validators` owns runtime validator-state reads, active-registry loading, proposer fee-recipient resolution, malformed-registry classification, and the public validators ABI.
 - Current active-set semantics: runtime `SIMPLEX_VALIDATORS_REGISTRY` membership is the active proof for fee-recipient resolution. Missing proposer, duplicate pubkey, zero pubkey/address under nonzero count, invalid address padding, and carried-recipient mismatch fail closed.
 - The community-pool precompile is read-only and returns the balance of `COMMUNITY_POOL_ADDRESS`.
-- Community-pool unlock schedule state remains anchored at `COMMUNITY_POOL_ADDRESS` storage (configured by chainspec/runtime), but the mutable runtime ownership now lives in the internal `accounting` runtime-adapter surface rather than in `app-evm-execution` or a new public precompile selector.
+- Community-pool unlock schedule state remains anchored at `COMMUNITY_POOL_ADDRESS` storage (configured by chainspec/runtime), but the mutable runtime ownership now lives in the internal `unlock_accounting::runtime` adapter surface rather than in `app-evm-execution` or a new public precompile selector.
 - Fee routing model:
   - burned base fees -> `COMMUNITY_POOL_ADDRESS`
   - priority fees -> `FEE_POOL_PRECOMPILE_ADDRESS`
   - proposer entitlement -> fee-pool claim ledger keyed by recipient address
   - payout -> precompile `withdraw()` path
-- The fee-pool precompile mutates journaled EVM **account balances** and claim-ledger storage through the shared EVM internals. Withdraw transition decisions are planned in the pure `fee_pool::withdraw_transition` module, while `fee_pool::impl` remains the single runtime apply/writer shell for returned effects. Post-block accounting credits the same claim ledger through the private crate-root `fee_claim_writer` module so the writer is shared internally without becoming public API.
+- The fee-pool precompile mutates journaled EVM **account balances** and claim-ledger storage through the shared EVM internals. Withdraw transition decisions are planned in the pure `fee_pool::transition::withdraw` module, while `fee_pool::runtime::{handler,effect_writer}` owns the runtime apply/writer shell for returned effects. Post-block accounting credits the same claim ledger through the semantic owner path `fee_pool::claim_ledger::runtime_writer`, avoiding any root-level alias that would obscure claim-ledger ownership.
 - The accounting module now owns a second **two-layer boundary API** for post-block accounting:
   - **pure core**: `PostBlockAccountingInputs`, `PostBlockAccountingEffect`, `PostBlockAccountingOutcome`, community-pool unlock state/effect math
   - **runtime adapter**: `apply_post_block_accounting(...)` + `PostBlockAccountingRuntimeError`
@@ -104,7 +100,7 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
   - write selector: `advanceEpoch()` (restricted to `epoch_system_tx_sender()`, non-static)
   - append-only epoch start map uses plus-one storage encoding so epoch 0 start block can be stored unambiguously.
 - The epoch module owns pure epoch boundary mechanics consumed by `app-evm-execution`: boundary snapshot type, `block_height == next_epoch_block` predicate, and the canonical reserved-call matcher. DKG activation target handoff (`E`, `E+1`, `E+2`) lives in `validators-dkg`.
-- The epoch module also owns two typed epoch-write handoffs: the direct `advance_transition` planner used by the precompile handler, and the boundary-effect extractor used for post-execution canonical application:
+- The epoch module also owns two typed epoch-write handoffs: the direct `transition::advance` planner used by the precompile handler, and the boundary-effect extractor used for post-execution canonical application:
   - effect is limited to epoch-precompile storage writes,
   - `epochStartBlock(next_epoch)` stays storage-ready with plus-one encoding,
   - extractor rejects account-info replay requirements and unexpected changed accounts,

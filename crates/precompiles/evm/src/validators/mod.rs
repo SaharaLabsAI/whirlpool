@@ -7,11 +7,9 @@ use validators_reader::ValidatorEntry;
 use crate::RegisteredPrecompile;
 
 pub mod gas;
-mod precompile_reader;
-mod registry_loader;
-mod runtime_reader;
+mod runtime_state;
 
-pub use runtime_reader::{
+pub use runtime_state::{
     load_active_validator_registry, resolve_active_validator_fee_recipient,
     validate_active_validator_fee_recipient, ValidatorsRuntimeError,
 };
@@ -69,7 +67,7 @@ pub fn register(_simplex_validators: Vec<ValidatorEntry>) -> RegisteredPrecompil
 
 fn execute(mut input: PrecompileInput<'_>) -> PrecompileResult {
     decode_call(input.data())?;
-    let validators = precompile_reader::load_active_validator_registry_from_precompile(&mut input)
+    let validators = runtime_state::load_active_validator_registry_from_precompile(&mut input)
         .map_err(|err| PrecompileError::other(err.to_string()))?;
 
     let gas_cost = gas::validators_gas(validators.len());

@@ -1,28 +1,10 @@
-use alloy_primitives::{Address, Bytes};
-use alloy_sol_types::{sol, SolError};
-use reth_evm::revm::{
-    context::{BlockEnv, TxEnv},
-    inspector::{Inspector, NoOpInspector},
-    precompile::{PrecompileOutput, PrecompileResult, PrecompileSpecId, Precompiles},
-    primitives::hardfork::SpecId,
-};
-use reth_evm::{
-    eth::{EthEvm, EthEvmBuilder, EthEvmContext},
-    precompiles::{DynPrecompile, PrecompilesMap},
-    EvmEnv, EvmFactory,
-};
-use std::collections::HashSet;
-
-mod factory_api;
-mod fee_claim_writer;
-mod registered_precompile_api;
-mod registry_build;
-mod registry_runtime;
-
 pub mod community_pool;
 pub mod epoch;
 pub mod fee_pool;
 pub mod validators;
+
+mod factory;
+mod registry;
 
 pub use crate::validators::{
     decode_validators_output, load_active_validator_registry,
@@ -55,125 +37,20 @@ pub use epoch::{
     EpochBoundaryStorageWrite, EPOCH_BLOCKS_DEFAULT, EPOCH_PRECOMPILE_ADDRESS,
     EPOCH_SYSTEM_TX_GAS_LIMIT, EPOCH_SYSTEM_TX_INITIAL_BALANCE_WEI, EPOCH_SYSTEM_TX_PRIVATE_KEY,
 };
+pub use factory::WhirlpoolEvmFactory;
 pub use fee_pool::{
     claimable_balance_calldata, claimable_balance_slot, decode_claimable_balance_output,
     decode_fee_pool_balance_output, decode_withdraw_output, fee_pool_balance_calldata,
     withdraw_calldata, ClaimCredit, FEE_POOL_PRECOMPILE_ADDRESS,
 };
-pub use registry_build::{
+pub use registry::{
     build_whirlpool_precompiles, build_whirlpool_precompiles_with_validators,
+    whirlpool_precompiles, whirlpool_precompiles_with_validators, NonDirectCall,
+    RegisteredPrecompile, RegistryError, WhirlpoolStatefulPrecompile,
 };
-pub use registry_runtime::{whirlpool_precompiles, whirlpool_precompiles_with_validators};
 
-sol! {
-    /// Shared framework-level error used when a Whirlpool-owned stateful precompile
-    /// is invoked through a non-direct path such as DELEGATECALL or CALLCODE.
-    #[derive(Debug, PartialEq, Eq)]
-    error NonDirectCall();
-}
-
-#[derive(Debug, thiserror::Error, PartialEq, Eq)]
-pub enum RegistryError {
-    #[error("custom precompile address {0} collides with an existing built-in precompile")]
-    BuiltinAddressCollision(Address),
-    #[error("custom precompile address {0} is registered more than once")]
-    DuplicateCustomAddress(Address),
-}
-
-#[derive(Clone)]
-pub struct RegisteredPrecompile {
-    address: Address,
-    precompile: DynPrecompile,
-}
-
-pub trait WhirlpoolStatefulPrecompile {
-    fn register() -> RegisteredPrecompile;
-}
-
-fn non_direct_call_revert_bytes() -> Bytes {
-    Bytes::from(NonDirectCall {}.abi_encode())
-}
-
-fn non_direct_call_revert_result() -> PrecompileResult {
-    // `REVERT` does not imply zero gas in general, but this framework-level rejection happens
-    // before the precompile executes any opcode-equivalent work or applies its own gas policy.
-    // We therefore report zero precompile gas here and let the enclosing EVM machinery account
-    // for any call/setup cost outside the precompile itself.
-    Ok(PrecompileOutput::new_reverted(
-        0,
-        non_direct_call_revert_bytes(),
-    ))
-}
-
-fn build_precompiles<I>(
-    spec: SpecId,
-    custom_precompiles: I,
-) -> Result<PrecompilesMap, RegistryError>
-where
-    I: IntoIterator<Item = RegisteredPrecompile>,
-{
-    let mut precompiles =
-        PrecompilesMap::from_static(Precompiles::new(PrecompileSpecId::from_spec_id(spec)));
-    let mut seen = HashSet::new();
-
-    for registered in custom_precompiles {
-        let address = registered.address();
-        if !seen.insert(address) {
-            return Err(RegistryError::DuplicateCustomAddress(address));
-        }
-        if precompiles.get(&address).is_some() {
-            return Err(RegistryError::BuiltinAddressCollision(address));
-        }
-        precompiles.apply_precompile(&address, |_| Some(registered.precompile()));
-    }
-
-    Ok(precompiles)
-}
-
-/// Whirlpool EVM factory that injects the workspace precompile registry.
-///
-/// `Default::default()` and [`WhirlpoolEvmFactory::with_validators`] are both
-/// retained for compatibility. Validator reads are runtime-state-backed, so the
-/// factory no longer carries a validator snapshot.
-#[derive(Debug, Default, Clone)]
-pub struct WhirlpoolEvmFactory;
-
-impl EvmFactory for WhirlpoolEvmFactory {
-    type Evm<DB: reth_evm::Database, I: Inspector<Self::Context<DB>>> =
-        EthEvm<DB, I, Self::Precompiles>;
-    type Context<DB: reth_evm::Database> = EthEvmContext<DB>;
-    type Tx = TxEnv;
-    type Error<DBError: std::error::Error + Send + Sync + 'static> =
-        reth_evm::revm::context_interface::result::EVMError<DBError>;
-    type HaltReason = reth_evm::revm::context_interface::result::HaltReason;
-    type Spec = SpecId;
-    type BlockEnv = BlockEnv;
-    type Precompiles = PrecompilesMap;
-
-    fn create_evm<DB: reth_evm::Database>(
-        &self,
-        db: DB,
-        evm_env: EvmEnv<Self::Spec, Self::BlockEnv>,
-    ) -> Self::Evm<DB, NoOpInspector> {
-        let spec = evm_env.cfg_env.spec;
-        EthEvmBuilder::new(db, evm_env)
-            .precompiles(whirlpool_precompiles_with_validators(spec, Vec::new()))
-            .build()
-    }
-
-    fn create_evm_with_inspector<DB: reth_evm::Database, I: Inspector<Self::Context<DB>>>(
-        &self,
-        db: DB,
-        evm_env: EvmEnv<Self::Spec, Self::BlockEnv>,
-        inspector: I,
-    ) -> Self::Evm<DB, I> {
-        let spec = evm_env.cfg_env.spec;
-        EthEvmBuilder::new(db, evm_env)
-            .activate_inspector(inspector)
-            .precompiles(whirlpool_precompiles_with_validators(spec, Vec::new()))
-            .build()
-    }
-}
+#[cfg(test)]
+use registry::{build_precompiles, non_direct_call_revert_bytes};
 
 #[cfg(test)]
 mod tests;

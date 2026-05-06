@@ -1,35 +1,21 @@
 use alloy_primitives::{address, Address, Bytes, B256, U256};
 use reth_evm::revm::precompile::PrecompileResult;
 
-mod advance_transition;
-mod boundary_effect;
-mod boundary_semantics;
-mod decode_primary;
-mod decode_tail;
-mod dispatch;
+mod codec;
 pub mod gas;
-mod r#impl;
 mod registration;
-mod runtime_adapter;
+mod runtime;
 pub mod storage;
+mod transition;
 
-pub use boundary_effect::{
-    extract_epoch_boundary_effect, EpochBoundaryEffect, EpochBoundaryEffectError,
-    EpochBoundaryStorageWrite,
-};
-pub use boundary_semantics::{
-    boundary_required_for_height, reserved_advance_epoch_call_matches, EpochBoundaryState,
-};
-pub use decode_primary::{
-    decode_current_epoch_output, decode_next_epoch_block_output, decode_u64_output,
-};
-pub use decode_tail::{decode_epoch_blocks_output, decode_epoch_start_block_output};
-pub use dispatch::{
-    advance_epoch_calldata, current_epoch_calldata, epoch_blocks_calldata,
-    epoch_start_block_calldata, is_advance_epoch_calldata, next_epoch_block_calldata,
+pub use codec::{
+    advance_epoch_calldata, current_epoch_calldata, decode_current_epoch_output,
+    decode_epoch_blocks_output, decode_epoch_start_block_output, decode_next_epoch_block_output,
+    decode_u64_output, epoch_blocks_calldata, epoch_start_block_calldata,
+    is_advance_epoch_calldata, next_epoch_block_calldata,
 };
 pub use registration::{epoch_system_tx_sender, register};
-pub use runtime_adapter::{
+pub use runtime::boundary_adapter::{
     apply_epoch_boundary_effect, execute_epoch_boundary_system_call_if_required,
     load_epoch_boundary_state, EpochBoundaryRuntimeError,
 };
@@ -38,6 +24,11 @@ pub use storage::{
     decode_u64_storage_value, encode_epoch_start_block_storage_value, encode_u64_storage_value,
     epoch_blocks_slot, epoch_blocks_storage_slot, epoch_start_block_slot,
     epoch_start_block_storage_slot, next_epoch_block_slot, next_epoch_block_storage_slot,
+};
+pub use transition::{
+    boundary_required_for_height, extract_epoch_boundary_effect,
+    reserved_advance_epoch_call_matches, EpochBoundaryEffect, EpochBoundaryEffectError,
+    EpochBoundaryState, EpochBoundaryStorageWrite,
 };
 
 pub const EPOCH_PRECOMPILE_ADDRESS: Address =

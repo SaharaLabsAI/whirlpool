@@ -3,19 +3,21 @@ use reth_evm::revm::precompile::PrecompileResult;
 
 use crate::RegisteredPrecompile;
 
-mod decode_outputs;
-mod dispatch;
+#[doc(hidden)]
+pub mod claim_ledger;
+mod codec;
 pub mod gas;
-mod r#impl;
-mod runtime_accounting;
-pub mod storage;
-mod withdraw_transition;
+mod runtime;
+mod transition;
+pub mod storage {
+    pub use crate::fee_pool::claim_ledger::claimable_balance_slot;
+}
 
-pub use decode_outputs::{
-    decode_claimable_balance_output, decode_fee_pool_balance_output, decode_withdraw_output,
+pub use claim_ledger::ClaimCredit;
+pub use codec::{
+    claimable_balance_calldata, decode_claimable_balance_output, decode_fee_pool_balance_output,
+    decode_withdraw_output, fee_pool_balance_calldata, withdraw_calldata,
 };
-pub use dispatch::{claimable_balance_calldata, fee_pool_balance_calldata, withdraw_calldata};
-pub use runtime_accounting::ClaimCredit;
 pub use storage::claimable_balance_slot;
 
 pub const FEE_POOL_PRECOMPILE_ADDRESS: Address =
@@ -43,7 +45,7 @@ pub fn register() -> RegisteredPrecompile {
     RegisteredPrecompile::new_stateful(
         "whirlpool_fee_pool",
         FEE_POOL_PRECOMPILE_ADDRESS,
-        r#impl::execute,
+        runtime::handler::execute,
     )
 }
 

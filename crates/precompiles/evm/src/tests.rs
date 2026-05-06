@@ -1,6 +1,10 @@
 use crate::fee_pool::{fee_pool_balance_calldata, withdraw_calldata, FEE_POOL_PRECOMPILE_ADDRESS};
 use crate::*;
-use alloy_primitives::{address, Bytes, U256};
+use alloy_primitives::{address, Address, Bytes, U256};
+use reth_evm::eth::EthEvmContext;
+use reth_evm::precompiles::DynPrecompile;
+use reth_evm::revm::context::{BlockEnv, TxEnv};
+use reth_evm::revm::primitives::hardfork::SpecId;
 use reth_evm::revm::Context;
 use reth_evm::revm::{database::EmptyDB, precompile::PrecompileOutput as RevmPrecompileOutput};
 use reth_evm::{
