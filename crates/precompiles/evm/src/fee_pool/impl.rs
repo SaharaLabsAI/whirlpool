@@ -4,8 +4,11 @@ use reth_evm::revm::precompile::{PrecompileError, PrecompileOutput, PrecompileRe
 
 use crate::fee_pool::{
     dispatch::{decode_call, FeePoolCall},
-    encode_u256_word, gas, revert_result, storage, FeePoolPrecompileError,
-    FEE_POOL_PRECOMPILE_ADDRESS,
+    encode_u256_word, gas, revert_result, storage,
+    withdraw_transition::{
+        plan_withdraw, WithdrawBalances, WithdrawEffect, WithdrawInput, WithdrawState,
+    },
+    FeePoolPrecompileError, FEE_POOL_PRECOMPILE_ADDRESS,
 };
 
 pub fn execute(mut input: PrecompileInput<'_>) -> PrecompileResult {
@@ -82,37 +85,54 @@ fn withdraw(mut input: PrecompileInput<'_>, gas_limit: u64) -> PrecompileResult 
         .sload(FEE_POOL_PRECOMPILE_ADDRESS, slot)
         .map(|value| value.data)
         .map_err(|err| PrecompileError::other(err.to_string()))?;
+    let balances = Some(load_withdraw_balances(&mut input, caller)?);
+    let outcome = plan_withdraw(
+        WithdrawInput { caller },
+        WithdrawState {
+            claimable,
+            balances,
+        },
+    )
+    .map_err(|err| PrecompileError::other(err.to_string()))?;
 
-    if claimable.is_zero() {
-        return Ok(PrecompileOutput::new(
-            gas::WITHDRAW_GAS,
-            encode_u256_word(U256::ZERO),
-        ));
+    if let Some(effect) = outcome.effect {
+        apply_withdraw_effect(&mut input, slot, effect)?;
     }
 
-    let pool_balance = input
+    Ok(PrecompileOutput::new(
+        gas::WITHDRAW_GAS,
+        encode_u256_word(outcome.paid),
+    ))
+}
+
+fn load_withdraw_balances(
+    input: &mut PrecompileInput<'_>,
+    caller: Address,
+) -> Result<WithdrawBalances, PrecompileError> {
+    let pool = input
         .internals_mut()
         .load_account(FEE_POOL_PRECOMPILE_ADDRESS)
         .map(|account| account.data.info.balance)
         .map_err(|err| PrecompileError::other(err.to_string()))?;
-    let next_pool_balance = pool_balance.checked_sub(claimable).ok_or_else(|| {
-        PrecompileError::other("withdraw transfer failed: insufficient fee-pool balance")
-    })?;
-
-    let caller_balance = input
+    let caller = input
         .internals_mut()
         .load_account(caller)
         .map(|account| account.data.info.balance)
         .map_err(|err| PrecompileError::other(err.to_string()))?;
-    let next_caller_balance = caller_balance.checked_add(claimable).ok_or_else(|| {
-        PrecompileError::other("withdraw transfer failed: caller balance overflow")
-    })?;
 
+    Ok(WithdrawBalances { pool, caller })
+}
+
+fn apply_withdraw_effect(
+    input: &mut PrecompileInput<'_>,
+    slot: U256,
+    effect: WithdrawEffect,
+) -> Result<(), PrecompileError> {
     input
         .internals_mut()
-        .set_balance(FEE_POOL_PRECOMPILE_ADDRESS, next_pool_balance)
+        .set_balance(FEE_POOL_PRECOMPILE_ADDRESS, effect.pool_balance)
         .map_err(|err| PrecompileError::other(err.to_string()))?;
-    if next_pool_balance.is_zero() {
+    if effect.bump_pool_nonce {
         input
             .internals_mut()
             .bump_nonce(FEE_POOL_PRECOMPILE_ADDRESS)
@@ -120,7 +140,7 @@ fn withdraw(mut input: PrecompileInput<'_>, gas_limit: u64) -> PrecompileResult 
     }
     input
         .internals_mut()
-        .set_balance(caller, next_caller_balance)
+        .set_balance(effect.caller, effect.caller_balance)
         .map_err(|err| PrecompileError::other(err.to_string()))?;
 
     input
@@ -128,8 +148,5 @@ fn withdraw(mut input: PrecompileInput<'_>, gas_limit: u64) -> PrecompileResult 
         .sstore(FEE_POOL_PRECOMPILE_ADDRESS, slot, U256::ZERO)
         .map_err(|err| PrecompileError::other(err.to_string()))?;
 
-    Ok(PrecompileOutput::new(
-        gas::WITHDRAW_GAS,
-        encode_u256_word(claimable),
-    ))
+    Ok(())
 }

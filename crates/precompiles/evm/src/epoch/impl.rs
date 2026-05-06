@@ -3,6 +3,10 @@ use reth_evm::precompiles::PrecompileInput;
 use reth_evm::revm::precompile::{PrecompileError, PrecompileOutput, PrecompileResult};
 
 use crate::epoch::{
+    advance_transition::{
+        finalize_advance_epoch, plan_advance_epoch, AdvanceEpochEffect, AdvanceEpochInput,
+        AdvanceEpochState,
+    },
     dispatch::{decode_call, EpochCall},
     encode_u64_word, epoch_system_tx_sender, gas, revert_result, storage, EpochPrecompileError,
     EPOCH_PRECOMPILE_ADDRESS,
@@ -111,70 +115,58 @@ fn advance_epoch(mut input: PrecompileInput<'_>, gas_limit: u64) -> PrecompileRe
     let epoch_blocks = load_u64_slot(&mut input, storage::epoch_blocks_slot())?;
     let block_number = u64::try_from(input.internals().block_number())
         .map_err(|_| PrecompileError::other(EpochPrecompileError::ValueOutOfRange.to_string()))?;
+    let plan = match plan_advance_epoch(
+        AdvanceEpochInput { block_number },
+        AdvanceEpochState {
+            current_epoch,
+            next_epoch_block,
+            epoch_blocks,
+        },
+    ) {
+        Ok(plan) => plan,
+        Err(error) => return advance_epoch_error(error),
+    };
 
-    if block_number != next_epoch_block {
-        return revert_result(
-            gas::ADVANCE_EPOCH_GAS,
-            EpochPrecompileError::InvalidBoundaryBlock {
-                expected: next_epoch_block,
-                got: block_number,
-            },
-        );
-    }
-
-    let next_epoch = current_epoch.checked_add(1).ok_or_else(|| {
-        PrecompileError::other(EpochPrecompileError::ArithmeticOverflow.to_string())
-    })?;
-
-    let start_slot = storage::epoch_start_block_slot(next_epoch);
-    let existing = input
+    let existing_epoch_start = input
         .internals_mut()
-        .sload(EPOCH_PRECOMPILE_ADDRESS, start_slot)
+        .sload(EPOCH_PRECOMPILE_ADDRESS, plan.epoch_start_slot)
         .map(|value| value.data)
         .map_err(|err| PrecompileError::other(err.to_string()))?;
-    if existing != U256::ZERO {
-        return revert_result(
-            gas::ADVANCE_EPOCH_GAS,
-            EpochPrecompileError::EpochStartAlreadyInitialized(next_epoch),
-        );
-    }
+    let outcome = match finalize_advance_epoch(plan, existing_epoch_start) {
+        Ok(outcome) => outcome,
+        Err(error) => return advance_epoch_error(error),
+    };
 
-    let encoded_start = block_number.checked_add(1).ok_or_else(|| {
-        PrecompileError::other(EpochPrecompileError::ArithmeticOverflow.to_string())
-    })?;
-    let next_boundary = next_epoch_block.checked_add(epoch_blocks).ok_or_else(|| {
-        PrecompileError::other(EpochPrecompileError::ArithmeticOverflow.to_string())
-    })?;
-
-    input
-        .internals_mut()
-        .sstore(
-            EPOCH_PRECOMPILE_ADDRESS,
-            storage::current_epoch_slot(),
-            U256::from(next_epoch),
-        )
-        .map_err(|err| PrecompileError::other(err.to_string()))?;
-    input
-        .internals_mut()
-        .sstore(
-            EPOCH_PRECOMPILE_ADDRESS,
-            storage::next_epoch_block_slot(),
-            U256::from(next_boundary),
-        )
-        .map_err(|err| PrecompileError::other(err.to_string()))?;
-    input
-        .internals_mut()
-        .sstore(
-            EPOCH_PRECOMPILE_ADDRESS,
-            start_slot,
-            U256::from(encoded_start),
-        )
-        .map_err(|err| PrecompileError::other(err.to_string()))?;
+    apply_advance_epoch_effect(&mut input, outcome.effect)?;
 
     Ok(PrecompileOutput::new(
         gas::ADVANCE_EPOCH_GAS,
         Default::default(),
     ))
+}
+
+fn advance_epoch_error(error: EpochPrecompileError) -> PrecompileResult {
+    match error {
+        EpochPrecompileError::InvalidBoundaryBlock { .. }
+        | EpochPrecompileError::EpochStartAlreadyInitialized(_) => {
+            revert_result(gas::ADVANCE_EPOCH_GAS, error)
+        }
+        _ => Err(PrecompileError::other(error.to_string())),
+    }
+}
+
+fn apply_advance_epoch_effect(
+    input: &mut PrecompileInput<'_>,
+    effect: AdvanceEpochEffect,
+) -> Result<(), PrecompileError> {
+    for write in effect.writes {
+        input
+            .internals_mut()
+            .sstore(EPOCH_PRECOMPILE_ADDRESS, write.slot, write.value)
+            .map_err(|err| PrecompileError::other(err.to_string()))?;
+    }
+
+    Ok(())
 }
 
 fn load_u64_slot(input: &mut PrecompileInput<'_>, slot: U256) -> Result<u64, PrecompileError> {

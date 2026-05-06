@@ -23,19 +23,4 @@ pub const NEXT_EPOCH_BLOCK_SLOT: U256 = U256::from_limbs([2, 0, 0, 0]);
 pub const EPOCH_START_BLOCK_MAPPING_SLOT: U256 = U256::from_limbs([3, 0, 0, 0]);
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn epoch_mapping_slot_is_deterministic() {
-        assert_eq!(epoch_start_block_slot(0), epoch_start_block_slot(0));
-        assert_ne!(epoch_start_block_slot(0), epoch_start_block_slot(1));
-    }
-
-    #[test]
-    fn epoch_start_encoding_roundtrip() {
-        let encoded = encode_epoch_start_block_storage_value(0);
-        let decoded = decode_epoch_start_block_storage_value(U256::from_be_bytes(encoded.0));
-        assert_eq!(decoded, Some(0));
-    }
-}
+mod tests;

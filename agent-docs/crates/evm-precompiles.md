@@ -55,24 +55,29 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
   - `epoch_start_block_slot(epoch)` + `encode_epoch_start_block_storage_value(...)`
 
 ## Framework shape
-- `src/lib.rs`: registry, duplicate-address protection, safe-default stateful registration guard, factory wiring, crate-level tests.
-- `src/community_pool/mod.rs`: canonical community-pool address constant + read-only balance query precompile and ABI helpers.
+- `src/lib.rs` + `src/tests.rs`: registry, duplicate-address protection, safe-default stateful registration guard, factory wiring, and source-adjacent crate-level tests.
+- `src/community_pool/mod.rs` + `community_pool/tests.rs`: canonical community-pool address constant, read-only balance query precompile, ABI helpers, and source-adjacent tests.
 - `src/community_pool/runtime_accounting/mod.rs` + `runtime_accounting/tests.rs`: post-block runtime accounting adapter and source-adjacent tests kept in a directory-backed module.
 - `src/community_pool/slot_value_*.rs` + `slot_storage_*.rs`: slot getter/storage-word helper surface split into focused policy-sized files.
 - `src/fee_claim_writer.rs`: private crate-root fee-pool claim-ledger writer used by post-block/community-pool accounting; not re-exported as public API.
-- `src/fee_pool/mod.rs`: fee-pool precompile surface, ABI helpers, revert helpers, and tests.
+- `src/fee_pool/mod.rs` + `fee_pool/tests.rs`: fee-pool precompile surface, ABI helpers, revert helpers, and source-adjacent tests.
 - `src/fee_pool/dispatch/mod.rs` + `dispatch/calldata.rs`: fee-pool selector decode and calldata helper split.
-- `src/fee_pool/impl.rs`: stateful fee-pool logic (balance query, claim query, withdraw transfer, claim reset) with `execute` kept as plain `pub` inside a private module boundary.
+- `src/fee_pool/impl.rs`: fee-pool runtime adapter/handler shell for balance query, claim query, withdraw snapshot loading, non-branching withdraw-effect application, and output/error mapping; `execute` stays plain `pub` inside a private module boundary.
+- `src/fee_pool/withdraw_transition/mod.rs` + `withdraw_transition/tests.rs`: pure typed withdraw transition planner (`WithdrawInput`, `WithdrawState`, `WithdrawEffect`, `WithdrawOutcome`) that owns zero-claim no-op, checked balance arithmetic, claim-clear effect planning, and future fuzz/property-test seam.
 - `src/fee_pool/storage.rs`: deterministic slot derivation for `mapping(address => uint256) claimable`.
 - `src/fee_pool/gas.rs`: fee-pool gas schedule.
-- `src/validators/mod.rs`: validators precompile ABI/runtime only; consumes `validators_reader::ValidatorEntry`.
+- `src/validators/mod.rs` + `validators/tests.rs`: validators precompile ABI/runtime only; consumes `validators_reader::ValidatorEntry` and calls the private precompile reader.
+- `src/validators/runtime_reader.rs` + `runtime_reader/tests.rs`: app-facing runtime-state API with the three public behavioral helpers (`load_active_validator_registry`, `resolve_active_validator_fee_recipient`, `validate_active_validator_fee_recipient`) plus malformed-registry error classification.
+- `src/validators/precompile_reader.rs`: private `PrecompileInput` adapter for the `validators()` precompile runtime-state read path.
+- `src/validators/registry_loader.rs`: private shared slot-walking loader that keeps `validators-reader` slot math as the canonical codec/slot source while avoiding duplicated registry parsing logic.
 - `src/validators/gas.rs`: standalone validators gas scheduler helper module.
-- `src/epoch/mod.rs`: epoch constants, sender derivation, ABI/helper exports, activation target handoff exports, and epoch tests.
-- `src/epoch/boundary_effect.rs`: typed epoch-boundary canonical-apply contract extracted from the lower-layer transition (`EpochBoundaryEffect`, `EpochBoundaryStorageWrite`, `EpochBoundaryEffectError`, `extract_epoch_boundary_effect`).
+- `src/epoch/mod.rs` + `epoch/tests.rs`: epoch constants, sender derivation, ABI/helper exports, activation target handoff exports, and source-adjacent epoch tests.
+- `src/epoch/boundary_effect.rs` + `boundary_effect/tests.rs`: typed epoch-boundary canonical-apply contract extracted from the lower-layer transition (`EpochBoundaryEffect`, `EpochBoundaryStorageWrite`, `EpochBoundaryEffectError`, `extract_epoch_boundary_effect`).
 - `src/epoch/boundary_semantics.rs`: pure epoch-boundary semantic core (`EpochBoundaryState`, boundary-required predicate, reserved-call matcher) exported for app-side adapters without app trait leakage.
 - `src/epoch/dispatch/mod.rs` + `dispatch/{read_calldata,write_calldata}.rs`: epoch selector decode and calldata helper split.
-- `src/epoch/impl.rs`: stateful epoch logic with restricted `advanceEpoch()` and `execute` kept as plain `pub` inside a private module boundary.
-- `src/epoch/storage/mod.rs` + storage submodules: scalar slots + append-only epoch-start mapping slot derivation, split by helper domain.
+- `src/epoch/impl.rs`: epoch runtime adapter/handler shell for read selectors, restricted `advanceEpoch()` authorization, snapshot loading, non-branching advance-effect application, and output/error mapping; `execute` stays plain `pub` inside a private module boundary.
+- `src/epoch/advance_transition/mod.rs` + `advance_transition/tests.rs`: pure typed direct `advanceEpoch()` planner (`AdvanceEpochInput`, `AdvanceEpochState`, `AdvanceEpochEffect`, `AdvanceEpochOutcome`) that owns boundary equality, overflow checks, next-boundary calculation, start-slot initialization rejection, and storage-write planning.
+- `src/epoch/storage/mod.rs` + storage submodules + `storage/tests.rs`: scalar slots + append-only epoch-start mapping slot derivation, split by helper domain with source-adjacent tests.
 - `src/epoch/gas.rs`: epoch precompile gas schedule.
 - `src/{registered_precompile_api,registry_build,registry_runtime,factory_api}.rs`: crate-root API split files that keep each production file within strict policy thresholds while preserving external exports.
 
@@ -89,7 +94,7 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
   - priority fees -> `FEE_POOL_PRECOMPILE_ADDRESS`
   - proposer entitlement -> fee-pool claim ledger keyed by recipient address
   - payout -> precompile `withdraw()` path
-- The fee-pool precompile mutates journaled EVM **account balances** and claim-ledger storage through the shared EVM internals. Post-block accounting credits the same claim ledger through the private crate-root `fee_claim_writer` module so the writer is shared internally without becoming public API.
+- The fee-pool precompile mutates journaled EVM **account balances** and claim-ledger storage through the shared EVM internals. Withdraw transition decisions are planned in the pure `fee_pool::withdraw_transition` module, while `fee_pool::impl` remains the single runtime apply/writer shell for returned effects. Post-block accounting credits the same claim ledger through the private crate-root `fee_claim_writer` module so the writer is shared internally without becoming public API.
 - The accounting module now owns a second **two-layer boundary API** for post-block accounting:
   - **pure core**: `PostBlockAccountingInputs`, `PostBlockAccountingEffect`, `PostBlockAccountingOutcome`, community-pool unlock state/effect math
   - **runtime adapter**: `apply_post_block_accounting(...)` + `PostBlockAccountingRuntimeError`
@@ -99,13 +104,13 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
   - write selector: `advanceEpoch()` (restricted to `epoch_system_tx_sender()`, non-static)
   - append-only epoch start map uses plus-one storage encoding so epoch 0 start block can be stored unambiguously.
 - The epoch module owns pure epoch boundary mechanics consumed by `app-evm-execution`: boundary snapshot type, `block_height == next_epoch_block` predicate, and the canonical reserved-call matcher. DKG activation target handoff (`E`, `E+1`, `E+2`) lives in `validators-dkg`.
-- The epoch module also owns the typed boundary-effect handoff used for canonical state application:
+- The epoch module also owns two typed epoch-write handoffs: the direct `advance_transition` planner used by the precompile handler, and the boundary-effect extractor used for post-execution canonical application:
   - effect is limited to epoch-precompile storage writes,
   - `epochStartBlock(next_epoch)` stays storage-ready with plus-one encoding,
   - extractor rejects account-info replay requirements and unexpected changed accounts,
   - when REVM omits a dirty `nextEpochBlock` write from the changed-slot set, extraction reconstructs it from loaded runtime context (`old nextEpochBlock + epochBlocks`) instead of deriving it from `epochStartBlock`.
 - The epoch module now has a **two-layer boundary API**:
-  - **pure core**: primitive/value-only semantics and typed effect extraction (`EpochBoundaryState`, predicate, reserved matcher, `EpochBoundaryEffect`)
+  - **pure core**: primitive/value-only semantics, direct advance planning, and typed effect extraction (`EpochBoundaryState`, predicate, reserved matcher, `AdvanceEpochEffect`, `EpochBoundaryEffect`)
   - **runtime adapter**: `StateDb`-based boundary state load/apply plus generic REVM system-call support (`load_epoch_boundary_state`, `apply_epoch_boundary_effect`, `execute_epoch_boundary_system_call_if_required`, `EpochBoundaryRuntimeError`)
 - Updated seam rule: the **pure core** remains primitive/value-only and free of app/runtime traits; the **runtime adapter** is intentionally allowed to depend on `state::StateDb` and EVM execution traits, but still does not depend on app-local types such as `TransactionSigned` or `EvmAppError`.
 - Whirlpool-owned stateful precompiles registered via `RegisteredPrecompile::new_stateful` are direct-call-only: the final hop must keep `target_address == bytecode_address`, which allows ordinary `CALL`/`STATICCALL` and rejects delegate-style execution.
@@ -113,5 +118,5 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
 - Top-level EOAs calling a precompile address directly are not the only validated path here; the full-node tests use a tiny forwarding contract that performs an internal ordinary `CALL` into the precompile, which remains valid because the precompile boundary is still direct.
 
 ## Verification
-- Crate tests cover registry construction, duplicate-address rejection, dispatch routing, direct-call boundary enforcement, gas behavior, revert mapping, fee-pool withdraw/claim invariants, epoch semantic-core parity checks, and runtime-adapter `StateDb` load/apply coverage.
+- Crate tests are source-adjacent `tests.rs` modules and cover registry construction, duplicate-address rejection, dispatch routing, direct-call boundary enforcement, gas behavior, revert mapping, fee-pool withdraw/claim invariants, pure withdraw and epoch-advance transition planning, epoch semantic-core parity checks, validators runtime-state loading, and runtime-adapter `StateDb` load/apply coverage.
 - Test helper note: the shared precompile-call helper intentionally keeps a wide argument list and is locally annotated for `clippy::too_many_arguments`.
