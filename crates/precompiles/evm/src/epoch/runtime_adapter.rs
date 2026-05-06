@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use reth_evm::revm::DatabaseCommit;
+use reth_evm::revm::{state::EvmState, DatabaseCommit};
 use reth_evm::Evm;
 use state::StateDb;
 
@@ -84,12 +84,22 @@ where
         return Err(EpochBoundaryRuntimeError::SystemCallUnsuccessful);
     }
 
-    evm.db_mut().commit(outcome.state.clone());
+    commit_validated_epoch_boundary_effect(evm.db_mut(), outcome.state).map(Some)
+}
 
-    let effect = extract_epoch_boundary_effect(&outcome.state)
+fn commit_validated_epoch_boundary_effect<DB>(
+    db: &mut DB,
+    outcome_state: EvmState,
+) -> Result<EpochBoundaryEffect, EpochBoundaryRuntimeError>
+where
+    DB: DatabaseCommit,
+{
+    let effect = extract_epoch_boundary_effect(&outcome_state)
         .map_err(|err| EpochBoundaryRuntimeError::EffectExtraction(err.to_string()))?;
 
-    Ok(Some(effect))
+    db.commit(outcome_state);
+
+    Ok(effect)
 }
 
 #[cfg(test)]
