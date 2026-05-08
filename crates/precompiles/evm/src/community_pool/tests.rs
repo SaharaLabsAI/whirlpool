@@ -1,3 +1,4 @@
+use crate::community_pool::codec::{decode_call, encode_u256_word};
 use crate::community_pool::*;
 use alloy_primitives::B256;
 use reth_evm::revm::{
@@ -19,7 +20,7 @@ fn calldata_roundtrip_decodes_balance_word() {
 #[test]
 fn calldata_helper_uses_community_pool_balance_selector() {
     let calldata = community_pool_balance_calldata();
-    assert!(calldata.starts_with(&communityPoolBalanceCall::SELECTOR));
+    decode_call(calldata.as_ref()).expect("calldata helper must encode the supported selector");
 }
 
 #[test]

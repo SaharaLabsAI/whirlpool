@@ -59,7 +59,9 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
 - `src/factory/mod.rs`: `WhirlpoolEvmFactory`, `impl EvmFactory`, and `with_validators(...)` compatibility constructor.
 - `src/registry/{entry,direct_call_guard,installed,build,runtime}.rs`: registered-precompile metadata, direct-call rejection, canonical installed list, checked map construction, and panic-on-invalid compatibility helpers.
 - `src/tests.rs`: crate-root registry/factory/direct-call tests.
-- `src/community_pool/mod.rs` + `community_pool/tests.rs`: canonical community-pool address, read-only balance precompile shell, ABI helpers, and facade tests.
+- `src/community_pool/mod.rs` + `community_pool/tests.rs`: canonical community-pool address, read-only balance precompile shell, compatibility re-exports, and facade tests.
+- `src/community_pool/gas.rs`: community-pool read precompile gas schedule (`COMMUNITY_POOL_BALANCE_GAS = 750`).
+- `src/community_pool/codec/{dispatch,calldata,output}.rs`: community-pool precompile ABI selector validation, calldata helper, and U256 return payload encoding/decoding.
 - `src/community_pool/unlock_accounting/{transition,runtime}.rs`: pure post-block unlock/fee-accounting effect planning plus runtime apply adapter; tests stay source-adjacent as `*_tests.rs` files.
 - `src/community_pool/unlock_storage/{storage_slots,storage_encoding,value_slots,last_processed}.rs`: community-pool unlock slot/value helper ownership.
 - `src/fee_pool/mod.rs` + `fee_pool/tests.rs`: fee-pool facade, ABI compatibility exports including the legacy `fee_pool::storage::claimable_balance_slot` path, registration handoff, revert helpers, and runtime tests.
@@ -73,7 +75,8 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
 - `src/epoch/runtime/{handler,state,effect_writer,boundary_adapter}.rs`: direct `advanceEpoch()` shell, storage snapshot loading, canonical direct-write apply path, and system-call boundary adapter.
 - `src/epoch/storage/{codec,encoded_value,epoch_start_mapping,well_known_slots,well_known_storage}.rs`: scalar slots, epoch-start mapping, plus-one storage encoding, and storage-ready slot conversions.
 - `src/epoch/registration/mod.rs`: epoch precompile registration and deterministic system transaction sender.
-- `src/validators/mod.rs` + `validators/tests.rs`: validators read-only precompile ABI/runtime facade.
+- `src/validators/mod.rs` + `validators/tests.rs`: validators read-only precompile facade, compatibility ABI helper re-exports, and runtime facade tests.
+- `src/validators/codec/{dispatch,calldata,output}.rs`: validators precompile ABI selector validation, calldata helper, and ABI output encoding/decoding only. This is not the validator registry schema/storage codec owner.
 - `src/validators/runtime_state/{mod,precompile_adapter,registry_loader}.rs`: active validator runtime authority API, precompile input adapter, and shared slot-walking loader; source-adjacent malformed-registry tests stay in `runtime_state/tests.rs`.
 - `src/validators/gas.rs`: standalone validators gas schedule.
 
@@ -81,7 +84,7 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
 - Reth v2 alignment: this crate uses `reth_evm::revm::*` types everywhere (no direct `revm` crate import) to avoid mixed-REVM type graphs during factory wiring.
 - Custom precompiles are installed through `PrecompilesMap` dynamic entries, not vendor edits.
 - Canonical runtime wiring still exposes validator-aware constructors for compatibility, but `validators()` now reads `SIMPLEX_VALIDATORS_REGISTRY` from runtime EVM state rather than a captured constructor snapshot.
-- `validators-reader` is the canonical owner of validator registry codec/types and slot arithmetic. `validators-dkg` owns activation schedules/targets and DKG metadata. `evm-precompiles::validators` owns runtime validator-state reads, active-registry loading, proposer fee-recipient resolution, malformed-registry classification, and the public validators ABI.
+- `validators-reader` is the canonical owner of validator registry codec/types and slot arithmetic. `validators-dkg` owns activation schedules/targets and DKG metadata. `evm-precompiles::validators` owns runtime validator-state reads, active-registry loading, proposer fee-recipient resolution, malformed-registry classification, and the public validators precompile ABI. Its `validators/codec/` directory is only the precompile calldata/output ABI role, not registry storage/schema ownership.
 - Current active-set semantics: runtime `SIMPLEX_VALIDATORS_REGISTRY` membership is the active proof for fee-recipient resolution. Missing proposer, duplicate pubkey, zero pubkey/address under nonzero count, invalid address padding, and carried-recipient mismatch fail closed.
 - The community-pool precompile is read-only and returns the balance of `COMMUNITY_POOL_ADDRESS`.
 - Community-pool unlock schedule state remains anchored at `COMMUNITY_POOL_ADDRESS` storage (configured by chainspec/runtime), but the mutable runtime ownership now lives in the internal `unlock_accounting::runtime` adapter surface rather than in `app-evm-execution` or a new public precompile selector.

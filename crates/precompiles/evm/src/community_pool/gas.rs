@@ -1,0 +1,1 @@
+pub const COMMUNITY_POOL_BALANCE_GAS: u64 = 750;
