@@ -10,10 +10,6 @@ pub struct RegisteredPrecompile {
     precompile: DynPrecompile,
 }
 
-pub trait WhirlpoolStatefulPrecompile {
-    fn register() -> RegisteredPrecompile;
-}
-
 impl RegisteredPrecompile {
     /// Registers a Whirlpool-owned stateful precompile using the safe default path.
     ///
@@ -27,7 +23,9 @@ impl RegisteredPrecompile {
         Self {
             address,
             precompile: DynPrecompile::new_stateful(PrecompileId::custom(name), move |input| {
-                if !input.is_direct_call() {
+                if !crate::invariants::call_boundary::stateful_call_is_direct(
+                    input.is_direct_call(),
+                ) {
                     // This guard rejects delegate-style entry before the target precompile's
                     // business logic begins. Returning a reverted output with `gas_used = 0`
                     // keeps the precompile-local charge at zero because the handler never ran;

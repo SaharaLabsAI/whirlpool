@@ -91,6 +91,57 @@ fn registry_builds_expected_addresses() {
 }
 
 #[test]
+fn installed_precompile_addresses_are_unique() {
+    let installed = crate::registry::installed_precompiles();
+    let addresses: Vec<_> = installed
+        .iter()
+        .map(RegisteredPrecompile::address)
+        .collect();
+
+    assert!(crate::invariants::registry::addresses_are_unique(
+        &addresses
+    ));
+}
+
+#[test]
+fn registry_invariant_rejects_duplicate_custom_addresses() {
+    let duplicate = build_precompiles(
+        SpecId::CANCUN,
+        [
+            fee_pool::register(),
+            RegisteredPrecompile::new_stateful(
+                "duplicate_fee_pool",
+                FEE_POOL_PRECOMPILE_ADDRESS,
+                |_input| Ok(RevmPrecompileOutput::new(1, Bytes::new())),
+            ),
+        ],
+    );
+
+    assert_eq!(
+        duplicate.expect_err("duplicate address must fail"),
+        RegistryError::DuplicateCustomAddress(FEE_POOL_PRECOMPILE_ADDRESS)
+    );
+}
+
+#[test]
+fn registry_invariant_rejects_builtin_collision() {
+    let builtin_ecrecover = address!("0x0000000000000000000000000000000000000001");
+    let collision = build_precompiles(
+        SpecId::CANCUN,
+        [RegisteredPrecompile::new_stateful(
+            "builtin_collision",
+            builtin_ecrecover,
+            |_input| Ok(RevmPrecompileOutput::new(1, Bytes::new())),
+        )],
+    );
+
+    assert_eq!(
+        collision.expect_err("builtin address collision must fail"),
+        RegistryError::BuiltinAddressCollision(builtin_ecrecover)
+    );
+}
+
+#[test]
 fn public_api_compatibility_paths_compile() {
     let _root_apply = crate::apply_post_block_accounting::<app_evm_state::InMemoryStateDb>;
     let _community_apply =

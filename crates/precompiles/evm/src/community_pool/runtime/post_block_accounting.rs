@@ -135,6 +135,12 @@ where
     DB: StateDb,
     <DB as StateDb>::Error: Display,
 {
+    if !crate::invariants::community_pool::claim_amount_sum_matches_tranche(effect) {
+        return Err(PostBlockAccountingRuntimeError::Execution(
+            "community-pool unlock invariant violation".into(),
+        ));
+    }
+
     if !effect.unlock_tranche.is_zero() {
         transfer_account_balance(
             db,
@@ -178,7 +184,12 @@ where
         .get_account(address)
         .map_err(|err| PostBlockAccountingRuntimeError::StateAccess(err.to_string()))?
         .unwrap_or_default();
-    info.balance += amount;
+    info.balance = crate::invariants::accounting::checked_balance_credit(info.balance, amount)
+        .ok_or_else(|| {
+            PostBlockAccountingRuntimeError::Execution(format!(
+                "account balance overflow while crediting {amount} to {address}"
+            ))
+        })?;
     insert_account_preserving_community_pool_state(db, address, info)
 }
 

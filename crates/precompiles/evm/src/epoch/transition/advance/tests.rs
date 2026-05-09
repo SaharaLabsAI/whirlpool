@@ -3,7 +3,7 @@ use alloy_primitives::U256;
 use crate::epoch::transition::advance::{
     finalize_advance_epoch, plan_advance_epoch, AdvanceEpochInput, AdvanceEpochState,
 };
-use crate::epoch::{storage, EpochPrecompileError};
+use crate::epoch::{storage, EpochBoundaryStorageWrite, EpochPrecompileError};
 
 #[test]
 fn plans_epoch_advance_storage_writes() {
@@ -63,4 +63,26 @@ fn rejects_existing_next_epoch_start_slot() {
         finalize_advance_epoch(plan, U256::from(1_u64)).expect_err("existing start should fail");
 
     assert_eq!(err, EpochPrecompileError::EpochStartAlreadyInitialized(1));
+}
+
+#[test]
+fn advance_invariant_rejects_inconsistent_effect() {
+    let writes = [
+        EpochBoundaryStorageWrite {
+            slot: storage::current_epoch_slot(),
+            value: U256::from(1_u64),
+        },
+        EpochBoundaryStorageWrite {
+            slot: storage::next_epoch_block_slot(),
+            value: U256::from(14_u64),
+        },
+        EpochBoundaryStorageWrite {
+            slot: storage::epoch_start_block_slot(1),
+            value: U256::from(6_u64),
+        },
+    ];
+
+    assert!(!crate::invariants::epoch::advance_effect_is_consistent(
+        0, 5, 10, 5, &writes,
+    ));
 }

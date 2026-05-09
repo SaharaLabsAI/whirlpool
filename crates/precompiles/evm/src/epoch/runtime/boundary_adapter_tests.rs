@@ -102,6 +102,37 @@ fn apply_epoch_boundary_effect_via_statedb() {
 }
 
 #[test]
+fn boundary_invariant_rejects_unexpected_write_before_apply() {
+    let mut db = InMemoryStateDb::new();
+    let unexpected_slot = U256::from(999_u64);
+    let effect = EpochBoundaryEffect {
+        writes: [
+            EpochBoundaryStorageWrite {
+                slot: current_epoch_slot(),
+                value: U256::from(1_u64),
+            },
+            EpochBoundaryStorageWrite {
+                slot: next_epoch_block_slot(),
+                value: U256::from(20_u64),
+            },
+            EpochBoundaryStorageWrite {
+                slot: unexpected_slot,
+                value: U256::from(11_u64),
+            },
+        ],
+    };
+
+    let err = apply_epoch_boundary_effect(&mut db, &effect)
+        .expect_err("invalid boundary effect must fail before write");
+
+    assert!(matches!(
+        err,
+        EpochBoundaryRuntimeError::EffectExtraction(_)
+    ));
+    assert_eq!(storage_value(&db, unexpected_slot), U256::ZERO);
+}
+
+#[test]
 fn execute_epoch_boundary_system_call_if_required_commits_after_validation() {
     let db = seeded_boundary_db();
     let evm_env = EvmEnv::default().with_block_number(U256::from(5_u64));

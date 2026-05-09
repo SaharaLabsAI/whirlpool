@@ -3,6 +3,7 @@ use app_evm_state::InMemoryStateDb;
 use reth_evm::revm::state::AccountInfo;
 use validators_reader::ValidatorEntry;
 
+use crate::community_pool::PostBlockAccountingRuntimeError;
 use crate::community_pool::{apply_post_block_accounting, PostBlockAccountingInputs};
 use crate::{
     claimable_balance_slot, community_pool_last_processed_epoch_slot,
@@ -139,6 +140,28 @@ fn apply_post_block_accounting_updates_priority_fee_claim_slot() {
         ),
         U256::from(7_u64)
     );
+}
+
+#[test]
+fn burned_fee_credit_overflow_fails_closed() {
+    let mut db = InMemoryStateDb::new();
+    seed_unlock_state(&mut db, 1, 0, U256::ZERO, U256::ZERO, U256::MAX);
+    let inputs = PostBlockAccountingInputs {
+        boundary_required: false,
+        gas_used: 1,
+        base_fee_per_gas: 1,
+        priority_fees: U256::ZERO,
+        claim_recipient: Address::repeat_byte(0xaa),
+        simplex_validators: vec![],
+    };
+
+    let err = apply_post_block_accounting(&mut db, &inputs)
+        .expect_err("burned-fee credit overflow must fail closed");
+
+    assert!(
+        matches!(err, PostBlockAccountingRuntimeError::Execution(ref msg) if msg.contains("account balance overflow"))
+    );
+    assert_eq!(account_balance(&db, COMMUNITY_POOL_ADDRESS), U256::MAX);
 }
 
 #[test]

@@ -4,6 +4,7 @@ pub mod fee_pool;
 pub mod validators;
 
 mod factory;
+mod invariants;
 mod registry;
 
 pub use crate::validators::{

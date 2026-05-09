@@ -62,3 +62,19 @@ fn insufficient_pool_balance_is_rejected_by_planner() {
 
     assert_eq!(err, WithdrawTransitionError::InsufficientFeePoolBalance);
 }
+
+#[test]
+fn withdraw_invariant_rejects_value_mismatch() {
+    let caller = Address::repeat_byte(0x44);
+
+    assert!(
+        !crate::invariants::fee_pool::withdraw_outcome_preserves_value(
+            caller,
+            U256::from(5_u64),
+            Some(U256::from(7_u64)),
+            Some(U256::from(11_u64)),
+            U256::from(4_u64),
+            Some((U256::from(2_u64), caller, U256::from(16_u64), false)),
+        )
+    );
+}

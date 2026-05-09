@@ -60,15 +60,27 @@ pub fn build_post_block_accounting_effect(
         amount: inputs.priority_fees,
     });
 
-    Ok(PostBlockAccountingEffect {
+    let effect = PostBlockAccountingEffect {
         burned_fees: U256::from(inputs.gas_used) * U256::from(inputs.base_fee_per_gas),
         priority_fee_claim,
         community_pool_unlock: build_community_pool_unlock_effect(
             inputs,
             current_epoch,
-            unlock_state,
+            unlock_state.clone(),
         )?,
-    })
+    };
+    if !crate::invariants::accounting::post_block_accounting_effect_matches_inputs(
+        inputs,
+        current_epoch,
+        &unlock_state,
+        &effect,
+    ) {
+        return Err(PostBlockAccountingEffectError::Execution(
+            "post-block accounting invariant violation".into(),
+        ));
+    }
+
+    Ok(effect)
 }
 
 fn build_community_pool_unlock_effect(
@@ -107,24 +119,36 @@ fn build_community_pool_unlock_effect(
     }
 
     if unlock_state.locked_remaining.is_zero() {
-        return Ok(Some(CommunityPoolUnlockEffect {
+        let effect = CommunityPoolUnlockEffect {
             unlock_tranche: U256::ZERO,
             validator_claims: vec![],
             next_locked_remaining: unlock_state.locked_remaining,
             last_processed_epoch: current_epoch,
-        }));
+        };
+        return Ok(Some(validate_unlock_effect(
+            inputs,
+            current_epoch,
+            &unlock_state,
+            effect,
+        )?));
     }
 
     let unlock_tranche = unlock_state
         .unlock_amount_per_cycle
         .min(unlock_state.locked_remaining);
     if unlock_tranche.is_zero() {
-        return Ok(Some(CommunityPoolUnlockEffect {
+        let effect = CommunityPoolUnlockEffect {
             unlock_tranche,
             validator_claims: vec![],
             next_locked_remaining: unlock_state.locked_remaining,
             last_processed_epoch: current_epoch,
-        }));
+        };
+        return Ok(Some(validate_unlock_effect(
+            inputs,
+            current_epoch,
+            &unlock_state,
+            effect,
+        )?));
     }
 
     let validator_claims = distribute_unlock_claims(unlock_tranche, &inputs.simplex_validators)?;
@@ -144,12 +168,38 @@ fn build_community_pool_unlock_effect(
             PostBlockAccountingEffectError::Execution("community-pool remaining underflow".into())
         })?;
 
-    Ok(Some(CommunityPoolUnlockEffect {
+    let effect = CommunityPoolUnlockEffect {
         unlock_tranche,
         validator_claims,
         next_locked_remaining,
         last_processed_epoch: current_epoch,
-    }))
+    };
+    Ok(Some(validate_unlock_effect(
+        inputs,
+        current_epoch,
+        &unlock_state,
+        effect,
+    )?))
+}
+
+fn validate_unlock_effect(
+    inputs: &PostBlockAccountingInputs,
+    current_epoch: u64,
+    unlock_state: &CommunityPoolUnlockState,
+    effect: CommunityPoolUnlockEffect,
+) -> Result<CommunityPoolUnlockEffect, PostBlockAccountingEffectError> {
+    if !crate::invariants::community_pool::unlock_effect_is_consistent(
+        unlock_state,
+        current_epoch,
+        inputs.simplex_validators.len(),
+        &effect,
+    ) {
+        return Err(PostBlockAccountingEffectError::Execution(
+            "community-pool unlock invariant violation".into(),
+        ));
+    }
+
+    Ok(effect)
 }
 
 fn distribute_unlock_claims(

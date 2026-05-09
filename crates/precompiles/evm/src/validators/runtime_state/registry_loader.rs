@@ -58,6 +58,10 @@ where
         });
     }
 
+    if !crate::invariants::validators::active_registry_entries_are_well_formed(&entries) {
+        return Err(malformed("active validator registry invariant violation"));
+    }
+
     Ok(entries)
 }
 

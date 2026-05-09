@@ -21,10 +21,13 @@ where
 
     for registered in custom_precompiles {
         let address = registered.address();
-        if !seen.insert(address) {
+        if !crate::invariants::registry::address_not_already_registered(seen.contains(&address)) {
             return Err(RegistryError::DuplicateCustomAddress(address));
         }
-        if precompiles.get(&address).is_some() {
+        seen.insert(address);
+        if !crate::invariants::registry::address_does_not_collide_with_builtin(
+            precompiles.get(&address).is_some(),
+        ) {
             return Err(RegistryError::BuiltinAddressCollision(address));
         }
         precompiles.apply_precompile(&address, |_| Some(registered.precompile()));
@@ -47,5 +50,13 @@ pub fn build_whirlpool_precompiles_with_validators(
     spec: SpecId,
     _simplex_validators: Vec<RegistryValidatorEntry>,
 ) -> Result<PrecompilesMap, RegistryError> {
-    build_precompiles(spec, installed_precompiles())
+    let installed = installed_precompiles();
+    let installed_addresses: Vec<_> = installed
+        .iter()
+        .map(RegisteredPrecompile::address)
+        .collect();
+    debug_assert!(crate::invariants::registry::addresses_are_unique(
+        &installed_addresses
+    ));
+    build_precompiles(spec, installed)
 }

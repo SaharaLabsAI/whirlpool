@@ -51,6 +51,12 @@ where
     DB: StateDb,
     <DB as StateDb>::Error: Display,
 {
+    if !crate::invariants::epoch::boundary_effect_writes_known_storage_ready_values(effect) {
+        return Err(EpochBoundaryRuntimeError::EffectExtraction(
+            "epoch boundary invariant violation".into(),
+        ));
+    }
+
     for write in effect.writes {
         db.insert_storage(EPOCH_PRECOMPILE_ADDRESS, write.slot, write.value)
             .map_err(|err| EpochBoundaryRuntimeError::StateAccess(err.to_string()))?;
@@ -96,6 +102,11 @@ where
 {
     let effect = extract_epoch_boundary_effect(&outcome_state)
         .map_err(|err| EpochBoundaryRuntimeError::EffectExtraction(err.to_string()))?;
+    if !crate::invariants::epoch::boundary_effect_writes_known_storage_ready_values(&effect) {
+        return Err(EpochBoundaryRuntimeError::EffectExtraction(
+            "epoch boundary invariant violation".into(),
+        ));
+    }
 
     db.commit(outcome_state);
 

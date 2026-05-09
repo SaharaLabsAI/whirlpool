@@ -76,6 +76,13 @@ fn resolve_active_validator_fee_recipient_from_registry(
     validators: &[ValidatorEntry],
     proposer_public_key: [u8; 32],
 ) -> Result<Address, ValidatorsRuntimeError> {
+    if !crate::invariants::validators::registry_contains_proposer(validators, &proposer_public_key)
+    {
+        return Err(ValidatorsRuntimeError::MissingProposer {
+            proposer_public_key,
+        });
+    }
+
     validators
         .iter()
         .find(|entry| entry.consensus_pubkey == proposer_public_key)

@@ -74,7 +74,7 @@ fn withdraw(mut input: PrecompileInput<'_>, gas_limit: u64) -> PrecompileResult 
         return Err(PrecompileError::OutOfGas);
     }
 
-    if input.is_static_call() {
+    if !crate::invariants::call_boundary::write_call_is_not_static(input.is_static_call()) {
         return revert_result(
             gas::WITHDRAW_GAS,
             FeePoolPrecompileError::StaticCallWithdraw,
@@ -89,14 +89,32 @@ fn withdraw(mut input: PrecompileInput<'_>, gas_limit: u64) -> PrecompileResult 
         .map(|value| value.data)
         .map_err(|err| PrecompileError::other(err.to_string()))?;
     let balances = Some(load_withdraw_balances(&mut input, caller)?);
-    let outcome = plan_withdraw(
-        WithdrawInput { caller },
-        WithdrawState {
-            claimable,
-            balances,
-        },
-    )
-    .map_err(|err| PrecompileError::other(err.to_string()))?;
+    let withdraw_input = WithdrawInput { caller };
+    let withdraw_state = WithdrawState {
+        claimable,
+        balances,
+    };
+    let outcome = plan_withdraw(withdraw_input, withdraw_state)
+        .map_err(|err| PrecompileError::other(err.to_string()))?;
+    if !crate::invariants::fee_pool::withdraw_outcome_preserves_value(
+        caller,
+        claimable,
+        balances.map(|snapshot| snapshot.pool),
+        balances.map(|snapshot| snapshot.caller),
+        outcome.paid,
+        outcome.effect.map(|effect| {
+            (
+                effect.pool_balance,
+                effect.caller,
+                effect.caller_balance,
+                effect.bump_pool_nonce,
+            )
+        }),
+    ) {
+        return Err(PrecompileError::other(
+            "fee-pool withdraw invariant violation",
+        ));
+    }
 
     if let Some(effect) = outcome.effect {
         apply_withdraw_effect(&mut input, slot, effect)?;

@@ -40,3 +40,26 @@ fn build_effect_distributes_top_k_remainder() {
         assert_eq!(claim.amount, U256::from(expected));
     }
 }
+
+#[test]
+fn unlock_invariant_rejects_unbounded_effect() {
+    let state = CommunityPoolUnlockState {
+        unlock_every_epochs: 1,
+        unlock_amount_per_cycle: U256::from(5_u64),
+        locked_remaining: U256::from(4_u64),
+        last_processed_epoch: 0,
+    };
+    let effect = CommunityPoolUnlockEffect {
+        unlock_tranche: U256::from(5_u64),
+        validator_claims: vec![crate::fee_pool::ClaimCredit {
+            recipient: Address::repeat_byte(1),
+            amount: U256::from(5_u64),
+        }],
+        next_locked_remaining: U256::ZERO,
+        last_processed_epoch: 1,
+    };
+
+    assert!(
+        !crate::invariants::community_pool::unlock_effect_is_consistent(&state, 1, 1, &effect,)
+    );
+}

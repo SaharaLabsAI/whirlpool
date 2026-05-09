@@ -96,7 +96,7 @@ fn advance_epoch(mut input: PrecompileInput<'_>, gas_limit: u64) -> PrecompileRe
         return Err(PrecompileError::OutOfGas);
     }
 
-    if input.is_static_call() {
+    if !crate::invariants::call_boundary::write_call_is_not_static(input.is_static_call()) {
         return revert_result(
             gas::ADVANCE_EPOCH_GAS,
             EpochPrecompileError::StaticCallAdvanceEpoch,
@@ -115,14 +115,13 @@ fn advance_epoch(mut input: PrecompileInput<'_>, gas_limit: u64) -> PrecompileRe
     let epoch_blocks = load_u64_slot(&mut input, storage::epoch_blocks_slot())?;
     let block_number = u64::try_from(input.internals().block_number())
         .map_err(|_| PrecompileError::other(EpochPrecompileError::ValueOutOfRange.to_string()))?;
-    let plan = match plan_advance_epoch(
-        AdvanceEpochInput { block_number },
-        AdvanceEpochState {
-            current_epoch,
-            next_epoch_block,
-            epoch_blocks,
-        },
-    ) {
+    let advance_input = AdvanceEpochInput { block_number };
+    let advance_state = AdvanceEpochState {
+        current_epoch,
+        next_epoch_block,
+        epoch_blocks,
+    };
+    let plan = match plan_advance_epoch(advance_input, advance_state) {
         Ok(plan) => plan,
         Err(error) => return advance_epoch_error(error),
     };
@@ -136,6 +135,15 @@ fn advance_epoch(mut input: PrecompileInput<'_>, gas_limit: u64) -> PrecompileRe
         Ok(outcome) => outcome,
         Err(error) => return advance_epoch_error(error),
     };
+    if !crate::invariants::epoch::advance_effect_is_consistent(
+        advance_state.current_epoch,
+        advance_state.next_epoch_block,
+        advance_state.epoch_blocks,
+        advance_input.block_number,
+        &outcome.effect.writes,
+    ) {
+        return Err(PrecompileError::other("epoch advance invariant violation"));
+    }
 
     apply_advance_epoch_effect(&mut input, outcome.effect)?;
 

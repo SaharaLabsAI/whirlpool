@@ -176,3 +176,13 @@ fn registry_length_overflow_is_malformed() {
         matches!(err, ValidatorsRuntimeError::MalformedRegistry(ref msg) if msg.contains("registry length does not fit"))
     );
 }
+
+#[test]
+fn validator_invariant_predicate_rejects_zero_address_entry() {
+    let entries = vec![ValidatorEntry {
+        consensus_pubkey: [0x11; 32],
+        ethereum_address: alloy_primitives::Address::ZERO,
+    }];
+
+    assert!(!crate::invariants::validators::active_registry_entries_are_well_formed(&entries));
+}
