@@ -1,3 +1,5 @@
+//! Community-pool storage slot and storage-value encoding helpers.
+
 mod last_processed;
 mod storage_encoding;
 mod storage_slots;

@@ -1,7 +1,7 @@
 use alloy_primitives::{Address, U256};
 use validators_reader::ValidatorEntry;
 
-use crate::community_pool::unlock_accounting::*;
+use crate::community_pool::*;
 
 #[test]
 fn build_effect_distributes_top_k_remainder() {

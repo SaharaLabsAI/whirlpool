@@ -192,5 +192,5 @@ fn distribute_unlock_claims(
 }
 
 #[cfg(test)]
-#[path = "transition_tests.rs"]
+#[path = "post_block_accounting_tests.rs"]
 mod tests;

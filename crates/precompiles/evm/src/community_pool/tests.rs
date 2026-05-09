@@ -73,7 +73,7 @@ fn empty_state_balance_defaults_to_zero() {
 }
 
 #[test]
-fn unlock_storage_slots_are_stable() {
+fn unlock_schedule_storage_slots_are_stable() {
     assert_eq!(community_pool_unlock_every_epochs_slot(), U256::from(0_u64));
     assert_eq!(
         community_pool_unlock_amount_per_cycle_slot(),

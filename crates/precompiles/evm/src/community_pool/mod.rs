@@ -6,8 +6,9 @@ use crate::RegisteredPrecompile;
 
 mod codec;
 pub mod gas;
-mod unlock_accounting;
-mod unlock_storage;
+mod runtime;
+mod storage;
+mod transition;
 
 pub const COMMUNITY_POOL_ADDRESS: Address = Address::new([
     0x63, 0x6f, 0x6d, 0x6d, 0x75, 0x6e, 0x69, 0x74, 0x79, 0x2d, 0x70, 0x6f, 0x6f, 0x6c, 0x2d, 0x61,
@@ -20,17 +21,18 @@ pub const COMMUNITY_POOL_LOCKED_REMAINING_SLOT: U256 = U256::from_limbs([2, 0, 0
 pub const COMMUNITY_POOL_LAST_PROCESSED_EPOCH_SLOT: U256 = U256::from_limbs([3, 0, 0, 0]);
 
 pub use codec::{community_pool_balance_calldata, decode_community_pool_balance_output};
-pub use unlock_accounting::{
-    apply_post_block_accounting, build_post_block_accounting_effect, CommunityPoolUnlockEffect,
-    CommunityPoolUnlockState, PostBlockAccountingEffect, PostBlockAccountingEffectError,
-    PostBlockAccountingInputs, PostBlockAccountingOutcome, PostBlockAccountingRuntimeError,
-};
-pub use unlock_storage::{
+pub use runtime::{apply_post_block_accounting, PostBlockAccountingRuntimeError};
+pub use storage::{
     community_pool_last_processed_epoch_slot, community_pool_last_processed_epoch_storage_slot,
     community_pool_locked_remaining_slot, community_pool_locked_remaining_storage_slot,
     community_pool_unlock_amount_per_cycle_slot,
     community_pool_unlock_amount_per_cycle_storage_slot, community_pool_unlock_every_epochs_slot,
     community_pool_unlock_every_epochs_storage_slot, encode_u256_storage_value,
+};
+pub use transition::{
+    build_post_block_accounting_effect, CommunityPoolUnlockEffect, CommunityPoolUnlockState,
+    PostBlockAccountingEffect, PostBlockAccountingEffectError, PostBlockAccountingInputs,
+    PostBlockAccountingOutcome,
 };
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]

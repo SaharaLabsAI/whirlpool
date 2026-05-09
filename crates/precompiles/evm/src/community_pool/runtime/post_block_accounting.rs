@@ -288,5 +288,5 @@ where
 }
 
 #[cfg(test)]
-#[path = "runtime_tests.rs"]
+#[path = "post_block_accounting_tests.rs"]
 mod tests;

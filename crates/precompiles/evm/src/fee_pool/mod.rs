@@ -8,10 +8,8 @@ pub mod claim_ledger;
 mod codec;
 pub mod gas;
 mod runtime;
+pub mod storage;
 mod transition;
-pub mod storage {
-    pub use crate::fee_pool::claim_ledger::claimable_balance_slot;
-}
 
 pub use claim_ledger::ClaimCredit;
 pub use codec::{

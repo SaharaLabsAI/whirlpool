@@ -3,9 +3,7 @@ use app_evm_state::InMemoryStateDb;
 use reth_evm::revm::state::AccountInfo;
 use validators_reader::ValidatorEntry;
 
-use crate::community_pool::unlock_accounting::{
-    apply_post_block_accounting, PostBlockAccountingInputs,
-};
+use crate::community_pool::{apply_post_block_accounting, PostBlockAccountingInputs};
 use crate::{
     claimable_balance_slot, community_pool_last_processed_epoch_slot,
     community_pool_locked_remaining_slot, community_pool_unlock_amount_per_cycle_slot,

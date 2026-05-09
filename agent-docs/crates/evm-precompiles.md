@@ -62,13 +62,15 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
 - `src/community_pool/mod.rs` + `community_pool/tests.rs`: canonical community-pool address, read-only balance precompile shell, compatibility re-exports, and facade tests.
 - `src/community_pool/gas.rs`: community-pool read precompile gas schedule (`COMMUNITY_POOL_BALANCE_GAS = 750`).
 - `src/community_pool/codec/{dispatch,calldata,output}.rs`: community-pool precompile ABI selector validation, calldata helper, and U256 return payload encoding/decoding.
-- `src/community_pool/unlock_accounting/{transition,runtime}.rs`: pure post-block unlock/fee-accounting effect planning plus runtime apply adapter; tests stay source-adjacent as `*_tests.rs` files.
-- `src/community_pool/unlock_storage/{storage_slots,storage_encoding,value_slots,last_processed}.rs`: community-pool unlock slot/value helper ownership.
+- `src/community_pool/transition/post_block_accounting.rs`: pure post-block unlock/fee-accounting effect planning; transition tests stay source-adjacent in `post_block_accounting_tests.rs`.
+- `src/community_pool/runtime/post_block_accounting.rs`: runtime apply adapter that loads epoch/community-pool state and writes balances/storage/claim-ledger effects; runtime tests stay source-adjacent in `post_block_accounting_tests.rs`.
+- `src/community_pool/storage/{storage_slots,storage_encoding,value_slots,last_processed}.rs`: community-pool unlock slot/value helper ownership.
 - `src/fee_pool/mod.rs` + `fee_pool/tests.rs`: fee-pool facade, ABI compatibility exports including the legacy `fee_pool::storage::claimable_balance_slot` path, registration handoff, revert helpers, and runtime tests.
 - `src/fee_pool/codec/{dispatch,calldata,output}.rs`: fee-pool selector decode, calldata helpers, and ABI output decode helpers.
 - `src/fee_pool/transition/withdraw/mod.rs`: pure typed withdraw planner (`WithdrawInput`, `WithdrawState`, `WithdrawEffect`, `WithdrawOutcome`) and source-adjacent transition tests.
 - `src/fee_pool/runtime/{handler,state,effect_writer}.rs`: stateful precompile shell, runtime snapshot loading, and canonical withdraw effect writer.
-- `src/fee_pool/claim_ledger/{slots,credit,runtime_writer}.rs`: claimable-balance slot owner, `ClaimCredit` carrier, and shared runtime claim writer used by withdraw/post-block accounting.
+- `src/fee_pool/claim_ledger/{storage_slots,credit,runtime_writer}.rs`: canonical claim-ledger storage-slot owner, `ClaimCredit` carrier, and shared runtime claim writer used by withdraw/post-block accounting.
+- `src/fee_pool/storage.rs`: compatibility/reviewer facade that preserves `fee_pool::storage::claimable_balance_slot`; canonical storage ownership remains in `fee_pool::claim_ledger`.
 - `src/epoch/mod.rs` + `epoch/tests.rs`: epoch facade, public exports, constants, and ABI/runtime tests.
 - `src/epoch/codec/{dispatch,read_calldata,write_calldata,output_scalar,output_epoch_start}.rs`: epoch selector decode, calldata helpers, and output decoding.
 - `src/epoch/transition/{advance,boundary_effect,boundary_semantics}.rs`: pure direct-advance planner, boundary effect extraction, and primitive boundary predicates.
@@ -87,7 +89,7 @@ Workspace-owned registry and implementation crate for Whirlpool custom EVM preco
 - `validators-reader` is the canonical owner of validator registry codec/types and slot arithmetic. `validators-dkg` owns activation schedules/targets and DKG metadata. `evm-precompiles::validators` owns runtime validator-state reads, active-registry loading, proposer fee-recipient resolution, malformed-registry classification, and the public validators precompile ABI. Its `validators/codec/` directory is only the precompile calldata/output ABI role, not registry storage/schema ownership.
 - Current active-set semantics: runtime `SIMPLEX_VALIDATORS_REGISTRY` membership is the active proof for fee-recipient resolution. Missing proposer, duplicate pubkey, zero pubkey/address under nonzero count, invalid address padding, and carried-recipient mismatch fail closed.
 - The community-pool precompile is read-only and returns the balance of `COMMUNITY_POOL_ADDRESS`.
-- Community-pool unlock schedule state remains anchored at `COMMUNITY_POOL_ADDRESS` storage (configured by chainspec/runtime), but the mutable runtime ownership now lives in the internal `unlock_accounting::runtime` adapter surface rather than in `app-evm-execution` or a new public precompile selector.
+- Community-pool unlock schedule state remains anchored at `COMMUNITY_POOL_ADDRESS` storage (configured by chainspec/runtime), but the mutable runtime ownership now lives in `community_pool::runtime::post_block_accounting` and the pure effect planning lives in `community_pool::transition::post_block_accounting`, rather than in `app-evm-execution` or a new public precompile selector.
 - Fee routing model:
   - burned base fees -> `COMMUNITY_POOL_ADDRESS`
   - priority fees -> `FEE_POOL_PRECOMPILE_ADDRESS`

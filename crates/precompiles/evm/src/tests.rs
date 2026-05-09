@@ -91,6 +91,32 @@ fn registry_builds_expected_addresses() {
 }
 
 #[test]
+fn public_api_compatibility_paths_compile() {
+    let _root_apply = crate::apply_post_block_accounting::<app_evm_state::InMemoryStateDb>;
+    let _community_apply =
+        crate::community_pool::apply_post_block_accounting::<app_evm_state::InMemoryStateDb>;
+    let _root_build = crate::build_post_block_accounting_effect;
+    let _community_build = crate::community_pool::build_post_block_accounting_effect;
+
+    assert_eq!(
+        crate::claimable_balance_slot(Address::ZERO),
+        crate::fee_pool::claim_ledger::claimable_balance_slot(Address::ZERO)
+    );
+    assert_eq!(
+        crate::fee_pool::storage::claimable_balance_slot(Address::ZERO),
+        crate::fee_pool::claim_ledger::claimable_balance_slot(Address::ZERO)
+    );
+
+    let _claim_writer = crate::fee_pool::claim_ledger::runtime_writer::credit_fee_pool_claim::<
+        app_evm_state::InMemoryStateDb,
+    >;
+    let _validators_loader =
+        crate::validators::load_active_validator_registry::<app_evm_state::InMemoryStateDb>;
+    let _root_validators_loader =
+        crate::load_active_validator_registry::<app_evm_state::InMemoryStateDb>;
+}
+
+#[test]
 fn fee_pool_rejects_non_direct_state_changing_calls() {
     let mut ctx = EthEvmContext::new(EmptyDB::default(), Default::default());
     let precompile = fee_pool::register().precompile();
