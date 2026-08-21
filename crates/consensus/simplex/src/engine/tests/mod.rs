@@ -6,10 +6,10 @@ use commonware_cryptography::{
     bls12381::{dkg, primitives::variant::MinSig},
     ed25519::PrivateKey,
 };
-use commonware_runtime::{tokio as commonware_tokio, Clock, Metrics, Runner};
+use commonware_runtime::{tokio as commonware_tokio, Clock, Runner, Supervisor};
 use commonware_utils::{ordered::Set, N3f1};
 use network_commonware::CommonwareNetworkProviderBuilder;
-use rand::rngs::OsRng;
+use rand::rng;
 use std::net::SocketAddr;
 use std::num::NonZeroUsize;
 use std::sync::atomic::AtomicU64;
@@ -42,8 +42,12 @@ fn test_config_bls() -> CommonwareConfig {
     let signer = PrivateKey::from_seed(31);
     let participants = vec![signer.public_key()];
     let participant_set = Set::from_iter_dedup(participants.clone());
-    let (output, shares) = dkg::deal::<MinSig, _, N3f1>(OsRng, Default::default(), participant_set)
-        .expect("trusted dealer setup should succeed");
+    let (output, shares) = dkg::feldman_desmedt::deal::<MinSig, _, N3f1>(
+        rng(),
+        Default::default(),
+        participant_set,
+    )
+    .expect("trusted dealer setup should succeed");
     let share = shares
         .get_value(&signer.public_key())
         .cloned()
@@ -98,7 +102,7 @@ fn test_engine_can_be_constructed() {
                 .listen_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
                 .dialable_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
                 .initial_validators(config.epoch, validators)
-                .build(context.with_label("network"))
+                .build(context.child("network"))
                 .await;
         let _engine = CommonwareEngine::new(app, sink, config, network, context);
     });
@@ -120,13 +124,13 @@ fn test_engine_can_start_and_shutdown() {
                 .listen_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
                 .dialable_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
                 .initial_validators(config.epoch, validators.clone())
-                .build(context.with_label("network"))
+                .build(context.child("network"))
                 .await;
         oracle_handle
             .update_validators(config.epoch, validators)
             .await;
         let engine = CommonwareEngine::new(app, sink, config, network, context);
-        let running = engine.start().expect("Engine should start");
+        let running = engine.start().await.expect("Engine should start");
 
         // Check status
         let status = running.status();
@@ -154,14 +158,14 @@ fn test_engine_can_start_with_bls_threshold_scheme() {
                 .listen_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
                 .dialable_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
                 .initial_validators(config.epoch, config.signing_scheme.participants().to_vec())
-                .build(context.with_label("network"))
+                .build(context.child("network"))
                 .await;
         oracle_handle
             .update_validators(config.epoch, config.signing_scheme.participants().to_vec())
             .await;
 
         let engine = CommonwareEngine::new(app, sink, config, network, context);
-        let running = engine.start().expect("BLS threshold engine should start");
+        let running = engine.start().await.expect("BLS threshold engine should start");
         assert!(running.status().is_running);
         drop(running);
     });
@@ -183,13 +187,13 @@ fn test_engine_simulates_block_finalization() {
             CommonwareNetworkProviderBuilder::new(signer, config.namespace.as_bytes())
                 .listen_addr(SocketAddr::from(([127, 0, 0, 1], 31401)))
                 .dialable_addr(SocketAddr::from(([127, 0, 0, 1], 31401)))
-                .build(context.with_label("network"))
+                .build(context.child("network"))
                 .await;
 
         oracle.update_validators(config.epoch, validators).await;
 
-        let engine = CommonwareEngine::new(app, sink, config, network, context.clone());
-        let running = engine.start().expect("engine should start");
+        let engine = CommonwareEngine::new(app, sink, config, network, context.child("engine"));
+        let running = engine.start().await.expect("engine should start");
 
         let deadline = std::time::Instant::now() + Duration::from_secs(15);
         let mut observed_height = 0u64;

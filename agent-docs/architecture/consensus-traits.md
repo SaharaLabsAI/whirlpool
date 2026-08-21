@@ -29,7 +29,7 @@ The consensus crate provides the stable trait boundary used by adapter and node 
 `fn handle(&self, event: ConsensusEvent<Self::Block>) -> impl Future<Output = ()> + Send`
 
 ### ConsensusEngine (`consensus::traits::ConsensusEngine`)
-`fn start(self) -> Result<RunningEngine, ConsensusError>`
+`fn start(self) -> impl Future<Output = Result<RunningEngine, ConsensusError>> + Send`
 
 ## Design Notes
 - Interface/implementation split is explicit: trait boundary is centralized in `traits.rs`.

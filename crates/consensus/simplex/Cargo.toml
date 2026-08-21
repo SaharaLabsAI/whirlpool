@@ -10,21 +10,22 @@ doctest = false
 consensus = { path = "../traits" }
 network = { path = "../../network/traits", features = ["mock"] }
 network-commonware = { path = "../../network/commonware" }
-commonware-consensus = { path = "../../../vendor/commonware/consensus" }
-commonware-broadcast = { path = "../../../vendor/commonware/broadcast" }
-commonware-cryptography = { path = "../../../vendor/commonware/cryptography" }
-commonware-p2p = { path = "../../../vendor/commonware/p2p" }
-commonware-runtime = { path = "../../../vendor/commonware/runtime" }
-commonware-storage = { path = "../../../vendor/commonware/storage" }
-commonware-codec = { path = "../../../vendor/commonware/codec" }
-commonware-utils = { path = "../../../vendor/commonware/utils" }
-commonware-parallel = { path = "../../../vendor/commonware/parallel" }
+commonware-consensus = { git = "https://github.com/commonwarexyz/monorepo", tag = "v2026.7.1" }
+commonware-broadcast = { git = "https://github.com/commonwarexyz/monorepo", tag = "v2026.7.1" }
+commonware-cryptography = { git = "https://github.com/commonwarexyz/monorepo", tag = "v2026.7.1" }
+commonware-p2p = { git = "https://github.com/commonwarexyz/monorepo", tag = "v2026.7.1" }
+commonware-runtime = { git = "https://github.com/commonwarexyz/monorepo", tag = "v2026.7.1" }
+commonware-storage = { git = "https://github.com/commonwarexyz/monorepo", tag = "v2026.7.1" }
+commonware-codec = { git = "https://github.com/commonwarexyz/monorepo", tag = "v2026.7.1" }
+commonware-utils = { git = "https://github.com/commonwarexyz/monorepo", tag = "v2026.7.1" }
+commonware-parallel = { git = "https://github.com/commonwarexyz/monorepo", tag = "v2026.7.1" }
+commonware-actor = { git = "https://github.com/commonwarexyz/monorepo", tag = "v2026.7.1" }
 
 tokio = { version = "1", features = ["rt", "sync", "macros"] }
 tracing = "0.1"
 futures = "0.3"
-rand = "0.8"
-rand_core = "0.6"
+rand = "0.10"
+rand_core = "0.10"
 bytes = "1"
 
 [dev-dependencies]

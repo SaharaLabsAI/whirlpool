@@ -5,15 +5,15 @@ edition = "2021"
 
 [dependencies]
 network = { path = "../traits" }
-commonware-p2p = { path = "../../../vendor/commonware/p2p" }
-commonware-cryptography = { path = "../../../vendor/commonware/cryptography" }
-commonware-runtime = { path = "../../../vendor/commonware/runtime" }
-commonware-utils = { path = "../../../vendor/commonware/utils" }
-commonware-stream = { path = "../../../vendor/commonware/stream" }
+commonware-p2p = { git = "https://github.com/commonwarexyz/monorepo", tag = "v2026.7.1" }
+commonware-cryptography = { git = "https://github.com/commonwarexyz/monorepo", tag = "v2026.7.1" }
+commonware-runtime = { git = "https://github.com/commonwarexyz/monorepo", tag = "v2026.7.1" }
+commonware-utils = { git = "https://github.com/commonwarexyz/monorepo", tag = "v2026.7.1" }
+commonware-stream = { git = "https://github.com/commonwarexyz/monorepo", tag = "v2026.7.1" }
 thiserror = "2"
 bytes = "1"
 tracing = "0.1"
-rand_core = "0.6"
+rand_core = "0.10"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["sync", "macros", "rt"] }

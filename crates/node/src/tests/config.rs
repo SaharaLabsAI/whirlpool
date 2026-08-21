@@ -1,7 +1,7 @@
 use super::*;
 use commonware_cryptography::Signer;
 use commonware_p2p::Ingress;
-use commonware_utils::hex;
+use commonware_formatting::hex;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static NEXT_TEMP_CONFIG_ID: AtomicU64 = AtomicU64::new(0);

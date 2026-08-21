@@ -6,7 +6,7 @@ use commonware_p2p::authenticated::discovery::{
 };
 use commonware_runtime::{BufferPooler, Clock, Metrics, Network, Quota, Resolver, Spawner};
 use commonware_utils::ordered::Set;
-use rand_core::CryptoRngCore;
+use rand_core::CryptoRng;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -48,7 +48,7 @@ where
         use commonware_p2p::Manager;
 
         let peers = Set::from_iter_dedup(validators);
-        self.0.track(epoch, peers).await;
+        self.0.track(epoch, peers);
     }
 }
 
@@ -137,7 +137,7 @@ where
         Ctx: Spawner
             + BufferPooler
             + Clock
-            + CryptoRngCore
+            + CryptoRng
             + Network
             + Resolver
             + Metrics
@@ -196,7 +196,7 @@ type DiscoveryPerChannelNetwork<E, C> = PerChannelNetwork<
 /// through a single NetworkSender/NetworkReceiver interface.
 pub struct CommonwareNetworkProvider<E, C>
 where
-    E: Spawner + BufferPooler + Clock + CryptoRngCore + Network + Resolver + Metrics,
+    E: Spawner + BufferPooler + Clock + CryptoRng + Network + Resolver + Metrics,
     C: Signer,
 {
     network: discovery::Network<E, C>,
@@ -206,7 +206,7 @@ where
 
 impl<E, C> CommonwareNetworkProvider<E, C>
 where
-    E: Spawner + BufferPooler + Clock + CryptoRngCore + Network + Resolver + Metrics,
+    E: Spawner + BufferPooler + Clock + CryptoRng + Network + Resolver + Metrics,
     C: Signer,
     C::PublicKey: Clone + std::hash::Hash + Eq + std::fmt::Debug + Send + Sync + 'static,
 {
@@ -267,7 +267,7 @@ where
 
 impl<E, C> CommonwareTransport for CommonwareNetworkProvider<E, C>
 where
-    E: Spawner + BufferPooler + Clock + CryptoRngCore + Network + Resolver + Metrics,
+    E: Spawner + BufferPooler + Clock + CryptoRng + Network + Resolver + Metrics,
     C: Signer,
     C::PublicKey: Clone + std::hash::Hash + Eq + std::fmt::Debug + Send + Sync + 'static,
 {
@@ -288,7 +288,7 @@ where
 
 impl<E, C> NetworkProvider for CommonwareNetworkProvider<E, C>
 where
-    E: Spawner + BufferPooler + Clock + CryptoRngCore + Network + Resolver + Metrics,
+    E: Spawner + BufferPooler + Clock + CryptoRng + Network + Resolver + Metrics,
     C: Signer,
     C::PublicKey: Clone + std::hash::Hash + Eq + std::fmt::Debug + Send + Sync + 'static,
 {
@@ -360,7 +360,7 @@ mod tests {
     use commonware_cryptography::ed25519;
     use commonware_cryptography::Signer;
     use commonware_p2p::{Provider as _, Receiver as _, Recipients, Sender as _};
-    use commonware_runtime::{deterministic, Clock, Runner};
+    use commonware_runtime::{deterministic, Clock, Runner, Supervisor};
     use std::net::SocketAddr;
     use std::time::Duration;
 
@@ -381,7 +381,7 @@ mod tests {
                     .listen_addr(addr)
                     .dialable_addr(addr)
                     .initial_validators(0, vec![self_pk.clone(), other_pk.clone(), self_pk.clone()])
-                    .build(context.with_label("seeded_network"))
+                    .build(context.child("seeded_network"))
                     .await;
 
             // Test passes if build() completes without error.
@@ -404,7 +404,7 @@ mod tests {
                     .listen_addr(addr)
                     .dialable_addr(addr)
                     .initial_validators(0, vec![])
-                    .build(context.with_label("empty_seed_network"))
+                    .build(context.child("empty_seed_network"))
                     .await;
 
             // Unit test confirms API acceptance and build() success only.
@@ -432,7 +432,7 @@ mod tests {
                     .listen_addr(addr_0)
                     .dialable_addr(addr_0)
                     .initial_validators(0, vec![pk_0.clone()])
-                    .build(context.with_label("bootstrap_peer_0"))
+                    .build(context.child("bootstrap_peer_0"))
                     .await;
 
             let (provider_1, _oracle_1) =
@@ -441,7 +441,7 @@ mod tests {
                     .dialable_addr(addr_1)
                     .bootstrappers(vec![(pk_0.clone(), addr_0.into())])
                     .initial_validators(0, vec![pk_0.clone()])
-                    .build(context.with_label("bootstrap_peer_1"))
+                    .build(context.child("bootstrap_peer_1"))
                     .await;
 
             let peer_0 = provider_0.start_per_channel().expect("peer 0 starts");
@@ -450,14 +450,12 @@ mod tests {
             context.sleep(Duration::from_secs(1)).await;
 
             let mut vote_sender = peer_0.vote.0;
-            vote_sender
-                .send(
-                    Recipients::One(pk_0.clone()),
-                    Bytes::from_static(b"bootstrap-ready"),
-                    false,
-                )
-                .await
-                .expect("send should succeed when bootstrap config is valid");
+            let attempted = vote_sender.send(
+                Recipients::One(pk_0.clone()),
+                Bytes::from_static(b"bootstrap-ready"),
+                false,
+            );
+            assert!(!attempted.is_empty(), "send should succeed when bootstrap config is valid");
 
             let seeded = oracle_0
                 .0
@@ -488,7 +486,7 @@ mod tests {
                 CommonwareNetworkProviderBuilder::new(signer_0, b"per-channel-test")
                     .listen_addr(addr_0)
                     .dialable_addr(addr_0)
-                    .build(context.with_label("peer_0_network"))
+                    .build(context.child("peer_0_network"))
                     .await;
 
             let (provider_1, mut oracle_1) =
@@ -496,7 +494,7 @@ mod tests {
                     .listen_addr(addr_1)
                     .dialable_addr(addr_1)
                     .bootstrappers(vec![(pk_0.clone(), addr_0.into())])
-                    .build(context.with_label("peer_1_network"))
+                    .build(context.child("peer_1_network"))
                     .await;
 
             oracle_0
@@ -531,7 +529,7 @@ mod tests {
                 CommonwareNetworkProviderBuilder::new(signer_0, b"per-channel-io-test")
                     .listen_addr(addr_0)
                     .dialable_addr(addr_0)
-                    .build(context.with_label("peer_0_network"))
+                    .build(context.child("peer_0_network"))
                     .await;
 
             let (provider_1, mut oracle_1) =
@@ -539,7 +537,7 @@ mod tests {
                     .listen_addr(addr_1)
                     .dialable_addr(addr_1)
                     .bootstrappers(vec![(pk_0.clone(), addr_0.into())])
-                    .build(context.with_label("peer_1_network"))
+                    .build(context.child("peer_1_network"))
                     .await;
 
             oracle_0
@@ -554,38 +552,26 @@ mod tests {
 
             context.sleep(Duration::from_secs(2)).await;
 
-            peer_0
-                .vote
-                .0
-                .send(
-                    Recipients::One(pk_1.clone()),
-                    Bytes::from_static(b"vote-msg"),
-                    false,
-                )
-                .await
-                .expect("vote send should succeed");
+            let attempted = peer_0.vote.0.send(
+                Recipients::One(pk_1.clone()),
+                Bytes::from_static(b"vote-msg"),
+                false,
+            );
+            assert!(!attempted.is_empty(), "vote send should succeed");
 
-            peer_0
-                .cert
-                .0
-                .send(
-                    Recipients::One(pk_1.clone()),
-                    Bytes::from_static(b"cert-msg"),
-                    false,
-                )
-                .await
-                .expect("certificate send should succeed");
+            let attempted = peer_0.cert.0.send(
+                Recipients::One(pk_1.clone()),
+                Bytes::from_static(b"cert-msg"),
+                false,
+            );
+            assert!(!attempted.is_empty(), "certificate send should succeed");
 
-            peer_0
-                .resolver
-                .0
-                .send(
-                    Recipients::One(pk_1),
-                    Bytes::from_static(b"resolver-msg"),
-                    false,
-                )
-                .await
-                .expect("resolver send should succeed");
+            let attempted = peer_0.resolver.0.send(
+                Recipients::One(pk_1),
+                Bytes::from_static(b"resolver-msg"),
+                false,
+            );
+            assert!(!attempted.is_empty(), "resolver send should succeed");
 
             let vote = peer_1.vote.1.recv().await.expect("vote receive");
             let cert = peer_1.cert.1.recv().await.expect("cert receive");

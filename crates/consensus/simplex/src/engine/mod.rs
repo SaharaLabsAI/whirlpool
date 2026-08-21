@@ -32,7 +32,7 @@ use consensus::error::ConsensusError;
 use consensus::event::EventSink;
 use network::types::Channel;
 use network_commonware::CommonwareReceiver;
-use rand_core::CryptoRngCore;
+use rand_core::CryptoRng;
 
 use crate::adapter::AppAdapter;
 use crate::config::{CommonwareConfig, SigningSchemeConfig};
@@ -54,7 +54,7 @@ type BlsThresholdVrfScheme =
 ///
 /// ```ignore
 /// let engine = CommonwareEngine::new(app, sink, config, network, context);
-/// let running = engine.start()?;
+/// let running = engine.start().await?;
 /// ```
 pub struct CommonwareEngine<A, S, E, C>
 where
@@ -64,7 +64,7 @@ where
     E: Spawner
         + BufferPooler
         + Clock
-        + CryptoRngCore
+        + CryptoRng
         + commonware_runtime::Network
         + commonware_runtime::Resolver
         + Metrics
@@ -87,7 +87,7 @@ where
     E: Spawner
         + BufferPooler
         + Clock
-        + CryptoRngCore
+        + CryptoRng
         + commonware_runtime::Network
         + commonware_runtime::Resolver
         + Metrics
@@ -138,18 +138,17 @@ where
     E: Spawner
         + BufferPooler
         + Clock
-        + CryptoRngCore
+        + CryptoRng
         + commonware_runtime::Network
         + commonware_runtime::Resolver
         + Metrics
         + Storage
-        + Clone
         + Send
         + 'static,
     C: commonware_cryptography::Signer<PublicKey = ed25519::PublicKey> + Send + Sync + 'static,
     C::Signature: Send + Sync + 'static,
 {
-    fn start(self) -> Result<RunningEngine, ConsensusError> {
+    async fn start(mut self) -> Result<RunningEngine, ConsensusError> {
         // Step 1: Clone oracle before consuming network
         let oracle = self.network.oracle().clone();
 
@@ -173,6 +172,14 @@ where
         let running = Arc::new(AtomicBool::new(true));
         let block_store: BlockStore<A::Block> = Arc::new(tokio::sync::RwLock::new(HashMap::new()));
 
+        // Step 3.5: Fetch the genesis block (required for the Floor::Genesis anchor)
+        let genesis_block = self.app.genesis().await;
+        let genesis_digest = genesis_block.digest();
+        block_store
+            .write()
+            .await
+            .insert(genesis_digest, genesis_block.clone());
+
         // Step 4: Create mailbox channel and outbound relay channel
         let (mailbox_tx, mailbox_rx) = mpsc::channel(self.config.mailbox_size);
         let (relay_tx, mut relay_rx) = mpsc::unbounded::<Bytes>();
@@ -191,9 +198,10 @@ where
             Arc::clone(&height),
             Arc::clone(&self.app),
             Arc::clone(&block_store),
+            genesis_block,
         );
         let height_for_actor = Arc::clone(&height);
-        let _actor_handle = self.context.clone().spawn(|_ctx| async move {
+        let _actor_handle = self.context.child("mailbox").spawn(|_ctx| async move {
             actor.run().await;
             tracing::info!(
                 "MailboxActor completed, final height: {}",
@@ -209,15 +217,14 @@ where
         tokio::spawn(async move {
             while let Some(wire) = relay_rx.next().await {
                 use commonware_p2p::Sender as _;
-                if let Err(e) = payload_sender
+                let attempted = payload_sender
                     .send(
                         commonware_p2p::Recipients::All,
                         wire,
                         false, // not priority — payload relay is best-effort
-                    )
-                    .await
-                {
-                    tracing::warn!(error = %e, "outbound payload relay send failed");
+                    );
+                if attempted.is_empty() {
+                    tracing::warn!("outbound payload relay send rejected");
                 }
             }
             tracing::debug!("outbound payload relay task exited");
@@ -263,8 +270,10 @@ where
                     reporter,
                     strategy: Sequential,
                     partition: self.config.namespace.clone(),
-                    mailbox_size: self.config.mailbox_size,
                     epoch: Epoch::new(self.config.epoch),
+                    floor: simplex::Floor::Genesis(genesis_digest),
+                    mailbox_size: NonZeroUsize::new(self.config.mailbox_size)
+                        .expect("mailbox_size must be non-zero"),
                     replay_buffer: self.config.replay_buffer,
                     write_buffer: self.config.write_buffer,
                     page_cache: CacheRef::from_pooler(
@@ -278,12 +287,13 @@ where
                     activity_timeout: ViewDelta::new(self.config.activity_timeout),
                     skip_timeout: ViewDelta::new(self.config.skip_timeout),
                     fetch_timeout: self.config.fetch_timeout,
-                    fetch_concurrent: self.config.fetch_concurrent,
+                    fetch_concurrent: NonZeroUsize::new(self.config.fetch_concurrent)
+                        .expect("fetch_concurrent must be non-zero"),
                     forwarding: simplex::ForwardingPolicy::Disabled,
                 };
 
                 // Step 12: Validate config
-                simplex_config.assert();
+                simplex_config.assert(&mut self.context);
 
                 // Step 13: Create vendor Engine
                 let engine = simplex::Engine::new(self.context, simplex_config);
@@ -345,8 +355,10 @@ where
                     reporter,
                     strategy: Sequential,
                     partition: self.config.namespace.clone(),
-                    mailbox_size: self.config.mailbox_size,
                     epoch: Epoch::new(self.config.epoch),
+                    floor: simplex::Floor::Genesis(genesis_digest),
+                    mailbox_size: NonZeroUsize::new(self.config.mailbox_size)
+                        .expect("mailbox_size must be non-zero"),
                     replay_buffer: self.config.replay_buffer,
                     write_buffer: self.config.write_buffer,
                     page_cache: CacheRef::from_pooler(
@@ -360,12 +372,13 @@ where
                     activity_timeout: ViewDelta::new(self.config.activity_timeout),
                     skip_timeout: ViewDelta::new(self.config.skip_timeout),
                     fetch_timeout: self.config.fetch_timeout,
-                    fetch_concurrent: self.config.fetch_concurrent,
+                    fetch_concurrent: NonZeroUsize::new(self.config.fetch_concurrent)
+                        .expect("fetch_concurrent must be non-zero"),
                     forwarding: simplex::ForwardingPolicy::Disabled,
                 };
 
                 // Step 12: Validate config
-                simplex_config.assert();
+                simplex_config.assert(&mut self.context);
 
                 // Step 13: Create vendor Engine
                 let engine = simplex::Engine::new(self.context, simplex_config);

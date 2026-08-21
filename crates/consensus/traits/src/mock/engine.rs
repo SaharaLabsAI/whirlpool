@@ -24,7 +24,7 @@ impl<S: EventSink<Block = MockBlock>> MockEngine<S> {
 }
 
 impl<S: EventSink<Block = MockBlock>> ConsensusEngine for MockEngine<S> {
-    fn start(self) -> Result<RunningEngine, ConsensusError> {
+    async fn start(self) -> Result<RunningEngine, ConsensusError> {
         let height = Arc::new(AtomicU64::new(0));
         let running = Arc::new(AtomicBool::new(true));
 

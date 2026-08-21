@@ -21,11 +21,12 @@ consensus = { path = "../consensus/traits" }
 consensus-simplex = { path = "../consensus/simplex" }
 consensus-manager = { path = "../consensus/manager" }
 network-commonware = { path = "../network/commonware" }
-commonware-cryptography = { path = "../../vendor/commonware/cryptography" }
-commonware-codec = { path = "../../vendor/commonware/codec" }
-commonware-p2p = { path = "../../vendor/commonware/p2p" }
-commonware-utils = { path = "../../vendor/commonware/utils" }
-commonware-runtime = { path = "../../vendor/commonware/runtime" }
+commonware-cryptography = { git = "https://github.com/commonwarexyz/monorepo", tag = "v2026.7.1" }
+commonware-codec = { git = "https://github.com/commonwarexyz/monorepo", tag = "v2026.7.1" }
+commonware-p2p = { git = "https://github.com/commonwarexyz/monorepo", tag = "v2026.7.1" }
+commonware-utils = { git = "https://github.com/commonwarexyz/monorepo", tag = "v2026.7.1" }
+commonware-runtime = { git = "https://github.com/commonwarexyz/monorepo", tag = "v2026.7.1" }
+commonware-formatting = { git = "https://github.com/commonwarexyz/monorepo", tag = "v2026.7.1" }
 sha2 = "0.10"
 bytes = "1"
 tokio = { version = "1", features = ["full"] }

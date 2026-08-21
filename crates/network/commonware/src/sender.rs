@@ -1,6 +1,6 @@
 //! Commonware Sender to NetworkSender adapter.
 
-use crate::{error::map_send_error, CommonwarePeerId};
+use crate::CommonwarePeerId;
 use bytes::Bytes;
 use commonware_p2p::{Recipients as CwRecipients, Sender as CwSender};
 use network::{Channel, NetworkSender, P2pError, Recipients};
@@ -47,10 +47,12 @@ where
         let mut sender = self.inner.clone();
 
         // Call commonware send (priority=false for now, as channels don't map directly)
-        sender
-            .send(cw_recipients, data, false)
-            .await
-            .map_err(map_send_error)?;
+        let attempted = sender.send(cw_recipients, data, false);
+        if attempted.is_empty() {
+            return Err(P2pError::SendFailed(
+                "message not accepted by commonware sender".to_string(),
+            ));
+        }
 
         Ok(())
     }

@@ -6,9 +6,9 @@ edition.workspace = true
 [dependencies]
 consensus = { path = "../../consensus/traits" }
 validators-dkg = { path = "../../validators/dkg" }
-commonware-consensus = { path = "../../../vendor/commonware/consensus" }
-commonware-codec = { path = "../../../vendor/commonware/codec" }
-commonware-cryptography = { path = "../../../vendor/commonware/cryptography" }
+commonware-consensus = { git = "https://github.com/commonwarexyz/monorepo", tag = "v2026.7.1" }
+commonware-codec = { git = "https://github.com/commonwarexyz/monorepo", tag = "v2026.7.1" }
+commonware-cryptography = { git = "https://github.com/commonwarexyz/monorepo", tag = "v2026.7.1" }
 alloy-consensus = "1.4.3"
 sha2 = "0.10"
 bytes = "1"

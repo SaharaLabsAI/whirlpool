@@ -12,7 +12,7 @@ use commonware_codec::{EncodeSize, Error as CodecError, Read as CodecRead, Write
 use commonware_consensus::{Block as VendorBlock, Heightable};
 use commonware_cryptography::ed25519::PrivateKey;
 use commonware_cryptography::{Committable, Digestible, Signer as _};
-use commonware_runtime::{tokio as commonware_tokio, Clock, Metrics, Runner};
+use commonware_runtime::{tokio as commonware_tokio, Clock, Runner, Supervisor};
 use consensus::block::Block as CoreBlock;
 use consensus::engine::ConsensusEngine;
 use consensus::error::ConsensusError;
@@ -394,13 +394,13 @@ async fn spawn_engine(
         CommonwareNetworkProviderBuilder::new(network_signer, config.namespace.as_bytes())
             .listen_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
             .dialable_addr(SocketAddr::from(([127, 0, 0, 1], 0)))
-            .build(context.with_label("network"))
+            .build(context.child("network"))
             .await;
     oracle_handle
         .update_validators(config.epoch, validators)
         .await;
     let engine = CommonwareEngine::new(app, sink, config, network, context);
-    engine.start().expect("engine should start")
+    engine.start().await.expect("engine should start")
 }
 
 #[test]
@@ -448,7 +448,7 @@ fn test_engine_status_tracks_height() {
             &config.height,
         )));
 
-        let running_engine = spawn_engine(app, sink, config, context.clone()).await;
+        let running_engine = spawn_engine(app, sink, config, context.child("engine")).await;
 
         let deadline = std::time::Instant::now() + Duration::from_secs(15);
         let mut observed_height = 0u64;
@@ -528,7 +528,7 @@ fn test_single_validator_produces_block() {
             &config.height,
         )));
 
-        let running_engine = spawn_engine(app, sink, config, context.clone()).await;
+        let running_engine = spawn_engine(app, sink, config, context.child("engine")).await;
 
         let deadline = std::time::Instant::now() + Duration::from_secs(30);
         let mut reached_height = false;
@@ -561,7 +561,7 @@ fn test_single_validator_with_transactions() {
         let (collector, finalized_blocks) = BlockCollectorSink::new();
         let config = test_config("e2e-single-validator-tx");
 
-        let running_engine = spawn_engine(app, collector, config, context.clone()).await;
+        let running_engine = spawn_engine(app, collector, config, context.child("engine")).await;
 
         let deadline = std::time::Instant::now() + Duration::from_secs(30);
         let mut found_transaction = false;

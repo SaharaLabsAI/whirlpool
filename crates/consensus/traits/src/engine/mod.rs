@@ -1,4 +1,5 @@
 use crate::error::ConsensusError;
+use std::future::Future;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::task::JoinHandle;
@@ -58,5 +59,5 @@ impl RunningEngine {
 /// Trait for types that can start a consensus engine.
 pub trait ConsensusEngine {
     /// Start the consensus engine, returning a handle to the running instance.
-    fn start(self) -> Result<RunningEngine, ConsensusError>;
+    fn start(self) -> impl Future<Output = Result<RunningEngine, ConsensusError>> + Send;
 }

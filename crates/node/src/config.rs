@@ -7,7 +7,7 @@ use clap::Parser;
 use commonware_codec::Read;
 use commonware_cryptography::ed25519;
 use commonware_p2p::Ingress;
-use commonware_utils::from_hex;
+use commonware_formatting::from_hex;
 use serde::Deserialize;
 
 mod parse;

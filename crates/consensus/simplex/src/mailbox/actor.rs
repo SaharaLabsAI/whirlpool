@@ -48,36 +48,22 @@ where
         height: Arc<AtomicU64>,
         app: Arc<A>,
         block_store: BlockStore<A::Block>,
+        genesis_block: A::Block,
     ) -> Self {
         Self {
             receiver,
             _height: height,
             app,
             block_store,
-            genesis_block: None,
+            genesis_block: Some(genesis_block),
             pending_permits: Arc::new(Semaphore::new(PENDING_TASK_LIMIT)),
         }
     }
 
-    /// Store a block in the shared block store, keyed by its recomputed digest.
-    async fn remember_block(&self, block: &A::Block) {
-        remember_block(&self.block_store, block).await;
-    }
-
     async fn ensure_genesis(&mut self) -> A::Block {
-        if let Some(block) = &self.genesis_block {
-            return block.clone();
-        }
-
-        let block = self.app.genesis().await;
-        self.remember_block(&block).await;
-        self.genesis_block = Some(block.clone());
-        block
-    }
-
-    async fn handle_genesis(&mut self, response: oneshot::Sender<Digest>) {
-        let block = self.ensure_genesis().await;
-        let _ = response.send(compute_digest(&block));
+        self.genesis_block
+            .clone()
+            .expect("genesis block must be set at construction")
     }
 
     async fn handle_propose(
@@ -120,7 +106,6 @@ where
     pub async fn run(mut self) {
         while let Ok(msg) = self.receiver.recv().await {
             match msg {
-                Message::Genesis { epoch: _, response } => self.handle_genesis(response).await,
                 Message::Propose { context, response } => {
                     self.handle_propose(context, response).await;
                 }

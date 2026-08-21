@@ -16,14 +16,14 @@ Holds parameters for the Simplex engine.
 
 ### AppAdapter
 Bridges `ConsensusApp` and `EventSink` to vendor traits.
-- Implements `Application`, `VerifyingApplication`, and `Reporter` (crates/consensus/simplex/src/adapter.rs:89,124,153).
-- Trait bounds for `Application`, `VerifyingApplication`, and `Reporter` do not require `S: Clone` as the sink is accessed via `Arc` (crates/consensus/simplex/src/adapter.rs:93,128,156).
+- Implements `Application` (propose + verify) and `Reporter` (crates/consensus/simplex/src/adapter.rs:89,124).
+- Trait bounds for `Application` and `Reporter` do not require `S: Clone` as the sink is accessed via `Arc` (crates/consensus/simplex/src/adapter.rs:93,156).
 
 ### CommonwareEngine
 The primary entry point for starting the consensus engine.
 - Uses the caller-provided `EventSink` passed to `AppAdapter` for finalization events (crates/consensus/simplex/src/engine/mod.rs).
 - Shared `height` Arc is still wired through engine setup, but mailbox proposal parent authority comes from Simplex `Context.parent.1`; height is status/progress, not parent selection (crates/consensus/simplex/src/engine/mod.rs, crates/consensus/simplex/src/mailbox/actor.rs).
-- `start()` wires the payload relay: creates an mpsc channel, constructs `Mailbox::with_relay()`, spawns an outbound forwarder task (reads from channel, sends via `NetworkSender::send(Recipients::All, ...)`), and spawns an inbound `payload_receive_loop` task.
+- `start()` is an async fn that wires the payload relay: fetches the genesis block from the app, seeds the `BlockStore` and `Floor::Genesis` anchor, creates an mpsc channel, constructs `Mailbox::with_relay()`, spawns an outbound forwarder task (reads from channel, sends via `NetworkSender::send(Recipients::All, ...)`), and spawns an inbound `payload_receive_loop` task.
 - Trait bounds on block type: `CommonwareBlock + Encode + Decode<Cfg = ()>`.
 - `start()` now branches on `SigningSchemeConfig` and instantiates either:
   - `simplex::scheme::ed25519::Scheme::signer(...)`, or

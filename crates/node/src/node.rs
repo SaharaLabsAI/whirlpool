@@ -8,7 +8,7 @@ use chainspec::validators::try_simplex_validators_from_chain_spec;
 use commonware_codec::{Encode, Read};
 use commonware_cryptography::ed25519;
 use commonware_cryptography::Signer;
-use commonware_runtime::{tokio, Metrics, Runner};
+use commonware_runtime::{tokio, Runner, Supervisor};
 use consensus::traits::ConsensusEngine;
 use consensus_manager::{
     load_local_bundle, run_trusted_dealer_bootstrap, LoadLocalBundleConfig, LocalBundleMaterial,
@@ -108,7 +108,7 @@ pub fn run_genesis_bootstrap(config: &NodeConfig) -> NodeResult<()> {
     info!(
         session_dir = %result.session_dir.display(),
         manifest = %result.manifest_path.display(),
-        dealer_pubkey = %commonware_utils::hex(result.dealer_public_key.as_ref()),
+        dealer_pubkey = %commonware_formatting::hex(result.dealer_public_key.as_ref()),
         bundles = result.bundle_paths.len(),
         "genesis bootstrap completed"
     );
@@ -335,7 +335,7 @@ pub fn start_node_with_chain_spec(
             .max_message_size(config.network.max_message_size)
             .initial_validators(0, bootstrap_validators.clone())
             .bootstrappers(bootstrappers)
-            .build(context.with_label("network"))
+            .build(context.child("network"))
             .await;
 
             let db_path = config.storage.state_dir();
@@ -419,8 +419,11 @@ pub fn start_node_with_chain_spec(
 
             let app = Arc::new(ApplicationAdapter::new(evm_app));
             let engine =
-                CommonwareEngine::new(app, sink, engine_config, network_provider, context.clone());
-            let _running = engine.start().expect("failed to start consensus engine");
+                CommonwareEngine::new(app, sink, engine_config, network_provider, context.child("engine"));
+            let _running = engine
+                .start()
+                .await
+                .expect("failed to start consensus engine");
             info!("Consensus engine created and started successfully");
 
             let eth_rpc_config = eth_rpc::RpcConfig {
@@ -632,7 +635,7 @@ mod tests {
         let bundle_path = bootstrap_result
             .session_dir
             .join("bundles")
-            .join(format!("{}.bundle", commonware_utils::hex(local.as_ref())));
+            .join(format!("{}.bundle", commonware_formatting::hex(local.as_ref())));
         fs::remove_file(&bundle_path).expect("remove local bundle");
 
         let config = NodeConfig {
@@ -764,9 +767,9 @@ mod tests {
         .expect("bootstrap");
         let bundles_dir = bootstrap_result.session_dir.join("bundles");
         let local_path =
-            bundles_dir.join(format!("{}.bundle", commonware_utils::hex(local.as_ref())));
+            bundles_dir.join(format!("{}.bundle", commonware_formatting::hex(local.as_ref())));
         let other_path =
-            bundles_dir.join(format!("{}.bundle", commonware_utils::hex(other.as_ref())));
+            bundles_dir.join(format!("{}.bundle", commonware_formatting::hex(other.as_ref())));
         fs::copy(&other_path, &local_path).expect("overwrite local bundle with foreign bundle");
 
         let config = NodeConfig {
@@ -807,7 +810,7 @@ mod tests {
         })
         .expect("bootstrap session B");
 
-        let local_file = format!("{}.bundle", commonware_utils::hex(local.as_ref()));
+        let local_file = format!("{}.bundle", commonware_formatting::hex(local.as_ref()));
         fs::copy(
             session_b.session_dir.join("bundles").join(&local_file),
             session_a.session_dir.join("bundles").join(&local_file),

@@ -38,14 +38,15 @@ fn context_for_parent_digest(seed: u64, parent_digest: Digest) -> Context<Digest
     }
 }
 
-fn start_mailbox<A>(app: Arc<A>, block_store: BlockStore<TestBlock>) -> Mailbox<TestBlock>
+async fn start_mailbox<A>(app: Arc<A>, block_store: BlockStore<TestBlock>) -> Mailbox<TestBlock>
 where
     A: consensus::app::ConsensusApp<Block = TestBlock>,
 {
     let (tx, rx) = mpsc::channel(10);
     let mailbox = Mailbox::<TestBlock>::new(tx);
     let height = Arc::new(AtomicU64::new(0));
-    tokio::spawn(MailboxActor::new(rx, height, app, block_store).run());
+    let genesis_block = TestBlock::genesis();
+    tokio::spawn(MailboxActor::new(rx, height, app, block_store, genesis_block).run());
     mailbox
 }
 
@@ -149,19 +150,9 @@ impl consensus::app::ConsensusApp for SlowVerifyApp {
 }
 
 #[tokio::test]
-async fn test_genesis_returns_deterministic_digest() {
-    let block_store = empty_block_store();
-    let mut mailbox = start_mailbox(Arc::new(MockApp), block_store);
-
-    let d1 = mailbox.genesis(Epoch::new(1)).await;
-    let d2 = mailbox.genesis(Epoch::new(1)).await;
-    assert_eq!(d1, d2);
-}
-
-#[tokio::test]
 async fn test_propose_uses_context_parent_authority() {
     let block_store = empty_block_store();
-    let mut mailbox = start_mailbox(Arc::new(MockApp), Arc::clone(&block_store));
+    let mut mailbox = start_mailbox(Arc::new(MockApp), Arc::clone(&block_store)).await;
 
     let genesis = TestBlock::genesis();
     let parent = TestBlock::child(&genesis);
@@ -187,7 +178,7 @@ async fn test_propose_uses_context_parent_authority() {
 async fn test_verify_valid_parent_and_block_calls_app_and_returns_true() {
     let block_store = empty_block_store();
     let app = Arc::new(CountingApp::default());
-    let mut mailbox = start_mailbox(Arc::clone(&app), Arc::clone(&block_store));
+    let mut mailbox = start_mailbox(Arc::clone(&app), Arc::clone(&block_store)).await;
 
     let genesis = TestBlock::genesis();
     let block = TestBlock::child(&genesis);
@@ -204,7 +195,7 @@ async fn test_verify_valid_parent_and_block_calls_app_and_returns_true() {
 #[tokio::test]
 async fn test_verify_unknown_digest_remains_pending_until_payload_arrives() {
     let block_store = empty_block_store();
-    let mut mailbox = start_mailbox(Arc::new(MockApp), Arc::clone(&block_store));
+    let mut mailbox = start_mailbox(Arc::new(MockApp), Arc::clone(&block_store)).await;
 
     let genesis = TestBlock::genesis();
     let block = TestBlock::child(&genesis);
@@ -228,7 +219,7 @@ async fn test_verify_unknown_digest_remains_pending_until_payload_arrives() {
 #[tokio::test]
 async fn test_verify_wrong_digest_cache_entry_returns_false() {
     let block_store = empty_block_store();
-    let mut mailbox = start_mailbox(Arc::new(MockApp), Arc::clone(&block_store));
+    let mut mailbox = start_mailbox(Arc::new(MockApp), Arc::clone(&block_store)).await;
 
     let genesis = TestBlock::genesis();
     let block = TestBlock::child(&genesis);
@@ -245,7 +236,7 @@ async fn test_verify_wrong_digest_cache_entry_returns_false() {
 async fn test_verify_context_parent_mismatch_returns_false() {
     let block_store = empty_block_store();
     let app = Arc::new(CountingApp::default());
-    let mut mailbox = start_mailbox(Arc::clone(&app), Arc::clone(&block_store));
+    let mut mailbox = start_mailbox(Arc::clone(&app), Arc::clone(&block_store)).await;
 
     let genesis = TestBlock::genesis();
     let declared_parent = TestBlock::child(&genesis);
@@ -277,7 +268,7 @@ async fn test_verify_context_parent_mismatch_returns_false() {
 async fn test_verify_height_one_wrong_context_parent_returns_false() {
     let block_store = empty_block_store();
     let app = Arc::new(CountingApp::default());
-    let mut mailbox = start_mailbox(Arc::clone(&app), Arc::clone(&block_store));
+    let mut mailbox = start_mailbox(Arc::clone(&app), Arc::clone(&block_store)).await;
 
     let wrong_parent = TestBlock::with_id_parent_digest([7u8; 32], Digest::from([0u8; 32]), 0);
     let wrong_parent_digest = compute_digest(&wrong_parent);
@@ -299,7 +290,7 @@ async fn test_verify_height_one_wrong_context_parent_returns_false() {
 #[tokio::test]
 async fn test_verify_missing_parent_does_not_use_genesis_fallback() {
     let block_store = empty_block_store();
-    let mut mailbox = start_mailbox(Arc::new(MockApp), Arc::clone(&block_store));
+    let mut mailbox = start_mailbox(Arc::new(MockApp), Arc::clone(&block_store)).await;
 
     let genesis = TestBlock::genesis();
     let known_parent = TestBlock::child(&genesis);
@@ -321,7 +312,7 @@ async fn test_verify_missing_parent_does_not_use_genesis_fallback() {
 #[tokio::test]
 async fn test_propose_abstain_produces_no_genesis_fallback_digest() {
     let block_store = empty_block_store();
-    let mut mailbox = start_mailbox(Arc::new(AbstainingApp), block_store);
+    let mut mailbox = start_mailbox(Arc::new(AbstainingApp), block_store).await;
 
     let genesis = TestBlock::genesis();
     let receiver = mailbox.propose(context_for_parent(7, &genesis)).await;
@@ -332,7 +323,7 @@ async fn test_propose_abstain_produces_no_genesis_fallback_digest() {
 async fn test_dropped_proposal_receiver_cancels_pending_parent_work() {
     let block_store = empty_block_store();
     let app = Arc::new(CountingApp::default());
-    let mut mailbox = start_mailbox(Arc::clone(&app), Arc::clone(&block_store));
+    let mut mailbox = start_mailbox(Arc::clone(&app), Arc::clone(&block_store)).await;
 
     let missing_parent = Digest::from([10u8; 32]);
     let receiver = mailbox
@@ -353,7 +344,7 @@ async fn test_dropped_proposal_receiver_cancels_pending_parent_work() {
 async fn test_verify_concurrency_is_bounded() {
     let block_store = empty_block_store();
     let app = Arc::new(SlowVerifyApp::default());
-    let mut mailbox = start_mailbox(Arc::clone(&app), Arc::clone(&block_store));
+    let mut mailbox = start_mailbox(Arc::clone(&app), Arc::clone(&block_store)).await;
 
     let genesis = TestBlock::genesis();
     let mut receivers = Vec::new();
@@ -390,11 +381,11 @@ async fn test_verify_concurrency_is_bounded() {
 async fn test_relay_broadcast_noop_without_wiring() {
     // Mailbox::new (no relay) — broadcast completes silently.
     let block_store = empty_block_store();
-    let mut mailbox = start_mailbox(Arc::new(MockApp), block_store);
+    let mut mailbox = start_mailbox(Arc::new(MockApp), block_store).await;
 
-    mailbox
-        .broadcast(Digest::from([1u8; 32]), Plan::Propose)
-        .await;
+    let test_plan = Plan::Propose { round: Round::new(Epoch::new(1), View::new(0)) };
+
+    mailbox.broadcast(Digest::from([1u8; 32]), test_plan);
     // No panic, no message sent — passes by definition.
 }
 
@@ -410,7 +401,16 @@ async fn test_relay_broadcast_sends_payload_message() {
 
     let height = Arc::new(AtomicU64::new(0));
     let app = Arc::new(MockApp);
-    tokio::spawn(MailboxActor::new(mailbox_rx, height, app, Arc::clone(&block_store)).run());
+    tokio::spawn(
+        MailboxActor::new(
+            mailbox_rx,
+            height,
+            app,
+            Arc::clone(&block_store),
+            TestBlock::genesis(),
+        )
+        .run(),
+    );
 
     // Populate block store with a known block.
     let block = TestBlock::genesis();
@@ -418,7 +418,7 @@ async fn test_relay_broadcast_sends_payload_message() {
     block_store.write().await.insert(digest, block.clone());
 
     // Broadcast the digest — should produce one outbound message.
-    mailbox.broadcast(digest, Plan::Propose).await;
+    mailbox.broadcast(digest, Plan::Propose { round: Round::new(Epoch::new(1), View::new(0)) });
 
     // Verify a PayloadRelayMessage was enqueued.
     let wire = payload_rx.try_recv().expect("should have a message");
@@ -440,11 +440,20 @@ async fn test_relay_broadcast_missing_digest_is_silent() {
 
     let height = Arc::new(AtomicU64::new(0));
     let app = Arc::new(MockApp);
-    tokio::spawn(MailboxActor::new(mailbox_rx, height, app, Arc::clone(&block_store)).run());
+    tokio::spawn(
+        MailboxActor::new(
+            mailbox_rx,
+            height,
+            app,
+            Arc::clone(&block_store),
+            TestBlock::genesis(),
+        )
+        .run(),
+    );
 
     // Broadcast a digest that has NO corresponding block.
     let unknown_digest = Digest::from([42u8; 32]);
-    mailbox.broadcast(unknown_digest, Plan::Propose).await;
+    mailbox.broadcast(unknown_digest, Plan::Propose { round: Round::new(Epoch::new(1), View::new(0)) });
 
     // Channel should be empty — nothing was sent.
     assert!(payload_rx.try_recv().is_err(), "no message should be sent");
@@ -458,7 +467,9 @@ async fn test_mailbox_clone_shares_channel() {
 
     let height = Arc::new(AtomicU64::new(0));
     let app = Arc::new(MockApp);
-    tokio::spawn(MailboxActor::new(rx, height, app, empty_block_store()).run());
+    tokio::spawn(
+        MailboxActor::new(rx, height, app, empty_block_store(), TestBlock::genesis()).run(),
+    );
 
     drop(mailbox1);
     drop(mailbox2);

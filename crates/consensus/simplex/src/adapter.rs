@@ -7,12 +7,16 @@ use futures::StreamExt;
 use rand::Rng;
 use tracing::{debug, warn};
 
+use commonware_actor::Feedback;
 use commonware_consensus::{
-    marshal::ancestry::{AncestorStream, BlockProvider},
+    marshal::ancestry::Ancestry,
     simplex::types::{Activity, Context},
-    Application, Heightable, Reporter, VerifyingApplication,
+    Application, Heightable, Reporter,
 };
-use commonware_cryptography::{certificate::Scheme, sha256::Digest, Committable};
+use commonware_cryptography::{
+    certificate::{Scheme, Verifier},
+    sha256::Digest, Committable,
+};
 use commonware_runtime::{Clock, Metrics, Spawner};
 use consensus::{
     traits::{ConsensusApp, EventSink},
@@ -23,7 +27,7 @@ use crate::traits::CommonwareBlock;
 use crate::BlockStore;
 
 /// Bridges `ConsensusApp` + `EventSink` (consensus-core) to
-/// `Application` + `VerifyingApplication` + `Reporter` (commonware-consensus).
+/// `Application` + `Reporter` (commonware-consensus).
 ///
 /// Generic parameters:
 /// - `A`: The consensus application (implements `ConsensusApp`)
@@ -37,7 +41,7 @@ where
     app: Arc<A>,
     sink: Arc<S>,
     /// Shared with [`MailboxActor`](crate::mailbox::MailboxActor) so that
-    /// blocks created during propose/genesis are available when the reporter
+    /// blocks created during propose are available when the reporter
     /// receives finalization activity.
     finalized_blocks: BlockStore<B>,
     _phantom: PhantomData<Sig>,
@@ -68,7 +72,7 @@ where
     ///
     /// The `block_store` must be the **same** instance given to
     /// [`MailboxActor`](crate::mailbox::MailboxActor) so that blocks
-    /// inserted during propose/genesis are visible to the reporter.
+    /// inserted during propose are visible to the reporter.
     pub fn new(app: Arc<A>, sink: Arc<S>, block_store: BlockStore<B>) -> Self {
         Self {
             app,
@@ -95,44 +99,30 @@ where
     Sig: Scheme + 'static,
 {
     type SigningScheme = Sig;
-    type Context = Context<<B as Committable>::Commitment, <Sig as Scheme>::PublicKey>;
+    type Context = Context<<B as Committable>::Commitment, <Sig as Verifier>::PublicKey>;
     type Block = B;
 
-    async fn genesis(&mut self) -> Self::Block {
-        let block = self.app.genesis().await;
-        self.remember_block(block.clone()).await;
-        block
-    }
-
-    async fn propose<M: BlockProvider<Block = Self::Block>>(
+    async fn propose(
         &mut self,
         (_runtime, _context): (E, Self::Context),
-        mut ancestry: AncestorStream<M, Self::Block>,
+        mut ancestry: impl Ancestry<Self::Block>,
     ) -> Option<Self::Block> {
         // Marshaled passes [parent] in the ancestry stream for propose()
         let parent = ancestry.next().await?;
+        let parent = parent.as_ref().clone();
         self.remember_block(parent.clone()).await;
-        let height = Heightable::height(&parent).next().get();
+        let height = Heightable::height(&parent).get();
         let proposed = self.app.propose(&parent, height).await;
         if let Some(block) = &proposed {
             self.remember_block(block.clone()).await;
         }
         proposed
     }
-}
 
-impl<E, A, S, B, Sig> VerifyingApplication<E> for AppAdapter<A, S, B, Sig>
-where
-    E: Rng + Spawner + Metrics + Clock,
-    A: ConsensusApp<Block = B> + Clone + 'static,
-    S: EventSink<Block = B> + 'static,
-    B: CommonwareBlock + Committable<Commitment = Digest> + 'static,
-    Sig: Scheme + 'static,
-{
-    async fn verify<M: BlockProvider<Block = Self::Block>>(
+    async fn verify(
         &mut self,
         (_runtime, _context): (E, Self::Context),
-        mut ancestry: AncestorStream<M, Self::Block>,
+        mut ancestry: impl Ancestry<Self::Block>,
     ) -> bool {
         // Marshaled passes [block, parent] in the ancestry stream for verify()
         let Some(block) = ancestry.next().await else {
@@ -141,10 +131,11 @@ where
         let Some(parent) = ancestry.next().await else {
             return false;
         };
+        let parent = parent.as_ref().clone();
         self.remember_block(parent.clone()).await;
-        let verified = self.app.verify(&parent, &block).await.is_ok();
+        let verified = self.app.verify(&parent, block.as_ref()).await.is_ok();
         if verified {
-            self.remember_block(block).await;
+            self.remember_block(block.as_ref().clone()).await;
         }
         verified
     }
@@ -159,42 +150,48 @@ where
 {
     type Activity = Activity<Sig, Digest>;
 
-    async fn report(&mut self, activity: Self::Activity) {
-        use Activity::*;
+    fn report(&mut self, activity: Self::Activity) -> Feedback {
+        // `Reporter::report` is synchronous; dispatch the (async) finalization
+        // side effects to a spawned task and acknowledge immediately.
+        let sink = Arc::clone(&self.sink);
+        let store = Arc::clone(&self.finalized_blocks);
+        tokio::spawn(async move {
+            use Activity::*;
 
-        match activity {
-            Finalization(fin) => {
-                // fin.proposal.payload is a Digest (the block's commitment)
-                let commitment = fin.proposal.payload;
-                let block = {
-                    let store = self.finalized_blocks.read().await;
-                    store.get(&commitment).cloned()
-                };
+            match activity {
+                Finalization(fin) => {
+                    // fin.proposal.payload is a Digest (the block's commitment)
+                    let commitment = fin.proposal.payload;
+                    let block = {
+                        let store = store.read().await;
+                        store.get(&commitment).cloned()
+                    };
 
-                if let Some(block) = block {
-                    let height = Heightable::height(&block).get();
-                    self.sink
-                        .handle(ConsensusEvent::Finalized {
+                    if let Some(block) = block {
+                        let height = Heightable::height(&block).get();
+                        sink.handle(ConsensusEvent::Finalized {
                             block,
                             height,
                             proof: vec![],
                         })
                         .await;
-                } else {
-                    warn!(?commitment, "finalization received for unknown block");
+                    } else {
+                        warn!(?commitment, "finalization received for unknown block");
+                    }
+                }
+                Certification(cert) => {
+                    // cert.proposal.payload is also a Digest
+                    let commitment = cert.proposal.payload;
+                    debug!(?commitment, "received certification activity");
+                }
+                other => {
+                    debug!(
+                        ?other,
+                        "ignoring simplex activity outside finalization path"
+                    );
                 }
             }
-            Certification(cert) => {
-                // cert.proposal.payload is also a Digest
-                let commitment = cert.proposal.payload;
-                debug!(?commitment, "received certification activity");
-            }
-            other => {
-                debug!(
-                    ?other,
-                    "ignoring simplex activity outside finalization path"
-                );
-            }
-        }
+        });
+        Feedback::Ok
     }
 }

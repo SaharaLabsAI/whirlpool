@@ -10,9 +10,9 @@
 // PAYLOAD P2P channel so remote validators can obtain the block before voting.
 
 use bytes::Bytes;
+use commonware_actor::Feedback;
 use commonware_codec::Encode;
 use commonware_consensus::simplex::{types::Context, Plan};
-use commonware_consensus::types::Epoch;
 use commonware_consensus::{Automaton, CertifiableAutomaton, Relay};
 use commonware_cryptography::ed25519::PublicKey;
 use commonware_cryptography::sha256::Digest;
@@ -25,10 +25,6 @@ use crate::BlockStore;
 
 // Message types for actor channel
 pub enum Message {
-    Genesis {
-        epoch: Epoch,
-        response: oneshot::Sender<Digest>,
-    },
     Propose {
         context: Context<Digest, PublicKey>,
         response: oneshot::Sender<Digest>,
@@ -94,15 +90,6 @@ impl<B: Clone + Send + Sync + 'static> Automaton for Mailbox<B> {
     type Context = Context<Digest, PublicKey>;
     type Digest = Digest;
 
-    async fn genesis(&mut self, epoch: Epoch) -> Self::Digest {
-        let (response, receiver) = oneshot::channel();
-        self.sender
-            .send(Message::Genesis { epoch, response })
-            .await
-            .expect("Failed to send genesis");
-        receiver.await.expect("Failed to receive genesis")
-    }
-
     async fn propose(&mut self, context: Self::Context) -> oneshot::Receiver<Self::Digest> {
         let (response, receiver) = oneshot::channel();
         self.sender
@@ -142,25 +129,32 @@ where
     type PublicKey = PublicKey;
     type Plan = Plan<Self::PublicKey>;
 
-    async fn broadcast(&mut self, digest: Self::Digest, _plan: Self::Plan) {
+    fn broadcast(&mut self, digest: Self::Digest, _plan: Self::Plan) -> Feedback {
         let (Some(ref block_store), Some(ref payload_tx)) = (&self.block_store, &self.payload_tx)
         else {
             // No relay wiring — silent no-op (single-node mode).
-            return;
+            return Feedback::Ok;
         };
 
-        // Look up the full block by its digest.
-        let block = {
-            let store = block_store.read().await;
-            store.get(&digest).cloned()
+        // Look up the full block by its digest. The lookup is synchronous
+        // (Relay::broadcast no longer returns a future); skip if the shared
+        // store is momentarily held by a writer.
+        let Ok(guard) = block_store.try_read() else {
+            tracing::debug!(
+                ?digest,
+                "relay broadcast: block store busy, skipping payload relay"
+            );
+            return Feedback::Backoff;
         };
+        let block = guard.get(&digest).cloned();
+        drop(guard);
 
         let Some(block) = block else {
             tracing::warn!(
                 ?digest,
                 "relay broadcast: digest not found in block store, skipping"
             );
-            return;
+            return Feedback::Ok;
         };
 
         // Encode as PayloadRelayMessage: [32-byte digest][encoded block]
@@ -173,7 +167,9 @@ where
                 error = %e,
                 "relay broadcast: failed to enqueue payload message"
             );
+            return Feedback::Backoff;
         }
+        Feedback::Ok
     }
 }
 

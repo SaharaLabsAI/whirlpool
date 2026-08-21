@@ -3,7 +3,7 @@ use commonware_cryptography::{
     bls12381::primitives::{group::Share, variant::MinSig},
     ed25519,
 };
-use commonware_utils::hex;
+use commonware_formatting::hex;
 use std::{fmt, path::PathBuf};
 
 #[derive(Debug)]

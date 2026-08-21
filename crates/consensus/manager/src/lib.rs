@@ -5,20 +5,20 @@ use bytes::{Buf, BufMut};
 use commonware_codec::{Encode, EncodeSize, Error as CodecError, Read, ReadExt, Write};
 use commonware_cryptography::{
     bls12381::{
-        dkg,
+        dkg::feldman_desmedt::{deal, Output},
         primitives::{group::Share, sharing::ModeVersion, variant::MinSig},
     },
     ed25519,
     sha256::Sha256,
     Hasher, Signer, Verifier,
 };
+use commonware_formatting::hex;
 use commonware_utils::{
-    hex,
     ordered::{Map, Quorum, Set},
     N3f1,
 };
-use rand::rngs::OsRng;
-use rand::RngCore;
+use rand::rng;
+use rand::Rng;
 #[cfg(unix)]
 use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::{
@@ -48,7 +48,7 @@ pub use types::{
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct BootstrapManifest {
     session_id: u64,
-    output: dkg::Output<MinSig, ed25519::PublicKey>,
+    output: Output<MinSig, ed25519::PublicKey>,
 }
 
 impl EncodeSize for BootstrapManifest {
@@ -69,7 +69,7 @@ impl Read for BootstrapManifest {
 
     fn read_cfg(buf: &mut impl Buf, _: &()) -> Result<Self, CodecError> {
         let session_id: u64 = ReadExt::read(buf)?;
-        let output = dkg::Output::<MinSig, ed25519::PublicKey>::read_cfg(
+        let output = Output::<MinSig, ed25519::PublicKey>::read_cfg(
             buf,
             &(
                 NonZeroU32::new(MAX_MANIFEST_PARTICIPANTS)
@@ -130,7 +130,7 @@ pub fn run_trusted_dealer_bootstrap(
         ));
     }
 
-    let (output, shares) = dkg::deal::<MinSig, _, N3f1>(OsRng, Default::default(), participant_set)
+    let (output, shares) = deal::<MinSig, _, N3f1>(rng(), Default::default(), participant_set)
         .map_err(|_| Error::InvalidParticipants("failed to generate trusted dealer shares"))?;
 
     let session_dir = config
@@ -291,7 +291,7 @@ fn manifest_digest(bytes: &[u8]) -> [u8; SHA256_DIGEST_LEN] {
 
 fn generate_dealer_signer() -> ed25519::PrivateKey {
     let mut raw_seed = [0u8; 32];
-    OsRng.fill_bytes(&mut raw_seed);
+    rng().fill_bytes(&mut raw_seed);
     let mut reader = raw_seed.as_slice();
     // any 32-byte value is accepted by ed25519_consensus::SigningKey
     ed25519::PrivateKey::read_cfg(&mut reader, &())

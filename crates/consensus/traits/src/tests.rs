@@ -66,7 +66,7 @@ async fn mock_engine_lifecycle() {
     let (sink, events) = CollectorSink::new();
     let engine = MockEngine::new(vec![b1, b2, b3], sink);
 
-    let running = engine.start().expect("engine should start");
+    let running = engine.start().await.expect("engine should start");
     let result: Result<(), ConsensusError> = running.wait().await;
     assert!(result.is_ok(), "engine should exit cleanly");
 
@@ -93,7 +93,7 @@ async fn mock_engine_shutdown() {
     let (sink, events) = CollectorSink::new();
     let engine = MockEngine::new(blocks, sink);
 
-    let running = engine.start().expect("engine should start");
+    let running = engine.start().await.expect("engine should start");
     // Immediately request shutdown
     let result: Result<(), ConsensusError> = running.shutdown().await;
     assert!(result.is_ok(), "shutdown should succeed cleanly");
@@ -111,7 +111,7 @@ async fn consensus_status() {
     let (sink, _events) = CollectorSink::new();
     let engine = MockEngine::new(vec![b1.clone()], sink);
 
-    let running = engine.start().expect("engine should start");
+    let running = engine.start().await.expect("engine should start");
 
     // Query status while engine is running or just finished
     let status = running.status();
@@ -127,7 +127,7 @@ async fn consensus_status() {
     let b2 = MockBlock::child(&genesis2);
     let (sink2, _) = CollectorSink::new();
     let engine2 = MockEngine::new(vec![b2], sink2);
-    let running2 = engine2.start().expect("engine should start");
+    let running2 = engine2.start().await.expect("engine should start");
 
     let status2 = running2.status();
     assert!(status2.current_height <= 1);
@@ -162,7 +162,7 @@ async fn event_sink_receives_all_events() {
     let (sink, events) = CollectorSink::new();
     let engine = MockEngine::new(vec![b1, b2], sink);
 
-    let running = engine.start().expect("engine should start");
+    let running = engine.start().await.expect("engine should start");
     running.wait().await.expect("should finish");
 
     let collected = events.lock().unwrap();
