@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-09-28T08:38:40Z",
+  "updated_at": "2026-09-29T08:13:49Z",
   "samples": [
     {
       "timestamp": "2026-04-14T09:04:48Z",
@@ -2697,6 +2697,22 @@
       "accepted_transactions": 134541,
       "rejected_submissions": 0,
       "tps": 1116.8916666666667
+    },
+    {
+      "timestamp": "2026-09-29T08:13:48Z",
+      "git_sha": "24b0dca05ad91498a5be352771602ef86a30b1e0",
+      "measurement_window_seconds": 120,
+      "sender_accounts": 10000,
+      "recipient_accounts": 10000,
+      "start_block": 1,
+      "end_block": 1190,
+      "block_count": 1189,
+      "average_block_time_seconds": 0.10092514718250631,
+      "transaction_count": 68920,
+      "submitted_transactions": 68979,
+      "accepted_transactions": 68979,
+      "rejected_submissions": 0,
+      "tps": 574.3333333333334
     }
   ]
 }
